@@ -109,9 +109,9 @@ test('Vault enters fullscreen directly; walking, mouse looking, collision and ex
   page.on('request', req => requests.push(new URL(req.url()).pathname));
   await stubRoom(page);
   await page.goto('/#/');
-  await expect(page.getByRole('link', { name: '3D Room', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Room', exact: true })).toBeVisible();
   expect(requests.some(p => /collection-room-scene|three-0/.test(p))).toBe(false);
-  await page.getByRole('link', { name: '3D Room', exact: true }).click();
+  await page.getByRole('link', { name: 'Room', exact: true }).click();
   await ready(page);
   await page.locator('#roomReset').click();
   await doorOpen(page);
@@ -141,7 +141,7 @@ test('Vault enters fullscreen directly; walking, mouse looking, collision and ex
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await page.locator('#roomReset').click();
   await page.screenshot({ path: 'audit/showroom-desktop.png' });
-  await page.getByRole('link', { name: 'Grid', exact: true }).click();
+  await page.getByRole('link', { name: 'Back to vault', exact: true }).click();
   await expect(page.locator('#roomStage')).toHaveCount(0);
   await expect(page.locator('#nav')).toBeVisible();
 });
@@ -338,8 +338,8 @@ test('mobile joystick and look accept simultaneous touches without scrolling', a
   expect(await pose(page)).toEqual(after);
   expect(await page.evaluate(() => scrollY === 0 && document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   // Enter from the Vault so an accidental edge-swipe has a real route to exit to.
-  await page.getByRole('link', { name: 'Grid', exact: true }).click();
-  await page.getByRole('link', { name: '3D Room', exact: true }).click();
+  await page.getByRole('link', { name: 'Back to vault', exact: true }).click();
+  await page.getByRole('link', { name: 'Room', exact: true }).click();
   await ready(page);
   await page.locator('#roomReset').click();
   await doorOpen(page);
@@ -353,7 +353,7 @@ test('mobile joystick and look accept simultaneous touches without scrolling', a
   await page.screenshot({ path: 'audit/showroom-mobile.png' });
   await page.setViewportSize({ width: 844, height: 390 });
   await expect(page.locator('#roomJoystick')).toBeVisible();
-  await page.getByRole('link', { name: 'Grid', exact: true }).click();
+  await page.getByRole('link', { name: 'Back to vault', exact: true }).click();
   await expect(page).toHaveURL(/#\/$/);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`http://localhost:${process.env.PORT || 4321}/#/add`);
@@ -428,10 +428,10 @@ test('empty showroom remains enterable and cached holdings are labelled after re
   await ready(page);
   await expect(page.locator('#roomStatus')).toContainText('Add sets');
   await walk(page, 'w');
-  await page.getByRole('link', { name: 'Grid', exact: true }).click();
+  await page.getByRole('link', { name: 'Back to vault', exact: true }).click();
   await page.evaluate(async rows => { const { state } = await import('/js/state.js'); state.portfolio = { items: rows }; }, holdings);
   await page.route('**/api/collection', route => route.fulfill({ status: 503, json: { error: 'offline' } }));
-  await page.getByRole('link', { name: '3D Room', exact: true }).click();
+  await page.getByRole('link', { name: 'Room', exact: true }).click();
   await ready(page);
   await expect(page.locator('.showroom-notices p')).toHaveCount(2);
   await page.locator('#roomList').click();
@@ -468,7 +468,7 @@ test('Android back closes room panels first, then leaves the room', async ({ pag
 test('exit room via browser back, visit another page, then Vault returns to grid', async ({ page }) => {
   await stubRoom(page);
   await page.goto('/#/');
-  await page.getByRole('link', { name: '3D Room', exact: true }).click();
+  await page.getByRole('link', { name: 'Room', exact: true }).click();
   await ready(page);
   // Exit via browser back
   await page.goBack();
@@ -482,7 +482,7 @@ test('exit room via browser back, visit another page, then Vault returns to grid
   await expect(page).toHaveURL(/#\/$/);
   await expect(page.locator('#collectionRoomPage')).toHaveCount(0);
   await expect(page.locator('#setList')).toBeVisible();
-  await page.getByRole('link', { name: '3D Room', exact: true }).click();
+  await page.getByRole('link', { name: 'Room', exact: true }).click();
   await ready(page);
   await page.locator('[data-vault-view="grid"]').click();
   await page.locator('#nav [data-route="/wishlist"]').click();
@@ -521,12 +521,14 @@ test('room toolbar and status notices do not overlap across 320, 390, 412 portra
     await page.setViewportSize(vp);
     await page.goto('/#/room');
     await ready(page);
-    const bar = await page.locator('.showroom-bar').boundingBox();
+    const bar = await page.locator('.bv-room-bar').boundingBox();
     const notices = await page.locator('.showroom-notices').boundingBox();
+    const controls = await page.locator('.showroom-controls').boundingBox();
     expect(bar).not.toBeNull();
     expect(notices).not.toBeNull();
-    // In non-overlapping flow, notices top must be at or below toolbar bottom
+    // The hint pill sits between the top bar and the bottom controls.
     expect(notices.y).toBeGreaterThanOrEqual(bar.y + bar.height - 2);
+    expect(notices.y + notices.height).toBeLessThanOrEqual(controls.y + 2);
   }
 });
 

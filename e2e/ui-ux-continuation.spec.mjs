@@ -32,29 +32,35 @@ for (const theme of ['light', 'dark']) {
       }, theme);
       await page.route('**/api/minifigs?*', route => route.fulfill({ json: { minifigs: [], total: 0 } }));
       await page.goto('/#/minifigs?owned=0');
-      const title = page.locator('h1.topbar-title');
-      await expect(title).toHaveText('Мініфігурки');
+      // Discover · minifigs: the Discover title with the Sets | Minifigs scope.
+      const title = page.locator('.bv-topbar h1');
+      await expect(title).toHaveText('Каталог');
+      await expect(page.locator('.bv-discover-scope [aria-current="true"]')).toHaveText('Мініфігурки');
       const box = await title.boundingBox();
-      expect(box.width).toBeGreaterThan(150);
+      expect(box.width).toBeGreaterThan(60);
       expect(box.height).toBeLessThan(90);
-      await expect(page.locator('#figExportBtn')).toBeVisible();
+      await expect(page.locator('#figMoreBtn')).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     });
   }
   test(`selected vault tab has readable contrast: ${theme}`, async ({ page }) => {
     await page.addInitScript(theme => localStorage.setItem('bv_theme', theme), theme);
     await page.goto('/#/');
-    await expect(page.locator('.portfolio-tab.active')).toBeAttached();
-    const contrast = await page.locator('.portfolio-tab.active').evaluate(element => {
+    const selected = page.locator('.collector-tabs [aria-current="page"]');
+    await expect(selected).toBeAttached();
+    const contrast = await selected.evaluate(element => {
       const style = getComputedStyle(element);
+      // Underlined tabs are transparent: measure against the surface behind them.
+      let host = element, bgColor = style.backgroundColor;
+      while (host && /rgba\(0, 0, 0, 0\)|transparent/.test(bgColor)) { host = host.parentElement; bgColor = host ? getComputedStyle(host).backgroundColor : 'rgb(255, 255, 255)'; }
       const luminance = color => color.match(/[\d.]+/g).slice(0, 3)
         .map(Number).map(v => v / 255).map(v => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
         .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
-      const fg = luminance(style.color), bg = luminance(style.backgroundColor);
+      const fg = luminance(style.color), bg = luminance(bgColor);
       return (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05);
     });
     expect(contrast).toBeGreaterThanOrEqual(4.5);
-    await page.locator('.portfolio-tab.active').scrollIntoViewIfNeeded();
+    await selected.scrollIntoViewIfNeeded();
     await page.screenshot({ path: `artifacts/ui-ux-audit-2026-09-14/31-vault-tab-${theme}-after.png`, animations: 'disabled' });
     console.info(`Selected tab contrast (${theme}): ${contrast.toFixed(2)}:1`);
   });

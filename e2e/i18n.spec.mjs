@@ -319,7 +319,7 @@ test.describe(() => {
   test('translates lowercase alternate-build labels after switching modes', async ({ page }) => {
     await page.goto('/#/build', { waitUntil: 'domcontentloaded' });
     await page.locator('[data-mode="alts"]').click();
-    await expect(page.locator('.b-tiles .b-l').first()).toHaveText('альтернативні моделі');
+    await expect(page.locator('[data-mode="alts"]')).toContainText('Альтернативні моделі');
   });
 
   test('translates Chrome AI checking and ready states', async ({ page }) => {
