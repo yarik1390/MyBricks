@@ -232,14 +232,19 @@ export function haptic(t) {
     const Haptics = cap?.isNativePlatform?.()
       ? cap.registerPlugin?.("Haptics") || cap.Plugins?.Haptics
       : null;
+    // "success" / "error" are notification haptics (scan lock / unknown code).
+    if ((t === "success" || t === "error") && Haptics?.notification) {
+      Haptics.notification({ type: t === "success" ? "SUCCESS" : "ERROR" });
+      return;
+    }
     if (Haptics?.impact) {
-      const style = t === "heavy" ? "HEAVY" : t === "medium" ? "MEDIUM" : "LIGHT";
+      const style = t === "heavy" || t === "error" ? "HEAVY" : t === "medium" || t === "success" ? "MEDIUM" : "LIGHT";
       Haptics.impact({ style }); // fire-and-forget
       return;
     }
   } catch { /* fall through to vibrate */ }
-  const ms = t === "heavy" ? 30 : t === "medium" ? 15 : 8;
-  try { navigator.vibrate && navigator.vibrate(ms); } catch {}
+  const pattern = t === "success" ? [12, 60, 12] : t === "error" ? [30, 50, 30] : t === "heavy" ? 30 : t === "medium" ? 15 : 8;
+  try { navigator.vibrate && navigator.vibrate(pattern); } catch {}
 }
 
 let toastTimer = null;

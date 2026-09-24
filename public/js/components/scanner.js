@@ -1,9 +1,13 @@
-import { $, $$, haptic, escapeHtml, fmtMoney, toast, setBtnLoading, readFileAsDataURL, resizeImage, setHue, getExchangeRate, CURRENCY_SYMBOLS, activateFocusTrap, FOCUSABLE_SEL, getCachedSetDetail, track } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoney, toast, setBtnLoading, readFileAsDataURL, resizeImage, setHue, getExchangeRate, CURRENCY_SYMBOLS, activateFocusTrap, FOCUSABLE_SEL, getCachedSetDetail, track, capturedMoneyContext } from '../utils.js';
+import { icon as kitIcon, iconBtn as kitIconBtn, field as kitField, seg as kitSeg, pill as kitPill, sheetBody as kitSheetBody, thumb as kitThumb } from '../ui/kit.js';
+import { quadToViewRect, screenQuadToViewRect, cornerOffsets, defaultFrame } from '../lib/scan-geometry.js';
+import { liveScanOptIn } from '../lib/native-barcode.js';
+import { localMoneyToUsd } from '../lib/money-input.js';
 import { state, invalidatePortfolio } from '../state.js';
-import { api, outboxEnqueue, getSessionUserId, photoScanNeedsSetup } from '../api.js';
+import { api, outboxEnqueue, getSessionUserId, photoScanNeedsSetup, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet } from './sheet.js';
-import { computeDealScore as computeDealScorePure, computeStoreVerdict, marketValueForCondition, flipEconomics, classifyScanFailure, manualScanTarget, scanResultHeading } from '../lib/pure.js';
+import { computeDealScore as computeDealScorePure, computeStoreVerdict, marketValueForCondition, flipEconomics, classifyScanFailure, manualScanTarget, displayValueOf, estMark } from '../lib/pure.js';
 import { checkGemma3Downloaded, runLocalVisionScan, isWebGpuAvailable } from '../lib/local-ai.js';
 import { flipCalcHTML } from './flip-calc.js';
 import { isNativeCapacitor } from '../lib/native-auth.js';
@@ -18,6 +22,310 @@ let _scanPending = false;
 let _scanController = null;
 let _scanGeneration = 0;
 let _lastRetryableScan = null;
+
+// ---------------------------------------------------------------------------
+// 2026 scanner chrome: live camera with breathing brackets that snap onto the
+// barcode, a "Done · N" batch counter, Barcode | Photo | Shelf modes, torch,
+// type-a-number, and a result sheet that rises over the camera. The scan logic
+// (catalog lookup, OCR, on-device AI, Turnstile, blind boxes) is unchanged.
+// ---------------------------------------------------------------------------
+let _session = [];           // sets added in this scanner session (Done · N)
+let _lastBarcode = null;     // last decoded / typed barcode (unknown-code card)
+let _moveCloserTimer = null; // "Move closer" + zoom step after 2.5 s
+let _liveStop = null;        // stop() for the opt-in native live scanner
+let _frameRect = null;       // current searching frame (CSS px)
+let _torchOn = false;
+const MOVE_CLOSER_MS = 2500;
+const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+function scanHintText(mode, shelf) {
+  if (mode === "blindbox") return t("bvAdd.hintBlindBox");
+  if (mode === "barcode") return t("bvAdd.hintBarcode");
+  return shelf ? t("bvAdd.hintShelf") : t("bvAdd.hintPhoto");
+}
+
+function closeLabelHTML() {
+  const n = _session.length;
+  return n
+    ? `${kitIcon("check", { size: 18, stroke: 2.4 })}<span>${escapeHtml(t("bvAdd.doneCount", { count: n }))}</span>`
+    : `${kitIcon("x", { size: 18, stroke: 2.4 })}<span>${escapeHtml(t("common.close"))}</span>`;
+}
+
+function paintCloseButton() {
+  const b = $("#scanCloseBtn");
+  if (!b) return;
+  b.innerHTML = closeLabelHTML();
+  b.setAttribute("aria-label", _session.length ? tPlural("bvAdd.doneAria", _session.length, { count: _session.length }) : t("common.close"));
+}
+
+function scanOverlayHTML(mode, shelf = false) {
+  // Installed app, barcode / blind-box: ML Kit's own Activity owns the camera
+  // unless the opt-in live scanner runs behind a transparent WebView.
+  const nativeHandoff = mode !== "image" && isNativeCapacitor() && !_liveNativeWanted;
+  const segMode = mode === "image" ? (shelf ? "shelf" : "image") : mode;
+  const modes = [["barcode", "bvAdd.modeBarcode"], ["image", "bvAdd.modePhoto"], ["shelf", "bvAdd.modeShelf"]];
+  const corner = (c) => `<span class="bv-scan__corner" data-c="${c}"></span>`;
+  return `
+    <div class="bv-scan${nativeHandoff ? " is-native" : ""}${mode === "image" ? " is-photo" : ""}" data-mode="${escapeHtml(segMode)}">
+      <video class="bv-scan__video" id="scanVideo" autoplay playsinline muted></video>
+      <img class="bv-scan__photo" id="scanPhotoPreview" alt="${escapeHtml(t("bvAdd.capturedPhoto"))}" hidden>
+      <div class="bv-scan__vignette" aria-hidden="true"></div>
+      <div class="bv-scan__top">
+        <button type="button" class="bv-scan__pill" id="scanCloseBtn" aria-label="${escapeHtml(t("common.close"))}">${closeLabelHTML()}</button>
+        ${mode === "blindbox"
+          ? `<span class="bv-scan__title">${escapeHtml(t("bvAdd.blindBox"))}</span>`
+          : `<div class="bv-scan__seg scan-mode-toggle" role="group" aria-label="${escapeHtml(t("bvAdd.scanMode"))}">${modes.map(([m, k]) => `<button type="button" data-mode="${m}" aria-pressed="${segMode === m}">${escapeHtml(t(k))}</button>`).join("")}</div>`}
+        <button type="button" class="bv-scan__round" id="scanTorchBtn" aria-label="${escapeHtml(t("bvAdd.torch"))}" aria-pressed="false" hidden>${kitIcon("flash")}</button>
+      </div>
+      <div class="bv-scan__chip" id="scanChip" hidden></div>
+      <div class="bv-scan__frame" id="scanFrame" aria-hidden="true">${["tl", "tr", "bl", "br"].map(corner).join("")}<span class="bv-scan__sweep"></span></div>
+      ${nativeHandoff ? `<div class="bv-scan__native" aria-hidden="true"><span class="bv-scan__spinner"></span></div>` : ""}
+      <div class="bv-scan__hint" id="scanHint" role="status" aria-live="polite">${escapeHtml(nativeHandoff ? t("bvAdd.opening") : scanHintText(mode, shelf))}</div>
+      <div class="bv-scan__bottom">
+        ${mode === "image" ? `
+          <button type="button" class="bv-scan__round" id="scanGalleryBtn" aria-label="${escapeHtml(t("bvAdd.gallery"))}">${kitIcon("photo")}</button>
+          <button type="button" class="bv-scan__shutter" id="scanCapture" aria-label="${escapeHtml(t(shelf ? "bvAdd.captureShelf" : "bvAdd.capture"))}"></button>
+          <input type="file" id="scanGalleryInput" accept="image/*"${shelf ? "" : " multiple"} hidden>`
+        : `<span class="bv-scan__spacer"></span><span class="bv-scan__spacer bv-scan__spacer--wide"></span>`}
+        <button type="button" class="bv-scan__round" id="scanTypeBtn" aria-label="${escapeHtml(t("bvAdd.typeNumber"))}">${kitIcon("kbd")}</button>
+      </div>
+      <div class="bv-scan__fly" id="scanFly" aria-hidden="true"></div>
+      <div class="bv-scan__sheet" id="scanResult" role="status" aria-live="polite"></div>
+    </div>`;
+}
+
+// --- Searching / lock choreography -----------------------------------------
+function scanView() {
+  const wrap = document.querySelector(".bv-scan");
+  return wrap ? { w: wrap.clientWidth || innerWidth, h: wrap.clientHeight || innerHeight } : { w: innerWidth, h: innerHeight };
+}
+
+function placeFrame() {
+  const frame = $("#scanFrame");
+  if (!frame) return;
+  const { w, h } = scanView();
+  const mode = state.camera.mode === "image" ? "image" : "barcode";
+  _frameRect = state.camera.shelf ? { left: 16, top: Math.round(h * 0.16), width: w - 32, height: Math.round(h * 0.42) } : defaultFrame(w, h, mode);
+  frame.style.left = `${_frameRect.left}px`;
+  frame.style.top = `${_frameRect.top}px`;
+  frame.style.width = `${_frameRect.width}px`;
+  frame.style.height = `${_frameRect.height}px`;
+  const hint = $("#scanHint");
+  if (hint) hint.style.top = `${_frameRect.top + _frameRect.height + 20}px`;
+  resetLock();
+}
+
+function resetLock() {
+  const frame = $("#scanFrame");
+  if (!frame) return;
+  frame.classList.remove("is-lock");
+  frame.querySelectorAll(".bv-scan__corner").forEach((c) => { c.style.transform = ""; });
+}
+
+// Snap the brackets onto the barcode (view-space rect) and flash the chip.
+function lockFrame(rect, chipText) {
+  const frame = $("#scanFrame");
+  if (frame && rect && _frameRect) {
+    const off = cornerOffsets(_frameRect, rect);
+    frame.querySelectorAll(".bv-scan__corner").forEach((c) => {
+      const o = off[c.dataset.c];
+      c.style.transform = `translate(${o.x.toFixed(1)}px, ${o.y.toFixed(1)}px)`;
+    });
+  }
+  frame?.classList.add("is-lock");
+  showChip(chipText, "lock");
+}
+
+function showChip(text, tone = "") {
+  const chip = $("#scanChip");
+  if (!chip) return;
+  if (!text) { chip.hidden = true; return; }
+  chip.className = `bv-scan__chip${tone ? ` is-${tone}` : ""}`;
+  chip.innerHTML = `${tone === "lock" ? kitIcon("check", { size: 16, stroke: 2.6 }) : ""}<span>${escapeHtml(text)}</span>`;
+  chip.hidden = false;
+}
+
+function armMoveCloser() {
+  clearTimeout(_moveCloserTimer);
+  if (state.camera.mode !== "barcode") return;
+  _moveCloserTimer = setTimeout(async () => {
+    if (!state.camera.scanning && !_liveStop) return;
+    showChip(t("bvAdd.moveCloser"));
+    const hint = $("#scanHint");
+    if (hint) hint.textContent = t("bvAdd.hintCloser");
+    // One zoom step helps small barcodes resolve; the camera keeps scanning.
+    if (_liveStop) {
+      const { setNativeZoom } = await import("../lib/native-barcode.js");
+      setNativeZoom(window, 2);
+    } else {
+      const track = state.camera.stream?.getVideoTracks?.()?.[0];
+      const caps = track?.getCapabilities?.();
+      if (caps?.zoom) track.applyConstraints({ advanced: [{ zoom: Math.min(caps.zoom.max, Math.max(caps.zoom.min, 2)) }] }).catch(() => {});
+    }
+  }, MOVE_CLOSER_MS);
+}
+
+function wireTorch() {
+  const btn = $("#scanTorchBtn");
+  if (!btn) return;
+  const track = state.camera.stream?.getVideoTracks?.()?.[0];
+  const web = !!track?.getCapabilities?.()?.torch;
+  if (!web && !_liveStop) { btn.hidden = true; return; }
+  btn.hidden = false;
+  btn.onclick = async () => {
+    _torchOn = !_torchOn;
+    haptic("light");
+    btn.setAttribute("aria-pressed", String(_torchOn));
+    if (_liveStop) {
+      const { setNativeTorch } = await import("../lib/native-barcode.js");
+      setNativeTorch(window, _torchOn);
+    } else {
+      track?.applyConstraints({ advanced: [{ torch: _torchOn }] }).catch(() => {});
+    }
+  };
+}
+
+// Result sheet: skeleton while the lookup runs (motion: rises in 380 ms).
+function showScanLoading(label = t("bvAdd.identifying"), detail = "") {
+  const el = $("#scanResult");
+  if (!el) return;
+  el.classList.add("show", "loading");
+  document.querySelector(".bv-scan")?.classList.add("has-result");
+  el.innerHTML = `
+    <div class="bv-scan__handle" aria-hidden="true"></div>
+    <div class="bv-scanres bv-scanres--skel">
+      <div class="bv-scanres__set"><span class="bv-thumb bv-skel" style="--size:56px"></span><span class="bv-scanres__text"><span class="bv-skel" style="height:18px;width:70%"></span><span class="bv-skel" style="height:13px;width:45%;margin-top:8px"></span></span></div>
+      <span class="bv-skel" style="height:40px"></span>
+      <span class="bv-skel" style="height:40px"></span>
+      <span class="bv-skel" style="height:48px;border-radius:24px"></span>
+    </div>
+    <div class="scan-loading-copy bv-sr"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(detail)}</span></div>`;
+  const hint = $("#scanHint");
+  if (hint) hint.textContent = label;
+}
+
+// Arc a thumbnail from the result sheet into the Done counter, then bump it.
+function flyToDone(set) {
+  const fly = $("#scanFly");
+  const target = $("#scanCloseBtn");
+  const from = document.querySelector("#scanResult .bv-scanres__set .bv-thumb");
+  if (!fly || !target || !from || reducedMotion()) { paintCloseButton(); return; }
+  const a = from.getBoundingClientRect();
+  const b = target.getBoundingClientRect();
+  fly.innerHTML = from.outerHTML;
+  fly.style.cssText = `left:${a.left}px;top:${a.top}px;width:${a.width}px;height:${a.height}px;`;
+  fly.classList.remove("is-flying");
+  void fly.offsetWidth;
+  fly.style.setProperty("--dx", `${b.left + 16 - a.left}px`);
+  fly.style.setProperty("--dy", `${b.top + b.height / 2 - a.top - a.height / 2}px`);
+  fly.classList.add("is-flying");
+  setTimeout(() => { fly.classList.remove("is-flying"); fly.innerHTML = ""; paintCloseButton(); target.classList.add("is-bump"); setTimeout(() => target.classList.remove("is-bump"), 260); }, 480);
+  void set;
+}
+
+// Owned copy for a scanned set: the vault list when loaded, else the set API.
+async function ownedEntryFor(setNum) {
+  const local = state.portfolio?.items?.find((i) => i.set_num === setNum);
+  if (local) return local;
+  if (!state.portfolio?.items) {
+    try { const r = await api(`/api/sets/${encodeURIComponent(setNum)}`); return r?.entry || null; } catch { return null; }
+  }
+  return null;
+}
+
+// Add one set (or one more copy). Price paid stays EMPTY unless the user
+// picked one — the old flow stored the market value as the purchase price.
+async function addScannedSet(set, { priceUsd = null, condition = "new" } = {}) {
+  const entry = await ownedEntryFor(set.set_num);
+  const record = { set_num: set.set_num, name: set.name, image_url: set.image_url, theme: set.theme };
+  try {
+    if (entry?.id) {
+      const qty = (Number(entry.quantity) || 1) + 1;
+      const body = { quantity: qty };
+      if (priceUsd != null && !(Number(entry.purchase_price) > 0)) body.purchase_price = priceUsd;
+      await api(`/api/collection/${encodeURIComponent(entry.id)}`, { method: "PATCH", body });
+      Object.assign(entry, body);
+      _session.push({ ...record, kind: "qty", id: entry.id, prevQty: qty - 1 });
+    } else {
+      const body = { set_num: set.set_num, quantity: 1, condition };
+      if (priceUsd != null) body.purchase_price = priceUsd;
+      const result = await api("/api/collection", { method: "POST", body });
+      _session.push({ ...record, kind: "post", id: result?.item?.id ?? null });
+      if (getModePref() === "kids" && result?.kids?.xp_gained > 0) {
+        const badge = result.kids.new_badges?.[0] ? kidsBadgeLabel(result.kids.new_badges[0]) : "";
+        toast(kidsXpMessage(result.kids.xp_gained, { level: result.kids.new_level, badge }), "success");
+        state.me = null;
+      }
+    }
+  } catch (e) {
+    if (navigator.onLine) throw e;
+    const body = entry?.id ? { quantity: (Number(entry.quantity) || 1) + 1 } : { set_num: set.set_num, quantity: 1, condition, ...(priceUsd != null ? { purchase_price: priceUsd } : {}) };
+    outboxEnqueue(entry?.id ? { path: `/api/collection/${encodeURIComponent(entry.id)}`, method: "PATCH", body } : { path: "/api/collection", method: "POST", body });
+    _session.push({ ...record, kind: "offline", id: null });
+  }
+  state.ownedSetNums?.add?.(set.set_num);
+  invalidatePortfolio();
+  state.catalog.items = [];
+}
+
+// After an add: the sheet drops, the counter bumps and the camera resumes for
+// the next box (the native Activity relaunches itself).
+function resumeAfterAdd(set) {
+  flyToDone(set);
+  const el = $("#scanResult");
+  el?.classList.add("is-leaving");
+  setTimeout(() => {
+    el?.classList.remove("is-leaving");
+    clearScanResult({ restartCamera: true });
+    const hint = $("#scanHint");
+    if (hint) hint.textContent = state.camera.mode === "barcode" ? t("bvAdd.hintNext") : scanHintText(state.camera.mode, state.camera.shelf);
+    if (state.camera.mode !== "image" && isNativeCapacitor() && !_liveStop) setTimeout(() => { if ($("#scanOverlay")?.classList.contains("open")) runNativeBarcodeScan(); }, 450);
+  }, reducedMotion() ? 150 : 320);
+}
+
+// Done · N → close the camera and list this session's adds, each with Undo.
+function finishSession() {
+  const added = _session.slice();
+  closeScan();
+  if (!added.length) return;
+  const rows = added.map((s, i) => `
+    <div class="bv-setrow bv-scansession__row" data-i="${i}">
+      ${setThumbHTML(s, 48)}
+      <span class="bv-setrow__body"><span class="bv-setrow__name">${escapeHtml(s.name || s.set_num)}</span><span class="bv-setrow__meta"><span class="bv-num">${escapeHtml(s.set_num)}</span>${s.kind === "qty" ? ` · ${escapeHtml(t("bvAdd.extraCopy"))}` : s.kind === "offline" ? ` · ${escapeHtml(t("bvAdd.savedOffline"))}` : ""}</span></span>
+      ${s.kind === "offline" ? "" : `<button type="button" class="bv-btn bv-btn--text bv-btn--sm" data-undo="${i}">${escapeHtml(t("common.undo"))}</button>`}
+    </div>`).join("");
+  showSheet(kitSheetBody({
+    title: tPlural("bvAdd.sessionTitle", added.length, { count: added.length }),
+    sub: t("bvAdd.sessionSub"),
+    inner: `<div class="bv-scansession">${rows}</div>
+      <a class="bv-btn bv-btn--primary bv-btn--full" href="#/" id="scanSessionVault">${escapeHtml(t("bvAdd.seeVault"))}</a>`,
+  }));
+  $("#scanSessionVault")?.addEventListener("click", () => hideSheet());
+  $$("#sheet [data-undo]").forEach((btn) => btn.addEventListener("click", async () => {
+    const s = added[Number(btn.dataset.undo)];
+    btn.disabled = true;
+    try {
+      if (s.kind === "qty") await api(`/api/collection/${encodeURIComponent(s.id)}`, { method: "PATCH", body: { quantity: s.prevQty } });
+      else if (s.id != null) await api(`/api/collection/${encodeURIComponent(s.id)}`, { method: "DELETE" });
+      else throw new Error(t("bvAdd.undoUnavailable"));
+      invalidatePortfolio();
+      state.catalog.items = [];
+      if (s.kind === "post") state.ownedSetNums?.delete?.(s.set_num);
+      btn.closest(".bv-scansession__row")?.classList.add("is-undone");
+      btn.replaceWith(Object.assign(document.createElement("span"), { className: "bv-label", textContent: t("bvAdd.undone") }));
+      haptic("light");
+    } catch (e) {
+      btn.disabled = false;
+      toast(t("common.errorWithDetails", { error: e.message || e }), "error");
+    }
+  }));
+}
+
+function setThumbHTML(set, size = 56) {
+  const img = set.image_url && !String(set.image_url).startsWith("data:") ? `<img class="set-photo" src="${escapeHtml(set.image_url)}" alt="" loading="lazy" decoding="async">` : "";
+  return kitThumb({ color: `hsl(${setHue(set)} 55% 58%)`, imgHtml: img, size });
+}
+
 
 // --- Per-scan latency instrumentation (opt-in) -----------------------------
 // Set localStorage bv_scan_debug='1' to log each stage's timing to the console,
@@ -73,7 +381,7 @@ function stopScanPhrases() {
 
 function setScanPending(on) {
   _scanPending = !!on;
-  const wrap = document.querySelector(".scan-video-wrap");
+  const wrap = document.querySelector(".bv-scan");
   const capture = $("#scanCapture");
   const gallery = $("#scanGalleryBtn");
   wrap?.classList.toggle("scan-busy", _scanPending);
@@ -84,45 +392,9 @@ function setScanPending(on) {
   if (gallery) gallery.disabled = _scanPending;
 }
 
-function clearScanResult({ restartCamera = false } = {}) {
-  const el = $("#scanResult");
-  if (el) {
-    el.classList.remove("show", "loading");
-    el.innerHTML = "";
-  }
-  const wrap = document.querySelector(".scan-video-wrap");
-  wrap?.classList.remove("has-result", "has-captured-photo");
-  const preview = $("#scanPhotoPreview");
-  if (preview) {
-    preview.removeAttribute("src");
-    preview.hidden = true;
-  }
-  setScanPending(false);
-  const hint = $("#scanHint");
-  if (hint) hint.textContent = state.camera.mode === "barcode" ? "Align barcode within the frame" : "Frame the set and tap to identify";
-  if (restartCamera && state.camera.mode === "image") {
-    void startCamera();
-  } else if (restartCamera && state.camera.mode === "barcode" && state.camera.detector) {
-    state.camera.scanning = true;
-    clearInterval(state.camera.timer);
-    state.camera.timer = setInterval(scanBarcode, 400);
-  }
-}
 
-function showScanLoading(label = "Identifying...", detail = "This can take up to 30 seconds.") {
-  const el = $("#scanResult");
-  if (!el) return;
-  el.classList.add("show", "loading");
-  document.querySelector(".scan-video-wrap")?.classList.add("has-result");
-  el.innerHTML = `
-    <div class="scan-loading">
-      <div class="spinner" aria-hidden="true"></div>
-      <div class="scan-loading-copy">
-        <strong>${escapeHtml(label)}</strong>
-        <span>${escapeHtml(detail)}</span>
-      </div>
-    </div>`;
-}
+
+let _liveNativeWanted = false;
 
 export function openScan(mode = "barcode", { deferStart = false, shelf = false } = {}) {
   // Check access before mounting the full-screen camera. Guests without a BYOK
@@ -132,46 +404,44 @@ export function openScan(mode = "barcode", { deferStart = false, shelf = false }
     return;
   }
 
+  const ov = $("#scanOverlay");
+  const fresh = !ov.classList.contains("open");
   invalidateScanSession();
+  if (fresh) { _session = []; _torchOn = false; }
+  stopCamera();
 
   state.camera.mode = mode;
   // Shelf Snap: photo mode variant — one wide photo, every set on the shelf.
   state.camera.shelf = mode === "image" && !!shelf;
-  const ov = $("#scanOverlay");
+  _liveNativeWanted = mode !== "image" && isNativeCapacitor() && liveScanOptIn();
   ov.classList.remove("native-handoff");
   ov.innerHTML = scanOverlayHTML(mode, state.camera.shelf);
   ov.classList.add("open");
   document.body.classList.add("scan-active");
-  $("#scanCloseBtn")?.addEventListener("click", closeScan);
+  $("#scanCloseBtn")?.addEventListener("click", () => { haptic("light"); finishSession(); });
   _scanTrapRelease?.();
   _scanTrapRelease = activateFocusTrap(ov, closeScan);
-  ov.querySelector(FOCUSABLE_SEL)?.focus();
+  if (fresh) ov.querySelector(FOCUSABLE_SEL)?.focus();
+  placeFrame();
 
-
-  
-  // Swipe horizontally to close camera overlay
+  // Swipe sideways to close — the Close / Done pill is the visible twin.
   let touchstartX = 0;
   let touchstartY = 0;
-  ov.addEventListener('touchstart', e => {
-    touchstartX = e.changedTouches[0].screenX;
-    touchstartY = e.changedTouches[0].screenY;
-  }, { passive: true });
-  ov.addEventListener('touchend', e => {
-    const touchendX = e.changedTouches[0].screenX;
-    const touchendY = e.changedTouches[0].screenY;
-    const dx = touchendX - touchstartX;
-    const dy = touchendY - touchstartY;
-    if (Math.abs(dx) > 80 && Math.abs(dy) < 50) {
-      closeScan();
-      haptic("medium");
-    }
-  }, { passive: true });
+  ov.ontouchstart = (e) => { touchstartX = e.changedTouches[0].screenX; touchstartY = e.changedTouches[0].screenY; };
+  ov.ontouchend = (e) => {
+    const dx = e.changedTouches[0].screenX - touchstartX;
+    const dy = e.changedTouches[0].screenY - touchstartY;
+    if (Math.abs(dx) > 80 && Math.abs(dy) < 50 && !e.target.closest?.("#scanResult")) { haptic("medium"); finishSession(); }
+  };
 
-  $$(".scan-mode-toggle button").forEach(b => b.addEventListener("click", () => {
-    stopCamera();
-    openScan(b.dataset.mode);
+  $$(".bv-scan__seg [data-mode]").forEach((b) => b.addEventListener("click", () => {
+    const m = b.dataset.mode;
+    if (b.getAttribute("aria-pressed") === "true") return;
+    haptic("light");
+    openScan(m === "shelf" ? "image" : m, { shelf: m === "shelf" });
   }));
   $("#scanCapture")?.addEventListener("click", capturePhoto);
+  $("#scanTypeBtn")?.addEventListener("click", () => { haptic("light"); showManualBarcodeEntry({ focus: true }); });
 
   if (mode === "image") {
     const galleryBtn = $("#scanGalleryBtn");
@@ -186,31 +456,309 @@ export function openScan(mode = "barcode", { deferStart = false, shelf = false }
           stopCamera();
           const dataUrl = await readFileAsDataURL(files[0]);
           const resized = await resizeImage(dataUrl, 1280);
+          const preview = $("#scanPhotoPreview");
+          if (preview) { preview.src = resized; preview.hidden = false; }
+          document.querySelector(".bv-scan")?.classList.add("has-captured-photo");
           sendScanToAPI({ mode: "shelf", image: resized });
           return;
         }
         processBulkScanQueue(files);
       });
     }
-    // One set vs whole shelf — flips the capture between the single-set
-    // identify and the exhaustive Shelf Snap prompt.
-    $$(".scan-shelf-opt").forEach(btn => btn.addEventListener("click", () => {
-      state.camera.shelf = btn.dataset.shelf === "1";
-      haptic("light");
-      $$(".scan-shelf-opt").forEach(b => {
-        const on = b === btn;
-        b.style.background = on ? "var(--accent)" : "transparent";
-        b.style.color = on ? "#fff" : "#fff9";
-        b.setAttribute("aria-pressed", on ? "true" : "false");
-      });
-      const hint = $("#scanHint");
-      if (hint) hint.textContent = state.camera.shelf
-        ? "Fit the whole shelf in frame — good light helps"
-        : "Frame the set and tap to identify";
-    }));
   }
 
   if (!deferStart) startCamera();
+}
+
+export function closeScan() {
+  invalidateScanSession();
+  stopCamera();
+  // Keep native-scanner cleanup idempotent when Close, Android Back, or routing
+  // dismisses this sheet while a handoff is in progress.
+  void import("../lib/native-barcode.js")
+    .then(({ cancelBarcodeNative }) => cancelBarcodeNative())
+    .catch(() => {});
+  _scanTrapRelease?.();
+  _scanTrapRelease = null;
+  document.body.classList.remove("scan-active");
+  document.documentElement.classList.remove("bv-scan-native-live");
+  const ov = $("#scanOverlay");
+  ov.classList.remove("open", "native-handoff");
+  ov.innerHTML = "";
+  ov.ontouchstart = null;
+  ov.ontouchend = null;
+  _scanPending = false;
+  _session = [];
+}
+
+export function stopCamera() {
+  clearInterval(state.camera.timer);
+  clearTimeout(_moveCloserTimer);
+  state.camera.timer = null;
+  if (state.camera.stream) {
+    state.camera.stream.getTracks().forEach(t => t.stop());
+    state.camera.stream = null;
+  }
+  if (_liveStop) {
+    const stop = _liveStop;
+    _liveStop = null;
+    stop().catch(() => {});
+    document.documentElement.classList.remove("bv-scan-native-live");
+  }
+  state.camera.scanning = false;
+}
+
+export async function startCamera() {
+  track("scan_attempt", state.camera.mode || "barcode");
+  resetLock();
+  showChip("");
+  // On the installed app, barcode / blind-box modes use the native ML Kit
+  // scanner — NEVER the getUserMedia path. By default ML Kit's own Activity
+  // owns the preview; the opt-in live scanner keeps our chrome on screen.
+  if (state.camera.mode !== "image" && isNativeCapacitor()) {
+    if (_liveNativeWanted && await startLiveNativeScan()) return;
+    document.querySelector(".bv-scan")?.classList.add("is-native");
+    let supported = false;
+    try {
+      const { nativeBarcodeSupported } = await import("../lib/native-barcode.js");
+      supported = await nativeBarcodeSupported(window);
+    } catch { /* import/plugin failure → manual entry below */ }
+    if (supported) { runNativeBarcodeScan(); return; }
+    const hint = $("#scanHint");
+    if (hint) hint.textContent = t("bvAdd.typeInstead");
+    ensureNativeRescanButton();
+    showManualBarcodeEntry();
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment", width: { ideal: 1280 } }
+    });
+    state.camera.stream = stream;
+    const vid = $("#scanVideo");
+    if (vid) { vid.srcObject = stream; await vid.play().catch(() => {}); }
+    wireTorch();
+
+    if (state.camera.mode !== "image" && "BarcodeDetector" in window) {
+      state.camera.detector = new BarcodeDetector({ formats: ["ean_13","ean_8","upc_a","upc_e","code_128","code_39"] });
+      state.camera.scanning = true;
+      state.camera.timer = setInterval(scanBarcode, 300);
+      armMoveCloser();
+    } else if (state.camera.mode !== "image") {
+      const hint = $("#scanHint");
+      if (hint) hint.textContent = t("bvAdd.noLiveBarcode");
+      showManualBarcodeEntry();
+    }
+  } catch (err) {
+    const hint = $("#scanHint");
+    const isDenied = err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError');
+    document.querySelector(".bv-scan")?.classList.add("camera-unavailable");
+    // The fallback differs by mode: Photo mode can still identify from a
+    // gallery image; Barcode mode falls back to typing the digits.
+    const photoMode = state.camera.mode === 'image';
+    if (hint) hint.textContent = isDenied
+      ? t(photoMode ? "bvAdd.deniedPhoto" : "bvAdd.deniedBarcode")
+      : t("bvAdd.cameraUnavailable");
+    const capture = $("#scanCapture");
+    if (capture) {
+      capture.disabled = true;
+      capture.setAttribute("aria-disabled", "true");
+    }
+    showManualBarcodeEntry();
+  }
+}
+
+// Opt-in live native scanner: CameraX behind a transparent WebView, our
+// brackets on top. Returns false when it can't run (caller uses the Activity).
+async function startLiveNativeScan() {
+  try {
+    const mod = await import("../lib/native-barcode.js");
+    if (!(await mod.nativeLiveScanSupported(window))) return false;
+    document.documentElement.classList.add("bv-scan-native-live");
+    state.camera.scanning = true;
+    _liveStop = await mod.startNativeLiveScan(window, {
+      onBarcodes: (barcodes) => {
+        if (!state.camera.scanning || _scanPending || $("#scanResult")?.classList.contains("show")) return;
+        const b = barcodes.find((x) => x?.rawValue || x?.displayValue);
+        if (!b) return;
+        state.camera.scanning = false;
+        clearTimeout(_moveCloserTimer);
+        const { w, h } = scanView();
+        const rect = screenQuadToViewRect(mod.normalizeCornerPoints(b.cornerPoints), w, h, window.devicePixelRatio || 1);
+        haptic("success");
+        lockFrame(rect, t("bvAdd.reading"));
+        routeScannedCode(b.rawValue || b.displayValue);
+      },
+    });
+    wireTorch();
+    armMoveCloser();
+    return true;
+  } catch {
+    document.documentElement.classList.remove("bv-scan-native-live");
+    _liveStop = null;
+    _liveNativeWanted = false;
+    return false;
+  }
+}
+
+// Native ML Kit barcode flow (installed app). The native scanner Activity owns
+// its camera surface; hiding our WebView sheet during the handoff prevents the
+// stale Scan page from covering the preview and avoids a duplicate flash on Back.
+async function runNativeBarcodeScan() {
+  // Release any getUserMedia stream first (e.g. after switching from Photo
+  // mode) so ML Kit's scanner can acquire the camera.
+  stopCamera();
+  $("#nativeRescanBtn")?.remove();
+  const hint = $("#scanHint");
+  if (hint) hint.textContent = t("bvAdd.opening");
+  const overlay = $("#scanOverlay");
+  overlay?.classList.add("native-handoff");
+  _scanTrapRelease?.();
+  _scanTrapRelease = null;
+  // Give the OS a moment to fully release the camera before ML Kit grabs it.
+  await new Promise((r) => setTimeout(r, 200));
+  let code = null;
+  let scanError = null;
+  try {
+    const { scanBarcodeNative } = await import("../lib/native-barcode.js");
+    code = await scanBarcodeNative(window);
+  } catch (error) { scanError = error; }
+  // The overlay may have been dismissed (back button / swipe) mid-scan.
+  if (!overlay?.classList.contains("open")) return;
+  if (code) {
+    overlay.classList.remove("native-handoff");
+    _scanTrapRelease = activateFocusTrap(overlay, closeScan);
+    haptic("success");
+    showChip(t("bvAdd.reading"), "lock");
+    if (hint) hint.textContent = state.camera.mode === "blindbox" ? t("bvAdd.findingSeries") : t("bvAdd.lookingUp");
+    routeScannedCode(code);
+    return;
+  }
+  if (scanError) {
+    overlay.classList.remove("native-handoff");
+    _scanTrapRelease = activateFocusTrap(overlay, closeScan);
+    if (hint) hint.textContent = t("bvAdd.scannerFailed");
+    ensureNativeRescanButton();
+    showManualBarcodeEntry();
+    $("#manualBarcodeInput")?.focus();
+    return;
+  }
+  // Back out of the Activity: with sets added this session show what was
+  // added; otherwise return to where the scan started.
+  if (_session.length) { finishSession(); return; }
+  closeScan({ restoreFocus: false });
+  $("#pileScanBarcode")?.focus();
+}
+
+function ensureNativeRescanButton() {
+  if ($("#nativeRescanBtn")) return;
+  const wrap = document.querySelector(".bv-scan");
+  if (!wrap) return;
+  const btn = document.createElement("button");
+  btn.id = "nativeRescanBtn";
+  btn.className = "bv-btn bv-btn--primary bv-scan__cta";
+  btn.type = "button";
+  btn.innerHTML = `${kitIcon("scan", { size: 20 })}<span>${escapeHtml(t("bvAdd.scanBarcode"))}</span>`;
+  btn.addEventListener("click", () => {
+    $("#nativeRescanBtn")?.remove();
+    clearScanResult();
+    runNativeBarcodeScan();
+  });
+  wrap.appendChild(btn);
+}
+
+// Type a set number or barcode — inside the scanner, one tap from the camera.
+function showManualBarcodeEntry({ focus = false } = {}) {
+  track("scan_fallback", state.camera.mode || "barcode");
+  const el = $("#scanResult");
+  if (!el) return;
+  if ($("#manualBarcodeRow")) { if (focus) $("#manualBarcodeInput")?.focus(); return; }
+  document.querySelector(".bv-scan")?.classList.add("has-result");
+  el.classList.add("show", "manual");
+  el.classList.remove("loading");
+  el.innerHTML = `
+    <div class="bv-scan__handle" aria-hidden="true"></div>
+    <form id="manualBarcodeRow" class="bv-scanres" novalidate>
+      <div class="bv-scanres__head"><h2>${escapeHtml(t("bvAdd.typeTitle"))}</h2>${kitIconBtn({ icon: "x", label: t("common.close"), id: "manualClose" })}</div>
+      ${kitField({ id: "manualBarcodeInput", label: t("bvAdd.typeLabel"), placeholder: t("bvAdd.typePlaceholder"), mono: true, inputmode: "text", autocomplete: "off", attrs: { spellcheck: "false", enterkeyhint: "search" } })}
+      <p class="bv-field__help" id="manualBarcodeError" role="status" aria-live="polite"></p>
+      <div class="bv-btn-row">
+        ${state.camera.mode === "image" ? `<button type="button" class="bv-btn bv-btn--outline" id="manualGalleryGo">${kitIcon("photo", { size: 20 })}<span>${escapeHtml(t("bvAdd.choosePhoto"))}</span></button>` : ""}
+        <button type="submit" class="bv-btn bv-btn--primary" id="manualBarcodeGo">${kitIcon("search", { size: 20 })}<span>${escapeHtml(t("bvAdd.findSet"))}</span></button>
+      </div>
+    </form>`;
+  const err = (msg) => { const e = $("#manualBarcodeError"); if (e) e.textContent = msg; };
+  $("#manualBarcodeRow")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const raw = ($("#manualBarcodeInput")?.value || "").trim();
+    if (raw.length < 3) { err(t("bvAdd.typeFirst")); return; }
+    haptic("medium");
+    const target = manualScanTarget(raw);
+    if (target.kind === "set") await sendManualSetLookup(target.value);
+    else if (target.kind === "barcode") routeScannedCode(target.value);
+    else err(t("bvAdd.typeInvalid"));
+  });
+  $("#manualClose")?.addEventListener("click", () => clearScanResult({ restartCamera: true }));
+  $("#manualGalleryGo")?.addEventListener("click", () => $("#scanGalleryInput")?.click());
+  // No auto-focus when the camera opened it (it would pop the keyboard over the
+  // preview); the keyboard button focuses it on purpose.
+  if (focus) $("#manualBarcodeInput")?.focus();
+}
+
+async function scanBarcode() {
+  if (!state.camera.scanning) return;
+  const vid = $("#scanVideo");
+  if (!vid || vid.readyState < 2) return;
+  try {
+    const codes = await state.camera.detector.detect(vid);
+    if (codes.length > 0 && state.camera.scanning) {
+      state.camera.scanning = false;
+      clearInterval(state.camera.timer);
+      clearTimeout(_moveCloserTimer);
+      const code = codes[0];
+      const { w, h } = scanView();
+      const rect = quadToViewRect(code.cornerPoints || (code.boundingBox ? [
+        { x: code.boundingBox.x, y: code.boundingBox.y },
+        { x: code.boundingBox.x + code.boundingBox.width, y: code.boundingBox.y + code.boundingBox.height },
+      ] : []), vid.videoWidth, vid.videoHeight, w, h);
+      haptic("success");
+      lockFrame(rect, t("bvAdd.reading"));
+      const hint = $("#scanHint");
+      if (hint) hint.textContent = state.camera.mode === "blindbox" ? t("bvAdd.findingSeries") : t("bvAdd.lookingUp");
+      routeScannedCode(code.rawValue);
+    }
+  } catch {}
+}
+
+function clearScanResult({ restartCamera = false } = {}) {
+  const el = $("#scanResult");
+  if (el) {
+    el.classList.remove("show", "loading", "manual");
+    el.innerHTML = "";
+  }
+  const wrap = document.querySelector(".bv-scan");
+  wrap?.classList.remove("has-result", "has-captured-photo");
+  const preview = $("#scanPhotoPreview");
+  if (preview) {
+    preview.removeAttribute("src");
+    preview.hidden = true;
+  }
+  setScanPending(false);
+  resetLock();
+  showChip("");
+  const hint = $("#scanHint");
+  if (hint) hint.textContent = scanHintText(state.camera.mode, state.camera.shelf);
+  if (restartCamera && state.camera.mode === "image") {
+    void startCamera();
+  } else if (restartCamera && _liveStop) {
+    state.camera.scanning = true;
+    armMoveCloser();
+  } else if (restartCamera && state.camera.mode !== "image" && state.camera.detector && state.camera.stream) {
+    state.camera.scanning = true;
+    clearInterval(state.camera.timer);
+    state.camera.timer = setInterval(scanBarcode, 300);
+    armMoveCloser();
+  }
 }
 
 function showPhotoScanSetupSheet() {
@@ -234,21 +782,6 @@ function showPhotoScanSetupSheet() {
   $("#scanSetup")?.addEventListener("click", () => { hideSheet(); location.hash = "#/me/integrations"; });
 }
 
-export function closeScan() {
-  invalidateScanSession();
-  stopCamera();
-  // Keep native-scanner cleanup idempotent when Close, Android Back, or routing
-  // dismisses this sheet while a handoff is in progress.
-  void import("../lib/native-barcode.js")
-    .then(({ cancelBarcodeNative }) => cancelBarcodeNative())
-    .catch(() => {});
-  _scanTrapRelease?.();
-  _scanTrapRelease = null;
-  document.body.classList.remove("scan-active");
-  $("#scanOverlay").classList.remove("open", "native-handoff");
-  $("#scanOverlay").innerHTML = "";
-  _scanPending = false;
-}
 
 function invalidateScanSession() {
   _scanGeneration += 1;
@@ -265,204 +798,10 @@ function beginScanRequest() {
   return { controller, generation: _scanGeneration };
 }
 
-export function stopCamera() {
-  clearInterval(state.camera.timer);
-  state.camera.timer = null;
-  if (state.camera.stream) {
-    state.camera.stream.getTracks().forEach(t => t.stop());
-    state.camera.stream = null;
-  }
-  state.camera.scanning = false;
-}
 
-export async function startCamera() {
-  track("scan_attempt", state.camera.mode || "barcode");
-  // On the installed app, barcode / blind-box modes use the native ML Kit
-  // scanner — NEVER the getUserMedia path. The overlay is rendered in
-  // "native-scan" mode (video hidden), so a getUserMedia fallback would show a
-  // black screen. If ML Kit isn't usable, offer manual entry instead.
-  if (state.camera.mode !== "image" && isNativeCapacitor()) {
-    let supported = false;
-    try {
-      const { nativeBarcodeSupported } = await import("../lib/native-barcode.js");
-      supported = await nativeBarcodeSupported(window);
-    } catch { /* import/plugin failure → manual entry below */ }
-    if (supported) { runNativeBarcodeScan(); return; }
-    const hint = $("#scanHint");
-    if (hint) hint.textContent = "Type the barcode or set number below";
-    ensureNativeRescanButton();
-    showManualBarcodeEntry();
-    return;
-  }
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment", width: { ideal: 1280 } }
-    });
-    state.camera.stream = stream;
-    const vid = $("#scanVideo");
-    if (vid) { vid.srcObject = stream; await vid.play().catch(() => {}); }
 
-    if (state.camera.mode !== "image" && "BarcodeDetector" in window) {
-      state.camera.detector = new BarcodeDetector({ formats: ["ean_13","ean_8","upc_a","upc_e","code_128","code_39"] });
-      state.camera.scanning = true;
-      state.camera.timer = setInterval(scanBarcode, 400);
-    } else if (state.camera.mode !== "image") {
-      const hint = $("#scanHint");
-      if (hint) hint.textContent = "Live barcode scanning isn't supported on this browser — type the digits instead";
-      showManualBarcodeEntry();
-    }
-  } catch (err) {
-    const hint = $("#scanHint");
-    const isDenied = err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError');
-    document.querySelector(".scan-video-wrap")?.classList.add("camera-unavailable");
-    // The fallback differs by mode: Photo mode can still identify from a
-    // gallery image; Barcode mode falls back to typing the digits.
-    const photoMode = state.camera.mode === 'image';
-    if (hint) hint.textContent = isDenied
-      ? (photoMode
-        ? "Camera permission denied — grant access in browser/system settings, or pick a photo from your gallery instead."
-        : "Camera permission denied — grant access in browser/system settings, or type a set number below.")
-      : "Camera not available — check permissions or try a different browser.";
-    const capture = $("#scanCapture");
-    if (capture) {
-      capture.disabled = true;
-      capture.setAttribute("aria-disabled", "true");
-    }
-    showManualBarcodeEntry();
-  }
-}
 
-// Native ML Kit barcode flow (installed app). The native scanner Activity owns
-// its camera surface; hiding our WebView sheet during the handoff prevents the
-// stale Scan page from covering the preview and avoids a duplicate flash on Back.
-async function runNativeBarcodeScan() {
-  // Release any getUserMedia stream first (e.g. after switching from Photo
-  // mode) so ML Kit's scanner can acquire the camera.
-  stopCamera();
-  $("#nativeRescanBtn")?.remove();
-  const hint = $("#scanHint");
-  if (hint) hint.textContent = "Opening scanner…";
-  const overlay = $("#scanOverlay");
-  overlay?.classList.add("native-handoff");
-  _scanTrapRelease?.();
-  _scanTrapRelease = null;
-  // Give the OS a moment to fully release the camera before ML Kit grabs it.
-  await new Promise((r) => setTimeout(r, 200));
-  let code = null;
-  let scanError = null;
-  try {
-    const { scanBarcodeNative } = await import("../lib/native-barcode.js");
-    code = await scanBarcodeNative(window);
-  } catch (error) { scanError = error; }
-  // The overlay may have been dismissed (back button / swipe) mid-scan.
-  if (!overlay?.classList.contains("open")) return;
-  if (code) {
-    overlay.classList.remove("native-handoff");
-    _scanTrapRelease = activateFocusTrap(overlay, closeScan);
-    haptic("medium");
-    if (hint) hint.textContent = state.camera.mode === "blindbox" ? "Finding the series…" : "Looking up barcode…";
-    routeScannedCode(code);
-    return;
-  }
-  if (scanError) {
-    overlay.classList.remove("native-handoff");
-    _scanTrapRelease = activateFocusTrap(overlay, closeScan);
-    if (hint) hint.textContent = "Scanner couldn't start. Try again or enter the barcode or set number manually.";
-    ensureNativeRescanButton();
-    showManualBarcodeEntry();
-    $("#manualBarcodeInput")?.focus();
-    return;
-  }
-  // User cancellation returns to the method picker. Keep the barcode choice
-  // focused so keyboard and screen-reader users can retry.
-  closeScan({ restoreFocus: false });
-  $("#pileScanBarcode")?.focus();
-}
 
-function ensureNativeRescanButton() {
-  if ($("#nativeRescanBtn")) return;
-  const wrap = document.querySelector(".scan-video-wrap");
-  if (!wrap) return;
-  const btn = document.createElement("button");
-  btn.id = "nativeRescanBtn";
-  btn.className = "scan-native-cta";
-  btn.type = "button";
-  btn.textContent = "Scan barcode";
-  btn.addEventListener("click", () => {
-    $("#nativeRescanBtn")?.remove();
-    $("#manualBarcodeRow")?.remove();
-    runNativeBarcodeScan();
-  });
-  wrap.appendChild(btn);
-}
-
-// Fallback for browsers without the BarcodeDetector API (e.g. desktop
-// Firefox): a manual digit-entry field wired to the same barcode lookup.
-function showManualBarcodeEntry() {
-  track("scan_fallback", state.camera.mode || "barcode");
-  const hint = $("#scanHint");
-  if (!hint || $("#manualBarcodeRow")) return;
-  const el = $("#scanResult");
-  if (el) {
-    document.querySelector(".scan-video-wrap")?.classList.add("has-result");
-    el.classList.add("show", "manual");
-    el.classList.remove("loading");
-    el.innerHTML = `
-      <div id="manualBarcodeRow" class="scan-manual-card">
-        <div class="scan-result-head">
-          <span class="badge">${I.search({ w: 12 })}LOOKUP</span>
-          <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">Barcode or set number</span>
-        </div>
-        <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;line-height:1.45;">Prefer to type it in? Enter the UPC from the box or a set number such as 71043-1.</p>
-        <div class="scan-manual-row">
-          <input type="text" id="manualBarcodeInput" inputmode="text"
-            placeholder="Barcode or set number" autocomplete="off" spellcheck="false">
-          <button class="btn-primary" id="manualBarcodeGo">${I.search({ w: 16 })}<span>Find set</span></button>
-        </div>
-        ${state.camera.mode === "image" ? `<button class="btn-secondary scan-manual-gallery" id="manualGalleryGo">${I.layers({ w: 16, h: 16 })}<span>Choose photo instead</span></button>` : ""}
-      </div>`;
-    const submit = async () => {
-      const raw = ($("#manualBarcodeInput")?.value || "").trim();
-      if (raw.length < 3) {
-        hint.textContent = "Type a barcode or LEGO set number first";
-        return;
-      }
-      haptic("medium");
-      hint.textContent = "Looking up catalog...";
-      const target = manualScanTarget(raw);
-      if (target.kind === "set") await sendManualSetLookup(target.value);
-      else if (target.kind === "barcode") routeScannedCode(target.value);
-      else hint.textContent = "Use a set number like 71043-1, or a longer barcode";
-    };
-    $("#manualBarcodeGo")?.addEventListener("click", submit);
-    $("#manualBarcodeInput")?.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
-    $("#manualGalleryGo")?.addEventListener("click", () => $("#scanGalleryInput")?.click());
-    // No auto-focus: it pops the Android keyboard over the camera view the
-    // moment the scanner opens. The field is one tap away when wanted.
-    return;
-  }
-  const row = document.createElement("div");
-  row.id = "manualBarcodeRow";
-  row.style.cssText = "display:flex;gap:8px;margin:10px 16px 0;";
-  row.innerHTML = `
-    <input type="text" id="manualBarcodeInput" inputmode="numeric" pattern="[0-9]*"
-      placeholder="Type barcode digits…" autocomplete="off"
-      style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-family:var(--mono);font-size:15px;">
-    <button class="btn-primary" id="manualBarcodeGo" style="padding:10px 16px;">Look up</button>`;
-  hint.insertAdjacentElement("afterend", row);
-  const submit = () => {
-    const digits = ($("#manualBarcodeInput")?.value || "").replace(/\D/g, "");
-    if (digits.length < 8) {
-      hint.textContent = "Barcodes are at least 8 digits — check the number under the bars";
-      return;
-    }
-    haptic("medium");
-    hint.textContent = state.camera.mode === "blindbox" ? "Finding the series…" : "Looking up barcode…";
-    routeScannedCode(digits);
-  };
-  $("#manualBarcodeGo")?.addEventListener("click", submit);
-  $("#manualBarcodeInput")?.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
-}
 
 async function sendManualSetLookup(setNum) {
   setScanPending(true);
@@ -494,28 +833,11 @@ export async function lookupScanInput(value) {
 
   openScan("barcode", { deferStart: true });
   const hint = $("#scanHint");
-  if (hint) hint.textContent = "Looking up barcode...";
+  if (hint) hint.textContent = t("bvAdd.lookingUp");
   await routeScannedCode(target.value);
   return target;
 }
 
-async function scanBarcode() {
-  if (!state.camera.scanning) return;
-  const vid = $("#scanVideo");
-  if (!vid || vid.readyState < 2) return;
-  try {
-    const codes = await state.camera.detector.detect(vid);
-    if (codes.length > 0) {
-      state.camera.scanning = false;
-      clearInterval(state.camera.timer);
-      haptic("medium");
-      const barcode = codes[0].rawValue;
-      const hint = $("#scanHint");
-      if (hint) hint.textContent = state.camera.mode === "blindbox" ? "Finding the series…" : "Looking up barcode…";
-      routeScannedCode(barcode);
-    }
-  } catch {}
-}
 
 export function finishPhotoCapture(dataUrl) {
   // Recognition uses this still frame. Release the live stream before starting
@@ -526,9 +848,9 @@ export function finishPhotoCapture(dataUrl) {
     preview.src = dataUrl;
     preview.hidden = false;
   }
-  document.querySelector(".scan-video-wrap")?.classList.add("has-captured-photo");
+  document.querySelector(".bv-scan")?.classList.add("has-captured-photo");
   stopCamera();
-  const frame = document.querySelector(".scan-frame");
+  const frame = document.querySelector(".bv-scan__frame");
   if (frame) frame.classList.add("scan-pending");
   return sendScanToAPI({ mode: state.camera.shelf ? "shelf" : "image", image: dataUrl });
 }
@@ -687,18 +1009,11 @@ async function sendScanToAPI(payload) {
   const stale = () => generation !== _scanGeneration || controller.signal.aborted;
   _scanStartMs = performance.now();
   setScanPending(true);
-  const el = $("#scanResult");
-  if (el) {
-    el.classList.add("show");
-    el.innerHTML = `<div class="scan-loading"><div class="spinner"></div><span>Identifying…</span></div>`;
-  }
   showScanLoading(
-    payload.mode === "barcode" ? "Looking up barcode..." : payload.mode === "shelf" ? "Reading your shelf..." : "Identifying...",
-    payload.mode === "barcode" ? "Checking the catalog and saved barcode data."
-      : payload.mode === "shelf" ? "Finding every set in the photo — up to 30 seconds."
-      : "This can take up to 30 seconds."
+    t(payload.mode === "barcode" ? "bvAdd.lookingUp" : payload.mode === "shelf" ? "bvAdd.readingShelf" : "bvAdd.identifying"),
+    t(payload.mode === "barcode" ? "bvAdd.detailBarcode" : payload.mode === "shelf" ? "bvAdd.detailShelf" : "bvAdd.detailPhoto"),
   );
-  const frame = document.querySelector(".scan-frame");
+  const frame = document.querySelector(".bv-scan__frame");
   if (frame) frame.classList.add("scan-pending");
   // Playful rotating copy for the (slower) image/AI path; barcode is instant.
   if (payload.mode !== "barcode") startScanPhrases();
@@ -840,6 +1155,7 @@ async function sendScanToAPI(payload) {
 // Route a scanned/typed barcode to the right handler for the active mode.
 function routeScannedCode(code) {
   track("scan_success", state.camera.mode || "barcode");
+  _lastBarcode = code;
   if (state.camera.mode === "blindbox") return sendBlindBoxLookup(code);
   return sendScanToAPI({ mode: "barcode", barcode: code });
 }
@@ -869,7 +1185,7 @@ function showBlindBoxResult(res) {
   if (!el) return;
   el.classList.add("show");
   el.classList.remove("loading");
-  document.querySelector(".scan-video-wrap")?.classList.add("has-result");
+  document.querySelector(".bv-scan")?.classList.add("has-result");
   if (res.error || !res.figs || !res.figs.length) {
     el.innerHTML = `
       <div class="scan-result-head"><span class="badge" style="background:var(--ink-mute);">${I.info()} NO MATCH</span></div>
@@ -923,19 +1239,6 @@ function showBlindBoxResult(res) {
   }));
 }
 
-function collectorScanContext(setNum) {
-  // This is a cached hint; never imply absence when a vault has not loaded.
-  const owned = state.portfolio?.items?.some(item => item.set_num === setNum);
-  const wanted = state.wishlist?.find(item => item.set_num === setNum);
-  const labels = [];
-  if (owned) labels.push(t('collector.owned'));
-  if (wanted) {
-    labels.push(t('collector.wanted'));
-    if (Number.isFinite(wanted.target_price) && wanted.target_price > 0) labels.push(t('collector.target', { price: fmtMoney(wanted.target_price) }));
-  }
-  labels.push(t(owned || wanted ? 'collector.cachedOwnership' : 'collector.ownershipUnknown'));
-  return `<p class="collector-store-status">${labels.map(escapeHtml).join(' · ')}</p>`;
-}
 
 export function showScanResult(res) {
   const el = $("#scanResult");
@@ -949,346 +1252,378 @@ export function showScanResult(res) {
     track("scan_success", state.camera.mode || "image");
   }
   el.classList.add("show");
-  el.classList.remove("loading");
-  document.querySelector(".scan-video-wrap")?.classList.add("has-result");
-  if (!res.identified) {
-    const reason = res.reasoning || "Couldn't identify the set. Try a clearer photo.";
-    const noKey = !localStorage.getItem("bv_gemini_key") && !localStorage.getItem("bv_openai_key");
-    const needsAccount = photoScanNeedsSetup();
-    const failure = res.reason === 'not_lego'
-      ? { kind: 'notlego', label: 'Not LEGO', retryable: true }
-      : classifyScanFailure(reason);
-    const rateLimited = failure.kind === "limit";
-    const setupNeeded = failure.kind === "setup";
-    const badgeLabel = setupNeeded ? "SETUP NEEDED" : rateLimited ? "LIMIT REACHED" : failure.kind === "timeout" ? "TIMED OUT" : failure.kind === "notlego" ? "NOT LEGO" : "NO MATCH";
-    const badgeIcon = setupNeeded ? I.gear() : rateLimited ? I.alert() : I.close();
-    const headLabel = failure.label;
-    // Rate-limited: say WHEN it resets instead of offering a retry that will
-    // just fail again (free = daily UTC window, supporters = hourly bursts).
-    const resetHint = rateLimited
-      ? `<p style="font-size:11px;color:var(--ink-mute);margin:0 0 10px;">${/per hour/i.test(reason) ? "Your hourly window resets within the hour." : "The daily limit resets at midnight UTC."}</p>`
-      : "";
-    // BYOK nudge: keyless users share the server's free scan quota. A personal
-    // Gemini key (free tier ~1500/day) makes photo scans effectively unlimited
-    // and offloads the cost from the shared server quota — emphasized when the
-    // miss looks quota-driven rather than a genuine no-match.
-    const nudge = noKey && (setupNeeded || rateLimited) ? `
-      <div class="chat-gemini-card" style="margin:0 0 10px;">
-        <div style="font-weight:600; font-size:13px; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
-          ${I.flash({ w: 16 })}<span>${rateLimited ? "Shared scan limit reached" : "Enable photo scanning"}</span>
-        </div>
-        <div style="font-size:11px; color:var(--ink-mute); line-height:1.45;">
-          ${needsAccount
-            ? "Sign in to use the shared service, or add a free personal key in <strong>Me &gt; Integrations</strong>."
-            : "Your account is still signed in. Try again, or add a free personal key in <strong>Me &gt; Integrations</strong> for scans on your own quota."}
-        </div>
-      </div>` : "";
-    const setupActions = needsAccount
-      ? `<div class="btn-row"><button class="btn-primary" id="scanSignIn">Sign in</button><button class="btn-secondary" id="scanSetup">Add AI key</button></div>`
-      : `<div class="btn-row"><button class="btn-primary" id="scanRetry">Try again</button><button class="btn-secondary" id="scanSetup">Add AI key</button></div>`;
-    el.innerHTML = `
-      <div class="scan-result-head">
-        <span class="badge miss">${badgeIcon}${badgeLabel}</span>
-        ${headLabel.toUpperCase() === badgeLabel.toUpperCase() ? "" : `<span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">${headLabel}</span>`}
-      </div>
-      <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;">${escapeHtml(reason)}</p>
-      ${resetHint}
-      ${nudge}
-      ${setupNeeded ? setupActions
-        : `<button class="btn-secondary" id="scanRetry">${rateLimited ? "Close" : "Try again"}</button>`}`;
-    $("#scanRetry")?.addEventListener("click", () => {
-      if (rateLimited) closeScan();
-      else clearScanResult({ restartCamera: true });
-    });
-    $("#scanSignIn")?.addEventListener("click", () => { location.hash = "#/login"; });
-    $("#scanSetup")?.addEventListener("click", () => { location.hash = "#/me/integrations"; });
-    return;
-  }
+  el.classList.remove("loading", "manual");
+  document.querySelector(".bv-scan")?.classList.add("has-result");
+  if (!res?.identified) { showScanMiss(el, res || {}); return; }
   const sets = res.sets || (res.set ? [res.set] : []);
   const minifigs = res.minifigs || [];
-  if (!sets.length && !minifigs.length) {
-    el.innerHTML = `
-      <div class="scan-result-head">
-        <span class="badge miss">${I.close()}NO MATCH</span>
-        <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">Nothing found</span>
-      </div>
-      <p style="font-size:13px;color:var(--ink-mute);margin:0 0 10px;">Matches weren't found in the local catalog.</p>
-      <button class="btn-secondary" id="scanRetry">Try again</button>`;
-    $("#scanRetry")?.addEventListener("click", () => {
-      clearScanResult({ restartCamera: true });
-    });
+  if (!sets.length && !minifigs.length) { showScanMiss(el, { reasoning: t("bvAdd.nothingFound") }); return; }
+  if (state.camera.shelf) { showShelfChecklist(el, sets, minifigs); return; }
+  if (sets.length === 1 && !minifigs.length) { showSingleSet(el, sets[0]); return; }
+  showCandidates(el, sets, minifigs, res);
+}
+
+const sheetTop = () => `<div class="bv-scan__handle" aria-hidden="true"></div>`;
+
+function setMetaLine(set) {
+  return [set.set_num, set.theme, set.year].filter(Boolean).map((x) => escapeHtml(String(x))).join(" · ");
+}
+
+function formatBarcode(code) {
+  const d = String(code || "").replace(/\D/g, "");
+  if (d.length === 13) return `${d[0]} ${d.slice(1, 7)} ${d.slice(7, 12)} ${d[12]} · EAN-13`;
+  if (d.length === 12) return `${d[0]} ${d.slice(1, 6)} ${d.slice(6, 11)} ${d[11]} · UPC-A`;
+  if (d.length === 8) return `${d.slice(0, 4)} ${d.slice(4)} · EAN-8`;
+  return String(code || "");
+}
+
+// Unknown barcode, no match, not LEGO, limits and setup — one card each,
+// every one with a way forward (the camera stays open behind it).
+function showScanMiss(el, res) {
+  const reason = res.reasoning || t("bvAdd.nothingFound");
+  const unknownCode = state.camera.mode === "barcode" && _lastBarcode && /not in (our |the )?catalog/i.test(reason);
+  if (unknownCode) {
+    haptic("error");
+    showChip("");
+    el.innerHTML = `${sheetTop()}
+      <div class="bv-scanres">
+        <div class="bv-scanres__miss">${kitIcon("alert", { size: 22 })}<div><h2>${escapeHtml(t("bvAdd.unknownTitle"))}</h2><p class="bv-num">${escapeHtml(formatBarcode(_lastBarcode))}</p></div></div>
+        <p class="bv-scanres__body">${escapeHtml(t("bvAdd.unknownBody"))}</p>
+        <button type="button" class="bv-btn bv-btn--primary bv-btn--full" id="scanTryPhoto">${kitIcon("camera", { size: 20 })}<span>${escapeHtml(t("bvAdd.tryPhoto"))}</span></button>
+        <button type="button" class="bv-btn bv-btn--outline bv-btn--full" id="scanTypeSet">${kitIcon("kbd", { size: 20 })}<span>${escapeHtml(t("bvAdd.typeSetNumber"))}</span></button>
+        <button type="button" class="bv-btn bv-btn--text bv-btn--full" id="scanTeach">${kitIcon("plus", { size: 20 })}<span>${escapeHtml(t("bvAdd.teachBarcode"))}</span></button>
+      </div>`;
+    $("#scanTryPhoto")?.addEventListener("click", () => openScan("image"));
+    $("#scanTypeSet")?.addEventListener("click", () => { clearScanResult(); showManualBarcodeEntry({ focus: true }); });
+    $("#scanTeach")?.addEventListener("click", () => showTeachBarcode(el, _lastBarcode));
     return;
   }
-  const confidence = String(res.confidence || 'high').toLowerCase();
-  const confidenceLabel = t({ high: 'scanner.confidenceHigh', medium: 'scanner.confidenceMedium', low: 'scanner.confidenceLow' }[confidence] || 'scanner.confidenceUnknown');
-  const matchLabel = (value) => {
-    const level = String(value || '').toLowerCase();
-    return t({ high: 'scanner.matchHigh', medium: 'scanner.matchMedium', low: 'scanner.matchLow' }[level] || 'scanner.match');
-  };
-  const heading = scanResultHeading(sets.length, minifigs.length);
-  const headingLabel = heading.key === 'setsFound'
-    ? tPlural('scanner.setsFound', heading.count)
-    : heading.key === 'minifigsFound'
-      ? tPlural('scanner.minifigsFound', heading.count)
-      : tPlural('scanner.mixedResultsFound', heading.count);
-  let headHTML = `
-    <div class="scan-result-head">
-      <span class="badge">${I.check()}${headingLabel}</span>
-      <span style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;">${escapeHtml(confidenceLabel)}</span>
+  const noKey = !localStorage.getItem("bv_gemini_key") && !localStorage.getItem("bv_openai_key");
+  const needsAccount = photoScanNeedsSetup();
+  const failure = res.reason === 'not_lego'
+    ? { kind: 'notlego', label: t("bvAdd.notLego"), retryable: true }
+    : classifyScanFailure(reason);
+  const rateLimited = failure.kind === "limit";
+  const setupNeeded = failure.kind === "setup";
+  const title = setupNeeded ? t("bvAdd.missSetup") : rateLimited ? t("bvAdd.missLimit") : failure.kind === "timeout" ? t("bvAdd.missTimeout") : failure.kind === "notlego" ? t("bvAdd.notLego") : t("bvAdd.missNoMatch");
+  // Rate-limited: say WHEN it resets instead of offering a retry that will
+  // just fail again (free = daily UTC window, supporters = hourly bursts).
+  const resetHint = rateLimited ? `<p class="bv-field__help">${escapeHtml(t(/per hour/i.test(reason) ? "bvAdd.resetHourly" : "bvAdd.resetDaily"))}</p>` : "";
+  // BYOK nudge: keyless users share the server's free scan quota.
+  const nudge = noKey && (setupNeeded || rateLimited)
+    ? `<div class="bv-banner bv-banner--neutral bv-banner--tight">${kitIcon("flash", { size: 20 })}<span class="bv-banner__text">${escapeHtml(t(needsAccount ? "bvAdd.nudgeSignIn" : "bvAdd.nudgeKey"))}</span></div>` : "";
+  const actions = setupNeeded
+    ? (needsAccount
+      ? `<div class="bv-btn-row"><button type="button" class="bv-btn bv-btn--primary" id="scanSignIn">${escapeHtml(t("bvAdd.signIn"))}</button><button type="button" class="bv-btn bv-btn--outline" id="scanSetup">${escapeHtml(t("bvAdd.addKey"))}</button></div>`
+      : `<div class="bv-btn-row"><button type="button" class="bv-btn bv-btn--primary" id="scanRetry">${escapeHtml(t("bvAdd.tryAgain"))}</button><button type="button" class="bv-btn bv-btn--outline" id="scanSetup">${escapeHtml(t("bvAdd.addKey"))}</button></div>`)
+    : `<div class="bv-btn-row"><button type="button" class="bv-btn bv-btn--primary" id="scanRetry">${escapeHtml(t(rateLimited ? "common.close" : "bvAdd.tryAgain"))}</button>${state.camera.mode === "barcode" ? `<button type="button" class="bv-btn bv-btn--outline" id="scanTryPhoto">${kitIcon("camera", { size: 20 })}<span>${escapeHtml(t("bvAdd.tryPhotoShort"))}</span></button>` : ""}</div>`;
+  if (failure.kind !== "setup") haptic("error");
+  showChip("");
+  el.innerHTML = `${sheetTop()}
+    <div class="bv-scanres">
+      <div class="bv-scanres__miss">${kitIcon(setupNeeded ? "gear" : rateLimited ? "clock" : "alert", { size: 22 })}<div><h2>${escapeHtml(title)}</h2></div></div>
+      <p class="bv-scanres__body">${escapeHtml(reason)}</p>
+      ${resetHint}${nudge}${actions}
     </div>`;
-  let listHTML = "";
-  if (sets.length) {
-    listHTML += `<div style="display:flex;flex-direction:column;gap:10px;margin:8px 0 16px;max-height:40vh;overflow-y:auto;padding-right:4px;">`;
-    sets.forEach((set, idx) => {
-      const h = setHue(set);
-      const hasImg = set.image_url && !set.image_url.startsWith("data:");
-      // Show both new and used market value when they differ (real used data);
-      // otherwise just the single value (formula sets have no separate used price).
-      const newVal = Number(marketValueForCondition(set, 'new')) || 0;
-      const usedVal = Number(marketValueForCondition(set, 'used_good')) || 0;
-      const valLine = (usedVal > 0 && Math.abs(usedVal - newVal) > 0.5)
-        ? `${fmtMoney(newVal)} <span style="color:var(--ink-mute);font-weight:500;">new</span> &nbsp;·&nbsp; ${fmtMoney(usedVal)} <span style="color:var(--ink-mute);font-weight:500;">used</span>`
-        : fmtMoney(newVal);
-      listHTML += `
-        <div class="scan-result-row" style="align-items:center;background:var(--surface-2);padding:8px;border-radius:var(--r-2);border:1.5px solid var(--line-soft);margin-bottom:6px;">
-          <input type="checkbox" class="scan-select-check" data-setnum="${escapeHtml(set.set_num)}" data-idx="${idx}" checked style="width:18px;height:18px;margin-right:10px;cursor:pointer;">
-          <div class="si${hasImg ? " has-photo" : ""}" style="width:48px;height:48px;border-radius:var(--r-1);background:linear-gradient(135deg, var(--surface-2), var(--surface-3));flex-shrink:0;position:relative;">
-            <div class="brick-tile" style="--h:${h};width:100%;height:100%;border-radius:var(--r-1);"></div>
-            ${hasImg ? `<img class="set-photo" src="${escapeHtml(set.image_url)}" alt="" style="position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 4px);object-fit:contain;mix-blend-mode:multiply;">` : ""}
-          </div>
-          <div class="sx" style="margin-left:10px;flex:1;min-width:0;text-align:left;">
-            <div class="sx-name" style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(set.name)}</div>
-            <div class="sx-meta" style="font-size:10px;color:var(--ink-mute);">${escapeHtml(set.theme||"")} · #${escapeHtml(set.set_num)}${sets.length > 1 && set.match_confidence && set.match_confidence !== "high" ? ` · <span style="color:${set.match_confidence === "low" ? "var(--down)" : "var(--accent)"};font-weight:700;">${escapeHtml(matchLabel(set.match_confidence))}</span>` : ""}</div>
-            ${collectorScanContext(set.set_num)}
-            <div class="sx-val" style="font-weight:600;font-size:12px;color:var(--up);">${valLine}</div>
-          </div>
-        </div>`;
-    });
-    listHTML += `</div>`;
+  $("#scanRetry")?.addEventListener("click", () => {
+    if (rateLimited) closeScan();
+    else clearScanResult({ restartCamera: true });
+  });
+  $("#scanTryPhoto")?.addEventListener("click", () => openScan("image"));
+  $("#scanSignIn")?.addEventListener("click", () => { closeScan(); location.hash = "#/login"; });
+  $("#scanSetup")?.addEventListener("click", () => { closeScan(); location.hash = "#/me/integrations"; });
+}
+
+// "Teach us this barcode": link the code to a set number for review (the
+// contributions API; approved barcodes auto-apply to the catalog).
+function showTeachBarcode(el, code) {
+  if (isGuestMode()) {
+    toast(t("bvAdd.teachSignIn"), "info");
+    return;
   }
-  if (minifigs.length) {
-    listHTML += `<div style="font-family:var(--mono);font-size:10px;color:var(--ink-mute);letter-spacing:0.1em;text-transform:uppercase;margin:2px 0 6px;">Minifigures</div>`;
-    listHTML += `<div style="display:flex;flex-direction:column;gap:10px;margin:0 0 16px;max-height:40vh;overflow-y:auto;padding-right:4px;">`;
-    minifigs.forEach((fig, idx) => {
-      const hasImg = fig.image_url && !String(fig.image_url).startsWith("data:");
-      const minifigLabel = t("scanner.minifig");
-      const rarityKeys = {
-        common: "minifigs.filterSummaryRarityCommon",
-        uncommon: "minifigs.filterSummaryRarityUncommon",
-        rare: "minifigs.filterSummaryRarityRare",
-        legendary: "minifigs.filterSummaryRarityLegendary",
-      };
-      const minifigMetadata = fig.series
-        ? t("scanner.minifigWithSeries", { minifig: minifigLabel, series: String(fig.series) })
-        : fig.rarity
-          ? t("scanner.minifigWithRarity", {
-            minifig: minifigLabel,
-            rarity: t(rarityKeys[String(fig.rarity).toLowerCase()] || "scanner.rarityUnknown"),
-          })
-          : minifigLabel;
-      listHTML += `
-        <div class="scan-result-row" style="align-items:center;background:var(--surface-2);padding:8px;border-radius:var(--r-2);border:1.5px solid var(--line-soft);margin-bottom:6px;">
-          <input type="checkbox" class="scan-fig-check" data-fignum="${escapeHtml(fig.fig_num)}" data-idx="${idx}" checked style="width:18px;height:18px;margin-right:10px;cursor:pointer;">
-          <div class="si${hasImg ? " has-photo" : ""}" style="width:48px;height:48px;border-radius:var(--r-1);background:linear-gradient(135deg, var(--surface-2), var(--surface-3));flex-shrink:0;position:relative;">
-            ${hasImg ? `<img class="fig-photo" src="${escapeHtml(fig.image_url)}" alt="" style="position:absolute;inset:2px;width:calc(100% - 4px);height:calc(100% - 4px);object-fit:contain;">` : ""}
-          </div>
-          <div class="sx" style="margin-left:10px;flex:1;min-width:0;text-align:left;">
-            <div class="sx-name" style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(fig.name)}</div>
-            <div class="sx-meta" style="font-size:10px;color:var(--ink-mute);">${escapeHtml(minifigMetadata)}</div>
-            ${fig.current_value != null ? `<div class="sx-val" style="font-weight:600;font-size:12px;color:var(--up);">${fmtMoney(fig.current_value)}</div>` : ""}
-          </div>
-        </div>`;
-    });
-    listHTML += `</div>`;
-  }
-
-  let dealHTML = "";
-  if (sets.length === 1) {
-    dealHTML = `
-      <div style="margin: 0 0 12px 0;">
-        ${dealScoreHTML(sets[0])}
-        <div id="scanFlipCalcContainer">${flipCalcHTML(sets[0], null)}</div>
-        ${amazonSlotHTML(sets[0].set_num, { compact: true })}
-      </div>`;
-  }
-
-  // Condition toggle (sets only): adds the selected sets as New or Used, which
-  // records the condition and values the holding at the matching market price.
-  const condToggleHTML = sets.length ? `
-    <div class="scan-cond-row" style="display:flex;align-items:center;gap:8px;margin-top:12px;">
-      <span style="font-size:11px;color:var(--ink-mute);font-family:var(--mono);font-weight:600;letter-spacing:.06em;">CONDITION</span>
-      <div class="scan-cond-seg" style="display:inline-flex;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;">
-        <button type="button" class="scan-cond-opt" data-cond="new" style="border:none;background:var(--accent);color:#fff;font-size:12px;font-weight:700;padding:6px 16px;cursor:pointer;">New</button>
-        <button type="button" class="scan-cond-opt" data-cond="used_good" style="border:none;background:transparent;color:var(--ink);font-size:12px;font-weight:700;padding:6px 16px;cursor:pointer;">Used</button>
-      </div>
-    </div>` : "";
-  let actionsHTML = condToggleHTML + `
-    <div class="btn-row" style="margin-top:10px;">
-      <button class="btn-secondary" id="scanDetails" ${sets.length !== 1 ? 'disabled style="opacity:0.5;"' : ""}>Details</button>
-      <button class="btn-primary" id="scanAdd">${I.plus()}<span>Add selected</span></button>
-    </div>`;
-  el.innerHTML = headHTML + listHTML + dealHTML + actionsHTML + `<button type="button" class="btn-secondary" id="collectorNextScan">${t('collector.nextScan')}</button>`;
-  $('#collectorNextScan').addEventListener('click', () => clearScanResult({ restartCamera: true }));
-  hydrateAmazonSlots(el, state.me?.retail_market || 'FR');
-
-  // Condition selection drives the stored condition + the value the set is added at.
-  let scanCondition = 'new';
-  $$(".scan-cond-opt").forEach(btn => btn.addEventListener("click", () => {
-    scanCondition = btn.dataset.cond;
-    haptic("light");
-    $$(".scan-cond-opt").forEach(b => {
-      const on = b.dataset.cond === scanCondition;
-      b.style.background = on ? "var(--accent)" : "transparent";
-      b.style.color = on ? "#fff" : "var(--ink)";
-    });
-  }));
-
-  if (sets.length === 1) {
-    const dpi = $("#dealPriceInput");
-    if (dpi) {
-      let debounceTid;
-      dpi.addEventListener("input", (e) => {
-        const val = e.target.value;
-        clearTimeout(debounceTid);
-        debounceTid = setTimeout(() => {
-          updateDealBadge(sets[0], val);
-          updateFlipCalc(sets[0], null, val);
-        }, 150);
-      });
-    }
-  }
-
-  $("#scanDetails")?.addEventListener("click", () => {
-    if (sets.length === 1) {
-      closeScan();
-      location.hash = "#/set/" + encodeURIComponent(sets[0].set_num);
+  el.innerHTML = `${sheetTop()}
+    <form class="bv-scanres" id="teachForm" novalidate>
+      <div class="bv-scanres__head"><h2>${escapeHtml(t("bvAdd.teachTitle"))}</h2>${kitIconBtn({ icon: "x", label: t("common.close"), id: "teachClose" })}</div>
+      <p class="bv-scanres__body"><span class="bv-num">${escapeHtml(formatBarcode(code))}</span></p>
+      ${kitField({ id: "teachSetNum", label: t("bvAdd.teachLabel"), placeholder: "10497", mono: true, inputmode: "text", autocomplete: "off" })}
+      <button type="submit" class="bv-btn bv-btn--primary bv-btn--full" id="teachSubmit">${escapeHtml(t("bvAdd.teachSubmit"))}</button>
+    </form>`;
+  $("#teachClose")?.addEventListener("click", () => clearScanResult({ restartCamera: true }));
+  $("#teachSetNum")?.focus();
+  $("#teachForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const target = manualScanTarget($("#teachSetNum").value || "");
+    if (target.kind !== "set") { toast(t("bvAdd.typeInvalid"), "error"); return; }
+    const btn = $("#teachSubmit");
+    setBtnLoading(btn, true);
+    try {
+      await api("/api/contributions/data", { method: "POST", body: { set_num: target.value, kind: "barcode", payload: { upc: String(code).replace(/\D/g, "") } } });
+      toast(t("bvAdd.teachThanks"), "success");
+      clearScanResult({ restartCamera: true });
+    } catch (err) {
+      setBtnLoading(btn, false);
+      toast(t("common.errorWithDetails", { error: err.message || err }), "error");
     }
   });
+}
+
+function priceChipsHTML(set) {
+  const rrp = Number(set.retail_price) || 0;
+  const market = Number(displayValueOf(set)) || 0;
+  const chips = [
+    rrp > 0 ? `<button type="button" class="bv-chip" data-price="${rrp}" aria-pressed="false">${escapeHtml(t("bvAdd.chipRrp", { price: fmtMoney(rrp) }))}</button>` : "",
+    market > 0 ? `<button type="button" class="bv-chip" data-price="${market}" aria-pressed="false">${escapeHtml(t("bvAdd.chipMarket", { price: fmtMoney(Math.round(market), { cents: 0 }) }))}</button>` : "",
+    `<button type="button" class="bv-chip" data-price="other" aria-pressed="false">${escapeHtml(t("bvAdd.chipOther"))}</button>`,
+  ].join("");
+  const ctx = capturedMoneyContext();
+  return `<div class="bv-scanres__price">
+      <span class="bv-label"><strong>${escapeHtml(t("bvAdd.pricePaid"))}</strong> · ${escapeHtml(t("bvAdd.optional"))}</span>
+      <div class="bv-chips bv-chips--wrap" id="scanPriceChips">${chips}</div>
+      <div id="scanOtherWrap" hidden>${kitField({ id: "scanOtherPrice", label: t("bvAdd.pricePaid"), placeholder: "0.00", mono: true, prefix: CURRENCY_SYMBOLS[ctx.currency] || "$", inputmode: "decimal", autocomplete: "off" })}</div>
+    </div>`;
+}
+
+// Reads the picked price chip / typed price → USD, or null (not chosen).
+function readPickedPrice() {
+  const on = document.querySelector("#scanPriceChips [aria-pressed='true']");
+  if (!on) return { ok: true, usd: null };
+  if (on.dataset.price !== "other") return { ok: true, usd: Math.round(Number(on.dataset.price) * 100) / 100 };
+  const parsed = localMoneyToUsd($("#scanOtherPrice")?.value, capturedMoneyContext());
+  if (!parsed.valid) return { ok: false };
+  return { ok: true, usd: parsed.blank ? null : Math.round(parsed.usd * 100) / 100 };
+}
+
+function wirePriceChips() {
+  $$("#scanPriceChips [data-price]").forEach((b) => b.addEventListener("click", () => {
+    const on = b.getAttribute("aria-pressed") !== "true";
+    $$("#scanPriceChips [data-price]").forEach((x) => x.setAttribute("aria-pressed", String(x === b && on)));
+    const other = $("#scanOtherWrap");
+    if (other) other.hidden = !(on && b.dataset.price === "other");
+    if (on && b.dataset.price === "other") $("#scanOtherPrice")?.focus();
+    haptic("light");
+  }));
+}
+
+function showSingleSet(el, set) {
+  showChip(set.set_num, "lock");
+  const value = Number(displayValueOf(set)) || 0;
+  el.innerHTML = `${sheetTop()}
+    <div class="bv-scanres">
+      <button type="button" class="bv-scanres__set" id="scanDetails" aria-label="${escapeHtml(t("bvAdd.openSet", { name: set.name || set.set_num }))}">
+        ${setThumbHTML(set)}
+        <span class="bv-scanres__text"><span class="bv-scanres__name">${escapeHtml(set.name || set.set_num)}</span><span class="bv-scanres__meta">${setMetaLine(set)}</span></span>
+        <span class="bv-scanres__value"><span class="bv-num" data-countup="${value}">${value > 0 ? `${estMark(set)}${escapeHtml(fmtMoney(Math.round(value), { cents: 0 }))}` : "—"}</span><small>${escapeHtml(t("bvAdd.market"))}</small></span>
+      </button>
+      <div id="scanOwned">${wishlistNoteHTML(set)}</div>
+      ${priceChipsHTML(set)}
+      <details class="bv-scanres__more">
+        <summary>${escapeHtml(t("bvAdd.moreOptions"))}${kitIcon("down", { size: 18 })}</summary>
+        <div class="bv-field"><span class="bv-field__label">${escapeHtml(t("bvAdd.condition"))}</span>
+          ${kitSeg([{ label: t("bvAdd.condNew"), value: "new", current: true }, { label: t("bvAdd.condUsed"), value: "used_good" }], { label: t("bvAdd.condition"), id: "scanCond" })}</div>
+        ${dealScoreHTML(set)}
+        <div id="scanFlipCalcContainer">${flipCalcHTML(set, null)}</div>
+        ${amazonSlotHTML(set.set_num, { compact: true })}
+      </details>
+      <div class="bv-scanres__actions">
+        <button type="button" class="bv-btn bv-btn--primary" id="scanAdd">${kitIcon("plus", { size: 20, stroke: 2.2 })}<span>${escapeHtml(t("bvAdd.addToVault"))}</span></button>
+        <button type="button" class="bv-iconbtn bv-scanres__dismiss" id="scanDismiss" aria-label="${escapeHtml(t("bvAdd.notThisOne"))}">${kitIcon("x")}</button>
+      </div>
+    </div>`;
+  hydrateAmazonSlots(el, state.me?.retail_market || 'FR');
+  wirePriceChips();
+  countUpValue(el.querySelector("[data-countup]"), value, set);
+  ownedEntryFor(set.set_num).then((entry) => {
+    const box = $("#scanOwned");
+    if (!box || !entry || !document.contains(box)) return;
+    const qty = Number(entry.quantity) || 1;
+    box.innerHTML = `<div class="bv-banner bv-banner--neutral bv-banner--tight" role="note">${kitIcon("copy", { size: 20 })}<span class="bv-banner__text">${escapeHtml(tPlural("bvAdd.ownCopies", qty, { count: qty, next: qty + 1 }))}</span></div>${wishlistNoteHTML(set)}`;
+  });
+  $$("#scanCond [data-value]").forEach((b) => b.addEventListener("click", () => {
+    $$("#scanCond [data-value]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    haptic("light");
+  }));
+  const dpi = $("#dealPriceInput");
+  if (dpi) {
+    let debounceTid;
+    dpi.addEventListener("input", (e) => {
+      const val = e.target.value;
+      clearTimeout(debounceTid);
+      debounceTid = setTimeout(() => { updateDealBadge(set, val); updateFlipCalc(set, null, val); }, 150);
+    });
+  }
+  $("#scanDetails")?.addEventListener("click", () => { closeScan(); location.hash = "#/set/" + encodeURIComponent(set.set_num); });
+  $("#scanDismiss")?.addEventListener("click", () => { haptic("light"); clearScanResult({ restartCamera: true }); if (state.camera.mode !== "image" && isNativeCapacitor() && !_liveStop) runNativeBarcodeScan(); });
+  $("#scanAdd")?.addEventListener("click", async () => {
+    const price = readPickedPrice();
+    if (!price.ok) { toast(t("bvAdd.priceInvalid"), "error"); $("#scanOtherPrice")?.focus(); return; }
+    const condition = $("#scanCond [aria-pressed='true']")?.dataset.value || "new";
+    haptic("heavy");
+    setBtnLoading($("#scanAdd"), true);
+    try {
+      await addScannedSet(set, { priceUsd: price.usd, condition });
+      resumeAfterAdd(set);
+    } catch (e) {
+      setBtnLoading($("#scanAdd"), false);
+      toast(t('scanner.addItemFailed', { name: set.name, error: e.message || e }), "error");
+    }
+  });
+}
+
+// On your wishlist? Say so (with the target) — adding it here is the moment
+// that wish comes true.
+function wishlistNoteHTML(set) {
+  const wanted = (state.wishlist || []).find((w) => w.set_num === set.set_num);
+  if (!wanted) return "";
+  const target = Number(wanted.target_price) > 0 ? t("bvAdd.wishTarget", { price: fmtMoney(Number(wanted.target_price)) }) : "";
+  return `<div class="bv-banner bv-banner--acc bv-banner--tight" role="note">${kitIcon("heart", { size: 20 })}<span class="bv-banner__text">${escapeHtml(t("bvAdd.onWishlist"))}${target ? ` · ${escapeHtml(target)}` : ""}</span></div>`;
+}
+
+// The value counts up once when the result fills (reduced motion: instant).
+function countUpValue(node, value, set) {
+  if (!node || !(value > 0) || reducedMotion()) return;
+  const start = performance.now();
+  const dur = 420;
+  const tick = (now) => {
+    const k = Math.min(1, (now - start) / dur);
+    const eased = 1 - (1 - k) ** 3;
+    node.textContent = estMark(set) + fmtMoney(Math.round(value * eased), { cents: 0 });
+    if (k < 1 && node.isConnected) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+const FIG_RARITY_KEYS = {
+  common: "minifigs.filterSummaryRarityCommon",
+  uncommon: "minifigs.filterSummaryRarityUncommon",
+  rare: "minifigs.filterSummaryRarityRare",
+  legendary: "minifigs.filterSummaryRarityLegendary",
+};
+function figRowHTML(fig, idx) {
+  const img = fig.image_url && !String(fig.image_url).startsWith("data:") ? `<img class="fig-photo" src="${escapeHtml(fig.image_url)}" alt="" loading="lazy">` : "";
+  const minifigLabel = t("scanner.minifig");
+  const rarityKeys = FIG_RARITY_KEYS;
+  const minifigMetadata = fig.series
+    ? t("scanner.minifigWithSeries", { minifig: minifigLabel, series: String(fig.series) })
+    : fig.rarity
+      ? t("scanner.minifigWithRarity", {
+        minifig: minifigLabel,
+        rarity: t(rarityKeys[String(fig.rarity).toLowerCase()] || "scanner.rarityUnknown"),
+      })
+      : minifigLabel;
+  return `<label class="bv-scanres__row">
+      <input type="checkbox" class="scan-fig-check" data-fignum="${escapeHtml(fig.fig_num)}" data-idx="${idx}" checked>
+      ${kitThumb({ color: "#c9c4b3", imgHtml: img, size: 44 })}
+      <span class="bv-scanres__text"><span class="bv-scanres__name">${escapeHtml(fig.name)}</span><span class="bv-scanres__meta">${escapeHtml(minifigMetadata)}</span></span>
+      ${fig.current_value != null ? `<span class="bv-num">${escapeHtml(fmtMoney(fig.current_value))}</span>` : ""}
+    </label>`;
+}
+
+async function addCheckedFigs(minifigs) {
+  let added = 0;
+  for (const box of $$(".scan-fig-check:checked")) {
+    const fig = minifigs[Number(box.dataset.idx)];
+    const path = `/api/minifigs/${encodeURIComponent(box.dataset.fignum)}`;
+    try { await api(path, { method: "PUT", body: { quantity: 1 } }); added++; }
+    catch (e) {
+      if (!navigator.onLine) { outboxEnqueue({ path, method: 'PUT', body: { quantity: 1 } }); added++; }
+      else toast(t('scanner.addItemFailed', { name: fig?.name || t('scanner.minifig'), error: e.message || e }), "error");
+    }
+  }
+  if (added) invalidatePortfolio();
+  return added;
+}
+
+// Photo ID: best matches with a confidence label; pick one (and any figs).
+function showCandidates(el, sets, minifigs, res) {
+  const confidence = String(res.confidence || 'high').toLowerCase();
+  const matchLabel = (value) => t({ high: 'scanner.matchHigh', medium: 'scanner.matchMedium', low: 'scanner.matchLow' }[String(value || '').toLowerCase()] || 'scanner.match');
+  const matchTone = (value) => ({ high: "gain", low: "loss" }[String(value || "").toLowerCase()] || "neutral");
+  el.innerHTML = `${sheetTop()}
+    <div class="bv-scanres">
+      <div class="bv-scanres__head"><h2>${escapeHtml(sets.length ? t("bvAdd.bestMatches") : tPlural("scanner.minifigsFound", minifigs.length))}</h2><span class="bv-label">${escapeHtml(t({ high: 'scanner.confidenceHigh', medium: 'scanner.confidenceMedium', low: 'scanner.confidenceLow' }[confidence] || 'scanner.confidenceUnknown'))}</span></div>
+      ${sets.length ? `<div class="bv-scanres__list" role="radiogroup" aria-label="${escapeHtml(t("bvAdd.bestMatches"))}">${sets.map((set, idx) => `
+        <label class="bv-scanres__row">
+          <input type="radio" name="scanPick" value="${idx}"${idx === 0 ? " checked" : ""}>
+          ${setThumbHTML(set, 44)}
+          <span class="bv-scanres__text"><span class="bv-scanres__name">${escapeHtml(set.name)}</span><span class="bv-scanres__meta">${setMetaLine(set)}</span></span>
+          ${kitPill(matchLabel(set.match_confidence || (idx === 0 ? confidence : "low")), matchTone(set.match_confidence || (idx === 0 ? confidence : "low")))}
+        </label>`).join("")}</div>` : ""}
+      ${minifigs.length ? `<h3 class="bv-scanres__sub">${escapeHtml(t("bvAdd.minifigures"))}</h3><div class="bv-scanres__list">${minifigs.map(figRowHTML).join("")}</div>` : ""}
+      <div class="bv-btn-row">
+        <button type="button" class="bv-btn bv-btn--outline" id="scanRetake">${kitIcon("camera", { size: 20 })}<span>${escapeHtml(t("bvAdd.retake"))}</span></button>
+        <button type="button" class="bv-btn bv-btn--primary" id="scanAdd">${kitIcon("plus", { size: 20, stroke: 2.2 })}<span>${escapeHtml(sets.length ? t("bvAdd.addThisSet") : t("bvAdd.addSelected"))}</span></button>
+      </div>
+    </div>`;
+  $("#scanRetake")?.addEventListener("click", () => clearScanResult({ restartCamera: true }));
   $("#scanAdd")?.addEventListener("click", async () => {
     haptic("heavy");
-    const checkedBoxes = $$(".scan-select-check:checked");
-    const checkedFigs = $$(".scan-fig-check:checked");
-    if (!checkedBoxes.length && !checkedFigs.length) { toast("Nothing selected", "info"); return; }
-
-    // Warn if any selected set is already in the collection.
-    const ownedNums = new Set((state.portfolio?.items || []).map(i => i.set_num));
-    const duplicates = Array.from(checkedBoxes)
-      .map(b => ({ setnum: b.dataset.setnum, s: sets[parseInt(b.dataset.idx, 10)] }))
-      .filter(({ setnum }) => ownedNums.has(setnum));
-    if (duplicates.length) {
-      const names = duplicates.map(d => d.s?.name || d.setnum).join(', ');
-      const { confirmSheet } = await import('./sheet.js');
-      const ok = await confirmSheet({
-        title: t('scanner.duplicateConfirmTitle'),
-        message: t('scanner.duplicateConfirmMessage', { names }),
-        confirmLabel: t('scanner.duplicateConfirmAction'),
-      });
-      if (!ok) return;
-    }
-
     setBtnLoading($("#scanAdd"), true);
-    let addedCount = 0;
-    let kidsXp = 0;
-    let kidsBadge = null;
-    let kidsLevel = null;
-    for (const box of checkedBoxes) {
-      const setnum = box.dataset.setnum;
-      const targetSet = sets[parseInt(box.dataset.idx, 10)];
-      const condValue = Number(marketValueForCondition(targetSet, scanCondition)) || Number(targetSet.current_value) || null;
-      const body = { set_num: setnum, quantity: 1, condition: scanCondition, purchase_price: condValue };
-      try {
-        const result = await api("/api/collection", { method: "POST", body });
-        addedCount++;
-        if (result?.kids?.xp_gained > 0) {
-          kidsXp += result.kids.xp_gained;
-          if (result.kids.new_level) kidsLevel = result.kids.new_level;
-          if (result.kids.new_badges?.[0] && !kidsBadge) kidsBadge = result.kids.new_badges[0];
-        }
-      } catch (e) {
-        if (!navigator.onLine) {
-          outboxEnqueue({ path: '/api/collection', method: 'POST', body });
-          addedCount++;
-        } else {
-          toast(t('scanner.addItemFailed', { name: targetSet.name, error: e.message || e }), "error");
-        }
-      }
+    const pick = sets[Number(document.querySelector("input[name='scanPick']:checked")?.value)];
+    try {
+      if (pick) await addScannedSet(pick);
+      const figs = await addCheckedFigs(minifigs);
+      if (!pick && !figs) { setBtnLoading($("#scanAdd"), false); toast(t("bvAdd.nothingSelected"), "info"); return; }
+      if (!pick && figs) toast(tPlural('scanner.itemsAdded', figs), "success");
+      resumeAfterAdd(pick || {});
+    } catch (e) {
+      setBtnLoading($("#scanAdd"), false);
+      toast(t('scanner.addItemFailed', { name: pick?.name || "", error: e.message || e }), "error");
     }
-    for (const box of checkedFigs) {
-      const fignum = box.dataset.fignum;
-      const targetFig = minifigs[parseInt(box.dataset.idx, 10)];
-      const path = `/api/minifigs/${encodeURIComponent(fignum)}`;
-      try {
-        await api(path, { method: "PUT", body: { quantity: 1 } });
-        addedCount++;
-      } catch (e) {
-        if (!navigator.onLine) {
-          outboxEnqueue({ path, method: 'PUT', body: { quantity: 1 } });
-          addedCount++;
-        } else {
-          toast(t('scanner.addItemFailed', { name: targetFig?.name || t('scanner.minifig'), error: e.message || e }), "error");
-        }
-      }
-    }
-    invalidatePortfolio(); state.catalog.items = [];
-    closeScan();
-    if (addedCount > 0) {
-      toast(tPlural(navigator.onLine ? 'scanner.itemsAdded' : 'scanner.itemsSavedOffline', addedCount), "success");
-    }
-    // Kids mode: surface the XP reward and refresh state.me so the kids home
-    // reflects the new XP/level/badge.
-    if (getModePref() === "kids" && kidsXp > 0) {
-      const badge = kidsBadge ? kidsBadgeLabel(kidsBadge) : '';
-      setTimeout(() => toast(kidsXpMessage(kidsXp, { level: kidsLevel, badge }), "success"), 500);
-      state.me = null;
-    }
-    location.hash = "#/";
   });
 }
 
-function scanOverlayHTML(mode, shelf = false) {
-  // On the native app, barcode / blind-box modes hand off to ML Kit's own
-  // full-screen scanner — so render a clean loading state from the start (class
-  // native-scan) instead of the web camera chrome (video + laser frame), which
-  // otherwise flashes before ML Kit opens and again after a scan returns.
-  const nativeBarcode = mode !== "image" && isNativeCapacitor();
-  return `
-    <div class="scan-video-wrap${nativeBarcode ? " native-scan" : ""}">
-      <video class="scan-video" id="scanVideo" autoplay playsinline muted></video>
-      <img class="scan-photo-preview" id="scanPhotoPreview" alt="Captured photo" hidden>
-      <div class="scan-top" style="justify-content: space-between;">
-        <button id="scanCloseBtn" aria-label="Close">${I.close()}</button>
-        <div class="scan-mode-toggle" role="group" aria-label="Scan mode" style="display: flex; align-items: center;">
-          <button data-mode="barcode" aria-pressed="${mode === "barcode"}" class="${mode === "barcode" ? "active" : ""}">Barcode</button>
-          <button data-mode="image" aria-pressed="${mode === "image"}" class="${mode === "image" ? "active" : ""}">Photo</button>
-        </div>
-        <div style="width:42px;"></div>
+// Shelf Snap: every set the photo shows, numbered, pre-checked unless you
+// already own it. The service returns sets without positions in the photo,
+// so the numbers live on the checklist.
+function showShelfChecklist(el, sets, minifigs) {
+  const owned = new Set([...(state.portfolio?.items || []).map((i) => i.set_num), ...(state.ownedSetNums || [])]);
+  const rows = sets.map((set, idx) => {
+    const isOwned = owned.has(set.set_num);
+    const value = Number(displayValueOf(set)) || 0;
+    return `<label class="bv-scanres__row">
+        <span class="bv-scanres__num">${idx + 1}</span>
+        <span class="bv-scanres__text"><span class="bv-scanres__name">${escapeHtml(set.name)}</span><span class="bv-scanres__meta"><span class="bv-num">${escapeHtml(set.set_num)}</span>${isOwned ? ` · ${escapeHtml(t("bvAdd.alreadyOwned"))}` : ""}</span></span>
+        ${value > 0 ? `<span class="bv-num">${escapeHtml(fmtMoney(Math.round(value), { cents: 0 }))}</span>` : ""}
+        <input type="checkbox" class="scan-select-check" data-idx="${idx}" data-value="${value}"${isOwned ? "" : " checked"}>
+      </label>`;
+  }).join("");
+  el.innerHTML = `${sheetTop()}
+    <div class="bv-scanres">
+      <div class="bv-scanres__head"><h2>${escapeHtml(tPlural("bvAdd.shelfFound", sets.length, { count: sets.length }))}</h2><span class="bv-label" id="shelfSummary"></span></div>
+      <div class="bv-scanres__list">${rows}</div>
+      ${minifigs.length ? `<h3 class="bv-scanres__sub">${escapeHtml(t("bvAdd.minifigures"))}</h3><div class="bv-scanres__list">${minifigs.map(figRowHTML).join("")}</div>` : ""}
+      <div class="bv-btn-row">
+        <button type="button" class="bv-btn bv-btn--outline" id="scanRetake">${kitIcon("camera", { size: 20 })}<span>${escapeHtml(t("bvAdd.retake"))}</span></button>
+        <button type="button" class="bv-btn bv-btn--primary" id="scanAdd">${kitIcon("plus", { size: 20, stroke: 2.2 })}<span id="shelfAddLabel"></span></button>
       </div>
-      ${nativeBarcode ? `<div class="scan-native-loading"><span class="spinner"></span></div>` : `
-      <div class="scan-frame ${mode !== "image" ? "barcode" : ""}">
-        <span class="corner tl"></span><span class="corner tr"></span>
-        <span class="corner bl"></span><span class="corner br"></span>
-        ${mode !== "image" ? `<span class="laser"></span>` : ""}
-      </div>`}
-      ${mode === "image" && !nativeBarcode ? `
-        <div class="scan-shelf-row scan-top-stack" role="group" aria-label="Photo scope" style="position:absolute;left:0;right:0;display:flex;justify-content:center;z-index:3;">
-          <div style="display:inline-flex;border:1.5px solid #fff5;border-radius:999px;overflow:hidden;backdrop-filter:blur(6px);background:#0006;">
-            <button type="button" class="scan-shelf-opt" data-shelf="0" aria-pressed="${shelf ? "false" : "true"}" style="border:none;background:${shelf ? "transparent" : "var(--accent)"};color:${shelf ? "#fff9" : "#fff"};font-size:12px;font-weight:700;padding:7px 14px;cursor:pointer;white-space:nowrap;">One set</button>
-            <button type="button" class="scan-shelf-opt" data-shelf="1" aria-pressed="${shelf ? "true" : "false"}" style="border:none;background:${shelf ? "var(--accent)" : "transparent"};color:${shelf ? "#fff" : "#fff9"};font-size:12px;font-weight:700;padding:7px 14px;cursor:pointer;white-space:nowrap;">Whole shelf</button>
-          </div>
-        </div>` : ""}
-      <div class="scan-hint" id="scanHint" role="status" aria-live="polite">${nativeBarcode ? "Opening scanner…" : mode === "blindbox" ? "Scan the blind bag or box barcode" : mode === "barcode" ? "Align barcode within the frame" : shelf ? "Fit the whole shelf in frame — good light helps" : "Frame the set and tap to identify"}</div>
-      ${mode === "image" ? `
-        <div class="scan-bottom">
-          <button class="btn-secondary scan-gallery-btn" id="scanGalleryBtn">
-            ${I.layers({w:16, h:16})} <span>Gallery</span>
-          </button>
-          <button class="scan-capture-btn" id="scanCapture" aria-label="Capture"></button>
-          <input type="file" id="scanGalleryInput" accept="image/*" multiple style="display:none;">
-          <span class="scan-bottom-spacer" aria-hidden="true"></span>
-        </div>` : ""}
-      <div class="scan-result" id="scanResult" role="status" aria-live="polite"></div>
     </div>`;
+  const summarize = () => {
+    const checked = $$(".scan-select-check:checked");
+    const total = checked.reduce((a, b) => a + (Number(b.dataset.value) || 0), 0);
+    const s = $("#shelfSummary");
+    if (s) s.textContent = t("bvAdd.shelfSelected", { count: checked.length, total: fmtMoney(Math.round(total), { cents: 0 }) });
+    const l = $("#shelfAddLabel");
+    if (l) l.textContent = tPlural("bvAdd.addSets", checked.length, { count: checked.length });
+  };
+  summarize();
+  $$(".scan-select-check").forEach((c) => c.addEventListener("change", summarize));
+  $("#scanRetake")?.addEventListener("click", () => clearScanResult({ restartCamera: true }));
+  $("#scanAdd")?.addEventListener("click", async () => {
+    const checked = $$(".scan-select-check:checked").map((c) => sets[Number(c.dataset.idx)]);
+    haptic("heavy");
+    setBtnLoading($("#scanAdd"), true);
+    let failed = 0;
+    for (const set of checked) {
+      try { await addScannedSet(set); } catch { failed++; }
+    }
+    const figs = await addCheckedFigs(minifigs);
+    if (!checked.length && !figs) { setBtnLoading($("#scanAdd"), false); toast(t("bvAdd.nothingSelected"), "info"); return; }
+    if (failed) toast(tPlural('scanner.bulkPartial', failed, { added: checked.length - failed, total: checked.length, failed }), "error");
+    paintCloseButton();
+    clearScanResult({ restartCamera: true });
+  });
 }
+
 
 async function processBulkScanQueue(files) {
   const { controller, generation } = beginScanRequest();
@@ -1299,7 +1634,7 @@ async function processBulkScanQueue(files) {
   const el = $("#scanResult");
   if (el) {
     el.classList.add("show", "loading");
-    document.querySelector(".scan-video-wrap")?.classList.add("has-result");
+    document.querySelector(".bv-scan")?.classList.add("has-result");
     el.innerHTML = `
       <div class="scan-loading" style="padding:24px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
         <div class="spinner"></div>
@@ -1397,7 +1732,7 @@ function showBulkScanResults(results) {
   if (!el) return;
   el.classList.add("show");
   el.classList.remove("loading");
-  document.querySelector(".scan-video-wrap")?.classList.add("has-result");
+  document.querySelector(".bv-scan")?.classList.add("has-result");
   setScanPending(false);
 
   let rowsHTML = `<div style="display:flex;flex-direction:column;gap:12px;margin:8px 0 16px;max-height:55vh;overflow-y:auto;padding-right:4px;">`;
