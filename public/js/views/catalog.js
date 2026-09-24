@@ -11,6 +11,7 @@ import { openScan, lookupScanInput } from '../components/scanner-lazy.js';
 import { trustBadgeHTML } from '../components/trust.js';
 import { activeCatalogFilterCount, pricePerPiece, estMark, displayValueOf, cleanFacetList } from '../lib/pure.js';
 import { catalogFilterSummaryText } from '../lib/filter-summary.js';
+import { scanIntentFromHash } from '../lib/deep-links.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
 
 let _catalogGen = 0;
@@ -906,6 +907,15 @@ export function renderPile() {
       if (submit) submit.disabled = false;
     }
   });
+
+  // Launcher / PWA shortcut (#/pile?scan=barcode|photo|shelf): open that mode
+  // straight away, once. The query is dropped first so Back lands on the
+  // picker, and the button click keeps the same setup gating as a tap.
+  const intent = scanIntentFromHash(location.hash);
+  if (intent) {
+    history.replaceState(null, "", `${location.pathname}${location.search}#/pile`);
+    ({ barcode: $("#pileScanBarcode"), photo: $("#pileScanPhoto"), shelf: $("#pileScanShelf") })[intent]?.click();
+  }
 }
 
 // Quick-chip themes: lead with collector/investment-relevant themes. The

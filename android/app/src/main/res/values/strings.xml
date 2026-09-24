@@ -6,4 +6,16 @@
     <string name="custom_url_scheme">app.bricksvault</string>
     <string name="widget_eyebrow">VAULT · BRICKSVAULT</string>
     <string name="widget_description">Your vault value and today\'s change at a glance.</string>
+    <string name="widget_label">Vault value</string>
+    <string name="widget_open_app">Open the app</string>
+    <string name="widget_open_to_sync">Open the app to sync</string>
+    <string name="widget_scan">Scan</string>
+    <string name="widget_search">Search</string>
+    <!-- Launcher shortcuts (long-press the app icon). -->
+    <string name="shortcut_scan_short">Scan a set</string>
+    <string name="shortcut_scan_long">Scan a set\'s barcode</string>
+    <string name="shortcut_shelf_short">Photograph a shelf</string>
+    <string name="shortcut_shelf_long">Photograph a whole shelf</string>
+    <string name="shortcut_wishlist_short">Wishlist</string>
+    <string name="shortcut_wishlist_long">Open your wishlist</string>
 </resources>

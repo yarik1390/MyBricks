@@ -45,6 +45,11 @@
                     android:host="bricksvault.app" />
             </intent-filter>
 
+            <!-- Launcher shortcuts: Scan a set, Photograph a shelf, Wishlist. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+
         </activity>
 
         <!-- Home-screen vault-value widget. Static except when the app pushes

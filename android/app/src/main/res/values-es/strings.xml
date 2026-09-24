@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget and launcher shortcut labels. -->
+<resources>
+    <string name="widget_label">Valor de la colección</string>
+    <string name="widget_open_app">Abre la app</string>
+    <string name="widget_open_to_sync">Abre la app para sincronizar</string>
+    <string name="widget_scan">Escanear</string>
+    <string name="widget_search">Buscar</string>
+    <string name="shortcut_scan_short">Escanear un set</string>
+    <string name="shortcut_scan_long">Escanear el código de un set</string>
+    <string name="shortcut_shelf_short">Fotografiar una estantería</string>
+    <string name="shortcut_shelf_long">Fotografiar una estantería entera</string>
+    <string name="shortcut_wishlist_short">Lista de deseos</string>
+    <string name="shortcut_wishlist_long">Abrir tu lista de deseos</string>
+</resources>

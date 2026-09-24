@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget and launcher shortcut labels. -->
+<resources>
+    <string name="widget_label">收藏总值</string>
+    <string name="widget_open_app">打开应用</string>
+    <string name="widget_open_to_sync">打开应用以同步</string>
+    <string name="widget_scan">扫描</string>
+    <string name="widget_search">搜索</string>
+    <string name="shortcut_scan_short">扫描套装</string>
+    <string name="shortcut_scan_long">扫描套装条形码</string>
+    <string name="shortcut_shelf_short">拍摄货架</string>
+    <string name="shortcut_shelf_long">拍摄一整层货架</string>
+    <string name="shortcut_wishlist_short">心愿单</string>
+    <string name="shortcut_wishlist_long">打开心愿单</string>
+</resources>
