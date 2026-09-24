@@ -95,10 +95,11 @@ export async function runWishlistAlerts(env: Env) {
 
   if (!results.length) {
     const spike = await runSpikeAlerts(env);
+    const sellTargets = await runSellTargetAlerts(env);
     const retiring = await runRetirementAlerts(env);
     const deals = await runDealAlerts(env);
     const preorders = await runPreorderAlerts(env);
-    return { fired: 0, spikes: spike.fired, retiring: retiring.fired, deals: deals.fired, preorders: preorders.fired };
+    return { fired: 0, spikes: spike.fired, sellTargets: sellTargets.fired, retiring: retiring.fired, deals: deals.fired, preorders: preorders.fired };
   }
 
   const stmts: D1PreparedStatement[] = [];
@@ -155,10 +156,11 @@ export async function runWishlistAlerts(env: Env) {
   }
 
   const spike = await runSpikeAlerts(env);
+  const sellTargets = await runSellTargetAlerts(env);
   const retiring = await runRetirementAlerts(env);
   const deals = await runDealAlerts(env);
   const preorders = await runPreorderAlerts(env);
-  return { fired: results.length, spikes: spike.fired, retiring: retiring.fired, deals: deals.fired, preorders: preorders.fired };
+  return { fired: results.length, spikes: spike.fired, sellTargets: sellTargets.fired, retiring: retiring.fired, deals: deals.fired, preorders: preorders.fired };
 }
 
 async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
@@ -242,6 +244,74 @@ async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
     }
   }
 
+  return { fired: results.length };
+}
+
+// Sell-target alerts: an owned set's display value reached the price its owner
+// said they'd sell at. One alert per upward crossing — sell_target_alerted_at
+// latches it, and is cleared (re-armed) when the value falls back below the
+// target or the owner changes the target (PATCH /api/collection/:id). Same trust
+// rule as spikes: only corroborated or market-method values fire.
+export async function runSellTargetAlerts(env: Env): Promise<{ fired: number }> {
+  // Re-arm holdings whose value dropped back under their target.
+  await env.DB.prepare(`
+    UPDATE user_collection SET sell_target_alerted_at = NULL
+    WHERE sell_target_alerted_at IS NOT NULL AND deleted_at IS NULL
+      AND sell_target > COALESCE((SELECT COALESCE(NULLIF(ls.blended_value, 0), ls.current_value)
+                                  FROM lego_sets ls WHERE ls.set_num = user_collection.set_num), 0)
+  `).run();
+  const { results } = await env.DB.prepare(`
+    SELECT uc.id as collection_id, uc.user_id, uc.set_num, uc.sell_target,
+           ls.name as set_name, ls.image_url,
+           COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) AS current_value
+    FROM user_collection uc
+    JOIN lego_sets ls ON ls.set_num = uc.set_num
+    WHERE uc.sell_target > 0
+      AND uc.deleted_at IS NULL
+      AND uc.sell_target_alerted_at IS NULL
+      AND COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) >= uc.sell_target
+      AND (
+        ls.blended_confidence IN ('high', 'medium')
+        OR (
+          (ls.blended_value IS NULL OR ls.blended_value = 0)
+          AND COALESCE(ls.valuation_method, '') NOT IN ('formula_bulk', 'local', 'ai')
+        )
+      )
+    LIMIT ?
+  `).bind(ALERTS_PER_KIND).all<{
+    collection_id: number; user_id: string; set_num: string; sell_target: number;
+    set_name: string; current_value: number; image_url: string | null;
+  }>();
+  if (!results.length) return { fired: 0 };
+
+  const stmts: D1PreparedStatement[] = [];
+  for (const row of results) {
+    stmts.push(
+      env.DB.prepare(`
+        INSERT INTO wishlist_alerts (user_id, set_num, set_name, target_price, current_value, alert_type)
+        VALUES (?, ?, ?, ?, ?, 'sell_target')
+      `).bind(row.user_id, row.set_num, row.set_name, row.sell_target, row.current_value),
+      env.DB.prepare(`UPDATE user_collection SET sell_target_alerted_at=datetime('now') WHERE id=?`).bind(row.collection_id),
+    );
+  }
+  await env.DB.batch(stmts);
+
+  const users = [...new Set(results.map(row => row.user_id))];
+  const prefsByUser = await loadAlertPrefs(env, users);
+  for (const row of results) {
+    const prefs = prefsByUser.get(row.user_id);
+    if (!prefs || !prefs.notify_price_drops) continue;
+    // Actions deep-link straight to the decision: sell options or a new target.
+    sendPushToUser(env, row.user_id, JSON.stringify({
+      title: `${row.set_name} reached your sell target`,
+      body: `Now $${row.current_value.toFixed(0)} — you set $${row.sell_target.toFixed(0)}.`,
+      url: `#/set/${encodeURIComponent(row.set_num)}/sell`,
+      actions: [
+        { action: 'sell', title: 'Sell options', url: `#/set/${encodeURIComponent(row.set_num)}/sell` },
+        { action: 'target', title: 'Raise target', url: `#/set/${encodeURIComponent(row.set_num)}/target` },
+      ],
+    })).catch(() => {});
+  }
   return { fired: results.length };
 }
 
