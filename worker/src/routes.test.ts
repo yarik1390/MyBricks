@@ -963,6 +963,33 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(row.purchase_price).toBe(0);
     });
 
+    it('round-trips a sell target through CSV export and import', async () => {
+      await db.prepare(
+        `INSERT INTO user_collection (user_id, set_num, quantity, condition, purchase_price, sell_target)
+         VALUES (?, '75192', 1, 'new', 700, 1000)`
+      ).bind(userId).run();
+      const csv = await (await app.fetch(new Request('http://localhost/api/collection/export', { headers: auth() }), env)).text();
+      const [header, row] = csv.split('\n');
+      const cols = header.split(',');
+      expect(cols).toContain('sell_target');
+      expect(row.split(',')[cols.indexOf('sell_target')]).toBe('1000');
+
+      await db.prepare(`DELETE FROM user_collection WHERE user_id=?`).bind(userId).run();
+      const res = await app.fetch(new Request('http://localhost/api/collection/import', {
+        method: 'POST',
+        headers: auth(),
+        body: JSON.stringify({ rows: [
+          { set_num: '75192', quantity: 1, sell_target: '1000' },
+          { set_num: '10179', quantity: 1, sell_target: '-5' },
+        ] }),
+      }), env);
+      expect(res.status).toBe(200);
+      const saved = await db.prepare(`SELECT set_num, sell_target FROM user_collection WHERE user_id=? ORDER BY set_num`).bind(userId).all<any>();
+      const byNum = Object.fromEntries(saved.results.map((r: any) => [r.set_num, r.sell_target]));
+      expect(byNum['75192']).toBe(1000);
+      if ('10179' in byNum) expect(byNum['10179']).toBeNull();
+    });
+
     it('caps free-text fields at 500 chars server-side', async () => {
       const res = await app.fetch(new Request('http://localhost/api/collection', {
         method: 'POST',
@@ -1687,6 +1714,21 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(data.history[0].current_value).toBe(850);
       expect(data.history[0].ebay_value).toBe(840);
       expect(data.history[0]).not.toHaveProperty('bl_value');
+    });
+
+    it('serves up to five years of set history and falls back on a bad range', async () => {
+      await db.prepare(
+        `INSERT INTO set_value_history (set_num, snapshot_date, current_value, ebay_value)
+         VALUES ('75192', DATE('now', '-1000 days'), 700, 690), ('75192', DATE('now'), 850, 840)`,
+      ).run();
+      const all = await (await app.fetch(new Request('http://localhost/api/sets/75192/history?days=1825'), env)).json<any>();
+      expect(all.days).toBe(1825);
+      expect(all.history).toHaveLength(2);
+      const capped = await (await app.fetch(new Request('http://localhost/api/sets/75192/history?days=99999'), env)).json<any>();
+      expect(capped.days).toBe(1825);
+      const bad = await (await app.fetch(new Request('http://localhost/api/sets/75192/history?days=abc'), env)).json<any>();
+      expect(bad.days).toBe(90);
+      expect(bad.history).toHaveLength(1);
     });
 
     it('snapshots each user portfolio at COALESCE(blended_value, current_value) x qty', async () => {

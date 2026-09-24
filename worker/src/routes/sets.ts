@@ -918,7 +918,9 @@ app.patch('/:setnum/parts/:partNumColor', requireMember, async (c) => {
 
 app.get('/:setnum/history', async (c) => {
   const setNum = c.req.param('setnum');
-  const days = Math.min(parseInt(c.req.query('days') || '90', 10), 365);
+  // 3M / 1Y / All on the set page; "All" is capped at five years of snapshots.
+  const requested = parseInt(c.req.query('days') || '90', 10);
+  const days = Number.isFinite(requested) && requested > 0 ? Math.min(requested, 1825) : 90;
   // Histories contain our derived/current and eBay values only. BrickLink guide
   // values are excluded at write time and must not be resurrected by this route.
   const { results } = await c.env.DB.prepare(`

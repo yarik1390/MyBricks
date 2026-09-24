@@ -496,8 +496,8 @@ app.post('/backups/:date/restore', async (c) => {
         user_id, set_num, quantity, condition, purchase_price, notes,
         purchased_at, deleted_at, storage_location, acquisition_source,
         is_complete, missing_pieces, custom_image_url, sold_price, sold_at,
-        last_modified
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        sold_fees, sell_target, last_modified
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       ON CONFLICT (user_id, set_num) DO UPDATE SET
         quantity=excluded.quantity, condition=excluded.condition,
         purchase_price=excluded.purchase_price, notes=excluded.notes,
@@ -507,6 +507,7 @@ app.post('/backups/:date/restore', async (c) => {
         is_complete=excluded.is_complete, missing_pieces=excluded.missing_pieces,
         custom_image_url=excluded.custom_image_url,
         sold_price=excluded.sold_price, sold_at=excluded.sold_at,
+        sold_fees=excluded.sold_fees, sell_target=excluded.sell_target,
         last_modified=datetime('now')
     `).bind(
       userId, r.set_num, r.quantity ?? 1, r.condition ?? 'new',
@@ -514,6 +515,7 @@ app.post('/backups/:date/restore', async (c) => {
       r.deleted_at ?? null, r.storage_location ?? null,
       r.acquisition_source ?? null, r.is_complete ?? 1, r.missing_pieces ?? 0,
       r.custom_image_url ?? null, r.sold_price ?? null, r.sold_at ?? null,
+      r.sold_fees ?? null, r.sell_target ?? null,
     ));
   for (let i = 0; i < stmts.length; i += 90) await c.env.DB.batch(stmts.slice(i, i + 90));
   return c.json({ ok: true, restored: stmts.length, date });

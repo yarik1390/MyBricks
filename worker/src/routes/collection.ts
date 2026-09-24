@@ -370,7 +370,7 @@ app.get('/export', async (c) => {
     SELECT
       uc.id, uc.set_num, uc.quantity, uc.condition, uc.purchase_price,
       uc.purchased_at, uc.storage_location, uc.acquisition_source,
-      uc.is_complete, uc.missing_pieces, uc.notes, uc.added_at,
+      uc.is_complete, uc.missing_pieces, uc.notes, uc.added_at, uc.sell_target,
       s.name, s.theme, s.year, s.pieces, s.minifigs,
       s.brickset_dimensions, s.packaging_type,
       s.retail_price, s.current_value
@@ -392,7 +392,7 @@ app.get('/export', async (c) => {
     'condition','quantity','purchase_price','purchased_at',
     ...(pro ? ['current_value','retail_price','roi_pct'] : []),
     'storage_location','acquisition_source',
-    'is_complete','missing_pieces','notes','added_at',
+    'is_complete','missing_pieces','notes','added_at','sell_target',
   ];
 
   const rows = results.map(r => {
@@ -407,7 +407,7 @@ app.get('/export', async (c) => {
       ...(pro ? [r.current_value ?? '', r.retail_price ?? '', roi] : []),
       r.storage_location ?? '', r.acquisition_source ?? '',
       r.is_complete == null ? 'true' : String(!!r.is_complete), r.missing_pieces ?? 0,
-      r.notes ?? '', aa,
+      r.notes ?? '', aa, r.sell_target ?? '',
     ].map(csvCell).join(',');
   });
 
@@ -557,12 +557,16 @@ app.post('/import', async (c) => {
     const acquisition_source = row.acquisition_source ? String(row.acquisition_source).slice(0, FREE_TEXT_MAX) : null;
     const is_complete = row.is_complete === 'false' || row.is_complete === false ? 0 : 1;
     const missing_pieces = parseInt(String(row.missing_pieces)) || 0;
+    // Sell target (USD) round-trips through the CSV export; ignore anything
+    // that isn't a sane positive price.
+    const rawTarget = Number(row.sell_target);
+    const sell_target = Number.isFinite(rawTarget) && rawTarget > 0 && rawTarget <= 10_000_000 ? rawTarget : null;
 
     stmts.push(c.env.DB.prepare(`
       INSERT INTO user_collection
         (user_id, set_num, quantity, condition, purchase_price, purchased_at,
-         notes, storage_location, acquisition_source, is_complete, missing_pieces, last_modified)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+         notes, storage_location, acquisition_source, is_complete, missing_pieces, sell_target, last_modified)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
       ON CONFLICT (user_id, set_num) DO UPDATE SET
         quantity = EXCLUDED.quantity,
         condition = EXCLUDED.condition,
@@ -573,10 +577,11 @@ app.post('/import', async (c) => {
         acquisition_source = COALESCE(EXCLUDED.acquisition_source, user_collection.acquisition_source),
         is_complete = EXCLUDED.is_complete,
         missing_pieces = EXCLUDED.missing_pieces,
+        sell_target = COALESCE(EXCLUDED.sell_target, user_collection.sell_target),
         last_modified = datetime('now'),
         deleted_at = NULL
     `).bind(userId, set_num, quantity, condition, purchase_price, purchased_at,
-        notes, storage_location, acquisition_source, is_complete, missing_pieces));
+        notes, storage_location, acquisition_source, is_complete, missing_pieces, sell_target));
     if (!overwrite) ownedSets.add(key);
   }
 
