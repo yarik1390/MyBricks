@@ -84,6 +84,12 @@
     ]
   },
   {
+    "text": "2-digit",
+    "files": [
+      "views/me-notifications.js"
+    ]
+  },
+  {
     "text": "2-year forecast",
     "files": [
       "views/portfolio-detail-market.js"
@@ -292,8 +298,7 @@
   {
     "text": "AT TARGET",
     "files": [
-      "runtime-exact",
-      "views/portfolio-wishlist.js"
+      "runtime-exact"
     ]
   },
   {
@@ -875,12 +880,6 @@
     ]
   },
   {
-    "text": "Available to pre-order",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
     "text": "Awaiting mobile approval",
     "files": [
       "views/me-admin.js"
@@ -890,12 +889,6 @@
     "text": "BATCH RESULTS",
     "files": [
       "components/scanner.js"
-    ]
-  },
-  {
-    "text": "BL ↗",
-    "files": [
-      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -914,8 +907,7 @@
     "text": "Back",
     "files": [
       "components/onboarding.js",
-      "views/portfolio-social.js",
-      "views/portfolio-wishlist.js"
+      "views/portfolio-social.js"
     ]
   },
   {
@@ -1313,12 +1305,6 @@
     ]
   },
   {
-    "text": "Browse catalog",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
     "text": "Browser",
     "files": [
       "lib/amazon-affiliate.js",
@@ -1367,12 +1353,6 @@
       "lib/amazon-affiliate.js",
       "methodology.html",
       "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "By value",
-    "files": [
-      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -1661,12 +1641,6 @@
     ]
   },
   {
-    "text": "Closest to target",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
     "text": "Cloud AI (recommended)",
     "files": [
       "views/me-integrations.js"
@@ -1749,8 +1723,7 @@
     "text": "Coming soon",
     "files": [
       "lib/pure.js",
-      "views/portfolio-detail-market.js",
-      "views/portfolio-wishlist.js"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -2082,12 +2055,6 @@
     ]
   },
   {
-    "text": "Couldn't dismiss the alert — try again when online.",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
     "text": "Couldn't identify the set on-device. Try a clearer photo.",
     "files": [
       "components/scanner.js"
@@ -2128,12 +2095,6 @@
     "text": "Couldn't load today's game:",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "Couldn't load wishlist",
-    "files": [
-      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -3064,12 +3025,6 @@
     ]
   },
   {
-    "text": "Failed to acknowledge wishlist alert",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
     "text": "Failed to connect Google Sheets",
     "files": [
       "views/me-integrations.js"
@@ -3121,12 +3076,6 @@
     "text": "Failed to load user profile",
     "files": [
       "router.js"
-    ]
-  },
-  {
-    "text": "Failed to mark alert as read:",
-    "files": [
-      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -4645,22 +4594,14 @@
     ]
   },
   {
-    "text": "Mark all read",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
     "text": "Mark read",
     "files": [
-      "views/portfolio-wishlist.js",
       "views/portfolio.js"
     ]
   },
   {
     "text": "Mark this alert read",
     "files": [
-      "views/portfolio-wishlist.js",
       "views/portfolio.js"
     ]
   },
@@ -5363,8 +5304,7 @@
   {
     "text": "No target",
     "files": [
-      "runtime-exact",
-      "views/portfolio-wishlist.js"
+      "runtime-exact"
     ]
   },
   {
@@ -5509,12 +5449,6 @@
     ]
   },
   {
-    "text": "Nothing wishlisted yet",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
     "text": "Notification permission denied",
     "files": [
       "views/me-integrations.js"
@@ -5553,12 +5487,6 @@
     ]
   },
   {
-    "text": "Now",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
     "text": "Off",
     "files": [
       "lib/pure.js"
@@ -5592,12 +5520,6 @@
     "text": "Older than 14 days",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "On back-order",
-    "files": [
-      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -5742,12 +5664,6 @@
     "text": "Open anomalies",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Open on BrickLink",
-    "files": [
-      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -6340,12 +6256,6 @@
     ]
   },
   {
-    "text": "Price target hit! 🎯",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
     "text": "Price tracking just started — check back soon for a trend.",
     "files": [
       "views/portfolio-detail.js"
@@ -6822,12 +6732,6 @@
     "text": "Receive price alerts on your device even when the app is closed.",
     "files": [
       "views/me-integrations.js"
-    ]
-  },
-  {
-    "text": "Recent",
-    "files": [
-      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -7631,8 +7535,7 @@
     "text": "Scan a set",
     "files": [
       "route-meta.js",
-      "views/portfolio-detail.js",
-      "views/portfolio-wishlist.js"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -7761,12 +7664,6 @@
     "text": "Sell",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "Sell Opportunities",
-    "files": [
-      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -8727,21 +8624,9 @@
     ]
   },
   {
-    "text": "Tap the heart on any set to watch it. We'll alert you when the price hits your target.",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
     "text": "Tap the minifig you pulled to add it to your collection.",
     "files": [
       "components/scanner.js"
-    ]
-  },
-  {
-    "text": "Target",
-    "files": [
-      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -9836,8 +9721,7 @@
     "text": "Wishlist",
     "files": [
       "index.html",
-      "route-meta.js",
-      "views/portfolio-wishlist.js"
+      "route-meta.js"
     ]
   },
   {
@@ -9942,18 +9826,6 @@
     "files": [
       "index.html",
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "You're offline — try marking alerts read when connected.",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
-    "text": "You're offline — wishlist isn't cached yet",
-    "files": [
-      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -10440,6 +10312,12 @@
     ]
   },
   {
+    "text": "bv-sheet__sub bv-permcopy",
+    "files": [
+      "views/me-notifications.js"
+    ]
+  },
+  {
     "text": "bv-sheet__sub bv-why__detail",
     "files": [
       "views/portfolio-detail.js"
@@ -10608,11 +10486,52 @@
     ]
   },
   {
+    "text": "bvAlerts.alertDropAt",
+    "files": [
+      "views/portfolio-wishlist.js"
+    ]
+  },
+  {
+    "text": "bvAlerts.alertDropBelow",
+    "files": [
+      "views/portfolio-wishlist.js"
+    ]
+  },
+  {
+    "text": "bvAlerts.emptyTitle",
+    "files": [
+      "views/portfolio-wishlist.js"
+    ]
+  },
+  {
+    "text": "bvAlerts.subEmail",
+    "files": [
+      "views/me-notifications.js"
+    ]
+  },
+  {
+    "text": "bvAlerts.subEmailWeekly",
+    "files": [
+      "views/me-notifications.js"
+    ]
+  },
+  {
+    "text": "bvAlerts.subPushEmail",
+    "files": [
+      "views/me-notifications.js"
+    ]
+  },
+  {
+    "text": "bvAlerts.subPushWeekly",
+    "files": [
+      "views/me-notifications.js"
+    ]
+  },
+  {
     "text": "bvCommon.comingSoon",
     "files": [
       "views/advisor-page.js",
       "views/me-insurance.js",
-      "views/me-notifications.js",
       "views/pro.js",
       "views/welcome.js",
       "views/wrapped.js"

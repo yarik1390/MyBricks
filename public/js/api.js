@@ -427,7 +427,7 @@ export async function migrateGuestVault(snapshot = snapshotGuestVault()) {
     const setNum = String(item?.set_num || "").trim();
     if (!setNum) continue;
     try {
-      await api("/api/wishlist", {
+      const created = await api("/api/wishlist", {
         method: "POST",
         body: {
           set_num: setNum,
@@ -435,6 +435,15 @@ export async function migrateGuestVault(snapshot = snapshotGuestVault()) {
           notes: item.notes || null,
         },
       });
+      // Carry the guest's per-set switches over when any were turned off.
+      if (['notify_target', 'notify_retiring', 'notify_stock'].some((key) => item[key] === 0)) {
+        if (created?.item?.id != null) {
+          await api(`/api/wishlist/${created.item.id}`, {
+            method: "PATCH",
+            body: Object.fromEntries(['notify_target', 'notify_retiring', 'notify_stock'].filter((key) => item[key] != null).map((key) => [key, item[key] !== 0])),
+          }).catch(() => {});
+        }
+      }
       assertMigrationOwner();
       result.wishlist++;
       result.migrated++;
@@ -482,6 +491,9 @@ export async function migrateGuestVault(snapshot = snapshotGuestVault()) {
   if (prefs.display_name && prefs.display_name !== "Guest Collector") prefPatch.display_name = prefs.display_name;
   if (prefs.currency) prefPatch.currency = prefs.currency;
   if (prefs.notify_price_drops !== undefined) prefPatch.notify_price_drops = !!prefs.notify_price_drops;
+  for (const key of ['notify_sell_targets', 'notify_big_moves', 'notify_retiring', 'notify_back_in_stock', 'quiet_hours']) {
+    if (typeof prefs[key] === 'boolean') prefPatch[key] = prefs[key];
+  }
   if (Object.keys(prefPatch).length) {
     assertMigrationOwner();
     try {
@@ -612,8 +624,15 @@ function readGuestPrefs() {
     currency: prefs.currency || 'USD',
     retail_market: prefs.retail_market || 'FR',
     notify_price_drops: prefs.notify_price_drops !== false,
+    // Alert categories stay on this device for guests (no push/email without
+    // an account); unset categories follow the master switch like the Worker.
+    ...Object.fromEntries(GUEST_NOTIFY_KEYS.map((key) => [key, prefs[key] ?? (prefs.notify_price_drops !== false)])),
+    quiet_hours: prefs.quiet_hours === true,
+    quiet_start: Number.isInteger(prefs.quiet_start) ? prefs.quiet_start : 22,
+    quiet_end: Number.isInteger(prefs.quiet_end) ? prefs.quiet_end : 8,
   };
 }
+const GUEST_NOTIFY_KEYS = ['notify_sell_targets', 'notify_big_moves', 'notify_retiring', 'notify_back_in_stock'];
 
 function guestMe() {
   const prefs = readGuestPrefs();
@@ -986,6 +1005,8 @@ async function guestApi(path, opts = {}, streamMode = false) {
         ...(body.currency !== undefined ? { currency: String(body.currency || 'USD') } : {}),
         ...(body.retail_market !== undefined ? { retail_market: String(body.retail_market || 'FR').toUpperCase() } : {}),
         ...(body.notify_price_drops !== undefined ? { notify_price_drops: !!body.notify_price_drops } : {}),
+        ...Object.fromEntries([...GUEST_NOTIFY_KEYS, 'quiet_hours'].filter((key) => body[key] !== undefined).map((key) => [key, !!body[key]])),
+        ...Object.fromEntries(['quiet_start', 'quiet_end'].filter((key) => Number.isInteger(body[key]) && body[key] >= 0 && body[key] <= 23).map((key) => [key, body[key]])),
       };
       writeLocalJSON(GUEST_PREFS_KEY, next);
       state.me = guestMe();
@@ -1043,6 +1064,23 @@ async function guestApi(path, opts = {}, streamMode = false) {
       return { handled: true, value: null };
     }
     if (method === 'POST') return { handled: true, value: { ok: true } };
+    if (method === 'PATCH') {
+      // Price alert sheet on a guest vault: same validation as the Worker.
+      const items = readGuestWishlist();
+      const item = items.find((x) => String(x.id) === String(wishlistMatch[1]));
+      if (!item) throw new Error('Not found');
+      if (body.target_price !== undefined) {
+        const tp = body.target_price;
+        if (tp !== null && !(typeof tp === 'number' && Number.isFinite(tp) && tp > 0)) throw new Error('Target price must be a positive number or null');
+        item.target_price = tp;
+        item.acknowledged_at = null;
+      }
+      for (const key of ['notify_target', 'notify_retiring', 'notify_stock']) {
+        if (body[key] !== undefined) item[key] = body[key] ? 1 : 0;
+      }
+      writeGuestWishlist(items);
+      return { handled: true, value: { item } };
+    }
   }
 
   if (pathname === '/api/minifigs' && method === 'GET') {

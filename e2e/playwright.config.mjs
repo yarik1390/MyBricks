@@ -10,7 +10,7 @@ const PORT = Number(process.env.PORT || 4321);
 
 export default defineConfig({
   testDir: '.',
-  testMatch: process.env.PW_MATCH || /(smoke|i18n|i18n-dict|scan-layout|card-badge-layout|release-regressions|design-audit-regressions|audit-admin-integrations-data|admin-navigation|admin-issues|llm-console|vault-animation|community-manage-ui|minifig-holdings|subcollections|collection-room|collection-room-video-intro|mobile-sheet-accessibility|collector-redesign|ui-ux-continuation|android-layout|service-worker-update|redesign-add)\.spec\.mjs$/,
+  testMatch: process.env.PW_MATCH || /(smoke|i18n|i18n-dict|scan-layout|card-badge-layout|release-regressions|design-audit-regressions|audit-admin-integrations-data|admin-navigation|admin-issues|llm-console|vault-animation|community-manage-ui|minifig-holdings|subcollections|collection-room|collection-room-video-intro|mobile-sheet-accessibility|collector-redesign|ui-ux-continuation|android-layout|service-worker-update|redesign-add|redesign-alerts)\.spec\.mjs$/,
   timeout: 30000,
   expect: { timeout: 7000 },
   retries: process.env.CI ? 1 : 0,
