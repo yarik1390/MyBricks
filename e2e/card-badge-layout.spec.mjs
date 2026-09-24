@@ -1,69 +1,64 @@
 import { test, expect } from './fixtures.mjs';
 
-// A catalog card pins RETIRED and OWNED over its image. Nothing stopped them
-// meeting in the middle — in English they never
-// do, because both words are short. Translated they are not: Ukrainian renders
-// "ЗНЯТО З ВИРОБНИЦТВА" and "У ВЛАСНОСТІ", and the two badges drew on top of
-// each other.
+// A Discover tile carries a status tag over its photo (Retired / Retiring /
+// New) and an Owned pill next to the value in its footer. In English both are
+// short; translated they are not — Ukrainian renders "Знято з виробництва" and
+// "У колекції", German "Nicht mehr erhältlich". A long tag must ellipsize
+// inside the photo, and the footer pill must never push the value or itself
+// out of the card.
 //
-// Mounts the real markup and class names against the real stylesheet, which is
-// the right target: the bug is in the CSS contract between the two badges, not
-// in how the catalog fetches sets. Two cards per case, because the collision
-// only happens on a set that is BOTH retired and owned.
+// Mounts the real tile markup against the real stylesheet: the bug class is in
+// the CSS contract, not in how the catalog fetches sets.
 test.use({ viewport: { width: 390, height: 844 } });
 
-const MOUNT = (retired, owned, trust, ppp) => `
-  <div class="grid" style="padding:12px;">
-    <button class="set-card">
-      <div class="set-card-img" style="height:120px;position:relative;">
-        <span class="retired-tag">${retired}</span>
-        <span class="owned-tag"><svg viewBox="0 0 24 24" width="10" height="10"></svg>${owned}</span>
-      </div>
-      <div class="set-card-body">
-        <div class="set-card-name">Jango Fett's Slave I with Bonus Carrying Case</div>
-        <div class="set-card-submeta">
-          <span class="trust-badge">${trust}</span>
-          <span class="ppp-badge">${ppp}</span>
+const MOUNT = (tag, value, owned) => `
+  <div class="bv-discover" style="padding:12px;">
+    <div class="bv-grid bv-discover__grid">
+      <div class="bv-tile is-owned" data-set="75191-1">
+        <div class="bv-tile__media">
+          <span class="bv-tile__tag"><span class="bv-pill">${tag}</span></span>
+        </div>
+        <div class="bv-tile__body">
+          <div class="bv-tile__name">Jango Fett's Slave I with Bonus Carrying Case</div>
+          <div class="bv-tile__meta">Star Wars · 2015</div>
+          <div class="bv-tile__foot">
+            <span class="bv-tile__value">${value}</span>
+            <span class="bv-pill bv-pill--gain"><svg viewBox="0 0 24 24" width="14" height="14"></svg>${owned}</span>
+          </div>
         </div>
       </div>
-    </button>
+      <div class="bv-tile"><div class="bv-tile__media"></div><div class="bv-tile__body"><div class="bv-tile__name">Other</div></div></div>
+    </div>
   </div>`;
 
 const CASES = [
-  { name: 'English', args: ['RETIRED', 'OWNED', 'LOW TRUST', '$2.09/pc'] },
-  // The exact Ukrainian labels that overlapped on a real device.
-  { name: 'Ukrainian', args: ['ЗНЯТО З ВИРОБНИЦТВА', 'У ВЛАСНОСТІ', 'НИЗЬКА ДОВІРА', '$2.09/дет'] },
+  { name: 'English', args: ['Retired', '$1,209', 'Owned'] },
+  { name: 'Ukrainian', args: ['Знято з виробництва', '1 209 $', 'У колекції'] },
   // German is the longest of the Latin-script locales.
-  { name: 'German', args: ['NICHT MEHR ERHÄLTLICH', 'IM BESITZ', 'GERINGES VERTRAUEN', '2,09 $/Teil'] },
+  { name: 'German', args: ['Nicht mehr erhältlich', '1.209 $', 'Im Besitz'] },
 ];
 
 for (const { name, args } of CASES) {
-  test(`catalog card badges do not overlap or overflow (${name})`, async ({ page }) => {
+  test(`Discover tile tag and owned pill stay inside the card (${name})`, async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await page.evaluate((html) => { document.body.innerHTML = html; }, MOUNT(...args));
     await page.waitForTimeout(120);
 
-    const retired = await page.locator('.retired-tag').boundingBox();
-    const owned = await page.locator('.owned-tag').boundingBox();
-    expect(retired, 'retired badge should render').toBeTruthy();
-    expect(owned, 'owned badge should render').toBeTruthy();
+    const tile = page.locator('.bv-tile').first();
+    const card = await tile.boundingBox();
+    const tag = await tile.locator('.bv-tile__tag .bv-pill').boundingBox();
+    const value = await tile.locator('.bv-tile__value').boundingBox();
+    const owned = await tile.locator('.bv-tile__foot .bv-pill').boundingBox();
+    expect(card && tag && value && owned, 'tile parts render').toBeTruthy();
 
-    // Collector cards separate the labels vertically; legacy skins can keep
-    // them side by side. Both layouts must leave the full labels unobstructed.
-    const overlap = retired.x < owned.x + owned.width && owned.x < retired.x + retired.width
-      && retired.y < owned.y + owned.height && owned.y < retired.y + retired.height;
-    expect(overlap, `${name}: RETIRED runs into OWNED`).toBe(false);
-
-    // Neither badge, nor the submeta row, may spill outside the card.
-    const card = await page.locator('.set-card').boundingBox();
-    for (const [label, box] of [['RETIRED', retired], ['OWNED', owned]]) {
-      expect(box.x, `${name}: ${label} spills off the left of the card`)
-        .toBeGreaterThanOrEqual(card.x - 0.5);
-      expect(box.x + box.width, `${name}: ${label} spills off the right of the card`)
-        .toBeLessThanOrEqual(card.x + card.width + 0.5);
+    for (const [label, box] of [['status tag', tag], ['value', value], ['owned pill', owned]]) {
+      expect(box.x, `${name}: ${label} spills off the left of the card`).toBeGreaterThanOrEqual(card.x - 0.5);
+      expect(box.x + box.width, `${name}: ${label} spills off the right of the card`).toBeLessThanOrEqual(card.x + card.width + 0.5);
     }
-    const ppp = await page.locator('.ppp-badge').boundingBox();
-    expect(ppp.x + ppp.width, `${name}: $/pc badge spills off the card`)
-      .toBeLessThanOrEqual(card.x + card.width + 0.5);
+    // The value and the pill share the footer row without drawing over each other.
+    expect(value.x + value.width, `${name}: value runs into the Owned pill`).toBeLessThanOrEqual(owned.x + 0.5);
+    // The whole value stays readable.
+    const clipped = await tile.locator('.bv-tile__value').evaluate((el) => el.scrollWidth > el.clientWidth + 1);
+    expect(clipped, `${name}: value is clipped`).toBe(false);
   });
 }

@@ -32,13 +32,13 @@ test.describe(() => {
       host.innerHTML = '<p>zzz-not-a-ui-string</p>';
       document.body.appendChild(host);
       await frame();
-      mount(host, '<p>Coming Soon</p>');
+      mount(host, '<p>Good time to sell</p>');
       await frame();
       const out = host.querySelector('p').textContent;
       host.remove();
       return out;
     });
-    expect(text).toBe('Незабаром');
+    expect(text).toBe('Гарний час для продажу');
   });
 });
 
