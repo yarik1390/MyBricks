@@ -8,6 +8,11 @@ export const uk = {
   },
   // 2026 redesign · Vault screens (one group per area).
   bvVault: {
+    roomFreeWalk: 'Вільна прогулянка',
+    roomShelves: 'Перейти до полиці',
+    roomHint: 'Торкніться коробки, щоб роздивитися · тягніть, щоб оглянутися',
+    roomBack: 'Назад до сховища',
+    roomTitle: 'Кімната колекції',
     considerSelling: 'Варто продати?',
     spikeGain: '{pct} прибутку',
     buildViews: 'Режими збирання',

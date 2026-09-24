@@ -899,6 +899,41 @@ body.collector-ui.selection-mode #nav { display: none; }
 .vault-build-row.is-alt { min-height: 80px; }
 .vault-build .bv-empty__actions .bv-btn { width: 100%; }
 
+
+/* Collection room chrome (the 3D scene itself is unchanged). */
+.bv-room { background: #1b1d19; color: #f3f1e8; font-family: var(--bv-sans); }
+.bv-room .bv-room-bar {
+  pointer-events: auto; width: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 4px;
+  padding: calc(8px + var(--safe-top, 0px)) 8px 16px; background: linear-gradient(180deg, rgba(20, 22, 18, .72), rgba(20, 22, 18, 0));
+}
+.bv-room .bv-room-btn { background: rgba(255, 255, 255, .12); color: #f3f1e8; }
+.bv-room .bv-room-btn:hover { background: rgba(255, 255, 255, .2); }
+.bv-room .bv-room-bar > a.bv-room-btn { background: transparent; }
+.bv-room .bv-room-heading { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.bv-room .bv-room-heading h1 { margin: 0; font: 600 20px/26px var(--bv-sans); color: #f3f1e8; letter-spacing: -.01em; }
+.bv-room .bv-room-heading span { font-size: 13px; line-height: 18px; color: #c9ccc0; }
+.bv-room .bv-room-bottom {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 36; pointer-events: none;
+  display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+  padding: 0 12px calc(12px + var(--safe-bottom, 0px)); background: linear-gradient(0deg, rgba(20, 22, 18, .78) 55%, rgba(20, 22, 18, 0));
+}
+.bv-room .bv-room-bottom > * { pointer-events: auto; }
+.bv-room .showroom-notices { position: static; align-self: center; margin: 0; pointer-events: none; }
+.bv-room .showroom-notices p { margin: 0 0 6px; padding: 8px 14px; border-radius: 16px; background: rgba(20, 22, 18, .82); color: #f3f1e8; font-size: 13px; line-height: 18px; }
+.bv-room .showroom-stick { position: relative; left: 0; bottom: 0; align-self: flex-start; margin: 0 0 4px 8px; }
+.bv-room:not(.is-walk) .showroom-stick { display: none !important; }
+.bv-room .bv-room-shelves { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.bv-room .bv-room-shelves::-webkit-scrollbar { display: none; }
+.bv-room .bv-room-shelves .bv-chip { background: transparent; color: #f3f1e8; border-color: rgba(243, 241, 232, .35); }
+.bv-room .bv-room-shelves .bv-chip.is-on { background: var(--bv-acc); color: var(--bv-on-acc); border-color: var(--bv-acc); }
+.bv-room .showroom-controls { position: static; max-width: none; display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: nowrap; }
+.bv-room .showroom-controls .bv-room-btn { min-height: 48px; padding: 0; font-size: 0; }
+.bv-room .bv-room-walk { margin-left: auto; background: rgba(255, 255, 255, .14); color: #f3f1e8; }
+.bv-room .bv-room-walk[aria-pressed="true"] { background: #f3f1e8; color: #1b1d19; }
+.bv-room .showroom-controls .bv-room-walk { font-size: 15px; padding: 0 16px; }
+@media (hover: none), (pointer: coarse) { .bv-room #roomMouse { display: none !important; } .bv-room .showroom-controls { max-width: none; } }
+.bv-room :is(#roomFind, #roomList)::before { content: none; }
+.bv-room .showroom-controls .bv-room-btn { width: 48px; }
 /* ---- end area: vault ---- */
 
 /* ---- area: set — Set page and selling ---- */

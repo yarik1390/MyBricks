@@ -8,6 +8,11 @@ export const zh = {
   },
   // 2026 redesign · Vault screens (one group per area).
   bvVault: {
+    roomFreeWalk: '自由行走',
+    roomShelves: '跳到某个货架',
+    roomHint: '点按盒子查看 · 拖动环顾',
+    roomBack: '返回收藏库',
+    roomTitle: '收藏室',
     considerSelling: '考虑出售',
     spikeGain: '盈利 {pct}',
     buildViews: '拼搭视图',

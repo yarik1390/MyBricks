@@ -8,6 +8,11 @@ export const ja = {
   },
   // 2026 redesign · Vault screens (one group per area).
   bvVault: {
+    roomFreeWalk: '自由に歩く',
+    roomShelves: '棚へ移動',
+    roomHint: '箱をタップして確認・ドラッグで見回す',
+    roomBack: '保管庫に戻る',
+    roomTitle: 'コレクションルーム',
     considerSelling: '売却を検討',
     spikeGain: '{pct} の利益',
     buildViews: '表示の切り替え',

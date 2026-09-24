@@ -8,6 +8,11 @@ export const fr = {
   },
   // 2026 redesign · Vault screens (one group per area).
   bvVault: {
+    roomFreeWalk: 'Déplacement libre',
+    roomShelves: 'Aller à une étagère',
+    roomHint: 'Touchez une boîte pour l’examiner · faites glisser pour regarder',
+    roomBack: 'Retour au coffre',
+    roomTitle: 'Salle de collection',
     considerSelling: 'Envisager de vendre',
     spikeGain: '{pct} de gain',
     buildViews: 'Vues de construction',

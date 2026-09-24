@@ -8,6 +8,11 @@ export const hi = {
   },
   // 2026 redesign · Vault screens (one group per area).
   bvVault: {
+    roomFreeWalk: 'खुलकर घूमें',
+    roomShelves: 'किसी शेल्फ़ पर जाएँ',
+    roomHint: 'देखने के लिए बॉक्स टैप करें · घूमकर देखने के लिए खींचें',
+    roomBack: 'वॉल्ट पर वापस',
+    roomTitle: 'संग्रह कक्ष',
     considerSelling: 'बेचने पर विचार करें',
     spikeGain: '{pct} लाभ',
     buildViews: 'बनाने के व्यू',

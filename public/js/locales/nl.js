@@ -8,6 +8,11 @@ export const nl = {
   },
   // 2026 redesign · Vault screens (one group per area).
   bvVault: {
+    roomFreeWalk: 'Vrij lopen',
+    roomShelves: 'Naar een plank springen',
+    roomHint: 'Tik op een doos om te bekijken · sleep om rond te kijken',
+    roomBack: 'Terug naar kluis',
+    roomTitle: 'Collectiekamer',
     considerSelling: 'Overweeg te verkopen',
     spikeGain: '{pct} winst',
     buildViews: 'Bouwweergaven',

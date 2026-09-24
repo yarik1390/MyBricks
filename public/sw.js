@@ -23,6 +23,7 @@ const STATIC_ASSETS = [
   '/bv.css',
   '/js/ui/kit.js',
   '/js/ui/set-ui.js',
+  '/js/ui/vault-ui.js',
   '/js/views/changes.js',
   '/js/views/insights.js',
   '/js/views/retiring.js',
