@@ -236,7 +236,8 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         purchased_at TEXT, deleted_at TEXT, last_modified TEXT DEFAULT CURRENT_TIMESTAMP,
         storage_location TEXT, acquisition_source TEXT, is_complete INTEGER DEFAULT 1,
         missing_pieces INTEGER DEFAULT 0, spike_alerted_at TEXT, custom_image_url TEXT,
-        sold_price REAL, sold_at TEXT, UNIQUE(user_id, set_num)
+        sold_price REAL, sold_at TEXT, sold_fees REAL, sell_target REAL, sell_target_alerted_at TEXT,
+        UNIQUE(user_id, set_num)
       )`,
       `CREATE TABLE collection_stories (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, set_num TEXT NOT NULL,

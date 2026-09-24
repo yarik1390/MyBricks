@@ -329,6 +329,15 @@ CREATE TABLE IF NOT EXISTS user_collection (
   custom_image_url TEXT,
   sold_price REAL,
   sold_at DATE,
+  -- Fees paid on the sale (marketplace + payment + shipping), so the realized
+  -- gain is net of costs; sold_price stays the gross price the comps use.
+  sold_fees REAL,
+  -- The value the collector wants to sell at. The daily wishlist-alerts job
+  -- inserts a wishlist_alerts row (alert_type 'sell_target') once per upward
+  -- crossing; sell_target_alerted_at latches that crossing (re-armed when the
+  -- value falls back below the target or the target changes).
+  sell_target REAL,
+  sell_target_alerted_at TEXT,
   UNIQUE(user_id, set_num)
 );
 

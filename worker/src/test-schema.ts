@@ -309,6 +309,9 @@ export const TABLE_DDL: Record<string, string> = {
   custom_image_url TEXT,
   sold_price REAL,
   sold_at DATE,
+  sold_fees REAL,
+  sell_target REAL,
+  sell_target_alerted_at TEXT,
   UNIQUE(user_id, set_num)
 )`,
 
