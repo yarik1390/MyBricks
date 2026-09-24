@@ -42,7 +42,7 @@ test('signed-in holding saves explicit fields, reopens, preserves precise unchan
   });
 
   await page.goto('/#/minifigs', { waitUntil: 'domcontentloaded' });
-  await page.locator('.mini-card').click();
+  await page.locator('#miniGrid [data-fig-num]').first().click();
   await expect(page.locator('#figQuantity')).toHaveValue('1');
   await page.locator('#figQuantity').fill('2');
   await page.locator('#figCondition').selectOption('used_good');
@@ -58,7 +58,7 @@ test('signed-in holding saves explicit fields, reopens, preserves precise unchan
   expect(puts[0]).toEqual({ quantity: 2, condition: 'used_good', purchase_price: 10.123456, purchased_at: '2024-02-29', notes: 'Display copy' });
 
   await page.keyboard.press('Escape');
-  await page.locator('.mini-card').click();
+  await page.locator('#miniGrid [data-fig-num]').first().click();
   await expect(page.locator('#figQuantity')).toHaveValue('2');
   await page.locator('#figNotes').fill('Updated note');
   await page.locator('#figSaveHolding').click();
@@ -75,6 +75,8 @@ test('signed-in holding saves explicit fields, reopens, preserves precise unchan
 
   await page.keyboard.press('Escape');
   const download = page.waitForEvent('download');
+  // Export lives in the screen's More options sheet.
+  await page.locator('#vaultMoreBtn, #figMoreBtn').first().click();
   await page.locator('#figExportBtn').click();
   expect(await readFile(await (await download).path(), 'utf8')).toContain('10.123456');
 });
@@ -94,8 +96,9 @@ test('guest holding survives refresh, exports zero distinctly from blank, and ne
     setsRequests++;
     return route.fulfill({ status: 200, contentType: 'application/json', body: '{"sets":[]}' });
   });
-  await page.goto('/#/minifigs', { waitUntil: 'domcontentloaded' });
-  await page.locator('.mini-card').click();
+  // A guest with no figures starts from Discover · Minifigs (the catalog).
+  await page.goto('/#/minifigs?owned=0', { waitUntil: 'domcontentloaded' });
+  await page.locator('#miniGrid [data-fig-num]').first().click();
   await page.locator('#figQuantity').fill('3');
   await page.locator('#figPurchasePrice').fill('0');
   await page.locator('#figNotes').fill('Guest note');
@@ -104,7 +107,7 @@ test('guest holding survives refresh, exports zero distinctly from blank, and ne
   expect(setsRequests).toBeGreaterThan(0);
 
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.locator('.mini-card').click();
+  await page.locator('#miniGrid [data-fig-num]').first().click();
   await expect(page.locator('#figQuantity')).toHaveValue('3');
   await expect(page.locator('#figPurchasePrice')).toHaveValue('0.00');
   await page.locator('#figPurchasePrice').fill('');
@@ -113,6 +116,8 @@ test('guest holding survives refresh, exports zero distinctly from blank, and ne
 
   await page.keyboard.press('Escape');
   const download = page.waitForEvent('download');
+  // Export lives in the screen's More options sheet.
+  await page.locator('#vaultMoreBtn, #figMoreBtn').first().click();
   await page.locator('#figExportBtn').click();
   const csv = await readFile(await (await download).path(), 'utf8');
   expect(csv).toContain('sw0001,Hero Pilot,Space,3,unknown,,');
@@ -126,7 +131,7 @@ test('guest storage failure rejects save without changing prior holding', async 
   }, FIG);
   await stubMinifigCatalog(page);
   await page.goto('/#/minifigs', { waitUntil: 'domcontentloaded' });
-  await page.locator('.mini-card').click();
+  await page.locator('#miniGrid [data-fig-num]').first().click();
   await expect(page.locator('#figNotes')).toHaveValue('Before');
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;
@@ -152,7 +157,7 @@ test('mobile populated holding form screenshot', async ({ page }) => {
     }),
   }));
   await page.goto('/#/minifigs', { waitUntil: 'domcontentloaded' });
-  await page.locator('.mini-card').click();
+  await page.locator('#miniGrid [data-fig-num]').first().click();
   await expect(page.locator('#figNotes')).toHaveValue('Found at the spring toy fair.');
   await page.locator('#sheet').screenshot({ path: 'audit/minifigure-holdings-mobile.png' });
   await page.locator('#figNotes').scrollIntoViewIfNeeded();

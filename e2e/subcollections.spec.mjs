@@ -24,26 +24,38 @@ async function stubLists(page, rows = []) {
   return { setFail: value => { fail = value; }, setConflict: value => { conflict = value; } };
 }
 
+
+// Lists are cards; tapping one opens its sheet, where Edit lives.
+async function editFirstList(page) {
+  await page.locator('#collectionLists [data-open-list]').first().click();
+  await page.locator('#sheet [data-edit]').click();
+}
+
 test('named lists save, deduplicate, link missing records, export, retain failed drafts, and delete only the list', async ({ page }) => {
   const server = await stubLists(page);
   await page.goto('/#/');
   await page.getByRole('link', { name: 'Lists', exact: true }).click();
-  await expect(page.getByText('Missing purchase cost: 1', { exact: true })).toBeVisible();
-  await page.getByText('Missing purchase cost: 1', { exact: true }).click();
-  await expect(page.locator('.collection-insights a').first()).toHaveAttribute('href', '#/set/456-1');
-  await page.locator('#collectionCreate').click();
+  // Records card: missing price paid opens a sheet linking to each set's editor.
+  await expect(page.locator('[data-records="cost"]')).toContainText('1');
+  await page.locator('[data-records="cost"]').click();
+  await expect(page.locator('.collection-insights a').first()).toHaveAttribute('href', '#/set/456-1/edit');
+  await page.keyboard.press('Escape');
+  // "New list" is the Lists tab's FAB.
+  await expect(page.locator('#bvFab')).toHaveAccessibleName('New list');
+  await page.locator('#bvFab').click();
   await page.locator('#collectionName').fill('Space <display>');
   await page.locator('#collectionOwnedSet').selectOption('123-1');
   await expect(page.locator('#collectionTargets')).toHaveValue('123-1');
   await page.locator('#collectionTargets').fill('123, 123-1, 999');
   await page.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(page.locator('#collectionLists')).toContainText('1 of 2 sets owned');
+  await expect(page.locator('#collectionLists [data-open-list]')).toHaveAttribute('aria-label', /1 of 2 sets owned/);
   await expect(page.locator('#collectionLists display')).toHaveCount(0);
   const download = page.waitForEvent('download');
+  await page.locator('#vaultMoreBtn').click();
   await page.locator('#collectionExport').click();
   const data = JSON.parse(await readFile(await (await download).path(), 'utf8'));
   expect(data.subcollections[0].set_nums).toEqual(['123-1', '999-1']);
-  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await editFirstList(page);
   await page.locator('#collectionName').fill('Revised');
   server.setConflict(true);
   await page.getByRole('button', { name: 'Save', exact: true }).click();
@@ -54,7 +66,7 @@ test('named lists save, deduplicate, link missing records, export, retain failed
   await expect(page.locator('#collectionLists h2')).toHaveText('Revised');
   await page.reload();
   await expect(page.locator('#collectionLists h2')).toHaveText('Revised');
-  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await editFirstList(page);
   await page.locator('#collectionDelete').click();
   server.setFail(true);
   await page.locator('#collectionConfirmDelete').click();
@@ -63,7 +75,7 @@ test('named lists save, deduplicate, link missing records, export, retain failed
   server.setFail(false);
   await page.locator('#collectionConfirmDelete').click();
   await expect(page.locator('#collectionLists')).toContainText('first list');
-  await expect(page.getByText('2 distinct sets owned', { exact: true })).toBeVisible();
+  await expect(page.locator('#recordsTitle')).toBeVisible();
 });
 
 test('guest lists persist without network writes and storage failures preserve the previous list', async ({ page }) => {
@@ -75,14 +87,14 @@ test('guest lists persist without network writes and storage failures preserve t
   let requests = 0;
   await page.route('**/api/subcollections**', route => { requests++; return route.abort(); });
   await page.goto('/#/collections');
-  await page.locator('#collectionCreate').click();
+  await page.locator('#bvFab').click();
   await page.locator('#collectionName').fill('My shelf');
   await page.locator('#collectionAddOwned').click();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(page.locator('#collectionLists')).toContainText('2 of 2 sets owned');
+  await expect(page.locator('#collectionLists [data-open-list]')).toHaveAttribute('aria-label', /2 of 2 sets owned/);
   await page.reload();
   await expect(page.locator('#collectionLists h2')).toHaveText('My shelf');
-  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await editFirstList(page);
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;
     Storage.prototype.setItem = function (key, value) {
@@ -101,7 +113,7 @@ test('mobile organizer fits the viewport and delayed saves cannot paint after an
   await page.setViewportSize({ width: 390, height: 844 });
   await stubLists(page, [{ id, name: 'Space shelf', set_nums: ['123-1', '999-1'], revision: 1 }]);
   await page.goto('/#/collections');
-  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await editFirstList(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: 'audit/subcollections-mobile.png', fullPage: true });
   await page.locator('#collectionName').blur();
