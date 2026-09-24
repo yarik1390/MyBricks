@@ -8,6 +8,8 @@ export const uk = {
   },
   // 2026 redesign · Vault screens (one group per area).
   bvVault: {
+    considerSelling: 'Варто продати?',
+    spikeGain: '{pct} прибутку',
     buildViews: 'Режими збирання',
     buildOfficial: 'Офіційні набори',
     buildSearchPlaceholder: 'Назва набору або моделі',

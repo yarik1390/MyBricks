@@ -8,6 +8,8 @@ export const ja = {
   },
   // 2026 redesign · Vault screens (one group per area).
   bvVault: {
+    considerSelling: '売却を検討',
+    spikeGain: '{pct} の利益',
     buildViews: '表示の切り替え',
     buildOfficial: '公式セット',
     buildSearchPlaceholder: 'セット名またはモデル名',

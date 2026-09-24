@@ -28,7 +28,6 @@ const catalog = new Set(rows.map((row) => row.text));
 // harvester: lowercase rendered labels, ordinary status ellipses, and a literal
 // in a nested conditional. Keep the examples tied to real live UI.
 const required = [
-  'alternate models',
   'Checking compatibility...',
   'Loading pricing methodology...',
   'needs key',

@@ -1,7 +1,7 @@
 import { vaultNavigation, setNavBadge, setPageFab, resetPageFab, syncCollectorChrome } from '../components/collector-shell.js';
 import { routeMetaFor } from '../route-meta.js';
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, daysAgo, prefersReducedMotion, themeHue, getExchangeRate, CURRENCY_SYMBOLS, ratesUnavailable, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone, publicOrigin, celebrate, fmtPct, advisorEnabled, fmtDateUpdated, parseUTCDate } from '../utils.js';
-import { marketValueForCondition, displayValueOf } from '../lib/pure.js';
+import { displayValueOf } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { api, getSessionUserId, isGuestMode, getSessionOwnerSnapshot } from '../api.js';
 import { shareContent } from '../lib/native-share.js';
@@ -15,7 +15,7 @@ import { readCollectorPreferences, writeCollectorPreferences } from '../lib/coll
 import { vaultTotals, changesWindowDays, changeSinceFromSnapshots, changeItems, clipHistory } from '../lib/vault-insights.js';
 import { icon, sparkline, delta as deltaChip, emptyState, btn, banner, skeletonRows, chip } from '../ui/kit.js';
 import { setTile, gainPct } from '../ui/set-ui.js';
-import { vaultTopbar, vaultSearchRow, sortButton, layoutSeg, vaultToolbar, openChoiceSheet, openActionSheet, vaultSetRow, moneyWhole, moneyWholeSigned } from '../ui/vault-ui.js';
+import { vaultTopbar, vaultSearchRow, sortButton, layoutSeg, vaultToolbar, openChoiceSheet, openActionSheet, vaultSetRow, moneyWhole, moneyWholeSigned, holdingValue } from '../ui/vault-ui.js';
 
 // Concise portfolio source credit: PriceCharting is named only when it
 // contributes to the blended portfolio; otherwise a generic source link.
@@ -110,15 +110,10 @@ async function _revalidatePortfolio() {
 
 const onVaultRoute = () => { const hash = location.hash.replace("#", "").split("?")[0] || "/"; return hash === "/" || hash === ""; };
 
-// Portfolio value basis: used holdings are worth their used-market price;
-// new/sealed keep the blended fair value via the shared displayValueOf chain
-// (market_value → blended_value → current_value) so vault, catalog and detail
-// show ONE number.
+// Portfolio value basis (see holdingValue): used holdings are worth their
+// used-market price; new/sealed keep the blended fair value.
 export function pval(x) {
-  if (String(x?.condition || '').startsWith('used')) {
-    return Number(marketValueForCondition(x, x.condition)) || displayValueOf(x);
-  }
-  return displayValueOf(x);
+  return holdingValue(x);
 }
 
 /* ---------------------------------------------------------------- "What changed" data */
@@ -799,10 +794,10 @@ export function spikeAlertCardHTML(a, { dismiss = false } = {}) {
       <div class="ah">${I.dollar()}${escapeHtml(tPlural('alerts.sellOpportunity', daysAgo(a.triggered_at)))}</div>
       <div style="font-weight:600;">${escapeHtml(a.set_name || a.name || "")}</div>
       <div style="font-size:13px;margin-top:4px;">
-        Now <strong>${fmtMoney(a.current_value)}</strong> — you paid ${fmtMoney(a.purchase_price || 0)}.
-        <span style="color:var(--up);font-weight:700;"> +${fmtPct(Math.abs(gain))} gain</span>
+        ${escapeHtml(t('bvVault.alertSpikeSub', { price: fmtMoney(a.current_value), paid: fmtMoney(a.purchase_price || 0) }))}
+        <span style="color:var(--up);font-weight:700;">${escapeHtml(t('bvVault.spikeGain', { pct: `+${fmtPct(Math.abs(gain))}` }))}</span>
       </div>
-      <a href="#/set/${encodeURIComponent(a.set_num || "")}" class="btn-secondary" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;font-size:13px;padding:6px 14px;text-decoration:none;">Consider selling ${I.arrowR()}</a>
+      <a href="#/set/${encodeURIComponent(a.set_num || "")}" class="btn-secondary" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;font-size:13px;padding:6px 14px;text-decoration:none;">${escapeHtml(t('bvVault.considerSelling'))}${I.arrowR()}</a>
     </div>`;
 }
 

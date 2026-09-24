@@ -162,7 +162,7 @@ function wireChartScrub() {
     const cy = H - PAD_Y - ((series[i].value - lo) / span) * (H - PAD_Y * 2);
     guide.setAttribute('x1', cx); guide.setAttribute('x2', cx); guide.setAttribute('opacity', '1');
     cursor.setAttribute('cx', cx); cursor.setAttribute('cy', cy); cursor.setAttribute('opacity', '1');
-    scrub.textContent = `${fmtShortDate(series[i].date)} · ${moneyWhole(series[i].value)}`;
+    scrub.textContent = [fmtShortDate(series[i].date), moneyWhole(series[i].value)].join(' · ');
     scrub.style.left = `${Math.min(rect.width - 8, Math.max(8, (cx / W) * rect.width))}px`;
     scrub.classList.add('show');
   };

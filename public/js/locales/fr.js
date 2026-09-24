@@ -8,6 +8,8 @@ export const fr = {
   },
   // 2026 redesign · Vault screens (one group per area).
   bvVault: {
+    considerSelling: 'Envisager de vendre',
+    spikeGain: '{pct} de gain',
     buildViews: 'Vues de construction',
     buildOfficial: 'Sets officiels',
     buildSearchPlaceholder: 'Nom du set ou du modèle',

@@ -8,6 +8,8 @@ export const zh = {
   },
   // 2026 redesign · Vault screens (one group per area).
   bvVault: {
+    considerSelling: '考虑出售',
+    spikeGain: '盈利 {pct}',
     buildViews: '拼搭视图',
     buildOfficial: '官方套装',
     buildSearchPlaceholder: '套装或模型名称',

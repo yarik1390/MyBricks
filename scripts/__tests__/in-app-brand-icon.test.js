@@ -18,10 +18,13 @@ function pngInfo(path) {
 }
 
 describe('in-app Brickvault brand icon', () => {
-  it('uses a dedicated transparent orange brick in the vault header', () => {
+  it('ships the dedicated transparent orange brick for the empty Vault artwork', () => {
+    // The 2026 Vault header is a large "Vault" title (no brand mark); the
+    // transparent brick remains the empty-shelf fallback art for the 3D game.
+    assert.match(portfolio, /\$\{vaultTopbar\(/);
     assert.match(
       portfolio,
-      /<img class="brand-mark" src="\/brand-brick-transparent\.png" alt="" width="36" height="36" aria-hidden="true">/,
+      /<img class="empty-vault-brick-fallback" src="\/brand-brick-transparent\.png" alt="" width="144" height="144" aria-hidden="true" hidden>/,
     );
     assert.deepEqual(pngInfo('../../public/brand-brick-transparent.png'), {
       width: 192,

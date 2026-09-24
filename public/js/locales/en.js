@@ -17,6 +17,8 @@ export const en = {
   },
   // 2026 redesign · Vault screens (one group per area).
   bvVault: {
+    considerSelling: 'Consider selling',
+    spikeGain: '{pct} gain',
     buildViews: 'Build views',
     buildOfficial: 'Official sets',
     buildSearchPlaceholder: 'Set or model name',

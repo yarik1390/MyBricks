@@ -8,6 +8,8 @@ export const hi = {
   },
   // 2026 redesign · Vault screens (one group per area).
   bvVault: {
+    considerSelling: 'बेचने पर विचार करें',
+    spikeGain: '{pct} लाभ',
     buildViews: 'बनाने के व्यू',
     buildOfficial: 'आधिकारिक सेट',
     buildSearchPlaceholder: 'सेट या मॉडल का नाम',

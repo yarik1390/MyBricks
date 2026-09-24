@@ -549,7 +549,7 @@ async function quickAdd(f) {
 function updateBlindCount() {
   const el = $("#figStatCount");
   if (!el) return;
-  el.textContent = `${tPlural('bvVault.figFigures', state.blind.ownedCount || 0)} · ${tPlural('bvVault.figUnique', ownedMode() ? state.blind.total : state.ownedFigs.size)}`;
+  el.textContent = [tPlural('bvVault.figFigures', state.blind.ownedCount || 0), tPlural('bvVault.figUnique', ownedMode() ? state.blind.total : state.ownedFigs.size)].join(' · ');
 }
 
 function updateFigStats() {

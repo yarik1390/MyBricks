@@ -54,6 +54,18 @@
     ]
   },
   {
+    "text": "0.5 ? 'bv-up' : d",
+    "files": [
+      "views/changes.js"
+    ]
+  },
+  {
+    "text": "0.5 ? 'bv-up' : v",
+    "files": [
+      "views/insights.js"
+    ]
+  },
+  {
     "text": "1 safe slice",
     "files": [
       "views/me-admin-config.js"
@@ -105,12 +117,6 @@
     "text": "3D is unavailable on low-memory devices",
     "files": [
       "components/empty-vault-brick-3d.js"
-    ]
-  },
-  {
-    "text": "3D is unavailable right now",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -441,18 +447,6 @@
     ]
   },
   {
-    "text": "Add sets to see insights.",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "Add sets to your vault, then come back to see what you can build from their parts.",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
     "text": "Add the required secret or binding.",
     "files": [
       "lib/pure.js"
@@ -499,12 +493,6 @@
     "text": "Add to your home screen for a full-screen, app-like experience.",
     "files": [
       "views/me.js"
-    ]
-  },
-  {
-    "text": "Add your first set",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -625,12 +613,6 @@
     ]
   },
   {
-    "text": "Alerts",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Alerts on",
     "files": [
       "views/me.js"
@@ -652,8 +634,7 @@
     "text": "All",
     "files": [
       "views/catalog.js",
-      "views/me-admin.js",
-      "views/minifigs.js"
+      "views/me-admin.js"
     ]
   },
   {
@@ -666,12 +647,6 @@
     "text": "All configured providers",
     "files": [
       "views/me-admin-config.js"
-    ]
-  },
-  {
-    "text": "All series",
-    "files": [
-      "views/minifigs.js"
     ]
   },
   {
@@ -693,27 +668,9 @@
     ]
   },
   {
-    "text": "Allocation by theme",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Already have an account?",
     "files": [
       "views/login.js"
-    ]
-  },
-  {
-    "text": "Alternate builds",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
-    "text": "Alternate models from sets you own, with instruction links.",
-    "files": [
-      "views/build.js"
     ]
   },
   {
@@ -824,8 +781,7 @@
   {
     "text": "Apply filters",
     "files": [
-      "views/catalog.js",
-      "views/minifigs.js"
+      "views/catalog.js"
     ]
   },
   {
@@ -1043,7 +999,6 @@
     "text": "Back",
     "files": [
       "components/onboarding.js",
-      "views/build.js",
       "views/portfolio-detail.js",
       "views/portfolio-social.js",
       "views/portfolio-wishlist.js"
@@ -1256,12 +1211,6 @@
     ]
   },
   {
-    "text": "Blended market estimate",
-    "files": [
-      "views/minifigs.js"
-    ]
-  },
-  {
     "text": "Blended values",
     "files": [
       "views/me-admin.js"
@@ -1374,8 +1323,7 @@
     "files": [
       "lib/revenuecat-native.js",
       "route-meta.js",
-      "views/me.js",
-      "views/portfolio.js"
+      "views/me.js"
     ]
   },
   {
@@ -1477,7 +1425,6 @@
   {
     "text": "Browse catalog",
     "files": [
-      "views/build.js",
       "views/portfolio-wishlist.js"
     ]
   },
@@ -1497,38 +1444,7 @@
   {
     "text": "Build",
     "files": [
-      "route-meta.js",
-      "views/build.js"
-    ]
-  },
-  {
-    "text": "Build tools are unavailable",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
-    "text": "Build tools need your synced collection and parts data. You can still browse the catalog or scan sets as a guest.",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
-    "text": "Build views",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
-    "text": "Buildable",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
-    "text": "Buildable sets",
-    "files": [
-      "views/build.js"
+      "route-meta.js"
     ]
   },
   {
@@ -1562,18 +1478,6 @@
     ]
   },
   {
-    "text": "Bulk Delete",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "Bulk Location",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Bulk history + on-demand verify, timestamped",
     "files": [
       "methodology.html"
@@ -1585,12 +1489,6 @@
       "lib/amazon-affiliate.js",
       "methodology.html",
       "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "Buy windows — resale below market",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -1609,12 +1507,6 @@
     "text": "CONDITION",
     "files": [
       "components/scanner.js"
-    ]
-  },
-  {
-    "text": "CSV exported",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -1678,8 +1570,7 @@
       "components/scanner.js",
       "components/sheet.js",
       "views/me-integrations.js",
-      "views/portfolio-detail.js",
-      "views/portfolio.js"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -1930,15 +1821,13 @@
   {
     "text": "Clear all",
     "files": [
-      "views/catalog.js",
-      "views/minifigs.js"
+      "views/catalog.js"
     ]
   },
   {
     "text": "Clear filters",
     "files": [
-      "views/catalog.js",
-      "views/minifigs.js"
+      "views/catalog.js"
     ]
   },
   {
@@ -2002,12 +1891,6 @@
     "text": "Cloudflare bot check on keyless web photo scans. Site key and secret must come from the SAME widget, or every scan is rejected.",
     "files": [
       "views/me-admin-config.js"
-    ]
-  },
-  {
-    "text": "Cohort Performance by Purchase Year",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -2127,12 +2010,6 @@
     "text": "Compare the ways this set is valued",
     "files": [
       "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "Compare your LEGO portfolio growth (solid",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -2260,12 +2137,6 @@
     "text": "Consider holding",
     "files": [
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Consider selling",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -2480,18 +2351,6 @@
     ]
   },
   {
-    "text": "Couldn't load alternate builds",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
-    "text": "Couldn't load buildable sets",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
     "text": "Couldn't load catalog",
     "files": [
       "views/catalog.js"
@@ -2507,12 +2366,6 @@
     "text": "Couldn't load leaderboard",
     "files": [
       "views/portfolio-social.js"
-    ]
-  },
-  {
-    "text": "Couldn't load minifigs",
-    "files": [
-      "views/minifigs.js"
     ]
   },
   {
@@ -2825,14 +2678,7 @@
   {
     "text": "Delete",
     "files": [
-      "views/me-integrations.js",
-      "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "Delete All",
-    "files": [
-      "views/portfolio.js"
+      "views/me-integrations.js"
     ]
   },
   {
@@ -2863,12 +2709,6 @@
     "text": "Deletes this holding from your vault after confirmation.",
     "files": [
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Deleting sets...",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -2982,12 +2822,6 @@
     ]
   },
   {
-    "text": "Dismiss",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Display Name",
     "files": [
       "views/me.js"
@@ -3011,12 +2845,6 @@
     "text": "Done!",
     "files": [
       "components/scanner.js"
-    ]
-  },
-  {
-    "text": "Down",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -3287,7 +3115,8 @@
       "components/lightbox.js",
       "components/onboarding.js",
       "components/sheet.js",
-      "utils.js"
+      "utils.js",
+      "views/portfolio.js"
     ]
   },
   {
@@ -3303,21 +3132,9 @@
     ]
   },
   {
-    "text": "Est. resale value",
-    "files": [
-      "views/minifigs.js"
-    ]
-  },
-  {
     "text": "Estimate",
     "files": [
       "lib/pure.js"
-    ]
-  },
-  {
-    "text": "Estimate based on partial price coverage",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -3429,12 +3246,6 @@
     "text": "Evidence-backed service issues. Links only navigate to the relevant controls.",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Exchange rates couldn't be loaded — values are shown in USD until they refresh",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -3899,12 +3710,6 @@
     ]
   },
   {
-    "text": "Full 1-year portfolio history",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Full 1-year portfolio history & ROI export",
     "files": [
       "components/onboarding.js"
@@ -4222,14 +4027,7 @@
   {
     "text": "Growth",
     "files": [
-      "views/catalog.js",
-      "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "Guess the market value, build your streak",
-    "files": [
-      "views/portfolio.js"
+      "views/catalog.js"
     ]
   },
   {
@@ -4347,12 +4145,6 @@
     "text": "History anomaly",
     "files": [
       "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "History beyond 90 days is a Pro perk — showing your last 90 days.",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -4667,18 +4459,6 @@
     ]
   },
   {
-    "text": "Indexing parts",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
-    "text": "Indexing your sets",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
     "text": "Ineligible / not configured",
     "files": [
       "views/me-admin.js"
@@ -4718,7 +4498,6 @@
   {
     "text": "Instructions",
     "files": [
-      "views/build.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -4756,22 +4535,10 @@
     ]
   },
   {
-    "text": "Investor insights — a Pro toolkit",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Investor insights: sell/buy signals, top movers, retirement radar",
     "files": [
       "components/onboarding.js",
       "views/me.js"
-    ]
-  },
-  {
-    "text": "Investor signals, movers, and retirement radar",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -5065,8 +4832,7 @@
   {
     "text": "Link copied to clipboard!",
     "files": [
-      "views/portfolio-detail.js",
-      "views/portfolio.js"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -5225,12 +4991,6 @@
     "text": "Local-only vault",
     "files": [
       "views/me.js"
-    ]
-  },
-  {
-    "text": "Location",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -5395,12 +5155,6 @@
     ]
   },
   {
-    "text": "Market Signals",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Market Value",
     "files": [
       "components/scanner.js",
@@ -5472,12 +5226,6 @@
     "text": "Market value & ROI columns in CSV export",
     "files": [
       "views/me.js"
-    ]
-  },
-  {
-    "text": "Market value and ROI export columns",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -5640,20 +5388,7 @@
   {
     "text": "Minifig",
     "files": [
-      "views/minifigs.js",
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Minifig Filters",
-    "files": [
-      "views/minifigs.js"
-    ]
-  },
-  {
-    "text": "Minifig collection value tracked separately",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -5672,26 +5407,13 @@
     "text": "Minifigs",
     "files": [
       "components/onboarding.js",
-      "route-meta.js",
-      "views/minifigs.js"
+      "route-meta.js"
     ]
   },
   {
     "text": "Minifigs in this set",
     "files": [
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Minifigure",
-    "files": [
-      "views/minifigs.js"
-    ]
-  },
-  {
-    "text": "Minifigure collection summary",
-    "files": [
-      "views/minifigs.js"
     ]
   },
   {
@@ -5775,16 +5497,9 @@
     ]
   },
   {
-    "text": "More vault actions",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "More…",
     "files": [
-      "views/catalog.js",
-      "views/minifigs.js"
+      "views/catalog.js"
     ]
   },
   {
@@ -6015,12 +5730,6 @@
     ]
   },
   {
-    "text": "No active high-risk sets (score ≥ 70)",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "No active job",
     "files": [
       "views/me-admin.js"
@@ -6105,33 +5814,9 @@
     ]
   },
   {
-    "text": "No matches yet",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
-    "text": "No matching sets to remove",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "No matching sets to update",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "No memories yet — the story starts with you.",
     "files": [
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "No minifigs found",
-    "files": [
-      "views/minifigs.js"
     ]
   },
   {
@@ -6144,12 +5829,6 @@
     "text": "No mixing retail offers into resale value.",
     "files": [
       "methodology.html"
-    ]
-  },
-  {
-    "text": "No new alerts",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -6207,12 +5886,6 @@
     ]
   },
   {
-    "text": "No series match",
-    "files": [
-      "views/minifigs.js"
-    ]
-  },
-  {
     "text": "No services in this category.",
     "files": [
       "views/me-admin.js"
@@ -6232,27 +5905,9 @@
     ]
   },
   {
-    "text": "No sets with purchase dates in vault.",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "No showcased sets yet",
     "files": [
       "views/portfolio-social.js"
-    ]
-  },
-  {
-    "text": "No significant decliners",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "No significant gainers",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -6320,8 +5975,7 @@
   {
     "text": "None active",
     "files": [
-      "views/catalog.js",
-      "views/minifigs.js"
+      "views/catalog.js"
     ]
   },
   {
@@ -6384,8 +6038,7 @@
   {
     "text": "Not now",
     "files": [
-      "views/catalog.js",
-      "views/portfolio.js"
+      "views/catalog.js"
     ]
   },
   {
@@ -6443,12 +6096,6 @@
     ]
   },
   {
-    "text": "Nothing to build yet",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
     "text": "Nothing wishlisted yet",
     "files": [
       "views/portfolio-wishlist.js"
@@ -6489,15 +6136,13 @@
     "files": [
       "route-meta.js",
       "views/me-admin-config.js",
-      "views/me.js",
-      "views/portfolio.js"
+      "views/me.js"
     ]
   },
   {
     "text": "Now",
     "files": [
-      "views/portfolio-wishlist.js",
-      "views/portfolio.js"
+      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -6510,12 +6155,6 @@
     "text": "Off",
     "files": [
       "lib/pure.js"
-    ]
-  },
-  {
-    "text": "Official sets you can build from owned parts, ranked by completion.",
-    "files": [
-      "views/build.js"
     ]
   },
   {
@@ -6693,12 +6332,6 @@
     ]
   },
   {
-    "text": "Open Pro settings",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Open a new tab and go to",
     "files": [
       "views/me-integrations.js"
@@ -6844,18 +6477,6 @@
     ]
   },
   {
-    "text": "Owned",
-    "files": [
-      "views/minifigs.js"
-    ]
-  },
-  {
-    "text": "Ownership",
-    "files": [
-      "views/minifigs.js"
-    ]
-  },
-  {
     "text": "PIN changed!",
     "files": [
       "views/me.js"
@@ -6932,12 +6553,6 @@
     "text": "Part-list error",
     "files": [
       "components/contribute.js"
-    ]
-  },
-  {
-    "text": "Part-out opportunities",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -7085,12 +6700,6 @@
     "text": "Pick a category tab to see just those services. Tap any service for its status, usage, and controls — test it, flip capabilities on or off, and tune pricing, all without touching code.",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "Pick a series",
-    "files": [
-      "views/minifigs.js"
     ]
   },
   {
@@ -7277,18 +6886,6 @@
     ]
   },
   {
-    "text": "Portfolio values are market estimates from daily valuation snapshots — what a patient sale might bring, not money in hand.",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "Portfolio views",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Possible",
     "files": [
       "runtime-exact"
@@ -7377,12 +6974,6 @@
     "files": [
       "route-meta.js",
       "views/game.js"
-    ]
-  },
-  {
-    "text": "Price It! — today's 5 sets",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -7820,18 +7411,6 @@
     ]
   },
   {
-    "text": "Rare finds in your vault",
-    "files": [
-      "views/minifigs.js"
-    ]
-  },
-  {
-    "text": "Rare minifigures in your vault",
-    "files": [
-      "views/minifigs.js"
-    ]
-  },
-  {
     "text": "Rarest",
     "files": [
       "views/minifigs.js"
@@ -7918,8 +7497,7 @@
   {
     "text": "Recent",
     "files": [
-      "views/portfolio-wishlist.js",
-      "views/portfolio.js"
+      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -8306,8 +7884,7 @@
   {
     "text": "Restored to vault",
     "files": [
-      "views/portfolio-detail.js",
-      "views/portfolio.js"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -8384,27 +7961,9 @@
     ]
   },
   {
-    "text": "Retirement Radar",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Retirement Risk & Analytics",
     "files": [
       "components/advisor.js"
-    ]
-  },
-  {
-    "text": "Retirement radar & part-out opportunities",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "Retirement risk — act now",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -8445,7 +8004,6 @@
       "components/advisor.js",
       "components/legal-sheet.js",
       "router.js",
-      "views/build.js",
       "views/catalog.js",
       "views/me-admin.js",
       "views/me-data.js",
@@ -8704,18 +8262,6 @@
     ]
   },
   {
-    "text": "S&P 500 Performance Comparison",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "S&P 500 comparison + allocation by theme",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "SETUP NEEDED",
     "files": [
       "runtime-exact"
@@ -8787,11 +8333,9 @@
     "text": "Scan a set",
     "files": [
       "route-meta.js",
-      "views/build.js",
       "views/catalog.js",
       "views/portfolio-detail.js",
-      "views/portfolio-wishlist.js",
-      "views/portfolio.js"
+      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -8885,20 +8429,13 @@
     "files": [
       "components/scanner.js",
       "views/catalog.js",
-      "views/me-admin.js",
-      "views/portfolio.js"
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Search 27,000+ sets and add them to your vault.",
     "files": [
       "components/onboarding.js"
-    ]
-  },
-  {
-    "text": "Search buildable sets",
-    "files": [
-      "views/build.js"
     ]
   },
   {
@@ -8911,24 +8448,6 @@
     "text": "Search helps confirm the UUID before changing supporter status.",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Search minifigs…",
-    "files": [
-      "views/minifigs.js"
-    ]
-  },
-  {
-    "text": "Search minifigures",
-    "files": [
-      "views/minifigs.js"
-    ]
-  },
-  {
-    "text": "Search series…",
-    "files": [
-      "views/minifigs.js"
     ]
   },
   {
@@ -8962,12 +8481,6 @@
     ]
   },
   {
-    "text": "Search…",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
     "text": "Seconds — set-based SQL, no external calls",
     "files": [
       "views/me-admin-config.js"
@@ -8977,12 +8490,6 @@
     "text": "Security",
     "files": [
       "views/me-admin-config.js"
-    ]
-  },
-  {
-    "text": "See Pro options",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -8998,33 +8505,15 @@
     ]
   },
   {
-    "text": "See web support options",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "See what collectors are sharing about this set, or add useful evidence for the next builder.",
     "files": [
       "views/portfolio-detail.js"
     ]
   },
   {
-    "text": "Select sets",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Sell",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "Sell & buy signals across your holdings",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -9044,12 +8533,6 @@
     "text": "Sell on eBay",
     "files": [
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Sell signals — resale running hot",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -9091,8 +8574,7 @@
   {
     "text": "Series",
     "files": [
-      "components/scanner.js",
-      "views/minifigs.js"
+      "components/scanner.js"
     ]
   },
   {
@@ -9217,12 +8699,6 @@
     ]
   },
   {
-    "text": "Set storage location for selected sets",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Set up a device PIN, pattern, or password first",
     "files": [
       "lib/native-biometric.js"
@@ -9257,12 +8733,6 @@
     "files": [
       "views/kids.js",
       "views/portfolio-social.js"
-    ]
-  },
-  {
-    "text": "Sets currently worth more sold as individual parts than sealed.",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -9342,24 +8812,6 @@
     ]
   },
   {
-    "text": "Share Portfolio",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "Share of your sets priced from corroborated, fresh market data (high or medium confidence) rather than a thin or estimated value",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "Share public profile",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Share the first review or photo, or suggest a correction for the set data.",
     "files": [
       "views/portfolio-detail.js"
@@ -9380,8 +8832,7 @@
   {
     "text": "Sharing isn't available on this device",
     "files": [
-      "views/portfolio-detail.js",
-      "views/portfolio.js"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -9450,7 +8901,6 @@
     "files": [
       "components/scanner.js",
       "route-meta.js",
-      "views/build.js",
       "views/login.js",
       "views/me.js"
     ]
@@ -9480,18 +8930,6 @@
     ]
   },
   {
-    "text": "Sign in or create an account",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "Sign in to build from your vault",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
     "text": "Sign in to connect",
     "files": [
       "views/me-integrations.js"
@@ -9507,12 +8945,6 @@
     "text": "Sign in to get the Sunday email summary.",
     "files": [
       "views/me.js"
-    ]
-  },
-  {
-    "text": "Sign in to keep Pro access linked to your vault. Tracking your collection stays free.",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -9731,20 +9163,13 @@
   {
     "text": "Sort",
     "files": [
-      "views/catalog.js",
-      "views/minifigs.js"
+      "views/catalog.js"
     ]
   },
   {
     "text": "Sort catalog",
     "files": [
       "views/catalog.js"
-    ]
-  },
-  {
-    "text": "Sort minifigures",
-    "files": [
-      "views/minifigs.js"
     ]
   },
   {
@@ -9907,12 +9332,6 @@
     "text": "Storage location",
     "files": [
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Storage locations updated",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -10122,23 +9541,9 @@
     ]
   },
   {
-    "text": "TOP FALLING",
-    "files": [
-      "runtime-exact",
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "TOP OWNED SETS:",
     "files": [
       "components/advisor.js"
-    ]
-  },
-  {
-    "text": "TOP RISING",
-    "files": [
-      "runtime-exact",
-      "views/portfolio.js"
     ]
   },
   {
@@ -10170,12 +9575,6 @@
     "text": "Tap any set to see its full value history.",
     "files": [
       "components/onboarding.js"
-    ]
-  },
-  {
-    "text": "Tap sets to select them for bulk actions",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -10478,12 +9877,6 @@
     ]
   },
   {
-    "text": "Toggle Layout",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Took too long — try again.",
     "files": [
       "runtime-exact"
@@ -10496,27 +9889,9 @@
     ]
   },
   {
-    "text": "Top Movers (90-day Slope)",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Top ROI Leaders",
     "files": [
       "components/advisor.js"
-    ]
-  },
-  {
-    "text": "Top movers and underperformers",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "Top performers (annualized ROI)",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -10568,21 +9943,9 @@
     ]
   },
   {
-    "text": "Tracking has begun — your curve builds with each daily snapshot",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Tracking your vault is free, forever. Pro unlocks the investor toolkit — and keeps BricksVault independent and ad-free.",
     "files": [
       "components/onboarding.js"
-    ]
-  },
-  {
-    "text": "Tracking your vault stays free, forever.",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -10637,12 +10000,6 @@
     "text": "Try a different search or clear filters.",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "Try a different search term.",
-    "files": [
-      "views/build.js"
     ]
   },
   {
@@ -10737,12 +10094,6 @@
     ]
   },
   {
-    "text": "Underperformers",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "United Kingdom",
     "files": [
       "views/me.js"
@@ -10825,33 +10176,15 @@
     ]
   },
   {
-    "text": "Unowned",
-    "files": [
-      "views/minifigs.js"
-    ]
-  },
-  {
     "text": "Unsupported",
     "files": [
       "views/me-integrations.js"
     ]
   },
   {
-    "text": "Untitled build",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
     "text": "Untitled provider product",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Up",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -10882,12 +10215,6 @@
     "text": "Update ready",
     "files": [
       "app.js"
-    ]
-  },
-  {
-    "text": "Updating locations...",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -11108,14 +10435,7 @@
     "files": [
       "views/catalog.js",
       "views/minifigs.js",
-      "views/portfolio-detail.js",
-      "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "Value by theme",
-    "files": [
-      "views/portfolio.js"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -11144,12 +10464,6 @@
     ]
   },
   {
-    "text": "Vault actions",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Vault cracked! Add your first set to make it real.",
     "files": [
       "components/empty-vault-brick-3d.js"
@@ -11168,21 +10482,9 @@
     ]
   },
   {
-    "text": "Vault tools",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
     "text": "Vault updated",
     "files": [
       "components/scanner.js"
-    ]
-  },
-  {
-    "text": "Vault · LIVE",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -11264,12 +10566,6 @@
     ]
   },
   {
-    "text": "View on Rebrickable",
-    "files": [
-      "views/minifigs.js"
-    ]
-  },
-  {
     "text": "Visual style",
     "files": [
       "views/me.js"
@@ -11328,12 +10624,6 @@
     "text": "We sent a confirmation link to",
     "files": [
       "views/login.js"
-    ]
-  },
-  {
-    "text": "We're still indexing the part lists for your sets — check back shortly.",
-    "files": [
-      "views/build.js"
     ]
   },
   {
@@ -11486,8 +10776,7 @@
       "index.html",
       "route-meta.js",
       "views/portfolio-detail.js",
-      "views/portfolio-wishlist.js",
-      "views/portfolio.js"
+      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -11632,12 +10921,6 @@
     ]
   },
   {
-    "text": "Your Sets",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Your Store Price",
     "files": [
       "components/scanner.js",
@@ -11730,12 +11013,6 @@
     ]
   },
   {
-    "text": "Your trend appears after the next daily valuation snapshot.",
-    "files": [
-      "views/portfolio.js"
-    ]
-  },
-  {
     "text": "Your turn — repeat the combination.",
     "files": [
       "components/empty-vault-brick-3d.js"
@@ -11808,21 +11085,9 @@
     ]
   },
   {
-    "text": "almost (≥80%)",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
     "text": "almost at your target",
     "files": [
       "lib/pure.js"
-    ]
-  },
-  {
-    "text": "alternate models",
-    "files": [
-      "views/build.js"
     ]
   },
   {
@@ -11869,11 +11134,105 @@
     ]
   },
   {
+    "text": "bv-bar insights-theme__bar",
+    "files": [
+      "views/insights.js"
+    ]
+  },
+  {
+    "text": "bv-btn-row vault-facets__actions",
+    "files": [
+      "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "bv-field__box vault-stepper",
+    "files": [
+      "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "bv-foot vault-lists__storage",
+    "files": [
+      "views/subcollections.js"
+    ]
+  },
+  {
+    "text": "bv-group__box collection-insights",
+    "files": [
+      "views/subcollections.js"
+    ]
+  },
+  {
+    "text": "bv-group__box vault-choices",
+    "files": [
+      "ui/vault-ui.js"
+    ]
+  },
+  {
+    "text": "bv-group__box vault-list-sheet__rows",
+    "files": [
+      "views/subcollections.js"
+    ]
+  },
+  {
+    "text": "bv-hero vault-fig-hero",
+    "files": [
+      "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "bv-num insights-theme__pct",
+    "files": [
+      "views/insights.js"
+    ]
+  },
+  {
+    "text": "bv-num vault-build-row__pct",
+    "files": [
+      "views/build.js"
+    ]
+  },
+  {
+    "text": "bv-num vault-fig-sheet__value",
+    "files": [
+      "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "bv-num vault-list-card__count",
+    "files": [
+      "views/subcollections.js"
+    ]
+  },
+  {
+    "text": "bv-row__trail bv-num",
+    "files": [
+      "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "bv-setrow__hint vault-row__hint",
+    "files": [
+      "ui/vault-ui.js"
+    ]
+  },
+  {
+    "text": "bv-thumb vault-build-row__glyph",
+    "files": [
+      "views/build.js"
+    ]
+  },
+  {
+    "text": "bv-tile__meta vault-fig__fact",
+    "files": [
+      "views/minifigs.js"
+    ]
+  },
+  {
     "text": "bvCommon.comingSoon",
     "files": [
       "views/advisor-page.js",
-      "views/changes.js",
-      "views/insights.js",
       "views/me-insurance.js",
       "views/me-notifications.js",
       "views/pro.js",
@@ -11883,22 +11242,177 @@
     ]
   },
   {
-    "text": "collection value",
+    "text": "bvVault.buildAltsFrom",
     "files": [
-      "runtime-exact",
+      "views/build.js"
+    ]
+  },
+  {
+    "text": "bvVault.buildAltsIndexingTitle",
+    "files": [
+      "views/build.js"
+    ]
+  },
+  {
+    "text": "bvVault.buildFromParts",
+    "files": [
+      "views/build.js"
+    ]
+  },
+  {
+    "text": "bvVault.buildIndexingTitle",
+    "files": [
+      "views/build.js"
+    ]
+  },
+  {
+    "text": "bvVault.buildNoMatchesFor",
+    "files": [
+      "views/build.js"
+    ]
+  },
+  {
+    "text": "bvVault.buildNothingTitle",
+    "files": [
+      "views/build.js"
+    ]
+  },
+  {
+    "text": "bvVault.buildSignInTitle",
+    "files": [
+      "views/build.js"
+    ]
+  },
+  {
+    "text": "bvVault.buildUnavailable",
+    "files": [
+      "views/build.js"
+    ]
+  },
+  {
+    "text": "bvVault.chartEmpty",
+    "files": [
+      "views/insights.js"
+    ]
+  },
+  {
+    "text": "bvVault.editList",
+    "files": [
+      "views/subcollections.js"
+    ]
+  },
+  {
+    "text": "bvVault.figAllSeries",
+    "files": [
       "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "bvVault.figEmptyTitle",
+    "files": [
+      "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "bvVault.figNoMatches",
+    "files": [
+      "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "bvVault.figNotOwned",
+    "files": [
+      "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "bvVault.figSeriesOwnedOf",
+    "files": [
+      "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "bvVault.figValue",
+    "files": [
+      "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "bvVault.insightsEmptyTitle",
+    "files": [
+      "views/insights.js"
+    ]
+  },
+  {
+    "text": "bvVault.listDeleted",
+    "files": [
+      "views/subcollections.js"
+    ]
+  },
+  {
+    "text": "bvVault.listSaved",
+    "files": [
+      "views/subcollections.js"
+    ]
+  },
+  {
+    "text": "bvVault.listsEmptyTitle",
+    "files": [
+      "views/subcollections.js"
+    ]
+  },
+  {
+    "text": "bvVault.newList",
+    "files": [
+      "views/subcollections.js"
+    ]
+  },
+  {
+    "text": "bvVault.noFalling",
+    "files": [
+      "views/insights.js"
+    ]
+  },
+  {
+    "text": "bvVault.noRising",
+    "files": [
+      "views/insights.js"
+    ]
+  },
+  {
+    "text": "bvVault.quietTitle",
+    "files": [
+      "views/changes.js"
+    ]
+  },
+  {
+    "text": "bvVault.recordsTitle",
+    "files": [
+      "views/subcollections.js"
+    ]
+  },
+  {
+    "text": "bvVault.showAsGrid",
+    "files": [
+      "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "bvVault.showAsList",
+    "files": [
+      "views/portfolio.js"
+    ]
+  },
+  {
+    "text": "changes-hero__value bv-num",
+    "files": [
+      "views/changes.js"
     ]
   },
   {
     "text": "display_name max 40 chars",
     "files": [
       "api.js"
-    ]
-  },
-  {
-    "text": "e.g. Closet A, Shelf 2",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
@@ -12160,12 +11674,6 @@
     ]
   },
   {
-    "text": "sets you can build",
-    "files": [
-      "views/build.js"
-    ]
-  },
-  {
     "text": "skipped —",
     "files": [
       "runtime-exact"
@@ -12239,18 +11747,6 @@
     ]
   },
   {
-    "text": "via BrickLink + eBay sold comps",
-    "files": [
-      "views/minifigs.js"
-    ]
-  },
-  {
-    "text": "via BrickLink price guide",
-    "files": [
-      "views/minifigs.js"
-    ]
-  },
-  {
     "text": "vs what you paid",
     "files": [
       "views/portfolio-detail.js"
@@ -12284,12 +11780,6 @@
     "text": "· Figs",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "· shown in USD",
-    "files": [
-      "views/portfolio.js"
     ]
   },
   {
