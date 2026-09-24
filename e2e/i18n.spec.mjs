@@ -85,10 +85,12 @@ test('Settings switches uk to de to en without retaining stale exact-match copy'
   await page.addInitScript(() => localStorage.setItem('bv.lang', 'uk'));
   await page.goto('/#/me', { waitUntil: 'domcontentloaded' });
   const vault = page.locator('#nav .nav-tab[data-route="/"]');
+  // Language lives in the Appearance sheet of the 2026 Profile hub.
+  await page.locator('#appearanceRow').click();
   const language = page.locator('#languageSelect');
   await expect(language).toHaveAttribute('aria-label', 'Мова');
   await expect(vault).toHaveAttribute('aria-label', 'Сховище');
-  await expect(page.locator('.setting-row .lbl').filter({ hasText: 'Мова' }).first()).toBeVisible();
+  await expect(page.locator('#appearanceSheet label[for="languageSelect"]')).toHaveText('Мова');
 
   await language.selectOption('de');
   await expect(language).toHaveAttribute('aria-label', 'Sprache');
@@ -99,8 +101,10 @@ test('Settings switches uk to de to en without retaining stale exact-match copy'
   await language.selectOption('en');
   await expect(language).toHaveAttribute('aria-label', 'Language');
   await expect(vault).toHaveAttribute('aria-label', 'Vault');
-  await expect(page.locator('#root')).not.toContainText('Sprache');
-  await expect(page.locator('#root')).toContainText('Language');
+  await expect(page.locator('#root')).not.toContainText('Einstellungen');
+  await expect(page.locator('#root')).toContainText('Preferences');
+  await expect(page.locator('#appearanceSheet')).not.toContainText('Sprache');
+  await expect(page.locator('#appearanceSheet label[for="languageSelect"]')).toHaveText('Language');
 });
 
 test('latest locale selection wins when an earlier locale module is delayed', async ({ page }) => {
@@ -391,9 +395,9 @@ test.describe(() => {
     await page.goto('/#/', { waitUntil: 'domcontentloaded' });
     await page.evaluate(async () => {
       const { toast } = await import('/js/utils.js');
-      toast('Unlock Premium & Gold by supporting BricksVault ★', 'info');
+      toast('CSV with all collector fields, market values & ROI.', 'info');
     });
-    await expect(page.locator('#toast')).toContainText('Відкрийте Преміум і Золотий вигляд, підтримавши BricksVault ★');
+    await expect(page.locator('#toast')).toContainText('CSV з усіма полями колекціонера, ринковими вартостями й ROI.');
     await expect(page.locator('#toast')).not.toContainText('&amp;');
   });
 

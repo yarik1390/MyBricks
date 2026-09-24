@@ -38,10 +38,8 @@ const required = [
   'Saving…',
   'Testing…',
   'Syncing…',
-  'Deleting…',
   '🧒 Kids mode uses its own bright, playful colors — you can switch modes in Settings to choose a different look.',
   '🧱 Add to vault · +10 XP',
-  'Unlock Premium & Gold by supporting BricksVault ★',
 ];
 const absent = required.filter((text) => !catalog.has(text));
 if (absent.length) {

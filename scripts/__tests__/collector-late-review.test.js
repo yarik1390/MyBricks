@@ -7,6 +7,8 @@ const minifigsJs = read('public/js/views/minifigs.js');
 const minifigsRoute = read('worker/src/routes/minifigs.ts');
 const detailJs = read('public/js/views/portfolio-detail.js');
 const meJs = read('public/js/views/me.js');
+// Alert switches moved from the Profile page to #/me/notifications (2026 redesign).
+const notifJs = read('public/js/views/me-notifications.js');
 const routerJs = read('public/js/router.js');
 
 function extractBody(source, funcName) {
@@ -84,22 +86,21 @@ describe('late-review set-detail regressions', () => {
 
 describe('late-review profile settings regressions', () => {
   it('does not swallow notification/digest save failures or fake success', () => {
-    assert.match(meJs, /catch \(err\)\s*\{[\s\S]{0,260}toast\(t\('common\.errorWithDetails'/);
-    assert.doesNotMatch(meJs, /catch \{\}\s*\n\s*toast\(notifyOn \? "Alerts on"/);
-    assert.doesNotMatch(meJs, /catch \{\}\s*\n\s*toast\(digestOn \? "Weekly digest on/);
+    assert.match(notifJs, /catch \(err\)\s*\{[\s\S]{0,260}toast\(t\('common\.errorWithDetails'/);
+    assert.doesNotMatch(notifJs, /catch \{\}\s*\n\s*toast\(/);
+    // Profile edits still surface real errors.
+    assert.match(meJs, /catch \(e\)\s*\{[\s\S]{0,120}toast\(t\('common\.errorWithDetails'/);
   });
 
-  it('disables toggles while saving and rolls back state on failure', () => {
-    assert.match(meJs, /disabled/);
-    assert.match(meJs, /aria-checked/);
-    assert.match(meJs, /on\s*=\s*!on/);
-    assert.match(meJs, /catch \(err\)[\s\S]{0,120}on\s*=\s*!on/);
+  it('flips switches optimistically and rolls back state on failure', () => {
+    assert.match(notifJs, /aria-checked/);
+    assert.match(notifJs, /await savePrefs\(patch, \(\) => \{ prefs\[key\] = prev; \}\)/);
+    assert.match(notifJs, /catch \(err\) \{\s*revert\(\);/);
   });
 
   it('does not imply weekly digest persistence for guests', () => {
-    assert.match(meJs, /isGuestMode\(\)/);
-    const digestRow = meJs.slice(meJs.indexOf('Weekly vault digest'), meJs.indexOf('Weekly vault digest') + 1200);
-    assert.match(digestRow, /guest/);
-    assert.match(digestRow, /disabled|Sign in/);
+    assert.match(notifJs, /isGuestMode\(\)/);
+    assert.match(notifJs, /switchRow\('notify_weekly_digest', 'bvAlerts\.nDigest', 'bvAlerts\.nDigestSub', \{ disabled: guest \}\)/);
+    assert.match(notifJs, /bvAlerts\.guestNote/);
   });
 });

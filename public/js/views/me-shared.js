@@ -1,18 +1,11 @@
 import { state } from '../state.js';
 import { api } from '../api.js';
-import { I } from '../icons.js';
-import { escapeHtml } from '../utils.js';
+import { topbar } from '../ui/kit.js';
+import { t } from '../lib/i18n.js';
 
-/** Topbar for Me sub-pages: 44px back button to the hub + eyebrow/title. */
-export function subpageTopbarHTML(eyebrow, title) {
-  return `
-    <div class="topbar">
-      <a class="icon-btn" href="#/me" aria-label="Back to profile" style="margin-top:2px;margin-right:8px;">${I.chevL()}</a>
-      <div class="topbar-heading">
-        <div class="topbar-eyebrow">${escapeHtml(eyebrow)}</div>
-        <h1 class="topbar-title">${escapeHtml(title)}</h1>
-      </div>
-    </div>`;
+/** Top bar for Me sub-pages: back to the Profile hub, title, one-line lead. */
+export function subpageTopbarHTML(lead, title, { actionsHtml = '' } = {}) {
+  return topbar({ title, sub: lead, back: '#/me', backLabel: t('bvAccount.backProfile'), actionsHtml });
 }
 
 /** Load (or reuse) the signed-in profile for sub-pages. */

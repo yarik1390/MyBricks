@@ -260,7 +260,7 @@ test('optimized collector pages keep mobile hierarchy and accessible controls', 
   await expect(page.locator('.profile-identity-card')).toBeVisible();
   await expect(page.locator('.profile-summary')).toHaveAttribute('aria-label', 'Portfolio summary');
   await expect(page.locator('.profile-settings-nav')).toHaveAttribute('aria-label', 'Profile and app settings');
-  await expect(page.locator('.profile-settings-heading').first()).toBeVisible();
+  await expect(page.locator('.profile-settings-nav .bv-h2').first()).toBeVisible();
 
   const noHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
   expect(noHorizontalOverflow).toBe(true);
@@ -582,6 +582,8 @@ test('me: account deletion is gated behind typing DELETE (store requirement)', a
 
 test('me: public profile switches update without repainting the page', async ({ page, stub }) => {
   await page.goto('/#/me', { waitUntil: 'domcontentloaded' });
+  // The switches live in the Public profile sheet (2026 Profile hub).
+  await page.locator('#publicProfileRow').click();
 
   for (const id of ['publicToggle', 'publicValToggle']) {
     const toggle = page.locator(`#${id}`);
@@ -681,10 +683,14 @@ test('export page states the free/Pro column split honestly', async ({ page }) =
   await expect(page.getByText('adds current value, retail & ROI')).toBeVisible();
 });
 
-test('Pro pitch on the Me page leads with the investor toolkit', async ({ page }) => {
+test('Pro pitch leads with the investor toolkit and is one tap from the Profile hub', async ({ page }) => {
   await page.goto('/#/me', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByText('Investor insights: sell/buy signals, top movers, retirement radar')).toBeVisible();
-  await expect(page.getByText('Full 1-year portfolio history')).toBeVisible();
+  await page.locator('#proRow').click();
+  await expect(page).toHaveURL(/#\/pro$/);
+  const benefits = page.locator('.bv-probenefits li');
+  await expect(benefits.first()).toContainText('Investor insights');
+  await expect(benefits.first()).toContainText('Buy and sell signals, top movers, retirement radar');
+  await expect(page.getByText('1 year and all-time charts (free: 90 days)')).toBeVisible();
 });
 
 // ---------------------------------------------------------------------------

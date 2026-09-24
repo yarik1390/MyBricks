@@ -333,10 +333,9 @@ function drawDoubleSparkline(container, data) {
 
 function openProOptions() {
   haptic('light');
-  // A guest web profile intentionally has no billing card, so routing there
-  // made "See Pro options" look like a no-op. Keep native/account management
-  // on Profile, but give web guests an explicit, dismissible fallback.
-  if (isNativeBilling()) { location.hash = '#/me'; return; }
+  // Native billing and signed-in plan management live on #/pro; web guests
+  // get an explicit, dismissible fallback here.
+  if (isNativeBilling()) { location.hash = '#/pro'; return; }
   const signedIn = !!getSessionUserId();
   const patreonUrl = state.config?.patreon_url;
   showSheet(sheetBody({
@@ -349,7 +348,7 @@ function openProOptions() {
         ${btn(t('bvVault.proNotNow'), { kind: 'text', full: true, id: 'proOptionsClose' })}
       </div>`,
   }));
-  $('#proSignInBtn')?.addEventListener('click', () => { hideSheet(); location.hash = signedIn ? '#/me' : '#/login'; });
+  $('#proSignInBtn')?.addEventListener('click', () => { hideSheet(); location.hash = signedIn ? '#/pro' : '#/login'; });
   $('#proOptionsClose')?.addEventListener('click', hideSheet);
 }
 
