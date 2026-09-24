@@ -113,7 +113,7 @@ const RUNTIME_EXACT_STRINGS = [
   'Contributor:', "Couldn't load today's game:", "Couldn't load your year:",
   "Couldn't load:", 'Elapsed:', 'Enable On-Device AI', 'FIRECRAWL_KEY_CREDITS lists',
   'Falling', 'Filters', 'First seen', 'Heartbeat:', 'In stock —', 'Insights',
-  'Key pool — drains in order:', 'Key pool — monthly spend:', 'LOOKUP',
+  'Key pool — drains in order:', 'Key pool — monthly spend:',
   'Local AI session failed.', 'Local Gemma error:', 'New sold', 'New sold comps are',
   'Next:', 'No pending', 'Price checked', 'Provider:', 'Release',
   'Retirement risk: High', 'Rising', 'Sealed', 'Sell', "Sorry, couldn't reach the advisor.",
