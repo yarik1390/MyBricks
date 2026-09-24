@@ -30,6 +30,11 @@ test('collector navigation, permanent search, one-tap scan, and room entry', asy
   await page.locator('#pileManualSubmit').click();
   await expect(page).toHaveURL(/#\/set\/75192-1$/);
   await expect(fab).toBeHidden();
+  // The set page is a detail screen: no nav bar, a back arrow instead.
+  await expect(page.locator('#nav')).toBeHidden();
+  await expect(page.locator('#detailBack')).toBeVisible();
+  await page.evaluate(() => { location.hash = '#/add'; });
+  await expect(page.locator('#nav')).toBeVisible();
   await page.locator('#nav [data-route="/add"]').click();
   await expect(page.locator('#catalogSearch')).toBeVisible();
   await expect(page.locator('#nav [aria-current="page"]')).toHaveAttribute('data-route', '/add');

@@ -22,30 +22,39 @@ test.describe('set detail Community and Manage tabs', () => {
       }]));
     }, SET);
     await page.goto(`/#/set/${SET.set_num}`, { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.detail-tabs')).toBeVisible();
+    await expect(page.locator('#detailTabs')).toBeVisible();
   });
 
-  test('Community has clear contribution hierarchy and one intentional empty state', async ({ page }) => {
+  test('Community keeps every contribution path and one intentional empty state', async ({ page }) => {
     await page.locator('[role="tab"][data-tab="community"]').click();
     await expect(page).toHaveURL(new RegExp(`/set/${SET.set_num}/community$`));
 
     const tab = page.locator('.community-tab');
-    await expect(tab.locator('h2')).toHaveText('Community record');
-    await expect(tab.locator('.community-actions .contrib-act')).toHaveCount(3);
+    await expect(tab.locator('[data-contrib="fix"]')).toBeVisible();
     await expect(tab.locator('.community-mode-note')).toContainText('reviewed');
     await expect(tab.locator('.community-empty')).toHaveCount(1);
+    // Review and photo move into the pinned bar while Community is open…
+    const bar = page.locator('.detail-action-bar');
+    await expect(bar.locator('[data-contrib="photo"]')).toBeVisible();
+    await expect(bar.locator('[data-contrib="review"]')).toBeVisible();
+    // …and the bar goes back to Sell / Edit on the other tabs.
+    await page.locator('[role="tab"][data-tab="info"]').click();
+    await expect(bar.locator('#sellBtn')).toBeVisible();
+    await expect(bar.locator('[data-contrib]')).toHaveCount(0);
 
+    await page.locator('[role="tab"][data-tab="community"]').click();
     const geometry = await tab.evaluate((node) => ({
       clientWidth: node.clientWidth,
       scrollWidth: node.scrollWidth,
-      buttons: [...node.querySelectorAll('.contrib-act')].map((el) => el.getBoundingClientRect().height),
+      buttons: [...document.querySelectorAll('[data-contrib]')].map((el) => el.getBoundingClientRect().height),
     }));
     expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth + 1);
     expect(geometry.buttons.every((height) => height >= 44)).toBe(true);
   });
 
-  test('Manage groups existing fields and keeps destructive action separate', async ({ page }) => {
-    await page.locator('[role="tab"][data-tab="manage"]').evaluate((el) => el.click());
+  test('Collection Passport groups existing fields and keeps destructive action separate', async ({ page }) => {
+    await page.locator('.collector-passport').click();
+    await expect(page).toHaveURL(new RegExp(`/set/${SET.set_num}/passport$`));
     await expect(page.locator('.manage-tab')).toBeVisible();
     await expect(page.locator('.detail-page-container')).toHaveAttribute('data-detail-tab', 'manage');
     await expect(page.locator('.detail-action-bar')).toBeHidden();

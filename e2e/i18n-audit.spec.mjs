@@ -94,7 +94,7 @@ const OVERLAYS = [
   // The two richest sheets in the app, and both were missing from the first
   // overlay pass — which is most of why it reported 95.5% while the real app
   // still showed English on these exact screens.
-  { name: 'pricing details', route: '/set/75192-1', open: '#pricingDetailsBtn' },
+  { name: 'pricing details', route: '/set/75192-1', open: '.bv-valuecard .bv-conf' },
   { name: 'vault actions', route: '/', open: '#vaultMoreBtn' },
 ];
 

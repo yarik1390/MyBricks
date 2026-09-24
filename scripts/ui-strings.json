@@ -405,12 +405,6 @@
     ]
   },
   {
-    "text": "Add a memory — a gift, a build day, a great find…",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Add a photo",
     "files": [
       "components/contribute.js"
@@ -423,21 +417,9 @@
     ]
   },
   {
-    "text": "Add memory",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Add my first set",
     "files": [
       "components/onboarding.js"
-    ]
-  },
-  {
-    "text": "Add photo",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -481,12 +463,6 @@
     "text": "Add to shelf",
     "files": [
       "views/me.js"
-    ]
-  },
-  {
-    "text": "Add to wishlist",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -857,12 +833,6 @@
     ]
   },
   {
-    "text": "Ask around",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Ask the AI advisor",
     "files": [
       "components/advisor.js"
@@ -999,7 +969,6 @@
     "text": "Back",
     "files": [
       "components/onboarding.js",
-      "views/portfolio-detail.js",
       "views/portfolio-social.js",
       "views/portfolio-wishlist.js"
     ]
@@ -1454,21 +1423,9 @@
     ]
   },
   {
-    "text": "Building instructions (PDF)",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Built different. Literally.",
     "files": [
       "utils.js"
-    ]
-  },
-  {
-    "text": "Built together",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -1495,12 +1452,6 @@
     "text": "By value",
     "files": [
       "views/portfolio-wishlist.js"
-    ]
-  },
-  {
-    "text": "COMING SOON",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -1841,8 +1792,7 @@
     "files": [
       "components/methodology.js",
       "components/scanner.js",
-      "views/me.js",
-      "views/portfolio-detail.js"
+      "views/me.js"
     ]
   },
   {
@@ -1931,12 +1881,6 @@
     ]
   },
   {
-    "text": "Collector rating",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Color style",
     "files": [
       "components/onboarding.js"
@@ -1977,27 +1921,9 @@
     ]
   },
   {
-    "text": "Community contributions",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Community moderation queue, supporter account permissions, and system maintenance utilities.",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Community record",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Community-reported sales",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -2134,12 +2060,6 @@
     ]
   },
   {
-    "text": "Consider holding",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Consulting the brick oracle…",
     "files": [
       "components/scanner.js"
@@ -2195,12 +2115,6 @@
     ]
   },
   {
-    "text": "Contributions are reviewed before becoming public, keeping shared set data trustworthy.",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Contributor:",
     "files": [
       "runtime-exact"
@@ -2228,18 +2142,6 @@
     "text": "Copy admin token",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Copy description",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Copy title",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -2354,12 +2256,6 @@
     "text": "Couldn't load catalog",
     "files": [
       "views/catalog.js"
-    ]
-  },
-  {
-    "text": "Couldn't load community content.",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -2544,12 +2440,6 @@
     ]
   },
   {
-    "text": "Custom photo",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "D1 write budget",
     "files": [
       "views/me-admin.js"
@@ -2663,12 +2553,6 @@
     ]
   },
   {
-    "text": "Decrease quantity",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Degraded",
     "files": [
       "lib/pure.js",
@@ -2733,12 +2617,6 @@
     "text": "Describe the part-list error (missing/extra/wrong part).",
     "files": [
       "components/contribute.js"
-    ]
-  },
-  {
-    "text": "Description",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -3073,12 +2951,6 @@
     ]
   },
   {
-    "text": "Enter the sale price as a number",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Enter your 4-digit PIN to exit.",
     "files": [
       "views/kids.js"
@@ -3192,12 +3064,6 @@
     "text": "Estimated only",
     "files": [
       "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "Estimated value",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -3813,24 +3679,6 @@
     ]
   },
   {
-    "text": "Generate eBay Listing",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Generate eBay listing",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Generating listing…",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Germany",
     "files": [
       "views/me.js"
@@ -4053,12 +3901,6 @@
     "text": "Guest mode - saved on this device",
     "files": [
       "views/me.js"
-    ]
-  },
-  {
-    "text": "Guest mode can browse community content. Sign in before contributing so your review, photo, or fix can be reviewed and credited.",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -4410,12 +4252,6 @@
     ]
   },
   {
-    "text": "In vault",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "In-store price check",
     "files": [
       "components/scanner.js",
@@ -4438,12 +4274,6 @@
     "text": "Incorrect PIN. Try again.",
     "files": [
       "views/kids.js"
-    ]
-  },
-  {
-    "text": "Increase quantity",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -4569,12 +4399,6 @@
     "text": "Keep monitoring; retry a smaller batch if needed.",
     "files": [
       "lib/pure.js"
-    ]
-  },
-  {
-    "text": "Keep the details that make this copy yours. Changes save automatically as you update each field.",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -4836,12 +4660,6 @@
     ]
   },
   {
-    "text": "List for Sale",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Live Amazon offers for the buy slot. KV-only (24h) per Associates terms; never a valuation input — weight stays 0.",
     "files": [
       "views/me-admin-config.js"
@@ -4863,12 +4681,6 @@
     "text": "Loading LLM routing...",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Loading community content…",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -5098,21 +4910,9 @@
     ]
   },
   {
-    "text": "Manage",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Manage subscription",
     "files": [
       "views/me.js"
-    ]
-  },
-  {
-    "text": "Manage this set",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -5132,12 +4932,6 @@
     "files": [
       "views/portfolio-wishlist.js",
       "views/portfolio.js"
-    ]
-  },
-  {
-    "text": "Mark sold",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -5165,12 +4959,6 @@
     "text": "Market confidence: high",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "Market evidence",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -5814,12 +5602,6 @@
     ]
   },
   {
-    "text": "No memories yet — the story starts with you.",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "No minifigs were harmed in this milestone.",
     "files": [
       "utils.js"
@@ -6341,13 +6123,6 @@
     "text": "Open anomalies",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Open eBay",
-    "files": [
-      "runtime-exact",
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -7076,8 +6851,7 @@
   {
     "text": "Pricing details",
     "files": [
-      "views/portfolio-detail-market.js",
-      "views/portfolio-detail.js"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -7376,14 +7150,7 @@
     "text": "RETIRED",
     "files": [
       "views/catalog.js",
-      "views/portfolio-detail.js",
       "views/portfolio-social.js"
-    ]
-  },
-  {
-    "text": "RETIRING SOON",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -7462,12 +7229,6 @@
     "text": "Real collector transactions",
     "files": [
       "methodology.html"
-    ]
-  },
-  {
-    "text": "Real sale prices power the community price signal — anonymized, never shown individually.",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -7684,18 +7445,6 @@
     ]
   },
   {
-    "text": "Remove from wishlist",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Remove photo",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Removed",
     "files": [
       "components/scanner.js"
@@ -7759,12 +7508,6 @@
     "text": "Replay the quick guided walkthrough.",
     "files": [
       "views/me.js"
-    ]
-  },
-  {
-    "text": "Report a data issue or a community sale.",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -7900,12 +7643,6 @@
     ]
   },
   {
-    "text": "Retail",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Retail MSRP",
     "files": [
       "views/portfolio-detail.js"
@@ -7926,7 +7663,8 @@
   {
     "text": "Retail price, not resale value",
     "files": [
-      "views/portfolio-detail-market.js"
+      "views/portfolio-detail-market.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -8093,8 +7831,7 @@
   {
     "text": "Reviews",
     "files": [
-      "views/me-admin.js",
-      "views/portfolio-detail.js"
+      "views/me-admin.js"
     ]
   },
   {
@@ -8505,12 +8242,6 @@
     ]
   },
   {
-    "text": "See what collectors are sharing about this set, or add useful evidence for the next builder.",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Sell",
     "files": [
       "runtime-exact"
@@ -8527,18 +8258,6 @@
     "files": [
       "methodology.html",
       "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "Sell on eBay",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Sell this set…",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -8650,19 +8369,7 @@
     ]
   },
   {
-    "text": "Set detail sections",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Set details",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Set identity",
     "files": [
       "views/portfolio-detail.js"
     ]
@@ -8807,20 +8514,7 @@
     "files": [
       "lib/native-file-export.js",
       "lib/native-share.js",
-      "views/game.js",
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Share the first review or photo, or suggest a correction for the set data.",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Share your build and ownership experience.",
-    "files": [
-      "views/portfolio-detail.js"
+      "views/game.js"
     ]
   },
   {
@@ -8870,12 +8564,6 @@
     "text": "Show the floating assistant button for price help.",
     "files": [
       "views/me.js"
-    ]
-  },
-  {
-    "text": "Show the set, box, or display in the real world.",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -9100,12 +8788,6 @@
     ]
   },
   {
-    "text": "Sold price (before fees)",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Sold prices are facts; asking prices are wishes. Sold data leads every valuation. Listing and modeled data may widen the likely range slightly, but they can never move a sold-based headline.",
     "files": [
       "methodology.html"
@@ -9275,12 +8957,6 @@
     ]
   },
   {
-    "text": "Start this set’s community record",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Static asset + PWA hosting on Cloudflare Pages.",
     "files": [
       "views/me-admin-config.js"
@@ -9347,12 +9023,6 @@
     ]
   },
   {
-    "text": "Story unavailable right now.",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Story, details, anything…",
     "files": [
       "views/portfolio-detail.js"
@@ -9392,14 +9062,7 @@
     "text": "Suggest a fix",
     "files": [
       "components/contribute.js",
-      "methodology.html",
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Suggested price",
-    "files": [
-      "views/portfolio-detail.js"
+      "methodology.html"
     ]
   },
   {
@@ -9841,12 +9504,6 @@
     ]
   },
   {
-    "text": "Title",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Title (optional)",
     "files": [
       "components/contribute.js"
@@ -9982,12 +9639,6 @@
     "text": "Trophy Shelf unlocked! 🏆",
     "files": [
       "views/me.js"
-    ]
-  },
-  {
-    "text": "Trust note:",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -10254,18 +9905,6 @@
     ]
   },
   {
-    "text": "Upload photo",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Upload your own photo for this set.",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Uploading & parsing...",
     "files": [
       "views/me-data.js"
@@ -10434,8 +10073,7 @@
     "text": "Value",
     "files": [
       "views/catalog.js",
-      "views/minifigs.js",
-      "views/portfolio-detail.js"
+      "views/minifigs.js"
     ]
   },
   {
@@ -10467,12 +10105,6 @@
     "text": "Vault cracked! Add your first set to make it real.",
     "files": [
       "components/empty-vault-brick-3d.js"
-    ]
-  },
-  {
-    "text": "Vault record",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -10775,14 +10407,7 @@
     "files": [
       "index.html",
       "route-meta.js",
-      "views/portfolio-detail.js",
       "views/portfolio-wishlist.js"
-    ]
-  },
-  {
-    "text": "Wishlisted",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -10830,8 +10455,7 @@
   {
     "text": "Write a review",
     "files": [
-      "components/contribute.js",
-      "views/portfolio-detail.js"
+      "components/contribute.js"
     ]
   },
   {
@@ -11146,6 +10770,24 @@
     ]
   },
   {
+    "text": "bv-card bv-listing__field",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "bv-card bv-listing__loading",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "bv-card bv-listing__price",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "bv-field__box vault-stepper",
     "files": [
       "views/minifigs.js"
@@ -11182,6 +10824,30 @@
     ]
   },
   {
+    "text": "bv-num bv-histcard__value",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "bv-num bv-sellopt__value",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "bv-num bv-settitle__num",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "bv-num bv-why__value",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "bv-num insights-theme__pct",
     "files": [
       "views/insights.js"
@@ -11206,15 +10872,39 @@
     ]
   },
   {
+    "text": "bv-pill bv-sethero__photos",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "bv-row__trail bv-num",
     "files": [
       "views/minifigs.js"
     ]
   },
   {
+    "text": "bv-setpage__body bv-enter",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "bv-setrow__hint vault-row__hint",
     "files": [
       "ui/vault-ui.js"
+    ]
+  },
+  {
+    "text": "bv-setrows bv-community__fix",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "bv-sheet__sub bv-why__detail",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -11230,6 +10920,12 @@
     ]
   },
   {
+    "text": "bv-valuecard__value bv-num detail-summary-val",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "bvCommon.comingSoon",
     "files": [
       "views/advisor-page.js",
@@ -11239,6 +10935,54 @@
       "views/retiring.js",
       "views/welcome.js",
       "views/wrapped.js"
+    ]
+  },
+  {
+    "text": "bvSet.addPhoto",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "bvSet.replacePhoto",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "bvSet.targetRemoved",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "bvSet.targetSaved",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "bvSet.trustGuest",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "bvSet.trustMember",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "bvSet.wishAdd",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "bvSet.wishRemove",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -11410,6 +11154,12 @@
     ]
   },
   {
+    "text": "detail-card bv-passport__flip",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "display_name max 40 chars",
     "files": [
       "api.js"
@@ -11524,6 +11274,12 @@
     ]
   },
   {
+    "text": "manage-tab bv-passport__body",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "max 500 rows per import",
     "files": [
       "api.js"
@@ -11602,12 +11358,6 @@
     ]
   },
   {
-    "text": "out of 5",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "pieces missing",
     "files": [
       "views/portfolio-detail.js"
@@ -11617,6 +11367,12 @@
     "text": "prices from independent markets — and if we don't have that, we tell you exactly what we have instead.",
     "files": [
       "methodology.html"
+    ]
+  },
+  {
+    "text": "pricing-details-sheet bv-why__body",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -11699,6 +11455,12 @@
     ]
   },
   {
+    "text": "story-item bv-story__item",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "tab for unlimited advice.",
     "files": [
       "components/advisor.js"
@@ -11744,12 +11506,6 @@
     "text": "verified, recent, sold",
     "files": [
       "methodology.html"
-    ]
-  },
-  {
-    "text": "vs what you paid",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {

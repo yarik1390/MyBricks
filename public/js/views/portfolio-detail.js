@@ -1,7 +1,9 @@
-import { collectorTools } from '../components/collector-shell.js';
-import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg } from '../utils.js';
+import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg, capturedMoneyContext, advisorEnabled } from '../utils.js';
+import { icon as kitIcon, iconBtn as kitIconBtn, row as kitRow, seg as kitSeg, field as kitField, pill as kitPill, delta as kitDelta, topbar as kitTopbar, emptyState as kitEmptyState, sheetBody as kitSheetBody, brickSvg as kitBrick } from '../ui/kit.js';
+import { localMoneyToUsd, usdMoneyInputValue } from '../lib/money-input.js';
+import { derivePartOutDecision } from '../lib/part-out-decision.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML, investmentPricingHTML, investmentPricingDetailHTML, soldEvidenceHTML } from './portfolio-detail-market.js';
-import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel, sanitizeMoneyInput, themeColor, priceMovementSummary, valuationConfidencePresentation } from '../lib/pure.js';
+import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel, priceMovementSummary, valuationConfidencePresentation } from '../lib/pure.js';
 import { t, tPlural, getLocale, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 import { pricechartingAttributionHTML } from '../lib/partner-attribution.js';
 import { figAvatarSVG } from '../lib/fig-avatar.js';
@@ -54,19 +56,21 @@ async function maybeCelebrateMilestone(hue) {
     if (fire) setTimeout(() => celebrate(fire, { hue }), 700);
   } catch {}
 }
-/** Tab labels come from the catalogue; "manage" has no key yet, so it falls
- *  through to the capitalised English name rather than showing a raw key. */
+const TAB_LABEL_KEYS = { info: "bvSet.tabOverview", forecast: "bvSet.tabHistory", community: "bvSet.tabCommunity" };
 function tabLabel(tab) {
-  const key = { info: "detail.tabInfo", forecast: "detail.tabForecast", community: "detail.tabCommunity" }[tab];
-  if (!key) return tab[0].toUpperCase() + tab.slice(1);
-  const label = t(key);
-  return label === key ? tab[0].toUpperCase() + tab.slice(1) : label;
+  return t(TAB_LABEL_KEYS[tab] || "bvSet.tabOverview");
 }
 
-function detailTabs(owned) {
-  const tabs = owned ? ["info", "forecast", "community", "manage"] : ["info", "forecast", "community"];
-  return isSimpleMode() ? tabs.filter(t => t !== "forecast") : tabs;
+// Overview · Price history · Community. The ids stay info/forecast/community so
+// every old deep link (#/set/:num/forecast …) keeps landing on the right tab.
+function detailTabs() {
+  return ["info", "forecast", "community"];
 }
+
+// Friendly aliases for the tab hashes, plus the sub-routes that open a sheet
+// (edit/sell/why/target/sold) or their own screen (passport/listing).
+const TAB_ALIASES = { overview: "info", history: "forecast", manage: "passport" };
+const SHEET_ROUTES = new Set(["edit", "sell", "why", "target", "sold"]);
 
 // Module-level detail state (moved verbatim from portfolio.js; used only by
 // the set-detail view's tab-swipe + custom-photo + event-delegation wiring).
@@ -89,7 +93,8 @@ export async function renderSetDetail(setNum) {
           const entry = data.entry || null;
           state.detail.cache[setNum] = { set, entry, ts: Date.now() };
           cacheSetDetail(setNum, set, entry, getSessionUserId());
-          if (location.hash.includes(setNum)) paintSetDetail(set, entry);
+          // Don't repaint over an open sheet (the user is mid-edit).
+          if (location.hash.includes(setNum) && !document.body.classList.contains("sheet-open")) paintSetDetail(set, entry, { background: true });
         }).catch(() => {});
       return;
     }
@@ -148,94 +153,688 @@ function setNotFoundHTML(setNum, online) {
     </div>`;
 }
 
-function paintSetDetail(set, entry) {
+function paintSetDetail(set, entry, { background = false } = {}) {
+  let tab = TAB_ALIASES[state.detail.tab] || state.detail.tab || "info";
+  // A background refresh must not rebuild a screen the user is typing into
+  // (the Passport autosaves on blur) or re-run the paid listing generator.
+  if (background && (tab === "passport" || tab === "listing")) { _detailCtx = { set, entry }; return; }
+  if (tab === "passport") { state.detail.tab = "passport"; paintPassport(set, entry); return; }
+  if (tab === "listing") {
+    if (!entry) tab = "info";
+    else { state.detail.tab = "listing"; paintListing(set, entry); return; }
+  }
+  // Sheet deep links paint the page, then open the sheet once; the URL drops
+  // back to the set so system back closes the sheet and stays on the page.
+  let sheet = null;
+  if (SHEET_ROUTES.has(tab)) {
+    sheet = tab;
+    tab = "info";
+    history.replaceState(null, "", `#/set/${encodeURIComponent(set.set_num)}`);
+  }
+  if (!detailTabs().includes(tab)) tab = "info";
+  state.detail.tab = tab;
   const isWish = state.wishlist.some(w => w.set_num === set.set_num);
-  const owned = !!entry;
-  // Simple mode has no forecast tab — don't let a deep link (/set/x/forecast)
-  // strand the panel on a hidden tab.
-  if (isSimpleMode() && state.detail.tab === "forecast") state.detail.tab = "info";
-  // Unknown tabs (and manage for unowned sets) must fall back to info instead
-  // of painting an empty panel or a manage pane that cannot be saved.
-  if (!detailTabs(owned).includes(state.detail.tab)) state.detail.tab = "info";
-  const h = setHue(set);
-  const displayImg = proxyImg(set.image_url);
-  const hasImg = displayImg && !displayImg.startsWith("data:");
-  const titleLength = String(set.name || '').length;
-  const titleSizeClass = titleLength > 58 ? ' is-very-long' : titleLength > 36 ? ' is-long' : '';
 
   $("#root").innerHTML = `
-    <div class="page no-pad detail-page-container" data-detail-tab="${escapeHtml(state.detail.tab)}"${hasImg ? ' data-hero="photo"' : ""}>
-      <div class="detail-hero-col">
-        <div class="detail-hero${hasImg ? " has-photo" : ""}">
-          <button class="detail-back" id="detailBack" aria-label="Back">${I.chevL()}</button>
-          ${hasImg
-            ? `<div class="detail-hero-bg" style="background-image:url('${escapeHtml(displayImg)}')"></div>`
-            : `<div class="detail-hero-bg placeholder" style="--brick-hue:linear-gradient(135deg, oklch(0.72 0.13 ${h}), oklch(0.55 0.13 ${h}));"></div>`}
-          <div class="detail-hero-overlay"></div>
-          <div class="detail-img${hasImg ? " has-photo" : ""}">
-            ${hasImg ? "" : `<div class="brick-art" style="--brick-color:oklch(0.72 0.13 ${h});">${escapeHtml(set.set_num)}</div>`}
-            ${hasImg ? `<img class="set-photo" fetchpriority="high" src="${escapeHtml(displayImg)}" alt="${escapeHtml(set.name)}">` : ""}
-          </div>
-          ${hasImg ? `<div class="detail-setnum" style="--set-accent:${escapeHtml(themeColor(set.theme).c)};">${escapeHtml(set.set_num)}</div>` : ""}
+    <main class="bv-page no-nav has-bar bv-setpage detail-page-container" data-detail-tab="${escapeHtml(tab)}" data-set="${escapeHtml(set.set_num)}">
+      ${heroHTML(set, isWish)}
+      <div class="bv-setpage__body bv-enter">
+        ${titleBlockHTML(set)}
+        ${valueCardHTML(set, entry)}
+        ${signalBannerHTML(set, entry)}
+        <div class="bv-tabs bv-settabs" id="detailTabs" role="tablist" aria-label="${escapeHtml(t("bvSet.sections"))}">
+          ${detailTabs().map(id => `<button type="button" id="tab-${id}" data-tab="${id}" role="tab" tabindex="${tab === id ? "0" : "-1"}" aria-selected="${tab === id}" aria-controls="panel-${id}" class="${tab === id ? "active" : ""}">${escapeHtml(tabLabel(id))}</button>`).join("")}
+        </div>
+        <div id="tabPanels" class="bv-setpanels">
+          <div class="detail-tab-panel" id="panel-${tab}" role="tabpanel" aria-labelledby="tab-${tab}">${panelHTML(tab, set, entry)}</div>
         </div>
       </div>
-      <div class="detail-content-col">
-        <div class="detail-title-row">
-          <div>
-            <div class="detail-eyebrow">${escapeHtml(set.theme || "")}${hasImg ? "" : ` · #${escapeHtml(set.set_num)}`}${set.coming_soon ? " · <span style='color:var(--accent);font-weight:700;'>COMING SOON</span>" : `${set.retired ? " · <span>RETIRED</span>" : ""}${set.lego_retiring_soon ? " · <span style='color:var(--down);font-weight:700;'>RETIRING SOON</span>" : ""}`}</div>
-            <h1 class="detail-title${titleSizeClass}">${escapeHtml(set.name)}</h1>
-          </div>
-          <button class="detail-share-btn icon-btn" id="shareBtn" aria-label="Share">${I.share()}</button>
-        </div>
-        <div class="detail-identity-bar detail-identity-block" aria-label="Set identity">
-          <span>${escapeHtml(set.set_num)}</span>
-          ${set.year ? `<span>${escapeHtml(String(set.year))}</span>` : ''}
-          ${set.pieces ? `<span>${escapeHtml(Number(set.pieces).toLocaleString())} pieces</span>` : ''}
-          ${set.minifigs ? `<span>${escapeHtml(String(set.minifigs))} minifigs</span>` : ''}
-        </div>
-        <div class="detail-tabs" id="detailTabs" role="tablist" aria-label="Set detail sections">
-          ${detailTabs(owned).map(tab =>
-            // NB: the map param is `tab`, not `t` — `t` is the translator.
-            `<button id="tab-${tab}" data-tab="${tab}" role="tab" tabindex="${state.detail.tab === tab ? "0" : "-1"}" aria-selected="${state.detail.tab === tab}" aria-controls="panel-${tab}" class="${state.detail.tab === tab ? "active" : ""}">${escapeHtml(tabLabel(tab))}</button>`
-          ).join("")}
-        </div>
-        <div class="detail-tab-panel" id="panel-${state.detail.tab}" role="tabpanel" aria-labelledby="tab-${state.detail.tab}">
-          ${state.detail.tab === "info" ? infoTabHTML(set, entry, isWish) :
-            state.detail.tab === "forecast" ? forecastTabHTML(set) :
-            state.detail.tab === "community" ? communityTabHTML(set) :
-            manageTabHTML(set, entry)}
-        </div>
-      </div>
-      ${detailActionBarHTML(set, entry, isWish)}
-    </div>`;
+      <div id="setBar">${setBarHTML(set, entry, tab)}</div>
+    </main>`;
 
   _detailCtx = { set, entry };
   ensureDetailDelegation();
-  if (state.detail.tab === "info") wireInfoTab(set);
-  else if (state.detail.tab === "manage") wireManageTab(set, entry);
-  else if (state.detail.tab === "community") wireCommunityTab(set);
-  wireDetailActions(set, entry); // sticky action bar — present on every tab
+  wirePanel(tab, set, entry);
+  wireDetailActions(set, entry);
+  wireSetHero(set, entry);
   setupTabSwipe(set, entry);
+  if (sheet) openSetSheet(sheet, set, entry);
+}
 
-  // Custom photos live behind the authed worker API, so an <img src> can't
-  // load them directly — fetch with the bearer token and swap in a blob URL.
+function panelHTML(tab, set, entry) {
+  if (tab === "forecast") return historyTabHTML(set);
+  if (tab === "community") return communityTabHTML(set);
+  return infoTabHTML(set, entry);
+}
+
+function wirePanel(tab, set, entry) {
+  if (tab === "forecast") wireHistoryTab(set, entry);
+  else if (tab === "community") wireCommunityTab(set);
+  else wireInfoTab(set);
+}
+
+const money0 = (v) => (v == null || !Number.isFinite(Number(v)) ? "—" : fmtMoney(Math.round(Number(v)), { cents: 0 }));
+const signedMoney0 = (v) => `${Number(v) < 0 ? "−" : "+"}${money0(Math.abs(Number(v)))}`;
+const moneySymbol = (ctx) => CURRENCY_SYMBOLS[ctx.currency] || "$";
+const CONDITION_SEG = [["sealed", "bvSet.segSealed"], ["new", "bvSet.segOpened"], ["used_good", "bvSet.segBuilt"], ["used_acceptable", "bvSet.segParts"]];
+const CONDITION_WORD = { sealed: "bvSet.condSealed", new: "bvSet.condOpened", used_good: "bvSet.condBuilt", used_acceptable: "bvSet.condParts" };
+const conditionWord = (c) => t(CONDITION_WORD[c] || CONDITION_WORD.sealed);
+
+function valueRange(set) {
+  const v3 = set.valuation?.read_enabled ? set.valuation?.new : null;
+  for (const [lo, hi] of [[v3?.low, v3?.high], [set.market_value_low, set.market_value_high], [set.blended_low, set.blended_high]]) {
+    const l = Number(lo), h = Number(hi);
+    if (l > 0 && h > l) return { low: l, high: h };
+  }
+  return null;
+}
+
+// Only a real projection is ever shown (same honesty rule as the forecast
+// card): ready/external v3 forecasts, else the stored 2-year figure.
+function realForecast(set) {
+  if (isSimpleMode() || isKidsMode()) return 0;
+  const forecast = set.valuation?.read_enabled ? set.valuation?.forecast : null;
+  if (forecast && !(forecast.status === "ready" || forecast.status === "external")) return 0;
+  const projection = Number(forecast?.base) || Number(set.forecast_2y) || 0;
+  return projection > 0 ? projection : 0;
+}
+
+const paidOf = (entry) => (Number(entry?.purchase_price) > 0 ? Number(entry.purchase_price) : null);
+
+function heroHTML(set, isWish) {
+  const hue = setHue(set);
+  const img = proxyImg(set.image_url);
+  const hasImg = img && !img.startsWith("data:");
+  return `<div class="bv-sethero${hasImg ? " has-photo" : ""}" style="--hue:${Number(hue) || 0}">
+    <div class="bv-sethero__media">${kitBrick(`hsl(${Number(hue) || 0} 62% 64%)`)}${hasImg ? `<img class="set-photo" fetchpriority="high" src="${escapeHtml(img)}" alt="${escapeHtml(set.name || set.set_num)}">` : ""}</div>
+    <div class="bv-sethero__bar">
+      ${kitIconBtn({ icon: "back", label: t("common.back"), id: "detailBack", cls: "bv-sethero__btn" })}
+      <span class="bv-sethero__actions">
+        ${kitIconBtn({ icon: "share", label: t("common.share"), id: "shareBtn", cls: "bv-sethero__btn" })}
+        <button type="button" class="bv-iconbtn bv-sethero__btn${isWish ? " is-on" : ""}" id="wishToggle" aria-pressed="${isWish}" aria-label="${escapeHtml(t(isWish ? "bvSet.wishRemove" : "bvSet.wishAdd"))}">${kitIcon(isWish ? "heartFill" : "heart")}</button>
+      </span>
+    </div>
+    <button type="button" class="bv-pill bv-sethero__photos" id="heroPhotos" hidden></button>
+  </div>`;
+}
+
+function titleBlockHTML(set) {
+  const len = String(set.name || "").length;
+  const size = len > 58 ? " is-very-long" : len > 36 ? " is-long" : "";
+  const bits = [
+    `<span class="bv-num bv-settitle__num">${escapeHtml(set.set_num)}</span>`,
+    escapeHtml([set.theme, set.subtheme].filter(Boolean).join(" · ")),
+    set.year ? escapeHtml(String(set.year)) : "",
+    Number(set.pieces) > 0 ? escapeHtml(t("bvSet.pcs", { count: Number(set.pieces).toLocaleString(getLocale()) })) : "",
+  ].filter(Boolean);
+  const status = set.coming_soon ? t("bvCommon.comingSoon")
+    : set.lego_retiring_soon && !set.retired ? t("bvSet.retiringSoon")
+    : set.retired ? t("bvCommon.retired") : "";
+  return `<div class="bv-settitle detail-identity-block" aria-label="${escapeHtml(t("bvSet.identity"))}">
+    <h1 class="bv-settitle__name${size}">${escapeHtml(set.name || set.set_num)}</h1>
+    <p class="bv-settitle__meta">${bits.join(" · ")}${status ? ` · <strong>${escapeHtml(status)}</strong>` : ""}</p>
+  </div>`;
+}
+
+function valueCardHTML(set, entry) {
+  const v = setDisplayValue(set);
+  const est = !(set.valuation?.read_enabled && Number(set.valuation?.new?.fair_value) > 0) && !!estMark(set);
+  const conf = valuationConfidencePresentation(set);
+  const range = set.coming_soon ? null : valueRange(set);
+  const forecast = set.coming_soon ? 0 : realForecast(set);
+  const label = set.coming_soon ? t("bvSet.announcedRetail")
+    : est ? t("bvSet.estimatedValue")
+    : t("bvSet.marketValueCond", { condition: conditionWord(entry?.condition || "sealed") });
+  const why = v > 0
+    ? `<button type="button" class="bv-linkbtn" data-set-sheet="why">${escapeHtml(t("bvSet.whyPrice", { price: money0(v) }))}</button>` : "";
+  let rangeHTML = "";
+  if (range && v > 0) {
+    const pad = (range.high - range.low) * 0.6;
+    const lo = Math.min(range.low - pad, v), hi = Math.max(range.high + pad, v);
+    const pos = (x) => clamp(((x - lo) / (hi - lo)) * 100, 0, 100);
+    rangeHTML = `<div class="bv-range" role="img" aria-label="${escapeHtml(t("bvSet.rangeLabel", { low: money0(range.low), high: money0(range.high) }))}">
+        <span class="bv-range__band" style="left:${pos(range.low).toFixed(1)}%;width:${(pos(range.high) - pos(range.low)).toFixed(1)}%"></span>
+        <span class="bv-range__mark" style="left:${pos(v).toFixed(1)}%"></span></div>
+      <div class="bv-range__legend"><span class="bv-num">${escapeHtml(money0(range.low))} – ${escapeHtml(money0(range.high))}</span>${why}</div>`;
+  } else if (why) {
+    // No range to draw: say where the number comes from instead.
+    const note = set.coming_soon
+      ? `<span class="detail-summary-src">Retail price, not resale value</span>`
+      : valueProvenanceHTML(set).replace(/^<div class="detail-summary-src">([\s\S]*)<\/div>$/, '<span class="detail-summary-src">$1</span>')
+        || `<span class="detail-summary-src">${escapeHtml(t("bvSet.noRange"))}</span>`;
+    rangeHTML = `<div class="bv-range__legend">${note}${why}</div>`;
+  }
+  const facts = [];
+  if (forecast) facts.push(`<div class="bv-valuecard__fact"><span class="bv-label">${escapeHtml(t("bvSet.forecast2y"))}</span><span class="bv-num">${escapeHtml(money0(forecast))}</span></div>`);
+  if (entry && !isKidsMode()) {
+    const target = Number(entry.sell_target) > 0 ? Number(entry.sell_target) : null;
+    facts.push(`<button type="button" class="bv-valuecard__fact bv-valuecard__fact--btn" data-set-sheet="target" id="sellTargetBtn"><span class="bv-label">${escapeHtml(t("bvSet.sellTarget"))}</span>
+      <span class="bv-valuecard__factval">${target ? `<span class="bv-num">${escapeHtml(money0(target))}</span>` : `<span class="bv-valuecard__hint">${escapeHtml(t("bvSet.setTarget"))}</span>`}${kitIcon("edit", { size: 16 })}</span></button>`);
+  } else if (!entry && !set.coming_soon && Number(set.retail_price) > 0) {
+    facts.push(`<div class="bv-valuecard__fact"><span class="bv-label">${escapeHtml(t("bvSet.retail"))}</span><span class="bv-num">${escapeHtml(fmtMoney(Number(set.retail_price)))}</span></div>`);
+  }
+  const chip = isSimpleMode() || set.coming_soon ? "" : `<button type="button" class="bv-conf bv-conf--${escapeHtml(conf.tone)}" data-set-sheet="why" title="${escapeHtml(conf.detail)}">${conf.tone === "good" ? kitIcon("check", { size: 16, stroke: 2.4 }) : ""}<span>${escapeHtml(conf.label)}</span>${kitIcon("chev", { size: 14, stroke: 2.4 })}</button>`;
+  return `<section class="bv-card bv-valuecard detail-market-summary" aria-label="Market value summary">
+    <div class="bv-valuecard__head"><div class="bv-valuecard__main"><span class="bv-label detail-summary-lbl">${escapeHtml(label)}</span>
+      <span class="bv-valuecard__value bv-num detail-summary-val">${v > 0 ? `${est ? "~" : ""}${escapeHtml(money0(v))}` : "—"}</span></div>${chip}</div>
+    ${rangeHTML}
+    ${facts.length ? `<div class="bv-valuecard__facts">${facts.join("")}</div>` : ""}
+  </section>`;
+}
+
+const SIGNAL_LEAD = { sell: "bvSet.signalSell", watch: "bvSet.signalWatch", hold: "bvSet.signalHold" };
+function signalLine(signal, cls = "") {
+  return `<div class="bv-banner bv-banner--neutral bv-setsignal${cls}" role="note">${kitIcon(signal.signal === "sell" ? "tag" : "trend", { size: 20 })}<span class="bv-banner__text"><strong>${escapeHtml(t(SIGNAL_LEAD[signal.signal]))}</strong> ${escapeHtml(localizedSellReasons(signal.reasons).join(" · "))}</span></div>`;
+}
+function signalBannerHTML(set, entry) {
+  if (!entry || isSimpleMode() || isKidsMode()) return "";
+  const s = sellSignalFor(set, entry);
+  return s ? signalLine(s) : "";
+}
+
+// Pinned bottom bar. Owned: your copy (paid + gain, opens the edit sheet),
+// Sell, Edit. Not owned: Add to vault. On Community: Add photo / Write review.
+function setBarHTML(set, entry, tab) {
+  if (tab === "community") {
+    return `<div class="bv-setbar detail-action-bar">
+      <button type="button" class="bv-btn bv-btn--outline" data-contrib="photo">${kitIcon("camera", { size: 20 })}<span>${escapeHtml(t("bvSet.addPhoto"))}</span></button>
+      <button type="button" class="bv-btn bv-btn--primary" data-contrib="review">${kitIcon("edit", { size: 20 })}<span>${escapeHtml(t("bvSet.writeReview"))}</span></button>
+    </div>`;
+  }
+  if (!entry) {
+    const displayVal = setDisplayValue(set);
+    return `<div class="bv-setbar detail-action-bar">
+      <button type="button" class="bv-btn bv-btn--primary bv-btn--full" id="addBtn">${kitIcon("plus", { size: 20, stroke: 2.2 })}<span>${escapeHtml(displayVal > 0 ? t("detail.addToVaultPrice", { price: estMark(set) + fmtMoney(displayVal, { cents: 0 }) }) : t("bvSet.addToVault"))}</span></button>
+    </div>`;
+  }
+  const qty = Number(entry.quantity) || 1;
+  const paid = paidOf(entry);
+  const value = setDisplayValue(set) * qty;
+  const cost = paid != null ? paid * qty : null;
+  const gain = cost != null && value > 0 ? value - cost : null;
+  const pct = gain != null && cost > 0 ? (gain / cost) * 100 : null;
+  const line = `${paid != null ? t("bvSet.yourCopyPaid", { price: money0(paid) }) : t("bvSet.yourCopy")}${qty > 1 ? ` · ×${qty}` : ""}`;
+  const sub = gain != null
+    ? `<span class="bv-setbar__gain"><span class="bv-num ${gain >= 0 ? "bv-up" : "bv-down"}">${escapeHtml(signedMoney0(gain))}</span>${kitDelta(pct)}</span>`
+    : `<span class="bv-setbar__hint">${escapeHtml(t("bvSet.addPricePaid"))}</span>`;
+  return `<div class="bv-setbar detail-action-bar">
+    <button type="button" class="bv-setbar__copy" data-set-sheet="edit" aria-label="${escapeHtml(t("bvSet.editTitle"))}"><span class="bv-label">${escapeHtml(line)}</span>${sub}</button>
+    ${isKidsMode() ? "" : `<button type="button" class="bv-btn bv-btn--outline" id="sellBtn" data-set-sheet="sell">${kitIcon("tag", { size: 20 })}<span>${escapeHtml(t("bvSet.sell"))}</span></button>`}
+    <button type="button" class="bv-btn bv-btn--outline" id="manageBtn" data-set-sheet="edit">${kitIcon("edit", { size: 20 })}<span>${escapeHtml(t("common.edit"))}</span></button>
+  </div>`;
+}
+
+// Hero photo count ("1 / 6 photos") → lightbox, and the owner's own photo.
+const _setImages = new Map();
+function setImagesFor(setNum) {
+  if (!_setImages.has(setNum)) {
+    _setImages.set(setNum, api("/api/sets/" + encodeURIComponent(setNum) + "/images")
+      .then(res => (res && Array.isArray(res.images) ? res.images.filter(u => typeof u === "string") : []))
+      .catch(() => { _setImages.delete(setNum); return []; }));
+  }
+  return _setImages.get(setNum);
+}
+
+function wireSetHero(set, entry) {
+  const main = proxyImg(set.image_url);
+  const hasMain = main && !main.startsWith("data:");
+  // A dead image (or the proxy's 1×1 "no photo" GIF) falls back to the brick.
+  const heroImg = $(".bv-sethero__media img.set-photo");
+  const dropHeroImg = () => {
+    if (entry?.custom_image_url) return;
+    heroImg?.remove();
+    $(".bv-sethero")?.classList.remove("has-photo");
+  };
+  heroImg?.addEventListener("error", dropHeroImg, { once: true });
+  heroImg?.addEventListener("load", () => { if (heroImg.naturalWidth <= 2) dropHeroImg(); }, { once: true });
+  const pill = $("#heroPhotos");
+  if (pill && Number(set.additional_image_count) > 0) {
+    setImagesFor(set.set_num).then(extra => {
+      const urls = [...(hasMain ? [main] : []), ...extra];
+      if (urls.length < 2 || !pill.isConnected) return;
+      pill.innerHTML = `${kitIcon("photo", { size: 14, stroke: 2.4 })}<span>${escapeHtml(tPlural("bvSet.photos", urls.length, { count: urls.length }))}</span>`;
+      pill.hidden = false;
+      pill.onclick = async () => {
+        haptic("light");
+        const { openLightbox } = await import("../components/lightbox.js");
+        openLightbox(urls, 0);
+      };
+    });
+  }
   if (entry?.custom_image_url) {
     customPhotoObjectURL(entry.custom_image_url).then(url => {
-      if (!url) return;
-      const bg = document.querySelector(".detail-hero-bg");
-      if (bg) { bg.style.backgroundImage = `url('${url}')`; bg.classList.remove("placeholder"); }
-      let img = document.querySelector(".detail-img .set-photo");
+      const media = $(".bv-sethero__media");
+      if (!url || !media) return;
+      let img = media.querySelector("img.set-photo");
       if (!img) {
         img = document.createElement("img");
         img.className = "set-photo";
-        img.alt = "";
-        document.querySelector(".detail-img")?.appendChild(img);
-        document.querySelector(".detail-img")?.classList.add("has-photo");
-        document.querySelector(".detail-hero")?.classList.add("has-photo");
+        img.alt = set.name || "";
+        media.appendChild(img);
       }
       img.src = url;
+      media.closest(".bv-sethero")?.classList.add("has-photo");
     });
   }
+}
+
+function overviewRowsHTML(set, entry) {
+  const rows = [];
+  if (entry) rows.push(kitRow({ icon: "photo", title: t("bvSet.passport"), sub: t("bvSet.passportSub"), href: `#/set/${encodeURIComponent(set.set_num)}/passport`, cls: "collector-passport" }));
+  if (advisorEnabled()) rows.push(kitRow({ icon: "sparkle", title: t("bvSet.askAdvisor"), attrs: { "data-collector-advisor": "" } }));
+  rows.push(kitRow({ icon: "brick", title: t("collector.buildIdeas"), href: "#/build" }));
+  return `<div class="bv-setrows">${rows.join("")}</div>`;
+}
+
+function openSetSheet(kind, set, entry) {
+  if (kind === "why") return openWhySheet(set, entry);
+  if (!entry) return;
+  if (kind === "edit") return openEditSheet(set, entry);
+  if (kind === "sell") return openSellOptionsSheet(set, entry);
+  if (kind === "target") return openSellTargetSheet(set, entry);
+  if (kind === "sold") return openRecordSaleSheet(set, entry);
+}
+
+// Repaint the set with a changed holding and keep every cache in step.
+function repaintWith(set, entry) {
+  state.detail.cache[set.set_num] = { set, entry, ts: Date.now() };
+  cacheSetDetail(set.set_num, set, entry, getSessionUserId());
+  if (location.hash.includes(encodeURIComponent(set.set_num)) || location.hash.includes(set.set_num)) paintSetDetail(set, entry);
+}
+
+// "Your copy" — price paid (with RRP / Market / Gift shortcuts), condition,
+// date bought and copies. Saves optimistically; offline edits go to the outbox.
+function openEditSheet(set, entry) {
+  const ctx = capturedMoneyContext();
+  const market = setDisplayValue(set);
+  const rrp = Number(set.retail_price) || 0;
+  const cond = entry.condition || "sealed";
+  const chips = [
+    rrp > 0 ? { usd: rrp, label: t("bvSet.chipRrp", { price: fmtMoney(rrp) }) } : null,
+    market > 0 ? { usd: market, label: t("bvSet.chipMarket", { price: money0(market) }) } : null,
+    { usd: 0, label: t("bvSet.chipGift", { price: money0(0) }) },
+  ].filter(Boolean);
+  showSheet(kitSheetBody({
+    title: t("bvSet.editTitle"),
+    inner: `<form class="bv-form" id="quickEditForm" novalidate>
+      ${kitField({ id: "qePrice", label: t("bvSet.pricePaid"), value: usdMoneyInputValue(entry.purchase_price, ctx), placeholder: "0.00", mono: true, prefix: moneySymbol(ctx), inputmode: "decimal", autocomplete: "off" })}
+      <div class="bv-chips bv-chips--wrap">${chips.map(c => `<button type="button" class="bv-chip" data-qe-price="${escapeHtml(usdMoneyInputValue(c.usd, ctx))}">${escapeHtml(c.label)}</button>`).join("")}</div>
+      <div class="bv-field"><span class="bv-field__label">${escapeHtml(t("bvSet.condition"))}</span>
+        ${kitSeg(CONDITION_SEG.map(([value, key]) => ({ label: t(key), value, current: cond === value })), { label: t("bvSet.condition"), id: "qeCondition" })}</div>
+      <div class="bv-form-grid">
+        <div class="bv-field"><label for="qeDate">${escapeHtml(t("bvSet.bought"))}</label><div class="bv-field__box">${kitIcon("cal", { size: 20 })}<input id="qeDate" type="date" value="${entry.purchased_at ? escapeHtml(String(entry.purchased_at).slice(0, 10)) : ""}"></div></div>
+        <div class="bv-field"><span class="bv-field__label">${escapeHtml(t("bvSet.copies"))}</span>
+          <div class="bv-stepper qty-stepper">
+            <button type="button" class="bv-iconbtn qty-btn" id="qtyDown" aria-label="${escapeHtml(t("bvSet.fewerCopies"))}">${kitIcon("minus")}</button>
+            <span class="bv-num qty-num" id="qtyNum" aria-live="polite">${Number(entry.quantity) || 1}</span>
+            <button type="button" class="bv-iconbtn qty-btn" id="qtyUp" aria-label="${escapeHtml(t("bvSet.moreCopies"))}">${kitIcon("plus")}</button>
+          </div></div>
+      </div>
+      <button type="submit" class="bv-btn bv-btn--primary bv-btn--full" id="qeSave">${escapeHtml(t("common.save"))}</button>
+      <a class="bv-btn bv-btn--text bv-btn--full" href="#/set/${encodeURIComponent(set.set_num)}/passport" id="qeMore">${escapeHtml(t("bvSet.moreDetails"))}</a>
+      <button type="button" class="bv-btn bv-btn--danger bv-btn--full" id="qeRemove">${escapeHtml(t("bvSet.removeFromVault"))}</button>
+    </form>`,
+  }));
+  $$("#sheet [data-qe-price]").forEach(b => b.addEventListener("click", () => { $("#qePrice").value = b.dataset.qePrice; haptic("light"); }));
+  $$("#qeCondition [data-value]").forEach(b => b.addEventListener("click", () => {
+    $$("#qeCondition [data-value]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    haptic("light");
+  }));
+  $("#qeMore")?.addEventListener("click", () => hideSheet());
+  wireQtyStepper(set, entry);
+  // The confirm replaces this sheet in place (showSheet swaps content).
+  $("#qeRemove")?.addEventListener("click", () => removeFromVault(set, entry));
+  $("#quickEditForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const parsed = localMoneyToUsd($("#qePrice").value, ctx);
+    if (!parsed.valid) { toast(t("bvSet.priceInvalid"), "error"); $("#qePrice").focus(); return; }
+    const condition = $("#qeCondition [aria-pressed=\"true\"]")?.dataset.value || cond;
+    const body = {
+      purchase_price: parsed.blank ? null : Math.round(parsed.usd * 100) / 100,
+      condition,
+      purchased_at: $("#qeDate").value || null,
+    };
+    haptic("medium");
+    hideSheet();
+    repaintWith(set, { ...entry, ...body });
+    try {
+      await api("/api/collection/" + entry.id, { method: "PATCH", body });
+      invalidatePortfolio();
+      toast(t("bvSet.saved"), "success");
+    } catch (err) {
+      if (!navigator.onLine) {
+        outboxEnqueue({ path: "/api/collection/" + entry.id, method: "PATCH", body });
+        toast(t("bvSet.savedOffline"), "info");
+      } else {
+        repaintWith(set, entry);
+        toast(t("common.errorWithDetails", { error: err.message || err }), "error");
+      }
+    }
+  });
+}
+
+// Sell target: one notification when the value reaches it (the daily alerts
+// job latches it, and re-arms once the value drops back below).
+function openSellTargetSheet(set, entry) {
+  const ctx = capturedMoneyContext();
+  const v = setDisplayValue(set);
+  const forecast = realForecast(set);
+  const current = Number(entry.sell_target) > 0 ? Number(entry.sell_target) : null;
+  const options = [
+    v > 0 ? { usd: Math.round(v * 1.1), label: t("bvSet.chipPlus", { pct: 10, price: money0(v * 1.1) }) } : null,
+    v > 0 ? { usd: Math.round(v * 1.18), label: t("bvSet.chipPlus", { pct: 18, price: money0(v * 1.18) }) } : null,
+    forecast > v * 1.02 ? { usd: Math.round(forecast), label: t("bvSet.chipForecast", { price: money0(forecast) }) } : null,
+  ].filter(Boolean);
+  const name = set.name || set.set_num;
+  const sub = forecast > 0
+    ? t("bvSet.targetBodyForecast", { name, value: money0(v), forecast: money0(forecast) })
+    : t("bvSet.targetBody", { name, value: money0(v) });
+  const isCurrent = (o) => current != null && Math.round(current) === o.usd;
+  showSheet(kitSheetBody({
+    title: t("bvSet.sellTarget"), sub,
+    inner: `<form class="bv-form" id="sellTargetForm" novalidate>
+      ${kitField({ id: "stPrice", label: t("bvSet.notifyAt"), value: current ? usdMoneyInputValue(current, ctx) : "", placeholder: v > 0 ? usdMoneyInputValue(Math.round(v * 1.18), ctx) : "", mono: true, prefix: moneySymbol(ctx), inputmode: "decimal", autocomplete: "off", help: t("bvSet.targetHelp") })}
+      ${options.length ? `<div class="bv-chips bv-chips--wrap">${options.map(o => `<button type="button" class="bv-chip" data-st="${escapeHtml(usdMoneyInputValue(o.usd, ctx))}" aria-pressed="${isCurrent(o)}">${escapeHtml(o.label)}</button>`).join("")}</div>` : ""}
+      <button type="submit" class="bv-btn bv-btn--primary bv-btn--full" id="stSave">${escapeHtml(t("bvSet.saveTarget"))}</button>
+      ${current ? `<button type="button" class="bv-btn bv-btn--danger bv-btn--full" id="stRemove">${escapeHtml(t("bvSet.removeTarget"))}</button>` : ""}
+    </form>`,
+  }));
+  $$("#sheet [data-st]").forEach(b => b.addEventListener("click", () => {
+    $("#stPrice").value = b.dataset.st;
+    $$("#sheet [data-st]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    haptic("light");
+  }));
+  const save = async (target) => {
+    hideSheet();
+    repaintWith(set, { ...entry, sell_target: target });
+    try {
+      await api("/api/collection/" + entry.id, { method: "PATCH", body: { sell_target: target } });
+      invalidatePortfolio();
+      toast(t(target ? "bvSet.targetSaved" : "bvSet.targetRemoved"), "success");
+    } catch (err) {
+      repaintWith(set, entry);
+      toast(t("common.errorWithDetails", { error: err.message || err }), "error");
+    }
+  };
+  $("#sellTargetForm")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const parsed = localMoneyToUsd($("#stPrice").value, ctx, { required: true, positive: true });
+    if (!parsed.valid) { toast(t("bvSet.priceInvalid"), "error"); $("#stPrice").focus(); return; }
+    haptic("medium");
+    save(Math.round(parsed.usd * 100) / 100);
+  });
+  $("#stRemove")?.addEventListener("click", () => { haptic("light"); save(null); });
+}
+
+// Fee math shared by "Sell or part out" and the listing screen (same
+// marketplace-fee settings the flip calculator uses). All figures are USD.
+function saleEconomics(set, entry, marketOverride) {
+  const market = marketOverride || marketValueForCondition(set, entry?.condition || "new") || setDisplayValue(set);
+  const rate = getExchangeRate(state.me?.currency || "USD");
+  const feePct = parseFloat(localStorage.getItem("bv_flip_fee_pct") ?? "13.25");
+  const paymentPct = parseFloat(localStorage.getItem("bv_flip_payment_pct") ?? "2.9");
+  const shipping = parseFloat(localStorage.getItem("bv_flip_shipping") ?? "5.00");
+  const calc = market ? flipEconomics({ marketUsd: market, rate, feePct, paymentPct, shipping }) : null;
+  const pocket = calc ? calc.net / rate : null;
+  return { market, pocket, fees: pocket != null ? market - pocket : null, feePct: feePct + paymentPct };
+}
+
+function openSellOptionsSheet(set, entry) {
+  const signal = isSimpleMode() || isKidsMode() ? null : sellSignalFor(set, entry);
+  const paid = paidOf(entry);
+  const { market, pocket, fees, feePct } = saleEconomics(set, entry);
+  const part = derivePartOutDecision(set);
+  const partValue = Number(part?.partOutValue) || 0;
+  const partPocket = partValue > 0 ? partValue * (1 - feePct / 100) : 0;
+  const partBest = partPocket > 0 && pocket != null && partPocket > pocket;
+  const kv = (label, value, cls = "") => `<div class="bv-kv"><span>${escapeHtml(label)}</span><span class="bv-num ${cls}">${escapeHtml(value)}</span></div>`;
+  const vsPaid = (net) => (paid != null && net != null ? kv(t("bvSet.vsPaid", { price: money0(paid) }), signedMoney0(net - paid), net - paid >= 0 ? "bv-up" : "bv-down") : "");
+  const best = kitPill(t("bvSet.mostInPocket"), "acc");
+  showSheet(kitSheetBody({
+    title: t("bvSet.sellTitle"),
+    inner: `${signal ? signalLine(signal, " bv-banner--sheet") : ""}
+      ${market ? `<section class="bv-sellopt${partBest ? "" : partPocket > 0 ? " is-best" : ""}" aria-label="${escapeHtml(t("bvSet.sellWhole"))}">
+        <div class="bv-sellopt__head"><span>${escapeHtml(t("bvSet.sellWhole"))}</span>${!partBest && partPocket > 0 ? best : ""}</div>
+        <span class="bv-num bv-sellopt__value">${escapeHtml(`${estMark(set)}${money0(market)}`)}</span>
+        ${fees != null ? kv(t("bvSet.feesApprox", { pct: Math.round(feePct) }), `−${money0(fees)}`, "bv-down") : ""}
+        ${pocket != null ? kv(t("bvSet.inPocket"), money0(pocket)) : ""}${vsPaid(pocket)}
+      </section>` : ""}
+      ${partValue > 0 ? `<section class="bv-sellopt${partBest ? " is-best" : ""}" aria-label="${escapeHtml(t("bvSet.partOut"))}">
+        <div class="bv-sellopt__head"><span>${escapeHtml(t("bvSet.partOut"))}</span>${partBest ? best : ""}</div>
+        <span class="bv-num bv-sellopt__value">${escapeHtml(money0(partValue))}</span>
+        ${kv(t("bvSet.partOutSub"), t("bvSet.slower"))}
+        ${kv(t("bvSet.inPocketAfterFees"), money0(partPocket))}${vsPaid(partPocket)}
+      </section>` : ""}
+      <div class="bv-btn-row">
+        <a class="bv-btn bv-btn--outline" id="exitGenListing" href="#/set/${encodeURIComponent(set.set_num)}/listing">${kitIcon("wand", { size: 20 })}<span>${escapeHtml(t("bvSet.draftListing"))}</span></a>
+        <button type="button" class="bv-btn bv-btn--primary" id="sellMarkSold">${kitIcon("tag", { size: 20 })}<span>${escapeHtml(t("bvSet.markSold"))}</span></button>
+      </div>
+      <a class="bv-btn bv-btn--text bv-btn--full bl-buy-link" href="${escapeHtml(bricklinkBuyURL(set.set_num))}" target="_blank" rel="noopener">${escapeHtml(t("market.viewOnBrickLink"))}${kitIcon("ext", { size: 18 })}</a>`,
+  }));
+  $("#exitGenListing")?.addEventListener("click", () => hideSheet());
+  $("#sellMarkSold")?.addEventListener("click", () => openRecordSaleSheet(set, entry));
+}
+
+// Record the sale: price, date and fees → realized gain (net of fees). The
+// holding leaves the vault; the anonymized price feeds community comps.
+function openRecordSaleSheet(set, entry) {
+  const ctx = capturedMoneyContext();
+  const { market, fees } = saleEconomics(set, entry);
+  const paid = paidOf(entry);
+  const today = new Date().toISOString().slice(0, 10);
+  showSheet(kitSheetBody({
+    title: t("bvSet.saleTitle"),
+    inner: `<form class="bv-form" id="saleForm" novalidate>
+      ${kitField({ id: "exitSoldPrice", label: t("bvSet.soldFor"), placeholder: market ? usdMoneyInputValue(Math.round(market), ctx) : "", mono: true, prefix: moneySymbol(ctx), inputmode: "decimal", autocomplete: "off" })}
+      <div class="bv-form-grid">
+        <div class="bv-field"><label for="saleDate">${escapeHtml(t("bvSet.saleDate"))}</label><div class="bv-field__box">${kitIcon("cal", { size: 20 })}<input id="saleDate" type="date" value="${today}" max="${today}"></div></div>
+        ${kitField({ id: "saleFees", label: t("bvSet.fees"), placeholder: fees ? usdMoneyInputValue(Math.round(fees), ctx) : "0", mono: true, prefix: moneySymbol(ctx), inputmode: "decimal", autocomplete: "off" })}
+      </div>
+      <div class="bv-salegain" id="saleGain" hidden><span class="bv-salegain__text"><strong>${escapeHtml(t("bvSet.realizedGain"))}</strong><small id="saleGainSub"></small></span><span class="bv-num" id="saleGainVal"></span></div>
+      <p class="bv-field__help">${escapeHtml(t("bvSet.saleNote"))}</p>
+      <button type="submit" class="bv-btn bv-btn--primary bv-btn--full" id="exitConfirmSold">${kitIcon("tag", { size: 20 })}<span>${escapeHtml(t("bvSet.markSold"))}</span></button>
+    </form>`,
+  }));
+  const read = () => ({
+    price: localMoneyToUsd($("#exitSoldPrice")?.value, ctx, { required: true, positive: true }),
+    fee: localMoneyToUsd($("#saleFees")?.value, ctx),
+  });
+  const refresh = () => {
+    const { price, fee } = read();
+    const box = $("#saleGain");
+    if (!box) return;
+    if (!price.valid || paid == null) { box.hidden = true; return; }
+    const received = price.usd - (fee.valid && !fee.blank ? fee.usd : 0);
+    const gain = received - paid * (Number(entry.quantity) || 1);
+    box.hidden = false;
+    box.classList.toggle("is-loss", gain < 0);
+    $("#saleGainVal").textContent = signedMoney0(gain);
+    $("#saleGainSub").textContent = t("bvSet.realizedSub", { received: money0(received), paid: money0(paid * (Number(entry.quantity) || 1)) });
+  };
+  ["#exitSoldPrice", "#saleFees"].forEach(s => $(s)?.addEventListener("input", refresh));
+  $("#saleForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const { price, fee } = read();
+    if (!price.valid) { toast(t("bvSet.priceInvalid"), "error"); $("#exitSoldPrice")?.focus(); return; }
+    if (!fee.valid || (!fee.blank && fee.usd >= price.usd)) { toast(t("bvSet.feesInvalid"), "error"); $("#saleFees")?.focus(); return; }
+    const soldPrice = Math.round(price.usd * 100) / 100;
+    const body = { set_num: set.set_num, sold_price: soldPrice, sold_at: $("#saleDate")?.value || today };
+    if (!fee.blank && fee.usd > 0) body.sold_fees = Math.round(fee.usd * 100) / 100;
+    haptic("heavy");
+    const submit = $("#exitConfirmSold");
+    setBtnLoading(submit, true);
+    try {
+      await api("/api/collection/sell", { method: "POST", body });
+      hideSheet();
+      invalidatePortfolio();
+      delete state.detail.cache[set.set_num];
+      markSetOwned(set.set_num, false);
+      toast(t("portfolio.soldFor", { price: fmtMoney(soldPrice) }), "success");
+      go("#/");
+    } catch (err) {
+      setBtnLoading(submit, false);
+      toast(t("common.errorWithDetails", { error: err.message || err }), "error");
+    }
+  });
+}
+
+// Why this price: the plain-language confidence read, provenance and the full
+// market evidence that used to sit behind "Pricing details".
+function openWhySheet(set, entry) {
+  const v = setDisplayValue(set);
+  const conf = valuationConfidencePresentation(set);
+  showSheet(kitSheetBody({
+    title: t("bvSet.whyPrice", { price: money0(v) }),
+    id: "whySheet",
+    inner: `<div class="bv-why__head"><span class="bv-num bv-why__value">${escapeHtml(money0(v))}</span>${isSimpleMode() ? "" : `<span class="bv-conf bv-conf--${escapeHtml(conf.tone)}">${escapeHtml(conf.label)}</span>`}</div>
+      <p class="bv-sheet__sub bv-why__detail">${escapeHtml(conf.detail)}</p>
+      ${valueProvenanceHTML(set)}
+      ${isSimpleMode() ? "" : `<div class="pricing-details-sheet bv-why__body">${pricingDetailsHTML(set, entry)}</div>`}
+      <div class="bv-btn-row">
+        <a class="bv-btn bv-btn--outline" href="/methodology.html">${kitIcon("info", { size: 20 })}<span>${escapeHtml(t("bvSet.howWePrice"))}</span></a>
+        ${isGuestMode() ? "" : `<button type="button" class="bv-btn bv-btn--outline" id="whyReportSale">${kitIcon("tag", { size: 20 })}<span>${escapeHtml(t("bvSet.reportSale"))}</span></button>`}
+      </div>`,
+  }));
+  $("#sheet")?.setAttribute("aria-label", t("bvSet.whyPrice", { price: money0(v) }));
+  $("#whyReportSale")?.addEventListener("click", () => { hideSheet(); openDataFixSheet(set.set_num); });
+}
+
+// Remove this holding (confirm + Undo snackbar) — from the Your copy sheet or
+// the copies stepper going below one.
+async function removeFromVault(set, entry) {
+  const ok = await confirmSheet({
+    title: "Remove from vault?",
+    message: `Remove ${set.name} from your vault? Your notes and quantity for this set will be cleared.`,
+    confirmLabel: "Remove",
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    // Keep the payload so a mis-tap after the confirm is still recoverable —
+    // soft deletes make re-POSTing the entry a faithful restore.
+    const restore = {
+      set_num: set.set_num, quantity: entry.quantity || 1,
+      condition: entry.condition || undefined, purchase_price: entry.purchase_price ?? undefined,
+      purchased_at: entry.purchased_at || undefined, notes: entry.notes || undefined,
+    };
+    await api("/api/collection/" + encodeURIComponent(entry.id || set.set_num), { method: "DELETE" });
+    invalidatePortfolio(); state.catalog.items = []; markSetOwned(set.set_num, false);
+    undoToast("Removed from vault", async () => {
+      try {
+        await api("/api/collection", { method: "POST", body: restore });
+        invalidatePortfolio(); state.catalog.items = []; markSetOwned(set.set_num, true);
+        // Reload the profile before repainting so currency/mode context is
+        // coherent with the restored guest collection.
+        state.me = await api("/api/me");
+        const r2 = await api("/api/sets/" + encodeURIComponent(set.set_num));
+        repaintWith(r2.set || r2, r2.entry || null);
+        toast("Restored to vault", "success");
+      } catch { toast("Couldn't restore — add it again from the catalog.", "error"); }
+    });
+    const r = await api("/api/sets/" + encodeURIComponent(set.set_num));
+    state.detail.tab = "info";
+    repaintWith(r.set || r, r.entry || null);
+  } catch (_e) {
+    if (!navigator.onLine && entry?.id) {
+      outboxEnqueue({ path: "/api/collection/" + entry.id, method: "DELETE" });
+      invalidatePortfolio();
+      toast("Removed offline — will sync when connected", "info");
+      go("#/");
+    } else toast("Remove failed", "error");
+  }
+}
+
+// Copies stepper inside "Your copy". Minus at one removes the set (confirmed).
+function wireQtyStepper(set, entry) {
+  let qty = Number(entry?.quantity) || 1;
+  const save = async () => {
+    const n = $("#qtyNum");
+    if (n) n.textContent = qty;
+    try {
+      await api("/api/collection/" + entry.id, { method: "PATCH", body: { quantity: qty } });
+      entry.quantity = qty;
+      state.detail.cache[set.set_num] = { set, entry, ts: Date.now() };
+      mount($("#setBar"), setBarHTML(set, entry, state.detail.tab));
+      invalidatePortfolio();
+      maybeCelebrateMilestone(setHue(set));
+    } catch (_e) { toast("Save failed", "error"); }
+  };
+  $("#qtyDown")?.addEventListener("click", () => {
+    haptic("medium");
+    if (qty <= 1) { removeFromVault(set, entry); return; }
+    qty--;
+    save();
+  });
+  $("#qtyUp")?.addEventListener("click", () => {
+    haptic("medium");
+    qty++;
+    save();
+  });
+}
+
+// Collection Passport (#/set/:num/passport): photos and memories first, then
+// the full record of this copy. Fields autosave (wireManageTab).
+function paintPassport(set, entry) {
+  if (!entry) { state.detail.tab = "info"; paintSetDetail(set, entry); return; }
+  $("#root").innerHTML = `<main class="bv-page no-nav bv-passport detail-page-container" data-detail-tab="manage" data-set="${escapeHtml(set.set_num)}">
+    ${kitTopbar({ title: t("bvSet.passportTitle"), sub: t("bvSet.passportFor", { name: set.name || set.set_num }), back: `#/set/${encodeURIComponent(set.set_num)}`, actionsHtml: kitIconBtn({ icon: "share", label: t("common.share"), id: "shareBtn" }) })}
+    <div class="detail-tab-panel" id="panel-manage">${manageTabHTML(set, entry)}</div>
+  </main>`;
+  _detailCtx = { set, entry };
+  ensureDetailDelegation();
+  wireManageTab(set, entry);
+}
+
+// eBay listing (#/set/:num/listing): generated title, description and price
+// with copy buttons, Regenerate, Copy all and Open eBay.
+let _listingGen = 0;
+function paintListing(set, entry) {
+  const setHref = `#/set/${encodeURIComponent(set.set_num)}`;
+  const gen = ++_listingGen;
+  const shell = (inner, bar = "") => `<main class="bv-page no-nav${bar ? " has-bar" : ""} bv-listing" id="listingPage" data-set="${escapeHtml(set.set_num)}">
+    ${kitTopbar({ title: t("bvSet.listingTitle"), sub: t("bvSet.listingSub"), back: setHref, actionsHtml: kitIconBtn({ icon: "refresh", label: t("bvSet.regenerate"), id: "listingRegen" }) })}
+    ${inner}${bar}</main>`;
+  const stale = () => gen !== _listingGen || !location.hash.includes("/listing");
+  const load = async () => {
+    $("#root").innerHTML = shell(`<section class="bv-card bv-listing__loading" role="status">${kitIcon("sparkle")}<span>${escapeHtml(t("bvSet.generating"))}</span></section>`);
+    try {
+      const geminiKey = getProviderCredential("gemini");
+      const openaiKey = getProviderCredential("openai");
+      const headers = {};
+      if (geminiKey) headers["X-Gemini-Key"] = geminiKey;
+      else if (openaiKey) headers["X-OpenAI-Key"] = openaiKey;
+      const draft = await api("/api/sets/" + encodeURIComponent(set.set_num) + "/listing-draft", { method: "POST", headers });
+      if (stale()) return;
+      const title = String(draft.title || "");
+      const desc = String(draft.description || "");
+      const price = Number(draft.suggested_price) || 0;
+      const econ = price > 0 ? saleEconomics(set, entry, price) : null;
+      const ebay = `https://www.ebay.com/sl/list?title=${encodeURIComponent(title.slice(0, 80))}`;
+      const copyBtn = (id) => `<button type="button" class="bv-btn bv-btn--text bv-btn--sm" id="${id}">${kitIcon("copy", { size: 18 })}<span>${escapeHtml(t("bvSet.copy"))}</span></button>`;
+      $("#root").innerHTML = shell(`
+        <section class="bv-card bv-listing__field"><div class="bv-card__head"><label class="bv-label" for="listTitle" id="listTitleLabel">${escapeHtml(t("bvSet.titleCount", { count: title.length }))}</label>${copyBtn("copyListTitle")}</div>
+          <textarea id="listTitle" class="bv-listing__title" rows="2" maxlength="80">${escapeHtml(title)}</textarea></section>
+        <section class="bv-card bv-listing__field"><div class="bv-card__head"><label class="bv-label" for="listDesc">${escapeHtml(t("bvSet.description"))}</label>${copyBtn("copyListDesc")}</div>
+          <textarea id="listDesc" class="bv-listing__desc" rows="8">${escapeHtml(desc)}</textarea></section>
+        ${price > 0 ? `<section class="bv-card bv-listing__price">
+          <div class="bv-kv"><span>${escapeHtml(t("bvSet.suggested"))}</span><span class="bv-num">${escapeHtml(fmtMoney(price))}</span></div>
+          ${econ?.pocket ? `<div class="bv-kv"><span>${escapeHtml(t("bvSet.afterFees"))}</span><span class="bv-num">${escapeHtml(money0(econ.pocket))}</span></div>` : ""}</section>` : ""}
+        ${draft.price_reasoning ? `<p class="bv-foot">${escapeHtml(draft.price_reasoning)}</p>` : ""}`,
+      `<div class="bv-setbar detail-action-bar"><button type="button" class="bv-btn bv-btn--outline" id="copyListAll">${kitIcon("copy", { size: 20 })}<span>${escapeHtml(t("bvSet.copyAll"))}</span></button>
+        <a class="bv-btn bv-btn--primary listing-ebay-btn" href="${escapeHtml(ebay)}" target="_blank" rel="noopener">${kitIcon("ext", { size: 20 })}<span>${escapeHtml(t("bvSet.openEbay"))}</span></a></div>`);
+      $("#listingRegen")?.addEventListener("click", () => { haptic("light"); load(); });
+      $("#listTitle")?.addEventListener("input", (e) => { const l = $("#listTitleLabel"); if (l) l.textContent = t("bvSet.titleCount", { count: e.target.value.length }); });
+      $("#copyListTitle")?.addEventListener("click", () => copyListingField($("#listTitle").value, t("bvSet.titleLabel")));
+      $("#copyListDesc")?.addEventListener("click", () => copyListingField($("#listDesc").value, t("bvSet.description")));
+      $("#copyListAll")?.addEventListener("click", () => copyListingField(`${$("#listTitle").value}\n\n${$("#listDesc").value}`, t("bvSet.listingTitle")));
+    } catch (err) {
+      if (stale()) return;
+      $("#root").innerHTML = shell(kitEmptyState({ icon: "alert", title: t("bvSet.listingFailed"), body: String(err?.message || err), actionsHtml: `<button type="button" class="bv-btn bv-btn--primary bv-btn--full" id="listingRetry">${escapeHtml(t("common.retry"))}</button>` }));
+      $("#listingRetry")?.addEventListener("click", load);
+      $("#listingRegen")?.addEventListener("click", load);
+    }
+  };
+  load();
 }
 
 // Track the live blob URL so re-renders and navigation don't leak memory —
@@ -283,14 +882,6 @@ function setDisplayValue(set) {
   return (set.valuation?.read_enabled && Number(set.valuation?.new?.fair_value)) || displayValueOf(set);
 }
 
-// Plain-language confidence chip next to the headline price. Shares its
-// vocabulary with the catalog card badge (components/trust.js) via
-// valuationConfidencePresentation, so one set can no longer read "Market price"
-// in the catalog and "Good estimate" on its own page.
-function confidenceChip(set) {
-  const display = valuationConfidencePresentation(set);
-  return `<span class="detail-chip detail-chip--${display.tone}" title="${escapeHtml(display.detail)}">${escapeHtml(display.label)}</span>`;
-}
 
 // One-line key facts row: Pieces · Year · Minifigs · Retail. Replaces the old
 // 3-col stat grid and the duplicate pieces row in Set Facts.
@@ -325,20 +916,6 @@ function packagingLabel(v) {
   return PACKAGING_LABELS[s.toLowerCase()] || s;
 }
 
-function summaryFactsHTML(set) {
-  const figs = set.set_minifigs?.length || set.minifigs || 0;
-  const parts = [];
-  if (set.pieces) parts.push(`<span class="f"><b>${Number(set.pieces).toLocaleString()}</b> ${t("detail.pieces")}</span>`);
-  if (set.year) parts.push(`<span class="f"><b>${set.year}</b></span>`);
-  if (figs) parts.push(`<span class="f">${escapeHtml(tPlural('detail.minifigsCount', figs))}</span>`);
-  // Unreleased sets: stored retail can be a formula placeholder; the
-  // BrickEconomy RRP is authoritative until release.
-  const retailShown = set.coming_soon
-    ? Number(set.upcoming_price) || Number(set.be_retail) || Number(set.retail_price) || 0
-    : set.retail_price;
-  if (retailShown) parts.push(`<span class="f">Retail <b>${fmtMoney(retailShown)}</b></span>`);
-  return parts.length ? `<div class="detail-summary-facts">${parts.join('')}</div>` : '';
-}
 
 // Provenance under the headline value: where the number comes from, in one
 // plain line. Market values cite the signal count + range; estimates say so.
@@ -372,57 +949,9 @@ function pcCreditHTML(set) {
   return attribution ? ` · <span class="pc-credit">${attribution}</span>` : '';
 }
 
-// Compact summary header: the value + a plain-language confidence chip + key
-// facts. Leads the Info tab in every mode (chip is Pro-only). Estimated values
-// read humbler than market ones: "Estimated value ~$120" vs "Value $120".
-function detailSummaryHTML(set) {
-  const v = setDisplayValue(set);
-  const est = !(set.valuation?.read_enabled && Number(set.valuation?.new?.fair_value) > 0) && !!estMark(set);
-  const chip = isSimpleMode() ? '' : confidenceChip(set);
-  return `
-    <div class="detail-summary detail-market-summary" aria-label="Market value summary">
-      <div class="detail-summary-top">
-        <div style="min-width:0;">
-          <div class="detail-summary-lbl">${est ? 'Estimated value' : 'Value'}</div>
-          <div class="detail-summary-val">${v > 0 ? `${est ? '~' : ''}${fmtMoney(v)}` : '—'}</div>
-          ${valueProvenanceHTML(set)}
-        </div>
-        ${chip}
-      </div>
-      ${summaryFactsHTML(set)}
-    </div>`;
-}
 
-// Sticky action bar pinned above the bottom nav — keeps the primary action
-// reachable without scrolling. Owned: qty stepper + Manage. Not owned: Add to
-// vault + a wishlist heart. IDs match the handlers in wireDetailActions.
-function detailActionBarHTML(set, entry, isWish) {
-  const owned = !!entry;
-  if (owned) {
-    return `
-      <div class="detail-action-bar">
-        <div class="ab-qty">
-          <span class="qty-row-lbl">In vault</span>
-          <div class="qty-stepper">
-            <button class="qty-btn" id="qtyDown" aria-label="Decrease quantity">${I.minus()}</button>
-            <div class="qty-num" id="qtyNum">${entry.quantity}</div>
-            <button class="qty-btn" id="qtyUp" aria-label="Increase quantity">${I.plus()}</button>
-          </div>
-        </div>
-        <button class="btn-secondary" id="manageBtn" style="flex:1;">${I.gear()}<span>Manage</span></button>
-      </div>`;
-  }
-  const displayVal = setDisplayValue(set);
-  return `
-    <div class="detail-action-bar">
-      <button class="btn-primary" id="addBtn" style="flex:1;">${I.plus()}<span>${t("detail.addToVaultPrice", { price: estMark(set) + fmtMoney(displayVal, { cents: 0 }) })}</span></button>
-      <button class="btn-secondary ab-wish" id="wishToggle" aria-label="${isWish ? 'Remove from wishlist' : 'Add to wishlist'}">${isWish ? I.heartF() : I.heart()}</button>
-    </div>`;
-}
 
-function infoTabHTML(set, entry, isWish) {
-  const owned = !!entry;
-
+function infoTabHTML(set, entry) {
   let bricksetHtml = '';
   {
     // Merge live brickset API data with stored DB columns (DB columns are fallback)
@@ -604,60 +1133,9 @@ function infoTabHTML(set, entry, isWish) {
       </div>`
     : '';
 
-  const ebaySold = ebaySoldSummary(set);
-  const ebayPrice = ebaySold.newValue || 0;
-  const ebayUsedPrice = ebaySold.usedValue || 0;
-  const retailPrice = set.retail_price || 0;
-  let pricingSummaryHtml = '';
-  if (ebayPrice > 0 || ebayUsedPrice > 0) {
-    const pricingTreatment = (retailPrice > 0 && ebayPrice > 0 && ebayPrice < retailPrice) ? 'STP' : (retailPrice > 0 && ebayPrice > retailPrice ? 'APPRECIATED' : 'NONE');
-    const newQty = ebaySold.newSampleCount ? tPlural('market.salesSuffix', ebaySold.newSampleCount) : '';
-    const usedQty = ebaySold.usedSampleCount ? tPlural('market.salesSuffix', ebaySold.usedSampleCount) : '';
-    pricingSummaryHtml = `
-      <div class="detail-card pricing-summary-card">
-        <div class="detail-card-title" style="justify-content:space-between;">
-          <span>Recently sold</span>
-          <span class="badge" style="font-size:9px; padding:2px 6px; border-radius:4px; font-family:var(--mono); background:var(--surface-3); color:var(--ink-soft);">${ebaySold.legacy ? 'Legacy' : pricingTreatment === 'STP' ? 'Below MSRP' : pricingTreatment === 'APPRECIATED' ? 'Appreciated' : 'Sold data'}</span>
-        </div>
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
-          <div>
-            <div style="font-size:10px; font-family:var(--mono); color:var(--ink-mute); margin-bottom:2px; text-transform:uppercase;">${t('market.newSold')}${newQty}</div>
-            <div style="font-size:18px; font-weight:600; color:var(--ink);">${ebayPrice > 0 ? fmtMoney(ebayPrice) : "Pending"}</div>
-          </div>
-          <div>
-            <div style="font-size:10px; font-family:var(--mono); color:var(--ink-mute); margin-bottom:2px; text-transform:uppercase;">${t('market.usedSold')}${usedQty}</div>
-            <div style="font-size:16px; font-weight:500; color:var(--ink-soft);">${ebayUsedPrice > 0 ? fmtMoney(ebayUsedPrice) : "Pending"}</div>
-          </div>
-        </div>
-        ${retailPrice > 0 && ebayPrice > 0 ? `
-          <div style="display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--line-soft);margin-top:10px;padding-top:10px;font-size:11px;">
-            <span style="color:var(--ink-mute);">Retail MSRP</span>
-            <strong style="color:var(--ink-soft);">${fmtMoney(retailPrice)}</strong>
-          </div>
-        ` : ''}
-        ${!ebaySold.legacy && pricingTreatment === 'STP' ? `
-          <div style="font-size:11px; color:var(--down); margin-top:10px; display:flex; align-items:center; gap:6px;">
-            <span style="font-size:8px;">*</span> ${t('market.compsBelowMsrp', { amount: fmtMoney(retailPrice - ebayPrice), pct: fmtPct((retailPrice - ebayPrice) / retailPrice) })}
-          </div>
-        ` : !ebaySold.legacy && pricingTreatment === 'APPRECIATED' ? `
-          <div style="font-size:11px; color:var(--up); margin-top:10px; display:flex; align-items:center; gap:6px;">
-            <span style="font-size:8px;">*</span> ${t('market.compsAboveMsrp', { amount: fmtMoney(ebayPrice - retailPrice), pct: fmtPct((ebayPrice - retailPrice) / retailPrice) })}
-          </div>
-        ` : ebaySold.legacy ? `
-          <div style="font-size:11px; color:var(--ink-mute); margin-top:10px; line-height:1.4;">
-            Legacy single-value data is shown until the latest sold comps refresh this set.
-          </div>
-        ` : ''}
-      </div>
-    `;
-  }
-
-  const aiDisclaimerHTML = set.valuation_method === "ai" ? `
-    <div style="background:rgba(245,158,11,0.1); border:1.5px solid rgba(245,158,11,0.3); color:rgba(245,158,11,1.0); border-radius:var(--r-2); padding:10px 12px; font-size:12px; margin-bottom:14px; display:flex; align-items:center; gap:8px; font-weight: 500;">
-      <span class="u-center">${I.alert({w:15,h:15})}</span>
-      <span>AI-estimated price — may vary from market.</span>
-    </div>
-  ` : '';
+  const aiDisclaimerHTML = set.valuation_method === "ai"
+    ? `<div class="bv-banner bv-banner--neutral" role="note">${kitIcon("alert", { size: 20 })}<span class="bv-banner__text">AI-estimated price — may vary from market.</span></div>`
+    : '';
 
   const minifigsCard = set.set_minifigs?.length ? `
       <div class="detail-card">
@@ -678,77 +1156,26 @@ function infoTabHTML(set, entry, isWish) {
       </div>` : '';
 
   const externalLinks = `
-    <a class="bl-buy-link" href="${bricklinkBuyURL(set.set_num)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;color:var(--ink-mute);text-decoration:underline;margin-top:14px;">
-      ${t('market.viewOnBrickLink')} ${I.extLink()}
-    </a>
-    <a class="bl-buy-link" href="https://www.google.com/search?q=LEGO+${encodeURIComponent(set.set_num)}+building+instructions+PDF" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;color:var(--ink-mute);text-decoration:underline;margin-top:8px;">
-      Building instructions (PDF) ${I.extLink()}
-    </a>`;
-
-  // Secondary owned-set actions (wishlist + sell) live in the content; the
-  // primary add / qty controls live in the sticky action bar (paintSetDetail).
-  const ownedSecondary = owned ? `
-    <div class="btn-row" style="margin-top:14px;">
-      <button class="btn-secondary" id="wishToggle">
-        ${isWish ? I.heartF() : I.heart()}<span>${isWish ? "Wishlisted" : "Wishlist"}</span>
-      </button>
-      <button class="btn-secondary" id="genListingBtn">⚡ <span>Sell on eBay</span></button>
-    </div>` : '';
+    <div class="bv-setlinks">
+      <a class="bl-buy-link bv-btn bv-btn--text" href="${bricklinkBuyURL(set.set_num)}" target="_blank" rel="noopener">${t('market.viewOnBrickLink')}${kitIcon("ext", { size: 18 })}</a>
+      <a class="bl-buy-link bv-btn bv-btn--text" href="https://www.google.com/search?q=LEGO+${encodeURIComponent(set.set_num)}+building+instructions+PDF" target="_blank" rel="noopener">Building instructions (PDF)${kitIcon("ext", { size: 18 })}</a>
+    </div>`;
 
   return `
-    ${owned ? `<a class="collector-passport" href="#/set/${encodeURIComponent(set.set_num)}/manage"><span>${t('collector.passport')}</span><p>${t('collector.passportHint')}</p><strong>${t('collector.editEntry')} ${I.chev()}</strong></a>` : ''}
-    ${collectorTools()}
-    <details class="collector-market"><summary>${t('collector.money')}${I.chev()}</summary>
-    ${detailSummaryHTML(set)}
-    ${isSimpleMode() || isKidsMode() || !set.valuation?.read_enabled ? '' : investmentPricingHTML(set)}
-    ${isSimpleMode() ? '' : `
-    ${aiDisclaimerHTML}
-    <button type="button" class="detail-disclose" id="pricingDetailsBtn" aria-haspopup="dialog">
-        <span>Pricing details</span>
-        <span class="detail-disclose-chev">▾</span>
-    </button>
-    <template id="pricingDetailsTemplate">
-      <div class="pricing-details-sheet-body">
-        ${set.coming_soon
-          ? investmentPricingDetailHTML(set)
-          : `${set.valuation?.read_enabled ? investmentPricingDetailHTML(set) : ''}
-            ${dealSignalHTML(set)}
-            ${priceStripHTML(set, entry)}
-            ${marketSpreadHTML(set)}
-            ${soldEvidenceHTML(set)}
-            ${marketDepthHTML(set)}
-            ${partOutHTML(set)}
-            ${pricingSummaryHtml}
-            ${marketConfidenceHTML(set)}`}
-      </div>
-    </template>`}
-
-    <div class="detail-card">
-      <div class="detail-card-title">${I.tag()}${tPlural('detail.priceHistoryDays', 90)}</div>
-      <p class="spark-movement" id="setMovementSummary" hidden></p>
-      <div class="spark-wrap" id="setSpark" style="height:60px;"></div>
-      <div class="spark-legend" id="setSparkLegend"></div>
-    </div>
-
-    </details>
+    ${overviewRowsHTML(set, entry)}
+    ${isSimpleMode() ? '' : aiDisclaimerHTML}
     ${(bricksetHtml.trim() || setFactsHtml.trim()) ? `
-      <div class="detail-card">
+      <div class="detail-card bv-setfacts">
         <div class="detail-card-title">Details</div>
         <div class="detail-kv-grid">${bricksetHtml}${setFactsHtml}</div>
       </div>` : ''}
-
     ${aboutHtml}
-
     ${minifigsCard}
-
     ${galleryHtml}
-
-    ${ownedSecondary}
     ${externalLinks}`;
 }
 
 function wireInfoTab(set) {
-  loadSetHistory(set.set_num);
   loadSetImages(set.set_num);
   hydrateAmazonSlots(document, state.me?.retail_market || 'FR');
 
@@ -812,141 +1239,12 @@ function wireInfoTab(set) {
     }
     haptic("light");
   });
-
-  $("#pricingDetailsBtn")?.addEventListener("click", () => {
-    const content = $("#pricingDetailsTemplate")?.innerHTML || "";
-    showSheet(`
-      <div class="sheet-title-row pricing-details-sheet-head">
-        <div>
-          <div class="u-mono-label">Market evidence</div>
-          <h2 id="pricingDetailsSheetTitle" class="u-serif-h pricing-details-sheet-title">Pricing details</h2>
-        </div>
-        <button type="button" class="icon-btn" id="pricingDetailsClose" aria-label="Close">${I.close()}</button>
-      </div>
-      <div class="pricing-details-sheet">${content}</div>`);
-    $("#sheet")?.setAttribute("aria-labelledby", "pricingDetailsSheetTitle");
-    $("#pricingDetailsClose")?.addEventListener("click", hideSheet);
-  });
 }
 
-// Action handlers for the sticky action bar (add / qty / wishlist / sell).
-// Wired from paintSetDetail on every tab so the bar always works — the bar
-// lives outside the swappable tab panel.
+// Hero wishlist heart + the bottom bar. Sheet triggers ([data-set-sheet]) and
+// community contributions ([data-contrib]) are delegated in ensureDetailDelegation.
 function wireDetailActions(set, entry) {
-  let qty = entry?.quantity || 1;
-  // "Manage" in the action bar: switch to the Manage tab in place instead of a
-  // hash navigation. The hash route re-runs renderSetDetail (cache paint + a
-  // background refresh paint) which visibly blinks; an in-place switch doesn't.
-  // Scroll the tab bar into view so it's obvious the section changed, and keep
-  // the URL in sync without triggering the router.
-  $("#manageBtn")?.addEventListener("click", () => {
-    haptic("light");
-    switchDetailTab("manage", set, entry);
-    history.replaceState(null, "", `#/set/${encodeURIComponent(set.set_num)}/manage`);
-    document.querySelector("#detailTabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-  $("#qtyDown")?.addEventListener("click", async () => {
-    haptic("medium");
-    // At one, minus removes the set from the vault (with a confirm) rather than
-    // being a dead no-op — that was the only way people expected to remove a set.
-    if (qty <= 1) {
-      const ok = await confirmSheet({
-        title: "Remove from vault?",
-        message: `Remove ${set.name} from your vault? Your notes and quantity for this set will be cleared.`,
-        confirmLabel: "Remove",
-        danger: true,
-      });
-      if (!ok) return;
-      try {
-        // Keep the payload so a mis-tap after the confirm is still recoverable
-        // — soft deletes make re-POSTing the entry a faithful restore.
-        const restore = {
-          set_num: set.set_num, quantity: entry.quantity || 1,
-          condition: entry.condition || undefined, purchase_price: entry.purchase_price ?? undefined,
-          purchased_at: entry.purchased_at || undefined, notes: entry.notes || undefined,
-        };
-        await api("/api/collection/" + encodeURIComponent(entry.id || set.set_num), { method: "DELETE" });
-        invalidatePortfolio(); state.catalog.items = []; markSetOwned(set.set_num, false);
-        undoToast("Removed from vault", async () => {
-          try {
-            await api("/api/collection", { method: "POST", body: restore });
-            invalidatePortfolio(); state.catalog.items = []; markSetOwned(set.set_num, true);
-            // Reload the profile before repainting so currency/mode context is
-            // coherent with the restored guest collection.
-            state.me = await api("/api/me");
-            const r2 = await api("/api/sets/" + encodeURIComponent(set.set_num));
-            state.detail.cache[set.set_num] = { set: r2.set || r2, entry: r2.entry || null, ts: Date.now() };
-            paintSetDetail(r2.set || r2, r2.entry || null);
-            toast("Restored to vault", "success");
-          } catch { toast("Couldn't restore — add it again from the catalog.", "error"); }
-        });
-        const r = await api("/api/sets/" + encodeURIComponent(set.set_num));
-        state.detail.tab = "info";
-        state.detail.cache[set.set_num] = { set: r.set || r, entry: r.entry || null, ts: Date.now() };
-        paintSetDetail(r.set || r, r.entry || null);
-      } catch (_e) { toast("Remove failed", "error"); }
-      return;
-    }
-    qty--;
-    $("#qtyNum").textContent = qty;
-    const badge = $("#qtyBadgeVal");
-    if (badge) badge.textContent = `×${qty}`;
-    // Lowering quantity lowers the total — refresh the milestone baseline (won't
-    // celebrate on a decrease) so re-raising it can cross a threshold again.
-    try { await api("/api/collection/" + entry.id, { method: "PATCH", body: { quantity: qty } }); invalidatePortfolio(); maybeCelebrateMilestone(setHue(set)); }
-    catch (_e) { toast("Save failed", "error"); }
-  });
-  $("#qtyUp")?.addEventListener("click", async () => {
-    haptic("medium");
-    qty++;
-    $("#qtyNum").textContent = qty;
-    const badge = $("#qtyBadgeVal");
-    if (badge) badge.textContent = `×${qty}`;
-    // Raising quantity raises the total — this can cross a value milestone, so
-    // run the same milestone check the Add button does.
-    try { await api("/api/collection/" + entry.id, { method: "PATCH", body: { quantity: qty } }); invalidatePortfolio(); maybeCelebrateMilestone(setHue(set)); }
-    catch (_e) { toast("Save failed", "error"); }
-  });
-  $("#genListingBtn")?.addEventListener("click", () => {
-    haptic("medium");
-    openListingDraftSheet(set.set_num);
-  });
-  $("#addBtn")?.addEventListener("click", async (e) => {
-    if (state.pendingRequests.has(set.set_num)) return;
-    state.pendingRequests.add(set.set_num);
-    haptic("heavy");
-    setBtnLoading(e.currentTarget, true);
-    try {
-      const addResult = await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1 } });
-      invalidatePortfolio(); state.catalog.items = []; markSetOwned(set.set_num, true);
-      toast("Added to vault", "success");
-      if (isKidsMode() && addResult?.kids?.xp_gained > 0) {
-        const { xp_gained, new_level, new_badges } = addResult.kids;
-        // A new badge or level-up is a real win — give it the celebration popup
-        // (kid-friendly copy). Routine XP stays a quick toast.
-        const badge = new_badges?.[0];
-        const xpToast = badge
-          ? kidsXpMessage(xp_gained, { level: new_level, badge: kidsBadgeLabel(badge) })
-          : kidsXpMessage(xp_gained, { level: new_level });
-        setTimeout(() => toast(xpToast, "success"), 500);
-        const kidHue = setHue(set);
-        if (badge) setTimeout(() => celebrate(t('kids.badgeCelebration', { badge: kidsBadgeLabel(badge) }), { quip: t('kids.badgeQuip'), hue: kidHue }), 900);
-        else if (new_level) setTimeout(() => celebrate(t('kids.levelCelebration', { level: new_level }), { quip: t('kids.levelQuip'), hue: kidHue }), 900);
-        state.me = null;
-      }
-      // Portfolio count/value milestones (skipped in Kids mode inside the helper).
-      await maybeCelebrateMilestone(setHue(set));
-      const r = await api("/api/sets/" + encodeURIComponent(set.set_num));
-      state.detail.cache[set.set_num] = { set: r.set || r, entry: r.entry || null, ts: Date.now() };
-      paintSetDetail(r.set || r, r.entry || null);
-    } catch (e) {
-      setBtnLoading($("#addBtn"), false);
-      if (!navigator.onLine) {
-        outboxEnqueue({ path: '/api/collection', method: 'POST', body: { set_num: set.set_num, quantity: 1 } });
-        toast('Saved offline — will sync when connected', 'info');
-      } else { toast(t('common.errorWithDetails', { error: e.message || e }), "error"); }
-    } finally { state.pendingRequests.delete(set.set_num); }
-  });
+  wireBarActions(set);
   $("#wishToggle")?.addEventListener("click", async () => {
     const wishKey = 'wish_' + set.set_num;
     if (state.pendingRequests.has(wishKey)) return;
@@ -992,6 +1290,45 @@ function wireDetailActions(set, entry) {
       }
     } catch (e) { toast(t('common.errorWithDetails', { error: e.message || e }), "error"); }
     finally { state.pendingRequests.delete(wishKey); }
+  });
+}
+
+function wireBarActions(set) {
+  $("#addBtn")?.addEventListener("click", async (e) => {
+    if (state.pendingRequests.has(set.set_num)) return;
+    state.pendingRequests.add(set.set_num);
+    haptic("heavy");
+    setBtnLoading(e.currentTarget, true);
+    try {
+      const addResult = await api("/api/collection", { method: "POST", body: { set_num: set.set_num, quantity: 1 } });
+      invalidatePortfolio(); state.catalog.items = []; markSetOwned(set.set_num, true);
+      toast("Added to vault", "success");
+      if (isKidsMode() && addResult?.kids?.xp_gained > 0) {
+        const { xp_gained, new_level, new_badges } = addResult.kids;
+        // A new badge or level-up is a real win — give it the celebration popup
+        // (kid-friendly copy). Routine XP stays a quick toast.
+        const badge = new_badges?.[0];
+        const xpToast = badge
+          ? kidsXpMessage(xp_gained, { level: new_level, badge: kidsBadgeLabel(badge) })
+          : kidsXpMessage(xp_gained, { level: new_level });
+        setTimeout(() => toast(xpToast, "success"), 500);
+        const kidHue = setHue(set);
+        if (badge) setTimeout(() => celebrate(t('kids.badgeCelebration', { badge: kidsBadgeLabel(badge) }), { quip: t('kids.badgeQuip'), hue: kidHue }), 900);
+        else if (new_level) setTimeout(() => celebrate(t('kids.levelCelebration', { level: new_level }), { quip: t('kids.levelQuip'), hue: kidHue }), 900);
+        state.me = null;
+      }
+      // Portfolio count/value milestones (skipped in Kids mode inside the helper).
+      await maybeCelebrateMilestone(setHue(set));
+      const r = await api("/api/sets/" + encodeURIComponent(set.set_num));
+      state.detail.cache[set.set_num] = { set: r.set || r, entry: r.entry || null, ts: Date.now() };
+      paintSetDetail(r.set || r, r.entry || null);
+    } catch (e) {
+      setBtnLoading($("#addBtn"), false);
+      if (!navigator.onLine) {
+        outboxEnqueue({ path: '/api/collection', method: 'POST', body: { set_num: set.set_num, quantity: 1 } });
+        toast('Saved offline — will sync when connected', 'info');
+      } else { toast(t('common.errorWithDetails', { error: e.message || e }), "error"); }
+    } finally { state.pendingRequests.delete(set.set_num); }
   });
 }
 
@@ -1050,15 +1387,127 @@ function forecastTabHTML(set) {
     </div>`;
 }
 
-function manageTabHTML(set, entry) {
-  if (!entry) return `<p style="color:var(--ink-mute);">Not in your vault.</p>`;
+// Market evidence behind the headline value (the old "Pricing details" sheet),
+// now shown in the "Why $X?" sheet.
+function pricingDetailsHTML(set, entry) {
+  if (set.coming_soon) return investmentPricingDetailHTML(set);
+  return `${set.valuation?.read_enabled ? investmentPricingDetailHTML(set) : ""}
+    ${dealSignalHTML(set)}
+    ${priceStripHTML(set, entry)}
+    ${marketSpreadHTML(set)}
+    ${soldEvidenceHTML(set)}
+    ${marketDepthHTML(set)}
+    ${partOutHTML(set)}
+    ${recentlySoldHTML(set)}
+    ${marketConfidenceHTML(set)}`;
+}
+
+function recentlySoldHTML(set) {
+  const ebaySold = ebaySoldSummary(set);
+  const ebayPrice = ebaySold.newValue || 0;
+  const ebayUsedPrice = ebaySold.usedValue || 0;
+  const retailPrice = set.retail_price || 0;
+  if (!(ebayPrice > 0 || ebayUsedPrice > 0)) return "";
+  const pricingTreatment = (retailPrice > 0 && ebayPrice > 0 && ebayPrice < retailPrice) ? 'STP' : (retailPrice > 0 && ebayPrice > retailPrice ? 'APPRECIATED' : 'NONE');
+  const newQty = ebaySold.newSampleCount ? tPlural('market.salesSuffix', ebaySold.newSampleCount) : '';
+  const usedQty = ebaySold.usedSampleCount ? tPlural('market.salesSuffix', ebaySold.usedSampleCount) : '';
   return `
-    <div class="manage-tab">
-      <header class="manage-intro">
-        <div class="manage-eyebrow">Vault record</div>
-        <h2>Manage this set</h2>
-        <p>Keep the details that make this copy yours. Changes save automatically as you update each field.</p>
-      </header>
+    <div class="detail-card pricing-summary-card">
+      <div class="detail-card-title" style="justify-content:space-between;">
+        <span>Recently sold</span>
+        <span class="badge" style="font-size:12px; padding:2px 6px; border-radius:4px; font-family:var(--mono); background:var(--surface-3); color:var(--ink-soft);">${ebaySold.legacy ? 'Legacy' : pricingTreatment === 'STP' ? 'Below MSRP' : pricingTreatment === 'APPRECIATED' ? 'Appreciated' : 'Sold data'}</span>
+      </div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+        <div>
+          <div style="font-size:12px; font-family:var(--mono); color:var(--ink-mute); margin-bottom:2px; text-transform:uppercase;">${t('market.newSold')}${newQty}</div>
+          <div style="font-size:18px; font-weight:600; color:var(--ink);">${ebayPrice > 0 ? fmtMoney(ebayPrice) : "Pending"}</div>
+        </div>
+        <div>
+          <div style="font-size:12px; font-family:var(--mono); color:var(--ink-mute); margin-bottom:2px; text-transform:uppercase;">${t('market.usedSold')}${usedQty}</div>
+          <div style="font-size:16px; font-weight:500; color:var(--ink-soft);">${ebayUsedPrice > 0 ? fmtMoney(ebayUsedPrice) : "Pending"}</div>
+        </div>
+      </div>
+      ${retailPrice > 0 && ebayPrice > 0 ? `
+        <div style="display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--line-soft);margin-top:10px;padding-top:10px;font-size:13px;">
+          <span style="color:var(--ink-mute);">Retail MSRP</span>
+          <strong style="color:var(--ink-soft);">${fmtMoney(retailPrice)}</strong>
+        </div>` : ''}
+      ${!ebaySold.legacy && pricingTreatment === 'STP' ? `
+        <div style="font-size:13px; color:var(--down); margin-top:10px;">${t('market.compsBelowMsrp', { amount: fmtMoney(retailPrice - ebayPrice), pct: fmtPct((retailPrice - ebayPrice) / retailPrice) })}</div>`
+      : !ebaySold.legacy && pricingTreatment === 'APPRECIATED' ? `
+        <div style="font-size:13px; color:var(--up); margin-top:10px;">${t('market.compsAboveMsrp', { amount: fmtMoney(ebayPrice - retailPrice), pct: fmtPct((ebayPrice - retailPrice) / retailPrice) })}</div>`
+      : ebaySold.legacy ? `
+        <div style="font-size:13px; color:var(--ink-mute); margin-top:10px; line-height:1.4;">Legacy single-value data is shown until the latest sold comps refresh this set.</div>` : ''}
+    </div>`;
+}
+
+/* ---------------------------------------------------------------- Price history tab */
+const HISTORY_RANGES = [[90, "bvSet.range3m"], [365, "bvSet.range1y"], [1825, "bvSet.rangeAll"]];
+let _historyDays = 365;
+
+function historyTabHTML(set) {
+  const v = setDisplayValue(set);
+  const sold = isSimpleMode() ? "" : soldEvidenceHTML(set);
+  return `<div class="bv-sethistory">
+    ${kitSeg(HISTORY_RANGES.map(([days, key]) => ({ label: t(key), value: String(days), current: days === _historyDays })), { label: t("bvSet.historyRange"), id: "historyRange", cls: "bv-sethistory__range" })}
+    <section class="bv-card bv-histcard" aria-label="${escapeHtml(t("bvSet.tabHistory"))}">
+      <div class="bv-histcard__head"><span class="bv-num bv-histcard__value">${v > 0 ? escapeHtml(money0(v)) : "—"}</span><span id="histDelta"></span></div>
+      <p class="bv-label spark-movement" id="setMovementSummary" hidden></p>
+      <div class="bv-chart no-tab-swipe"><div class="spark-wrap" id="setSpark"></div><span class="bv-chart__mark" id="histBought" hidden><span class="bv-chart__marklabel"></span></span></div>
+      <div class="spark-legend" id="setSparkLegend"></div>
+    </section>
+    ${sold ? `<h2 class="bv-h2">${escapeHtml(t("bvSet.recentSales"))}</h2><div class="bv-setsection">${sold}</div>` : ""}
+    ${isSimpleMode() || isKidsMode() || !set.valuation?.read_enabled ? "" : `<div class="bv-setsection">${investmentPricingHTML(set)}</div>`}
+    ${isSimpleMode() ? "" : `<div class="bv-setsection">${forecastTabHTML(set)}</div>`}
+  </div>`;
+}
+
+function wireHistoryTab(set, entry) {
+  loadSetHistory(set.set_num, _historyDays, entry);
+  $$("#historyRange [data-value]").forEach(b => b.addEventListener("click", () => {
+    const days = Number(b.dataset.value);
+    if (days === _historyDays) return;
+    _historyDays = days;
+    haptic("light");
+    $$("#historyRange [data-value]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    loadSetHistory(set.set_num, days, entry);
+  }));
+}
+
+/* ---------------------------------------------------------------- bottom bar */
+function paintSetBar(set, entry, tab) {
+  const host = $("#setBar");
+  if (!host) return;
+  host.innerHTML = setBarHTML(set, entry, tab);
+  wireBarActions(set);
+}
+
+function manageTabHTML(set, entry) {
+  if (!entry) return `<p class="bv-foot">Not in your vault.</p>`;
+  return `
+    <div class="manage-tab bv-passport__body">
+      <section class="bv-passport__photos" aria-label="${escapeHtml(t("bvSet.yourPhotos"))}">
+        <div class="bv-photostrip no-tab-swipe">
+          ${entry.custom_image_url ? `<span class="bv-photostrip__item"><img id="customPhotoImg" alt="${escapeHtml(t("bvSet.yourPhoto"))}"></span>` : ""}
+          <button type="button" class="bv-photostrip__add" id="photoUploadBtn" aria-label="${escapeHtml(t(entry.custom_image_url ? "bvSet.replacePhoto" : "bvSet.addPhoto"))}">${kitIcon(entry.custom_image_url ? "refresh" : "plus")}</button>
+        </div>
+        <input type="file" id="photoUpload" accept="image/jpeg,image/png,image/webp" hidden>
+        ${entry.custom_image_url ? `<button type="button" id="removePhotoBtn" class="bv-btn bv-btn--danger bv-btn--sm">${escapeHtml(t("bvSet.removePhoto"))}</button>` : ""}
+        <div id="photoUploadStatus" class="bv-field__help" hidden></div>
+      </section>
+    ${isGuestMode() ? "" : `
+      <h2 class="bv-h2">${escapeHtml(t("bvSet.memories"))}</h2>
+      <section class="bv-card" id="storyCard">
+        <div id="storyTimeline" class="bv-story" aria-live="polite">${escapeHtml(t("common.loading"))}</div>
+        <div class="bv-field"><label class="bv-sr" for="storyInput">${escapeHtml(t("bvSet.addMemory"))}</label>
+          <div class="bv-field__box"><input id="storyInput" type="text" maxlength="1000" placeholder="${escapeHtml(t("bvSet.memoryPlaceholder"))}"></div></div>
+        <div class="bv-btn-row">
+          <button type="button" class="bv-btn bv-btn--text" id="storyAddNote">${kitIcon("plus", { size: 20 })}<span>${escapeHtml(t("bvSet.addMemory"))}</span></button>
+          <button type="button" class="bv-btn bv-btn--text" id="storyAddPhoto">${kitIcon("camera", { size: 20 })}<span>${escapeHtml(t("bvSet.addPhoto"))}</span></button>
+          <input type="file" id="storyPhotoInput" accept="image/jpeg,image/png,image/webp" hidden>
+        </div>
+      </section>`}
+      <h2 class="bv-h2">${escapeHtml(t("bvSet.details"))}</h2>
       <div class="manage-save-bar">
         <span class="manage-save-copy"><strong>Set details</strong><small>Changes save automatically</small></span>
         <span id="manageSaveState" class="badge badge--neutral" aria-live="polite" style="visibility:hidden;">Saved ✓</span>
@@ -1127,11 +1576,6 @@ function manageTabHTML(set, entry) {
           </div>
         </div>
       </fieldset>
-    <details class="card" style="padding:12px 16px;margin-bottom:14px;" ${entry.purchase_price ? "open" : ""}>
-      <summary class="u-mono-label" style="cursor:pointer;list-style-position:inside;">Flip calculator</summary>
-      <div id="mFlipCalcContainer">${flipCalcHTML(set, entry)}</div>
-    </details>
-
     <div class="detail-card" id="partsCard">
       <div class="detail-card-title" style="justify-content:space-between;">
         <span>Parts completeness</span>
@@ -1141,44 +1585,21 @@ function manageTabHTML(set, entry) {
         Compares the official parts list with missing pieces you mark for this set. 100% means no missing parts are recorded.
       </div>
     </div>
-
-    <div class="detail-card">
-      <div class="detail-card-title">Custom photo</div>
-      ${entry.custom_image_url ? `
-        <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;">
-          <img id="customPhotoImg" alt="Custom photo" style="width:80px;height:80px;object-fit:cover;border-radius:var(--r-1);border:1px solid var(--line);background:var(--surface-2);">
-          <button id="removePhotoBtn" class="btn-secondary" style="font-size:12px;padding:6px 12px;color:var(--down);">Remove photo</button>
-        </div>
-      ` : `<p style="font-size:12px;color:var(--ink-mute);margin-bottom:10px;">Upload your own photo for this set.</p>`}
-      <input type="file" id="photoUpload" accept="image/jpeg,image/png,image/webp" style="display:none;">
-      <button class="btn-secondary" id="photoUploadBtn" style="font-size:12px;padding:6px 12px;">${I.camera ? I.camera() : "📷"} Upload photo</button>
-      <div id="photoUploadStatus" style="font-size:11px;color:var(--ink-mute);margin-top:6px;display:none;"></div>
-    </div>
-
-    ${isGuestMode() ? "" : `
-    <div class="detail-card" id="storyCard">
-      <div class="detail-card-title">${t('collector.passport')}</div><p class="collector-hint">${t('collector.passportHint')}</p>
-      <div id="storyTimeline" style="display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--ink-mute);">Loading…</div>
-      <div class="field" style="margin-top:10px;">
-        <input id="storyInput" type="text" maxlength="1000" placeholder="Add a memory — a gift, a build day, a great find…">
-      </div>
-      <div class="btn-row" style="margin-top:8px;">
-        <button class="btn-secondary" id="storyAddNote" style="font-size:12px;padding:6px 12px;">${I.plus()}<span>Add memory</span></button>
-        <button class="btn-secondary" id="storyAddPhoto" style="font-size:12px;padding:6px 12px;">${I.camera ? I.camera() : "📷"}<span>Add photo</span></button>
-        <input type="file" id="storyPhotoInput" accept="image/jpeg,image/png,image/webp" style="display:none;">
-      </div>
-    </div>`}
+    <details class="detail-card bv-passport__flip" ${entry.purchase_price ? "open" : ""}>
+      <summary class="u-mono-label" style="cursor:pointer;list-style-position:inside;">Flip calculator</summary>
+      <div id="mFlipCalcContainer">${flipCalcHTML(set, entry)}</div>
+    </details>
       ${sellTimingHTML(set, entry)}
-      <div class="manage-sale-actions">
-        <button class="btn-secondary" id="mSold">${I.tag()}<span>Sell this set…</span></button>
-        <button class="btn-secondary" id="mListSale">${I.tag()}<span>List for Sale</span></button>
+      <div class="manage-sale-actions bv-btn-row">
+        <button type="button" class="bv-btn bv-btn--outline" id="mSold">${kitIcon("tag", { size: 20 })}<span>${escapeHtml(t("bvSet.sellTitle"))}</span></button>
+        <button type="button" class="bv-btn bv-btn--outline" id="mListSale">${kitIcon("wand", { size: 20 })}<span>${escapeHtml(t("bvSet.draftListing"))}</span></button>
       </div>
       <section class="manage-danger-zone" aria-labelledby="manageDangerTitle">
         <div>
           <h3 id="manageDangerTitle">Remove from vault</h3>
           <p>Deletes this holding from your vault after confirmation.</p>
         </div>
-        <button class="btn-danger" id="mRemove">${I.trash()}<span>Remove from vault</span></button>
+        <button type="button" class="bv-btn bv-btn--danger" id="mRemove">${kitIcon("trash", { size: 20 })}<span>Remove from vault</span></button>
       </section>
     </div>`;
 }
@@ -1244,19 +1665,18 @@ async function wireStoryCard(_set, entry) {
 
   const render = (stories) => {
     const items = stories.map(s => `
-      <div class="story-item" data-story="${s.id}" style="display:flex;gap:8px;align-items:flex-start;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r-1);padding:8px 10px;">
-        <div style="flex:1;min-width:0;">
-          ${s.kind === "photo" ? `<img class="story-photo" data-story-photo="${s.id}" alt="" style="max-width:100%;border-radius:var(--r-1);margin-bottom:${s.body ? "6px" : "0"};">` : ""}
-          ${s.body ? `<div style="color:var(--ink);line-height:1.45;">${escapeHtml(s.body)}</div>` : ""}
-          <div style="font-size:10px;color:var(--ink-faint);font-family:var(--mono);margin-top:3px;">${escapeHtml(String(s.created_at || "").slice(0, 10))}</div>
+      <div class="story-item bv-story__item" data-story="${s.id}">
+        <div class="bv-story__text">
+          ${s.kind === "photo" ? `<img class="story-photo" data-story-photo="${s.id}" alt="">` : ""}
+          ${s.body ? `<p>${escapeHtml(s.body)}</p>` : ""}
+          <span class="bv-story__date">${escapeHtml(t("bvSet.memoryAdded", { date: String(s.created_at || "").slice(0, 10) }))}</span>
         </div>
-        <button class="story-del" data-story-del="${s.id}" aria-label="Delete memory" style="border:none;background:none;color:var(--ink-faint);cursor:pointer;padding:2px;">${I.close({ w: 14, h: 14 })}</button>
+        <button type="button" class="bv-iconbtn story-del" data-story-del="${s.id}" aria-label="Delete memory">${kitIcon("x", { size: 18 })}</button>
       </div>`).join("");
-    const auto = `
-      <div style="font-size:11px;color:var(--ink-faint);">
-        ${entry.purchased_at ? `${I.check({ w: 12, h: 12 })} ${escapeHtml(t('detail.acquired', { date: String(entry.purchased_at).slice(0, 10), source: entry.acquisition_source ? ` · ${entry.acquisition_source}` : '' }))}` : `${I.check({ w: 12, h: 12 })} ${escapeHtml(t('detail.inVault'))}`}
-      </div>`;
-    timeline.innerHTML = (items || `<div style="font-size:12px;">No memories yet — the story starts with you.</div>`) + auto;
+    const auto = `<div class="bv-story__auto">${kitIcon("check", { size: 16 })}<span>${entry.purchased_at
+      ? escapeHtml(t('detail.acquired', { date: String(entry.purchased_at).slice(0, 10), source: entry.acquisition_source ? ` · ${entry.acquisition_source}` : '' }))
+      : escapeHtml(t('detail.inVault'))}</span></div>`;
+    timeline.innerHTML = (items || `<p class="bv-story__empty">${escapeHtml(t("bvSet.noMemories"))}</p>`) + auto;
 
     timeline.querySelectorAll("[data-story-photo]").forEach(img => {
       customPhotoObjectURL(`/api/collection/story/${img.dataset.storyPhoto}/photo`).then(url => { if (url) img.src = url; });
@@ -1274,7 +1694,7 @@ async function wireStoryCard(_set, entry) {
     try {
       const r = await api(`/api/collection/${entry.id}/story`);
       render(r.stories || []);
-    } catch { timeline.innerHTML = `<div style="font-size:12px;">Story unavailable right now.</div>`; }
+    } catch { timeline.innerHTML = `<p class="bv-story__empty">${escapeHtml(t("bvSet.storyUnavailable"))}</p>`; }
   };
   await load();
 
@@ -1422,8 +1842,8 @@ function wireManageTab(set, entry) {
       } else { toast(t('common.errorWithDetails', { error: e.message || e }), "error"); }
     }
   });
-  $("#mSold")?.addEventListener("click", () => showExitCopilotSheet(set, entry));
-  $("#mListSale")?.addEventListener("click", () => showListingSheet(set, entry));
+  $("#mSold")?.addEventListener("click", () => openSellOptionsSheet(set, entry));
+  $("#mListSale")?.addEventListener("click", () => go(`#/set/${encodeURIComponent(set.set_num)}/listing`));
 
   // Photo upload
   if (entry.custom_image_url) {
@@ -1437,7 +1857,7 @@ function wireManageTab(set, entry) {
     const file = e.target.files?.[0];
     if (!file) return;
     const statusEl = $("#photoUploadStatus");
-    if (statusEl) { statusEl.textContent = "Uploading…"; statusEl.style.display = "block"; }
+    if (statusEl) { statusEl.textContent = "Uploading…"; statusEl.hidden = false; }
     try {
       const form = new FormData();
       form.append("photo", file);
@@ -1454,7 +1874,7 @@ function wireManageTab(set, entry) {
       await paintSetDetail(set, { ...entry, custom_image_url: "/api/collection/" + entry.id + "/photo" });
     } catch (err) {
       const message = t('detail.uploadFailed', { error: err.message || err });
-      if (statusEl) { statusEl.textContent = message; statusEl.style.display = "block"; }
+      if (statusEl) { statusEl.textContent = message; statusEl.hidden = false; }
       toast(message, "error");
     }
   });
@@ -1550,6 +1970,23 @@ function ensureDetailDelegation() {
       if (!_detailCtx) return;
       if (e.target.closest("#detailBack")) { if (history.length > 1) history.back(); else location.hash = "#/"; return; }
       if (e.target.closest("#shareBtn")) { shareSet(_detailCtx.set); return; }
+      const sheetBtn = e.target.closest("[data-set-sheet]");
+      if (sheetBtn && sheetBtn.closest(".bv-setpage")) {
+        haptic("light");
+        openSetSheet(sheetBtn.dataset.setSheet, _detailCtx.set, _detailCtx.entry);
+        return;
+      }
+      const contrib = e.target.closest("[data-contrib]");
+      if (contrib && contrib.closest(".bv-setpage")) {
+        haptic("light");
+        const { set } = _detailCtx;
+        const refresh = () => { if (state.detail.tab === "community") wireCommunityTab(set); };
+        const act = contrib.dataset.contrib;
+        if (act === "review") openReviewSheet(set.set_num, refresh);
+        else if (act === "photo") openPhotoSheet(set.set_num, refresh);
+        else openDataFixSheet(set.set_num, refresh);
+        return;
+      }
       const tb = e.target.closest("#detailTabs button");
       if (tb) { haptic("light"); switchDetailTab(tb.dataset.tab, _detailCtx.set, _detailCtx.entry); }
     } catch (err) { console.warn("[detail-delegation]", err); }
@@ -1577,10 +2014,11 @@ function ensureDetailDelegation() {
 }
 
 function switchDetailTab(tab, set, entry) {
+  if (!detailTabs().includes(tab)) tab = "info";
+  const prev = state.detail.tab;
   state.detail.tab = tab;
   const page = $(".detail-page-container");
   if (page) page.dataset.detailTab = tab;
-  const isWish = state.wishlist.some(w => w.set_num === set.set_num);
   $$("#detailTabs button").forEach(x => {
     const on = x.dataset.tab === tab;
     x.classList.toggle("active", on);
@@ -1594,13 +2032,10 @@ function switchDetailTab(tab, set, entry) {
   if (!panel) return;
   panel.id = `panel-${tab}`;
   panel.setAttribute("aria-labelledby", `tab-${tab}`);
-  mount(panel, tab === "info" ? infoTabHTML(set, entry, isWish)
-    : tab === "forecast" ? forecastTabHTML(set)
-    : tab === "community" ? communityTabHTML(set)
-    : manageTabHTML(set, entry));
-  if (tab === "info") wireInfoTab(set, entry);
-  else if (tab === "manage") wireManageTab(set, entry);
-  else if (tab === "community") wireCommunityTab(set);
+  // Fresh markup per tab (not a morph): each tab wires its own listeners.
+  panel.innerHTML = panelHTML(tab, set, entry);
+  wirePanel(tab, set, entry);
+  if ((prev === "community") !== (tab === "community")) paintSetBar(set, entry, tab);
 }
 
 /* ============================================================
@@ -1609,142 +2044,84 @@ function switchDetailTab(tab, set, entry) {
 function communityTabHTML(set) {
   const guest = isGuestMode();
   return `
-    <div class="tab-section community-tab" data-set="${escapeHtml(set.set_num)}">
-      <header class="community-intro">
-        <div class="community-eyebrow">Built together</div>
-        <h2>Community record</h2>
-        <p>See what collectors are sharing about this set, or add useful evidence for the next builder.</p>
-      </header>
-      <div class="community-actions" aria-label="Community contributions">
-        <button class="btn-secondary contrib-act" data-act="review">
-          <span class="community-action-label">Write a review</span>
-          <span class="community-action-copy">Share your build and ownership experience.</span>
-        </button>
-        <button class="btn-secondary contrib-act" data-act="photo">
-          <span class="community-action-label">Add photo</span>
-          <span class="community-action-copy">Show the set, box, or display in the real world.</span>
-        </button>
-        <button class="btn-secondary contrib-act" data-act="fix">
-          <span class="community-action-label">Suggest a fix</span>
-          <span class="community-action-copy">Report a data issue or a community sale.</span>
-        </button>
-      </div>
-      <div class="community-mode-note ${guest ? "guest" : "member"}" role="note">
-        <span class="community-trust-mark" aria-hidden="true"></span>
-        <span><span class="u-sr-only">Trust note: </span>${guest
-          ? "Guest mode can browse community content. Sign in before contributing so your review, photo, or fix can be reviewed and credited."
-          : "Contributions are reviewed before becoming public, keeping shared set data trustworthy."}</span>
-      </div>
+    <div class="community-tab bv-community" data-set="${escapeHtml(set.set_num)}">
+      <h2 class="bv-sr">${escapeHtml(t("bvSet.communityTitle"))}</h2>
       <div id="communityBody" class="community-body">
-        <div class="community-loading" role="status">Loading community content…</div>
+        <div class="bv-card community-loading" role="status">${escapeHtml(t("bvSet.communityLoading"))}</div>
       </div>
+      <div class="bv-setrows bv-community__fix">${kitRow({ icon: "edit", title: t("bvSet.suggestFix"), sub: t("bvSet.suggestFixSub"), attrs: { "data-contrib": "fix" } })}</div>
+      <p class="bv-foot community-mode-note ${guest ? "guest" : "member"}" role="note">${escapeHtml(t(guest ? "bvSet.trustGuest" : "bvSet.trustMember"))}</p>
     </div>`;
 }
 
 function starRow(n) {
   const full = Math.round(n);
-  return `<span class="star-row" aria-label="${n} out of 5">${[1,2,3,4,5].map(i => `<span style="opacity:${i <= full ? 1 : 0.25};">★</span>`).join("")}</span>`;
+  return `<span class="star-row" role="img" aria-label="${escapeHtml(t("bvSet.starsLabel", { n: Number(n).toFixed(1) }))}">${[1, 2, 3, 4, 5].map(i => `<span class="${i <= full ? "is-on" : ""}" aria-hidden="true">★</span>`).join("")}</span>`;
 }
 
 async function wireCommunityTab(set) {
-  const refresh = () => wireCommunityTab(set);
-  const labels = {
-    review: `${I.star({w:16})}<span class="community-action-text"><span class="community-action-label">Write a review</span><span class="community-action-copy">Share your build and ownership experience.</span></span>`,
-    photo: `${I.camera({w:16})}<span class="community-action-text"><span class="community-action-label">Add photo</span><span class="community-action-copy">Show the set, box, or display in the real world.</span></span>`,
-    fix: `${I.pencil({w:16})}<span class="community-action-text"><span class="community-action-label">Suggest a fix</span><span class="community-action-copy">Report a data issue or a community sale.</span></span>`,
-  };
-  $$(".community-tab .contrib-act").forEach(b => {
-    if (labels[b.dataset.act] && !b.querySelector("svg")) b.innerHTML = labels[b.dataset.act];
-    b.addEventListener("click", () => {
-      haptic("light");
-      const act = b.dataset.act;
-      if (act === "review") openReviewSheet(set.set_num, refresh);
-      else if (act === "photo") openPhotoSheet(set.set_num, refresh);
-      else openDataFixSheet(set.set_num, refresh);
-    });
-  });
-
   const body = $("#communityBody");
   if (!body) return;
   let data;
   try {
     data = await api("/api/contributions/sets/" + encodeURIComponent(set.set_num));
   } catch {
-    body.innerHTML = `<div style="text-align:center;padding:24px 0;">
-      <div class="u-mute" style="margin-bottom:12px;">Couldn't load community content.</div>
-      <button class="btn-secondary" id="communityRetry" style="width:auto;padding:8px 18px;">Retry</button>
-    </div>`;
+    if (!body.isConnected) return;
+    body.innerHTML = `<section class="bv-empty" role="status"><h2>${escapeHtml(t("bvSet.communityFailed"))}</h2>
+      <div class="bv-empty__actions"><button type="button" class="bv-btn bv-btn--outline bv-btn--full" id="communityRetry">${escapeHtml(t("common.retry"))}</button></div></section>`;
     $("#communityRetry")?.addEventListener("click", () => wireCommunityTab(set));
     return;
   }
-  if (!location.hash.includes(set.set_num) || state.detail.tab !== "community") return;
+  if (!location.hash.includes(set.set_num) || state.detail.tab !== "community" || !body.isConnected) return;
 
   const pending = (data.mine || []).filter(m => m.status === "pending").length;
   const reviews = data.reviews || [];
   const photos = data.photos || [];
   const prices = data.prices || [];
-  const hasApprovedContent = Boolean(data.rating?.count || reviews.length || photos.length || prices.length);
+  const hasContent = Boolean(data.rating?.count || reviews.length || photos.length || prices.length);
+  const photoUrl = (p) => (window.WORKER_BASE || "") + p.url;
 
   const ratingHTML = data.rating?.count
-    ? `<section class="community-section community-rating-section" aria-labelledby="communityRatingTitle">
-        <div class="community-section-head">
-          <h3 id="communityRatingTitle">Collector rating</h3>
-          <span class="community-section-count">${data.rating.count} review${data.rating.count === 1 ? "" : "s"}</span>
-        </div>
-        <div class="community-rating">${starRow(data.rating.avg)} <strong class="community-rating-value">${data.rating.avg.toFixed(1)}</strong><span class="u-mute">out of 5</span></div>
+    ? `<section class="bv-card bv-rating community-rating-section" aria-label="${escapeHtml(t("bvSet.collectorRating"))}">
+        <span class="bv-rating__value">${escapeHtml(Number(data.rating.avg).toFixed(1))}</span>
+        <span class="bv-rating__text">${starRow(data.rating.avg)}<span class="bv-label">${escapeHtml(tPlural("bvSet.ratingReviews", data.rating.count, { count: data.rating.count }))}</span></span>
       </section>`
     : "";
-
-  const reviewsHTML = reviews.length
-    ? `<section class="community-section" aria-labelledby="communityReviewsTitle">
-        <div class="community-section-head">
-          <h3 id="communityReviewsTitle">Reviews</h3>
-          <span class="community-section-count">${reviews.length}</span>
-        </div>
-        ${reviews.map(r => `
-          <article class="community-review">
-            <div class="cr-head">${starRow(r.rating)}${r.title ? `<b>${escapeHtml(r.title)}</b>` : ""}</div>
-            ${r.body ? `<div class="cr-body">${escapeHtml(r.body)}</div>` : ""}
-            <div class="cr-meta u-mute">${r.author ? `${escapeHtml(r.author)} · ` : ""}${fmtDateUpdated(r.created_at)}</div>
-          </article>`).join("")}
-      </section>`
-    : "";
-
   const photosHTML = photos.length
-    ? `<section class="community-section" aria-labelledby="communityPhotosTitle">
-        <div class="community-section-head">
-          <h3 id="communityPhotosTitle">Photos</h3>
-          <span class="community-section-count">${photos.length}</span>
-        </div>
-        <div class="bs-gallery community-gallery no-tab-swipe">${photos.map(p =>
-          `<figure class="community-photo"><img loading="lazy" src="${(window.WORKER_BASE || "") + p.url}" alt="${escapeHtml(p.caption || set.name)}">${p.caption ? `<figcaption>${escapeHtml(p.caption)}</figcaption>` : ""}</figure>`
-        ).join("")}</div>
-      </section>`
+    ? `<h2 class="bv-h2">${escapeHtml(t("bvSet.collectorPhotos"))}</h2>
+      <div class="bv-photogrid community-gallery no-tab-swipe">${photos.map((p, i) =>
+        `<button type="button" class="community-photo" data-photo-idx="${i}" aria-label="${escapeHtml(p.caption || set.name || set.set_num)}"><img loading="lazy" src="${escapeHtml(photoUrl(p))}" alt=""></button>`
+      ).join("")}</div>`
     : "";
-
+  const reviewsHTML = reviews.length
+    ? `<h2 class="bv-h2">${escapeHtml(t("bvSet.reviews"))}</h2>
+      <section class="bv-card bv-reviews">${reviews.map(r => `
+        <article class="community-review">
+          <div class="cr-head"><b>${escapeHtml(r.author || t("bvSet.collector"))}</b>${starRow(r.rating)}</div>
+          ${r.title ? `<div class="cr-title">${escapeHtml(r.title)}</div>` : ""}
+          ${r.body ? `<div class="cr-body">${escapeHtml(r.body)}</div>` : ""}
+          <div class="cr-meta">${escapeHtml(fmtDateUpdated(r.created_at))}</div>
+        </article>`).join("")}</section>`
+    : "";
   const pricesHTML = prices.length
-    ? `<section class="community-section community-prices" aria-labelledby="communityPricesTitle">
-        <div class="community-section-head">
-          <h3 id="communityPricesTitle">Community-reported sales</h3>
-          <span class="community-section-count">${prices.length}</span>
-        </div>
-        ${prices.map(p =>
-          `<div class="cp-row"><span>${fmtMoney(p.price)} <span class="u-mute">(${escapeHtml(p.condition || "new")})</span></span><span class="u-mute">${fmtDateUpdated(p.at)}</span></div>`
-        ).join("")}
-      </section>`
+    ? `<h2 class="bv-h2">${escapeHtml(t("bvSet.reportedSales"))}</h2>
+      <section class="bv-card community-prices">${prices.map(p =>
+        `<div class="bv-kv cp-row"><span>${escapeHtml(p.condition || "new")} · ${escapeHtml(fmtDateUpdated(p.at))}</span><span class="bv-num">${escapeHtml(fmtMoney(p.price))}</span></div>`
+      ).join("")}</section>`
     : "";
 
   body.innerHTML = `
-    ${pending ? `<div class="community-pending">${escapeHtml(tPlural('community.pendingSubmission', pending))}</div>` : ""}
-    ${ratingHTML}
-    ${photosHTML}
-    ${reviewsHTML}
-    ${pricesHTML}
-    ${!hasApprovedContent ? `<div class="community-empty">
-      <div class="community-empty-mark" aria-hidden="true"></div>
-      <h3>Start this set’s community record</h3>
-      <p>Share the first review or photo, or suggest a correction for the set data.</p>
-    </div>` : ""}`;
+    ${pending ? `<div class="bv-banner bv-banner--info community-pending" role="status">${kitIcon("clock", { size: 20 })}<span class="bv-banner__text">${escapeHtml(tPlural("community.pendingSubmission", pending))}</span></div>` : ""}
+    ${ratingHTML}${photosHTML}${reviewsHTML}${pricesHTML}
+    ${hasContent ? "" : `<section class="bv-empty community-empty"><div class="bv-empty__art">${kitIcon("star")}</div>
+      <h2>${escapeHtml(t("bvSet.communityEmpty"))}</h2><p>${escapeHtml(t("bvSet.communityEmptyBody"))}</p></section>`}`;
+
+  body.querySelector(".community-gallery")?.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-photo-idx]");
+    if (!btn) return;
+    const { openLightbox } = await import("../components/lightbox.js");
+    openLightbox(photos.map(photoUrl), Number(btn.dataset.photoIdx) || 0);
+  });
 }
 
 function setupTabSwipe(set, entry) {
@@ -1777,120 +2154,7 @@ function setupTabSwipe(set, entry) {
 /* ============================================================
    eBay Listing Generator
    ============================================================ */
-// Exit copilot: one sheet that answers "how do I sell this well?" — the
-// timing read, a price recommendation with the fee math, a jump into the AI
-// listing generator, and finally logging the real sale (which feeds the
-// anonymized community comps).
-function showExitCopilotSheet(set, entry) {
-  const signal = isSimpleMode() || isKidsMode() ? null : sellSignalFor(set, entry);
-  const market = marketValueForCondition(set, entry?.condition || "new");
-  const userCurrency = state.me?.currency || "USD";
-  const rate = getExchangeRate(userCurrency);
-  const feePct = parseFloat(localStorage.getItem("bv_flip_fee_pct") ?? "13.25");
-  const paymentPct = parseFloat(localStorage.getItem("bv_flip_payment_pct") ?? "2.9");
-  const shipping = parseFloat(localStorage.getItem("bv_flip_shipping") ?? "5.00");
-  const calc = market ? flipEconomics({ marketUsd: market, rate, feePct, paymentPct, shipping }) : null;
-  const paid = Number(entry?.purchase_price) || 0;
 
-  const look = signal ? {
-    sell: { label: "Good time to sell", color: "var(--up)" },
-    watch: { label: "Worth watching", color: "var(--accent)" },
-    hold: { label: "Consider holding", color: "var(--ink-mute)" },
-  }[signal.signal] : null;
-
-  showSheet(`
-    <div style="font-family:var(--serif);font-size:20px;font-weight:500;margin:0 4px 12px;">Sell ${escapeHtml(set.name || set.set_num)}</div>
-    ${signal ? `
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-        <span class="badge" style="background:${look.color};color:#fff;">${look.label}</span>
-        <span style="font-size:12px;color:var(--ink-mute);">${escapeHtml(localizedSellReasons(signal.reasons).join(" · "))}</span>
-      </div>` : ""}
-    ${market ? `
-      <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;background:var(--surface-2);border:1.5px solid var(--line-soft);border-radius:var(--r-2);padding:12px 14px;margin-bottom:12px;">
-        <div style="display:flex;justify-content:space-between;"><span style="color:var(--ink-mute);">Ask around</span><strong>${estMark(set)}${fmtMoney(market)}</strong></div>
-        ${calc ? `<div style="display:flex;justify-content:space-between;"><span style="color:var(--ink-mute);">≈ in your pocket after fees</span><strong>${fmtMoney(calc.net / rate)}</strong></div>` : ""}
-        ${paid > 0 && calc ? `<div style="display:flex;justify-content:space-between;"><span style="color:var(--ink-mute);">vs what you paid</span><strong style="color:${calc.net / rate >= paid ? "var(--up)" : "var(--down)"};">${calc.net / rate >= paid ? "+" : ""}${fmtMoney(calc.net / rate - paid)}</strong></div>` : ""}
-      </div>` : ""}
-    <button class="btn-secondary" id="exitGenListing" style="width:100%;margin-bottom:14px;">${I.sparkles()}<span>Generate eBay listing</span></button>
-    <div class="field">
-      <div class="field-lbl">Sold price (before fees)</div>
-      <input id="exitSoldPrice" type="number" step="0.01" inputmode="decimal" placeholder="e.g. ${market ? Math.round(market) : "189.99"}">
-      <div style="font-size:11px;color:var(--ink-mute);margin-top:4px;">Real sale prices power the community price signal — anonymized, never shown individually.</div>
-    </div>
-    <div class="btn-row" style="margin-top:12px;">
-      <button class="btn-secondary" id="exitCancel">Cancel</button>
-      <button class="btn-primary" id="exitConfirmSold">${I.tag()}<span>Mark sold</span></button>
-    </div>`);
-
-  $("#exitCancel")?.addEventListener("click", hideSheet);
-  $("#exitGenListing")?.addEventListener("click", () => { hideSheet(); showListingSheet(set, entry); });
-  $("#exitConfirmSold")?.addEventListener("click", async () => {
-    const price = sanitizeMoneyInput(String($("#exitSoldPrice")?.value ?? ""));
-    if (price == null || price <= 0) { toast("Enter the sale price as a number", "error"); return; }
-    haptic("heavy");
-    try {
-      await api("/api/collection/sell", { method: "POST", body: { set_num: set.set_num, sold_price: price } });
-      hideSheet();
-      invalidatePortfolio();
-      delete state.detail.cache[set.set_num];
-      markSetOwned(set.set_num, false);
-      toast(t('portfolio.soldFor', { price: fmtMoney(price) }), "success");
-      go("#/");
-    } catch (e) { toast(t('common.errorWithDetails', { error: e.message || e }), "error"); }
-  });
-}
-
-async function showListingSheet(set, _entry) {
-  showSheet(`
-    <div style="font-family:var(--serif);font-size:20px;font-weight:500;margin:0 4px 12px;">Generate eBay Listing</div>
-    <div class="listing-sheet" id="listingContent">
-      <div style="text-align:center;padding:40px 0;color:var(--ink-mute);">
-        ${I.sparkles()}
-        <div style="margin-top:8px;font-size:13px;">Generating listing…</div>
-      </div>
-    </div>`);
-
-  try {
-    const geminiKey = getProviderCredential('gemini');
-    const openaiKey = getProviderCredential('openai');
-    const extraHeaders = {};
-    if (geminiKey) extraHeaders['X-Gemini-Key'] = geminiKey;
-    else if (openaiKey) extraHeaders['X-OpenAI-Key'] = openaiKey;
-    const draft = await api("/api/sets/" + encodeURIComponent(set.set_num) + "/listing-draft", {
-      method: "POST", headers: extraHeaders,
-    });
-
-    const content = document.getElementById("listingContent");
-    if (!content) return;
-
-    content.innerHTML = `
-      <div class="listing-field-label">Title</div>
-      <input class="listing-title-input" id="listTitle" type="text" value="${escapeHtml(draft.title || "")}">
-
-      <div class="listing-field-label" style="margin-top:14px;">Description</div>
-      <textarea class="listing-desc-textarea" id="listDesc" rows="6">${escapeHtml(draft.description || "")}</textarea>
-
-      <div class="listing-price-row">
-        <div>
-          <div class="listing-field-label">Suggested price</div>
-          <div style="font-family:var(--mono);font-size:22px;font-weight:600;">${fmtMoney(draft.suggested_price)}</div>
-        </div>
-      </div>
-      ${draft.price_reasoning ? `<div class="listing-reasoning">${escapeHtml(draft.price_reasoning)}</div>` : ""}
-
-      <div class="listing-actions">
-        <button class="btn-secondary" id="copyListTitle">${I.check()}<span>Copy title</span></button>
-        <button class="btn-secondary" id="copyListDesc">${I.check()}<span>Copy description</span></button>
-        <a class="btn-primary listing-ebay-btn" href="${escapeHtml(`https://www.ebay.com/sl/list?title=${encodeURIComponent((draft.title || "").slice(0, 80))}`)}" target="_blank" rel="noopener">${I.arrowR()}<span>Open eBay</span></a>
-      </div>`;
-
-    document.getElementById("copyListTitle")?.addEventListener("click", () => copyListingField(draft.title || "", "Title"));
-    document.getElementById("copyListDesc")?.addEventListener("click", () => copyListingField(draft.description || "", "Description"));
-  } catch (err) {
-    const content = document.getElementById("listingContent");
-    if (content) content.innerHTML = `<p style="color:var(--down);font-size:13px;padding:16px 0;">Error: ${escapeHtml(err.message)}</p>`;
-  }
-}
 
 function copyListingField(text, label) {
   if (navigator.clipboard?.writeText) {
@@ -1910,18 +2174,6 @@ function _fallbackCopy(text, label) {
   document.body.removeChild(ta);
 }
 
-async function openListingDraftSheet(setNum) {
-  try {
-    let cached = state.detail.cache[setNum];
-    if (!cached) {
-      const res = await api("/api/sets/" + encodeURIComponent(setNum));
-      cached = { set: res.set || res, entry: res.entry || null };
-    }
-    await showListingSheet(cached.set, cached.entry);
-  } catch (err) {
-    toast(t('common.errorWithDetails', { error: err.message || err }), "error");
-  }
-}
 
 function openAddWishlistSheet(set, onConfirm) {
   const userCurrency = state.me?.currency || "USD";
@@ -2094,15 +2346,24 @@ function wireFlipCalc(set, entry, containerEl = document) {
 }
 
 
-async function loadSetHistory(setNum) {
+let _historyReq = 0;
+async function loadSetHistory(setNum, days = 365, entry = null) {
   const el = $("#setSpark");
   if (!el) return;
+  const req = ++_historyReq;
+  const deltaEl = $("#histDelta");
+  const markEl = $("#histBought");
+  const movementEl = $("#setMovementSummary");
   try {
-    const res = await api("/api/sets/" + encodeURIComponent(setNum) + "/history?days=90");
+    const res = await api("/api/sets/" + encodeURIComponent(setNum) + "/history?days=" + days);
+    if (req !== _historyReq || !el.isConnected) return;
     const hist = res.history || [];
+    el.innerHTML = "";
+    el.style.height = "";
+    if (markEl) markEl.hidden = true;
+    if (movementEl) movementEl.hidden = true;
     if (hist.length >= 2) {
       const movement = priceMovementSummary(hist);
-      const movementEl = $("#setMovementSummary");
       if (movement && movementEl) {
         const baseKey = movement.direction === 'up' ? 'detail.movementUp' : 'detail.movementDown';
         const driverKey = movement.driver
@@ -2111,7 +2372,9 @@ async function loadSetHistory(setNum) {
         movementEl.textContent = t(baseKey, { pct: movement.pct, days: movement.days }) + (driverKey ? t(driverKey) : '');
         movementEl.hidden = false;
       }
-      const up = Number(hist[hist.length - 1].current_value) >= Number(hist[0].current_value);
+      const first = Number(hist[0].current_value), last = Number(hist[hist.length - 1].current_value);
+      if (deltaEl) deltaEl.innerHTML = first > 0 && last > 0 ? kitDelta(((last - first) / first) * 100) : "";
+      const up = last >= first;
       const hasPts = (key) => hist.filter(h => Number(h?.[key]) > 0).length >= 2;
       const series = [
         { key: "bl_value", color: "var(--ink-mute)", dash: "2 3", label: t('detail.historyMarket') },
@@ -2120,17 +2383,28 @@ async function loadSetHistory(setNum) {
       drawSparkline(el, hist, { up, series });
       const legendEl = $("#setSparkLegend");
       if (legendEl) {
-        legendEl.innerHTML = series.length
-          ? [{ color: up ? "var(--up)" : "var(--down)", dash: "", label: t('detail.historyValue') }, ...series]
-              .map(s => `<span class="spark-key"><svg width="14" height="4" viewBox="0 0 14 4"><line x1="0" y1="2" x2="14" y2="2" stroke="${s.color}" stroke-width="2"${s.dash ? ` stroke-dasharray="${s.dash}"` : ""}/></svg>${s.label}</span>`)
-              .join("") + `<span class="spark-key spark-note-snap">${t('market.historySnapshotNote')}</span>`
-          : "";
+        legendEl.innerHTML = [{ color: up ? "var(--up)" : "var(--down)", dash: "", label: t('detail.historyValue') }, ...series]
+          .map(s => `<span class="spark-key"><svg width="14" height="4" viewBox="0 0 14 4"><line x1="0" y1="2" x2="14" y2="2" stroke="${s.color}" stroke-width="2"${s.dash ? ` stroke-dasharray="${s.dash}"` : ""}/></svg>${s.label}</span>`)
+          .join("") + (series.length ? `<span class="spark-key spark-note-snap">${t('market.historySnapshotNote')}</span>` : "");
+      }
+      // "You bought" marker at the first snapshot on/after the purchase date.
+      const bought = entry?.purchased_at ? String(entry.purchased_at).slice(0, 10) : "";
+      const idx = bought ? hist.findIndex(h => String(h.snapshot_date || "") >= bought) : -1;
+      if (markEl && idx > 0) {
+        const frac = idx / (hist.length - 1);
+        markEl.style.left = `calc(4px + (100% - 8px) * ${frac.toFixed(4)})`;
+        markEl.classList.toggle("is-end", frac > 0.6);
+        const paid = Number(entry.purchase_price) > 0 ? Number(entry.purchase_price) : null;
+        markEl.querySelector(".bv-chart__marklabel").textContent = paid ? t("bvSet.youBoughtAt", { price: money0(paid) }) : t("bvSet.youBought");
+        markEl.hidden = false;
       }
     } else {
+      if (deltaEl) deltaEl.innerHTML = "";
       el.style.height = "auto";
-      el.innerHTML = `<div class="spark-empty">${I.info()}<span>Price tracking just started — check back soon for a trend.</span></div>`;
+      el.innerHTML = `<div class="spark-empty">${kitIcon("info", { size: 20 })}<span>Price tracking just started — check back soon for a trend.</span></div>`;
     }
   } catch {
+    if (req !== _historyReq || !el.isConnected) return;
     el.style.height = "auto";
     el.innerHTML = `<div class="spark-empty"><span>Couldn't load price history.</span></div>`;
   }
@@ -2144,8 +2418,8 @@ async function loadSetImages(setNum) {
   if (!el) return;
   const dropCard = () => { const card = el.closest(".detail-card, .card"); if (card) card.remove(); };
   try {
-    const res = await api("/api/sets/" + encodeURIComponent(setNum) + "/images");
-    const imgs = (res && Array.isArray(res.images)) ? res.images.filter(u => typeof u === "string") : [];
+    const imgs = await setImagesFor(setNum);
+    if (!el.isConnected) return;
     if (!imgs.length) { dropCard(); return; }
     el.innerHTML = imgs.map((u, i) => `<button type="button" data-lb-idx="${i}" aria-label="Open photo ${i + 1}" style="flex:0 0 auto;display:block;padding:0;border:none;background:none;cursor:pointer;"><img src="${escapeHtml(u)}" loading="lazy" alt="Set photo" style="height:120px;width:auto;border-radius:var(--r-1);border:1px solid var(--line-soft);object-fit:cover;display:block;"></button>`).join("");
     // Tapping a thumbnail opens the in-app viewer (swipe between photos, back
