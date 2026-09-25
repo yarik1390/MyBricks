@@ -1014,6 +1014,74 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       // despite the highest value.
       expect(data.leaders.map((l: any) => l.handle)).toEqual(['rich', 'modest']);
       expect(data.leaders[0].rank).toBe(1);
+      expect(data.total).toBe(2);
+    });
+
+    it('leaderboard reports each collector\'s 30-day change when history exists', async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO user_prefs (user_id, handle, is_public, expose_public_value) VALUES (?, 'riser', 1, 1)`).bind(userId),
+        db.prepare(`INSERT INTO user_prefs (user_id, handle, is_public, expose_public_value) VALUES (?, 'fresh', 1, 1)`).bind(otherUserId),
+        db.prepare(`INSERT INTO user_collection (user_id, set_num, quantity, condition) VALUES (?, '75192', 1, 'new')`).bind(userId),
+        db.prepare(`INSERT INTO user_collection (user_id, set_num, quantity, condition) VALUES (?, '10300', 1, 'new')`).bind(otherUserId),
+        // An older and a newer snapshot past the 30-day line: the newer one counts.
+        db.prepare(`INSERT INTO portfolio_snapshots (user_id, snapshot_date, total_value) VALUES (?, date('now', '-90 days'), 100)`).bind(userId),
+        db.prepare(`INSERT INTO portfolio_snapshots (user_id, snapshot_date, total_value) VALUES (?, date('now', '-31 days'), 700)`).bind(userId),
+        // Too recent to compare against.
+        db.prepare(`INSERT INTO portfolio_snapshots (user_id, snapshot_date, total_value) VALUES (?, date('now', '-3 days'), 150)`).bind(otherUserId),
+      ]);
+      const data = await (await app.fetch(new Request('http://localhost/api/users/leaderboard'), env)).json<any>();
+      const riser = data.leaders.find((l: any) => l.handle === 'riser');
+      const fresh = data.leaders.find((l: any) => l.handle === 'fresh');
+      expect(riser.change_30d_pct).not.toBeNull();
+      expect(riser.change_30d_pct).toBeGreaterThan(0);
+      expect(fresh.change_30d_pct).toBeNull();
+
+      // Rising only ranks collectors with a month of history.
+      const rising = await (await app.fetch(new Request('http://localhost/api/users/leaderboard?sort=rising'), env)).json<any>();
+      expect(rising.sort).toBe('rising');
+      expect(rising.leaders.map((l: any) => l.handle)).toEqual(['riser']);
+      expect(rising.total).toBe(1);
+    });
+
+    it('leaderboard ranks by sets and tells a private collector where they would land', async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO user_prefs (user_id, handle, is_public, expose_public_value) VALUES (?, 'onebig', 1, 1)`).bind(userId),
+        db.prepare(`INSERT INTO user_prefs (user_id, handle, is_public, expose_public_value) VALUES (?, 'twosmall', 1, 1)`).bind(otherUserId),
+        db.prepare(`INSERT INTO user_collection (user_id, set_num, quantity, condition) VALUES (?, '75192', 1, 'new')`).bind(userId),
+        db.prepare(`INSERT INTO user_collection (user_id, set_num, quantity, condition) VALUES (?, '10300', 1, 'new')`).bind(otherUserId),
+        db.prepare(`INSERT INTO user_collection (user_id, set_num, quantity, condition) VALUES (?, '75192', 1, 'used')`).bind(otherUserId),
+      ]);
+      const bySets = await (await app.fetch(new Request('http://localhost/api/users/leaderboard?sort=sets&sets=1'), env)).json<any>();
+      expect(bySets.leaders.map((l: any) => l.handle)).toEqual(['twosmall', 'onebig']);
+      expect(bySets.would_rank).toBe(2);
+      const byValue = await (await app.fetch(new Request('http://localhost/api/users/leaderboard?value=5000'), env)).json<any>();
+      expect(byValue.would_rank).toBe(1);
+      const noProbe = await (await app.fetch(new Request('http://localhost/api/users/leaderboard'), env)).json<any>();
+      expect(noProbe.would_rank).toBeNull();
+    });
+
+    it('a private profile is visible to its owner as a preview and to nobody else', async () => {
+      await db.prepare(`INSERT INTO user_prefs (user_id, handle, is_public) VALUES (?, 'quiet', 0)`).bind(userId).run();
+      const anon = await app.fetch(new Request('http://localhost/api/users/quiet/profile'), env);
+      expect(anon.status).toBe(404);
+      const other = await app.fetch(new Request('http://localhost/api/users/quiet/profile', { headers: auth(otherToken) }), env);
+      expect(other.status).toBe(404);
+      const own = await app.fetch(new Request('http://localhost/api/users/quiet/profile', { headers: auth() }), env);
+      expect(own.status).toBe(200);
+      expect(await own.json<any>()).toMatchObject({ handle: 'quiet', is_public: false, is_owner: true });
+    });
+
+    it('public profile adds piece count and the year collecting started', async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO user_prefs (user_id, handle, is_public, expose_public_value) VALUES (?, 'pieces', 1, 1)`).bind(userId),
+        db.prepare(`INSERT INTO user_collection (user_id, set_num, quantity, condition, added_at) VALUES (?, '75192', 2, 'new', '2019-04-02 10:00:00')`).bind(userId),
+        db.prepare(`INSERT INTO user_collection (user_id, set_num, quantity, condition, added_at) VALUES (?, '10300', 1, 'new', '2023-01-01 10:00:00')`).bind(userId),
+      ]);
+      const res = await app.fetch(new Request('http://localhost/api/users/pieces/profile'), env);
+      expect(res.status).toBe(200);
+      const data = await res.json<any>();
+      expect(data.piece_count).toBe(7541 * 2 + 1872);
+      expect(data.collecting_since).toBe(2019);
     });
   });
 

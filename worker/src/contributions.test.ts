@@ -98,6 +98,23 @@ describe('User contributions: submit / read / moderate', () => {
     expect(row.rating).toBe(4);
   });
 
+  it('lists my contributions newest first with the set name and fix kind', async () => {
+    await app.fetch(new Request('https://x/api/contributions/reviews', {
+      method: 'POST', headers: auth(), body: JSON.stringify({ set_num: '111-1', rating: 4, title: 'Great' }),
+    }), env);
+    await app.fetch(new Request('https://x/api/contributions/data', {
+      method: 'POST', headers: auth(), body: JSON.stringify({ set_num: '111-1', kind: 'barcode', payload: { upc: '0123456789012' } }),
+    }), env);
+    const res = await app.fetch(new Request('https://x/api/contributions/mine', { headers: auth() }), env);
+    expect(res.status).toBe(200);
+    const { submissions: items } = await res.json<any>();
+    expect(items).toHaveLength(2);
+    const data = items.find((i: any) => i.type === 'data');
+    const review = items.find((i: any) => i.type === 'review');
+    expect(data).toMatchObject({ set_num: '111-1', set_name: 'Test Set', kind: 'barcode', status: 'pending' });
+    expect(review).toMatchObject({ set_name: 'Test Set', kind: null });
+  });
+
   it('rejects an unknown set', async () => {
     const res = await app.fetch(new Request('https://x/api/contributions/data', {
       method: 'POST', headers: auth(), body: JSON.stringify({ set_num: 'nope-9', kind: 'barcode', payload: { upc: '0123456789' } }),
