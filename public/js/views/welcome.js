@@ -134,7 +134,13 @@ function repaintPrefs() {
 
 function wirePrefs() {
   $('#welSkip')?.addEventListener('click', () => { haptic('light'); finishFirstRun('#/'); });
-  $('#welContinue')?.addEventListener('click', () => { haptic('light'); go('#/welcome/fill'); });
+  // Kids Mode skips the grown-up import choices and goes straight to the kids
+  // home (with the parent PIN offer) — the Kids route guard would bounce step 2.
+  $('#welContinue')?.addEventListener('click', () => {
+    haptic('light');
+    if (getModePref() === 'kids') finishFirstRun('#/kids');
+    else go('#/welcome/fill');
+  });
   $('#welLanguage')?.addEventListener('click', openLanguageSheet);
   $('#welCurrency')?.addEventListener('click', () => openSelectSheet('currency'));
   $('#welMarket')?.addEventListener('click', () => openSelectSheet('market'));
