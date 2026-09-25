@@ -5,9 +5,12 @@
 import { getCapacitorPlugin, isNativeCapacitor } from './native-auth.js';
 import { biometricAvailable, verifyBiometric } from './native-biometric.js';
 import { APP_LOCK_ENABLED_KEY } from './app-lock-boot.js';
+import { t } from './i18n.js';
 
 const ENABLED_KEY = APP_LOCK_ENABLED_KEY;
 const RELOCK_AFTER_MS = 15_000; // re-lock only after a real backgrounding, not a quick app-switch
+
+const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
 let _wired = false;
 let _verifying = false;   // guards the appStateChange loop while the OS prompt is up
@@ -31,15 +34,24 @@ function overlay() {
     el.className = 'app-lock';
     el.setAttribute('role', 'dialog');
     el.setAttribute('aria-modal', 'true');
-    el.setAttribute('aria-label', 'App locked');
+    el.setAttribute('aria-labelledby', 'appLockTitle');
+    // Canvas: AppLock. Brand, what is hidden and why, one big sensor button.
+    // The system prompt itself offers the device PIN/pattern, so "Use PIN
+    // instead" opens the same prompt.
     el.innerHTML = `
       <div class="app-lock-inner">
-        <div class="app-lock-mark">🔒</div>
-        <div class="app-lock-title">BricksVault is locked</div>
-        <button type="button" class="btn-primary app-lock-btn" id="appLockUnlock">Unlock</button>
+        <div class="app-lock-mark" aria-hidden="true"><svg viewBox="0 0 40 32" width="44" height="36"><rect x="7" y="0" width="9" height="7" rx="2" fill="#c8431f"/><rect x="24" y="0" width="9" height="7" rx="2" fill="#c8431f"/><rect x="0" y="5" width="40" height="27" rx="4" fill="#c8431f"/></svg></div>
+        <h1 class="app-lock-title" id="appLockTitle">${esc(t('bvFirst.lockTitle'))}</h1>
+        <p class="app-lock-sub">${esc(t('bvFirst.lockSub'))}</p>
+        <div class="app-lock-actions">
+          <button type="button" class="app-lock-btn" id="appLockUnlock" aria-describedby="appLockHint"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 11v5M8 9a4 4 0 0 1 8 0v4M5 10a7 7 0 0 1 14 0v2M9 13v3a3 3 0 0 0 6 0v-1"/></svg><span class="app-lock-sr">${esc(t('bvFirst.lockUnlock'))}</span></button>
+          <p class="app-lock-hint" id="appLockHint">${esc(t('bvFirst.lockHint'))}</p>
+          <button type="button" class="app-lock-pin" id="appLockPin">${esc(t('bvFirst.lockPin'))}</button>
+        </div>
       </div>`;
     document.body.appendChild(el);
     el.querySelector('#appLockUnlock').addEventListener('click', promptUnlock);
+    el.querySelector('#appLockPin')?.addEventListener('click', promptUnlock);
   }
   return el;
 }
