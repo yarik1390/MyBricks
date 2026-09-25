@@ -15,11 +15,13 @@ const HOLDING_VALUE_COLUMNS = `uc.set_num, uc.condition, uc.quantity,
 app.get('/leaderboard', async (c) => {
   // Bound the joined scan to at most 2000 public users via CTE to prevent unbounded row expansion.
   // JS aggregation via holdingValueForRollout remains the single source of truth so totals stay exact for included users.
+  // ORDER BY makes the bound deterministic (a stable prefix) rather than an arbitrary subset.
   const res = await c.env.DB.prepare(`
     WITH public_users AS (
       SELECT user_id, handle, display_name, is_supporter
       FROM user_prefs
       WHERE is_public = 1 AND expose_public_value = 1 AND handle IS NOT NULL
+      ORDER BY user_id
       LIMIT 2000
     )
     SELECT p.user_id, p.handle, p.display_name, p.is_supporter,

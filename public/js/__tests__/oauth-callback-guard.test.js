@@ -151,7 +151,18 @@ test('the outbox quarantines permanent failures and preserves a guest queue on s
   const body = saveFn.slice(0, saveFn.indexOf('\n}\n'));
   assert.ok(body.includes('migratedFromGuest'), 'a guest queue must survive signing in');
   assert.ok(
-    /if \(!migratedFromGuest\) localStorage\.removeItem\(OUTBOX_KEY\)/.test(body),
+    /!migratedFromGuest\) localStorage\.removeItem\(OUTBOX_KEY\)/.test(body),
     'an account switch must still drop the previous owner queue',
+  );
+});
+// A recovery link can be crafted for the ATTACKER's account. If the victim opens
+// it and sets a password, they land signed in to that account — so this device's
+// pending guest writes must not be replayed into it.
+test('an account installed from an emailed link never replays the device outbox', () => {
+  const fn = apiSrc.slice(apiSrc.indexOf('export function installRecoverySession'));
+  assert.ok(fn.slice(0, 500).includes('dropOutbox: true'), 'the recovery install must drop pending writes');
+  assert.ok(
+    /if \(opts\.dropOutbox \|\| !migratedFromGuest\) localStorage\.removeItem\(OUTBOX_KEY\)/.test(apiSrc),
+    'dropOutbox must force the discard even on a guest->account transition',
   );
 });

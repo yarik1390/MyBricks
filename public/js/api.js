@@ -208,9 +208,13 @@ export function saveSession(s, opts = {}) {
     // migrated into, so they are kept for replay. Switching between two signed-in
     // accounts must still drop the previous owner's queue — account A's writes
     // must never be replayed under account B.
+    // `dropOutbox` forces the discard even on a guest→account transition: an
+    // account installed from an emailed link (recovery) is not a sign-in the
+    // holder of this device chose, so this device's pending writes must not be
+    // replayed into it.
     const nextOwner = getSessionOwnerSnapshot();
     const migratedFromGuest = !prevOwner.userId && !!nextOwner.userId;
-    if (!migratedFromGuest) localStorage.removeItem(OUTBOX_KEY);
+    if (opts.dropOutbox || !migratedFromGuest) localStorage.removeItem(OUTBOX_KEY);
   }
 }
 
@@ -306,7 +310,10 @@ export function installRecoverySession(grant) {
     refresh_token: grant.refresh_token,
     expires_at: grant.expires_at,
   };
-  saveSession(session, { preserveGuestFigs: true });
+  // dropOutbox: this account came from an emailed link, not a sign-in the device
+  // holder chose, so pending guest writes are discarded rather than replayed into
+  // it (a crafted recovery link must not be able to collect them).
+  saveSession(session, { preserveGuestFigs: true, dropOutbox: true });
 }
 
 // Sets a new password using the recovery grant as the bearer credential.
