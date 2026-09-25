@@ -1,8 +1,8 @@
-import { $, haptic, escapeHtml, fmtMoney, toast, celebrate, getExchangeRate, CURRENCY_SYMBOLS } from '../utils.js';
+import { $, haptic, escapeHtml, fmtMoney, toast, celebrate, getExchangeRate, CURRENCY_SYMBOLS, setHue, thumbImg } from '../utils.js';
 import { state } from '../state.js';
 import { api } from '../api.js';
-import { I } from '../icons.js';
-import { t, tPlural } from '../lib/i18n.js';
+import { t, tPlural, intlLocale } from '../lib/i18n.js';
+import { topbar, btn, pill, emptyState, brickSvg } from '../ui/kit.js';
 
 // "Price It!" — the daily price game. Five real sets, guess the market value,
 // within ±20% counts. Everyone worldwide plays the same five (server picks
@@ -32,30 +32,32 @@ export function bumpStreak(today) {
   return s;
 }
 
+const onScreen = () => location.hash.split('?')[0] === '#/game';
+let roundState = null;
+
+function shell(inner, sub) {
+  return `<main class="bv-page bv-game">
+      ${topbar({ title: t('bvCommunity.gameTitle'), sub, back: '#/', backLabel: t('bvCommunity.backVault') })}
+      <div id="gameBody" class="bv-game__body">${inner}</div>
+    </main>`;
+}
+
 export async function renderGame() {
   const root = $("#root");
-  root.innerHTML = `
-    <div class="page">
-      <div class="topbar">
-        <a class="icon-btn" href="#/" aria-label="Back to vault" style="margin-top:2px;margin-right:8px;">${I.chevL()}</a>
-        <div class="topbar-heading">
-          <div class="topbar-eyebrow">Daily challenge</div>
-          <h1 class="topbar-title">Price It!</h1>
-        </div>
-      </div>
-      <div id="gameBody" style="max-width:520px;margin:0 auto;">
-        <div style="text-align:center;padding:40px 0;color:var(--ink-mute);"><div class="spinner" style="margin:0 auto 10px;"></div>Setting up today's five…</div>
-      </div>
-    </div>`;
+  if (!root) return;
+  root.innerHTML = shell(`<div class="bv-game__loading" role="status"><span class="bv-skel" style="height:220px;border-radius:24px"></span><span class="bv-sr">${escapeHtml(t('bvCommunity.gameLoading'))}</span></div>`, t('bvCommunity.gameDaily'));
 
   let daily;
   try { daily = await api("/api/game/daily"); }
   catch (e) {
-    $("#gameBody").innerHTML = `<p style="color:var(--down);font-size:13px;text-align:center;padding:30px 0;">${t('game.loadFailed', { error: escapeHtml(e.message) })}</p>`;
+    if (!onScreen()) return;
+    $("#gameBody").innerHTML = emptyState({ icon: 'cloudOff', title: t('bvCommunity.gameLoadFailedTitle'), body: t('game.loadFailed', { error: e.message || e }), actionsHtml: btn(t('bvCommunity.retry'), { kind: 'tonal', id: 'gameRetry' }), role: 'alert' });
+    $("#gameRetry")?.addEventListener("click", renderGame);
     return;
   }
+  if (!onScreen()) return;
   if (!daily.rounds?.length) {
-    $("#gameBody").innerHTML = `<p style="color:var(--ink-mute);font-size:13px;text-align:center;padding:30px 0;">Today's game isn't ready yet — check back soon.</p>`;
+    $("#gameBody").innerHTML = emptyState({ icon: 'clock', title: t('bvCommunity.gameNotReadyTitle'), body: t('bvCommunity.gameNotReadyBody') });
     return;
   }
 
@@ -69,40 +71,69 @@ export async function renderGame() {
   playRound(daily, 0, results);
 }
 
-function roundHTML(round, idx, total) {
-  const userCurrency = state.me?.currency || "USD";
-  const symbol = CURRENCY_SYMBOLS[userCurrency] || "$";
+function currencySymbol() {
+  return CURRENCY_SYMBOLS[state.me?.currency || "USD"] || "$";
+}
+
+// One segment per round: green = right, red = off, ink = this round.
+function progressHTML(daily, idx, results) {
+  return `<div class="bv-game__prog" aria-hidden="true">${daily.rounds.map((r, i) => {
+    const res = results.find(x => x.set_num === r.set_num);
+    const cls = res ? (res.correct ? 'is-right' : 'is-wrong') : i === idx ? 'is-now' : '';
+    return `<span class="${cls}"></span>`;
+  }).join('')}</div>`;
+}
+
+function footLine(results) {
+  const streak = loadJSON(STREAK_KEY) || { streak: 0, best: 0 };
+  const right = results.filter(r => r.correct).length;
+  const parts = [];
+  if (streak.streak) parts.push(tPlural('bvCommunity.gameStreak', streak.streak, { count: streak.streak }));
+  if (streak.best) parts.push(t('bvCommunity.gameBest', { best: streak.best }));
+  if (results.length) parts.push(t('bvCommunity.gameSoFar', { right, done: results.length }));
+  return parts.join(' · ');
+}
+
+function roundHTML(round, idx, daily, results) {
   const hasImg = round.image_url && !String(round.image_url).startsWith("data:");
-  return `
-    <div class="card" style="padding:16px;text-align:center;">
-      <div class="u-mono-label" style="margin-bottom:8px;">${t("game.roundOf", { n: idx + 1, total })}</div>
-      <div class="game-set-photo-stage" style="height:180px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);border-radius:var(--r-2);margin-bottom:12px;">
-        ${hasImg ? `<img class="game-set-photo" src="${escapeHtml(round.image_url)}" alt="" style="max-width:100%;max-height:100%;object-fit:contain;mix-blend-mode:multiply;">` : `<div style="font-size:40px;">🧱</div>`}
-      </div>
-      <div style="font-family:var(--serif);font-size:19px;font-weight:600;">${escapeHtml(round.name)}</div>
-      <div style="font-size:12px;color:var(--ink-mute);margin:4px 0 12px;">
-        ${escapeHtml(round.theme || "")}${round.year ? ` · ${round.year}` : ""}${round.pieces ? ` · ${tPlural('card.gamePieces', round.pieces)}` : ""}${round.retail_price ? ` · ${t("card.gameRetail", { price: fmtMoney(round.retail_price, { cents: 0 }) })}` : ""}
-      </div>
-      <div style="font-size:13px;font-weight:600;margin-bottom:8px;">What's it worth on the market today?</div>
-      <div style="display:flex;gap:8px;justify-content:center;align-items:center;">
-        <span style="font-size:16px;font-weight:700;">${symbol}</span>
-        <input id="gameGuess" type="number" inputmode="decimal" min="1" placeholder="Your guess"
-          style="width:140px;font-size:18px;font-weight:700;text-align:center;padding:10px;border:2px solid var(--line);border-radius:var(--r-2);background:var(--surface);color:var(--ink);">
-        <button class="btn-primary" id="gameLock" style="padding:10px 18px;">Lock in</button>
-      </div>
-      <div id="gameReveal" style="margin-top:14px;"></div>
-    </div>`;
+  const meta = [round.set_num, round.pieces ? tPlural('card.gamePieces', round.pieces).replace(String(round.pieces), Number(round.pieces).toLocaleString(intlLocale())) : '', round.retail_price ? t("card.gameRetail", { price: fmtMoney(round.retail_price, { cents: 0 }) }) : ''].filter(Boolean).join(' · ');
+  const rate = getExchangeRate(state.me?.currency || "USD") || 1;
+  const start = round.retail_price ? Math.max(10, Math.round((Number(round.retail_price) * rate) / 10) * 10) : '';
+  const steps = [-50, -10, 10, 50].map(d => `<button type="button" class="bv-chip" data-step="${d}">${d < 0 ? '−' : '+'}${Math.abs(d)}</button>`).join('');
+  return `${progressHTML(daily, idx, results)}
+    <section class="bv-card bv-game__set">
+      <div class="bv-game__stage game-set-photo-stage">${brickSvg(`hsl(${setHue(round)} 40% 48%)`)}${hasImg ? `<img class="set-photo game-set-photo" src="${escapeHtml(thumbImg(round.image_url, 600))}" alt="" decoding="async">` : ''}</div>
+      <h2 class="bv-game__name">${escapeHtml(round.name)}</h2>
+      <p class="bv-game__meta">${escapeHtml(meta)}</p>
+    </section>
+    <div class="bv-game__ask" id="gameAsk">
+      <label class="bv-game__q" for="gameGuess">${escapeHtml(t('bvCommunity.gameQuestion'))}</label>
+      <div class="bv-game__guess"><span class="bv-game__cur" aria-hidden="true">${escapeHtml(currencySymbol())}</span><input id="gameGuess" type="number" inputmode="decimal" min="1" step="1" value="${start}" placeholder="${escapeHtml(t('bvCommunity.gameGuessPh'))}" aria-describedby="gameHint"></div>
+      <div class="bv-game__steps" role="group" aria-label="${escapeHtml(t('bvCommunity.gameAdjust'))}">${steps}</div>
+      <span class="bv-sr" id="gameHint">${escapeHtml(t('bvCommunity.gameHint'))}</span>
+      ${btn(t('bvCommunity.gameLockIn'), { id: 'gameLock', full: true, size: 'lg' })}
+    </div>
+    <div id="gameReveal" class="bv-game__reveal" aria-live="polite"></div>
+    <p class="bv-game__foot" id="gameFoot">${escapeHtml(footLine(results))}</p>`;
 }
 
 function playRound(daily, idx, results) {
   const round = daily.rounds[idx];
+  const total = daily.rounds.length;
+  roundState = { daily, idx, results };
+  const sub = $('.bv-game .bv-topbar__sub');
+  if (sub) sub.textContent = t('bvCommunity.gameRound', { n: idx + 1, total });
   // Plain innerHTML (not morphdom mount): each round is a full-screen swap, so
   // fresh DOM nodes are correct — and crucially they prevent click listeners
   // from stacking on a reused #gameLock/#gameNext across rounds (which caused
   // one tap to fire multiple times → duplicate results and racing re-renders).
-  $("#gameBody").innerHTML = roundHTML(round, idx, daily.rounds.length);
+  $("#gameBody").innerHTML = roundHTML(round, idx, daily, results);
   const input = $("#gameGuess");
-  input?.focus();
+  document.querySelectorAll('.bv-game__steps [data-step]').forEach(b => b.addEventListener('click', () => {
+    if (!input || input.disabled) return;
+    haptic('light');
+    input.value = String(Math.max(1, (Number(input.value) || 0) + Number(b.dataset.step)));
+  }));
 
   let locked = false;   // this round has already been answered
   const lock = async () => {
@@ -113,36 +144,45 @@ function playRound(daily, idx, results) {
     const userCurrency = state.me?.currency || "USD";
     const rate = getExchangeRate(userCurrency);
     const raw = Number(input?.value);
-    if (!Number.isFinite(raw) || raw <= 0) { toast("Enter your guess first", "info"); return; }
+    if (!Number.isFinite(raw) || raw <= 0) { toast(t('bvCommunity.gameEnterGuess'), "info"); input?.focus(); return; }
     locked = true;
     const guessUsd = raw / (rate || 1);
     haptic("medium");
-    const btn = $("#gameLock");
-    if (btn) btn.disabled = true;
+    const lockBtn = $("#gameLock");
+    if (lockBtn) lockBtn.disabled = true;
     let out;
     try {
       out = await api("/api/game/guess", { method: "POST", body: { set_num: round.set_num, guess: guessUsd } });
     } catch (e) {
       toast(t('game.checkGuessFailed', { error: e.message || e }), "error");
       locked = false;
-      if (btn) btn.disabled = false;
+      if (lockBtn) lockBtn.disabled = false;
       return;
     }
     results.push({ set_num: round.set_num, correct: !!out.correct, pct_off: out.pct_off });
+    if (!onScreen() || roundState?.idx !== idx) return;
+    if (input) input.disabled = true;
+    $("#gameAsk")?.classList.add('is-locked');
+    const prog = $('.bv-game__prog');
+    if (prog) prog.outerHTML = progressHTML(daily, idx, results);
+    const foot = $("#gameFoot");
+    if (foot) foot.textContent = footLine(results);
     const reveal = $("#gameReveal");
     if (reveal) {
       reveal.innerHTML = `
-        <div style="padding:12px;border-radius:var(--r-2);background:${out.correct ? "var(--up)" : "var(--surface-2)"};color:${out.correct ? "#fff" : "var(--ink)"};">
-          <div style="font-weight:800;font-size:15px;">${t(out.correct ? 'game.revealCorrect' : 'game.revealIncorrect', { value: fmtMoney(out.actual) })}</div>
-          <div style="font-size:12px;opacity:.9;margin-top:2px;">${t("game.pctOff", { pct: out.pct_off })}</div>
+        <div class="bv-game__verdict ${out.correct ? 'is-right' : 'is-wrong'}">
+          <span class="bv-game__verdict-title">${escapeHtml(t(out.correct ? 'game.revealCorrect' : 'game.revealIncorrect', { value: fmtMoney(out.actual) }))}</span>
+          <span class="bv-game__verdict-sub">${escapeHtml(t("game.pctOff", { pct: out.pct_off }))}</span>
         </div>
-        <button class="btn-primary" id="gameNext" style="margin-top:12px;width:100%;">${idx + 1 < daily.rounds.length ? "Next set" : "See my score"}</button>`;
+        ${btn(idx + 1 < total ? t('bvCommunity.gameNext') : t('bvCommunity.gameSeeScore'), { id: 'gameNext', full: true, size: 'lg', kind: 'ink' })}`;
+      $("#gameLock")?.setAttribute('hidden', '');
       // once:true — a single Next tap advances exactly one round.
       $("#gameNext")?.addEventListener("click", () => {
         haptic("light");
-        if (idx + 1 < daily.rounds.length) playRound(daily, idx + 1, results);
+        if (idx + 1 < total) playRound(daily, idx + 1, results);
         else finish(daily, results);
       }, { once: true });
+      $("#gameNext")?.focus();
     }
     if (out.correct) haptic("heavy");
   };
@@ -161,25 +201,22 @@ function finish(daily, results) {
 function showSummary(daily, results) {
   const score = results.filter(r => r.correct).length;
   const streak = loadJSON(STREAK_KEY) || { streak: 0, best: 0 };
+  const sub = $('.bv-game .bv-topbar__sub');
+  if (sub) sub.textContent = t('bvCommunity.gameDoneSub');
   const rows = daily.rounds.map(r => {
     const res = results.find(x => x.set_num === r.set_num);
-    return `
-      <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:8px 0;border-bottom:1px solid var(--line-soft);">
-        <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(r.name)}</span>
-        <span style="font-weight:700;color:${res?.correct ? "var(--up)" : "var(--down)"};margin-left:8px;">${res ? (res.correct ? "🎯" : `${res.pct_off}% off`) : "—"}</span>
-      </div>`;
+    const trail = res ? (res.correct ? pill(t('bvCommunity.gameRight'), 'gain', { icon: 'check' }) : pill(t('bvCommunity.gameOff', { pct: res.pct_off }), 'loss')) : '—';
+    return `<div class="bv-game__row"><span class="bv-game__row-name">${escapeHtml(r.name)}</span>${trail}</div>`;
   }).join("");
   $("#gameBody").innerHTML = `
-    <div class="card" style="padding:18px;text-align:center;">
-      <div style="font-family:var(--serif);font-size:26px;font-weight:600;">${score}/5</div>
-      <div style="font-size:12px;color:var(--ink-mute);margin:2px 0 12px;">${t("game.streakLine", { day: escapeHtml(daily.day), streak: streak.streak, best: streak.best })}</div>
-      <div style="text-align:left;">${rows}</div>
-      <div class="btn-row" style="margin-top:14px;">
-        <a href="#/" class="btn-secondary" style="text-decoration:none;">Back to vault</a>
-        <button class="btn-primary" id="gameShare">${I.share ? I.share() : ""}<span>Share</span></button>
-      </div>
-      <div style="font-size:11px;color:var(--ink-faint);margin-top:12px;">New sets every day at midnight UTC. Values are BricksVault market prices.</div>
-    </div>`;
+    ${progressHTML(daily, -1, results)}
+    <section class="bv-card bv-game__score">
+      <span class="bv-game__big">${score}/${daily.rounds.length}</span>
+      <span class="bv-game__meta">${escapeHtml(t("game.streakLine", { day: daily.day, streak: streak.streak, best: streak.best }))}</span>
+    </section>
+    <section class="bv-card bv-game__rows">${rows}</section>
+    <div class="bv-game__actions">${btn(t('bvCommunity.backVault'), { href: '#/', kind: 'outline' })}${btn(t('bvCommunity.gameShare'), { id: 'gameShare', icon: 'share' })}</div>
+    <p class="bv-game__foot">${escapeHtml(t('bvCommunity.gameFootnote'))}</p>`;
   $("#gameShare")?.addEventListener("click", async () => {
     haptic("medium");
     const squares = daily.rounds.map(r => (results.find(x => x.set_num === r.set_num)?.correct ? "🟩" : "🟥")).join("");
