@@ -10,7 +10,6 @@ export type IntegrationName =
   | 'bricklink'
   | 'brickeconomy'
   | 'brickset'
-  | 'brickowl'
   | 'gemini'
   | 'email'
   | 'push'
@@ -160,14 +159,6 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     used_by: ['catalog details', 'UPC/barcode backfill'],
     notes: 'Adds metadata, community data, and barcode coverage.',
     recommended_action: 'Add BRICKSET_API_KEY and rerun barcode backfill.',
-  },
-  brickowl: {
-    label: 'BrickOwl',
-    configured: (env) => !!env.BRICKOWL_API_KEY,
-    required_secrets: ['BRICKOWL_API_KEY'],
-    used_by: ['barcode fallback'],
-    notes: 'Disabled pending a valid API key (current key returns HTTP 403). Provides barcode + pricing fallback when enabled.',
-    recommended_action: 'BrickOwl is disabled. Add a valid BRICKOWL_API_KEY and set BRICKOWL_ENABLED to re-enable.',
   },
   gemini: {
     label: 'Gemini',

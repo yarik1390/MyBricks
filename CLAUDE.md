@@ -35,7 +35,7 @@ alerts, and share a public profile. Live: https://bricksvault.app
 - `jobs/` — cron job handlers (`valuate-sets`, `snapshot-portfolios`,
   `snapshot-set-values`, `wishlist-alerts`, `import-catalog`, `backfill-upc`)
 - `lib/` — external integrations + pure helpers (`bricklink`, `ebay`,
-  `brickeconomy`, `brickset`, `brickowl-barcode`, `gemini`, `valuation`,
+  `brickeconomy`, `brickset`, `gemini`, `valuation`,
   `price-trend`, `retirement-risk`, `advisor-context`)
 
 ### Frontend layout (`public/js`)

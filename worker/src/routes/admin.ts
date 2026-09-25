@@ -4,7 +4,7 @@ import { importSets, importFigs } from '../jobs/import-catalog';
 import { nextBackfillPage, runBackfillUpc } from '../jobs/backfill-upc';
 import { BARCODE_PAGE_SIZE } from '../lib/brickset';
 import { runEbayBackfill, runValuateSets } from '../jobs/valuate-sets';
-import { ebaySoldCompsEnabled, brickOwlEnabled, brickInsightsEnabled, firecrawlEnabled, stockxEnabled } from '../lib/pricing-flags';
+import { ebaySoldCompsEnabled, brickInsightsEnabled, firecrawlEnabled, stockxEnabled } from '../lib/pricing-flags';
 import { getIntegrationDiagnostics } from '../lib/integration-health';
 import { getQuotaUsage } from '../lib/api-quota';
 import { getAiUsageReport } from '../lib/ai-usage';
@@ -807,7 +807,7 @@ app.post('/llm-routing/refresh-models', async (c) => {
 });
 
 // Runtime feature flags: enable/disable capabilities (eBay sold comps, Bright
-// Data sold, BrickInsights, Firecrawl, BrickOwl) with no redeploy.
+// Data sold, BrickInsights, Firecrawl) with no redeploy.
 // GET returns the flag list, the raw stored overrides, and the resolved effective
 // state (override-or-env, with the required-secret prerequisite applied).
 app.get('/feature-flags', async (c) => {
@@ -815,7 +815,6 @@ app.get('/feature-flags', async (c) => {
   const overrides = await getFeatureFlags(c.env);
   const effective = {
     ebay_sold_comps: ebaySoldCompsEnabled(c.env),
-    brickowl: brickOwlEnabled(c.env),
     brickinsights: brickInsightsEnabled(c.env),
     firecrawl: firecrawlEnabled(c.env),
     stockx: stockxEnabled(c.env),
@@ -830,7 +829,6 @@ app.put('/feature-flags', async (c) => {
   await applyFeatureFlags(c.env);
   const effective = {
     ebay_sold_comps: ebaySoldCompsEnabled(c.env),
-    brickowl: brickOwlEnabled(c.env),
     brickinsights: brickInsightsEnabled(c.env),
     firecrawl: firecrawlEnabled(c.env),
     stockx: stockxEnabled(c.env),
@@ -985,7 +983,7 @@ app.get('/pricing/v3-preview', async (c) => {
     SELECT
       uc.user_id, uc.set_num, uc.condition, uc.quantity, uc.purchase_price,
       s.current_value, s.blended_value, s.used_value,
-      s.ebay_used_value, s.bo_used_value, s.pc_new_value, s.pc_complete_value,
+      s.ebay_used_value, s.pc_new_value, s.pc_complete_value,
       svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair
     FROM user_collection uc
     JOIN lego_sets s ON s.set_num = uc.set_num
@@ -1313,25 +1311,37 @@ app.patch('/contributions/:type/:id', async (c) => {
 
   const status = action === 'approve' ? 'approved' : 'rejected';
   const reviewer = c.env.ADMIN_USER_ID;
-  const res = await c.env.DB.prepare(
-    `UPDATE ${table} SET status=?, reviewer_id=?, review_note=?, reviewed_at=datetime('now') WHERE id=? AND deleted_at IS NULL`
-  ).bind(status, reviewer, (body.note || '').slice(0, 500) || null, id).run();
-  if (!res.meta.changes) return c.json({ error: 'Not found' }, 404);
-
+  // Conditional side effects and the pending-only transition share one D1
+  // transaction. A failed catalog write rolls back the moderation decision.
+  const statements: D1PreparedStatement[] = [];
   let applied: string | null = null;
+  let barcodeSet: string | null = null;
   if (action === 'approve' && type === 'data') {
-    const row = await c.env.DB.prepare('SELECT set_num, kind, payload FROM set_contributions WHERE id=?')
-      .bind(id).first<{ set_num: string; kind: string; payload: string }>();
+    const row = await c.env.DB.prepare(
+      "SELECT set_num, kind, payload FROM set_contributions WHERE id=? AND status='pending' AND deleted_at IS NULL"
+    ).bind(id).first<{ set_num: string; kind: string; payload: string }>();
     if (row?.kind === 'barcode') {
       let upc = '';
       try { upc = String(JSON.parse(row.payload).upc || ''); } catch {}
       if (/^\d{8,14}$/.test(upc)) {
-        const upd = await c.env.DB.prepare(
-          "UPDATE lego_sets SET upc=? WHERE set_num=? AND (upc IS NULL OR upc='')"
-        ).bind(upc, row.set_num).run();
-        applied = upd.meta.changes ? `upc set on ${row.set_num}` : `upc already present on ${row.set_num} (not overwritten)`;
+        barcodeSet = row.set_num;
+        statements.push(c.env.DB.prepare(`
+          UPDATE lego_sets SET upc=? WHERE set_num=? AND (upc IS NULL OR upc='')
+          AND EXISTS (SELECT 1 FROM set_contributions WHERE id=? AND status='pending' AND deleted_at IS NULL)
+        `).bind(upc, row.set_num, id));
       }
     }
+  }
+  statements.push(c.env.DB.prepare(
+    `UPDATE ${table} SET status=?, reviewer_id=?, review_note=?, reviewed_at=datetime('now')
+     WHERE id=? AND deleted_at IS NULL AND status='pending'`
+  ).bind(status, reviewer, (body.note || '').slice(0, 500) || null, id));
+  const results = await c.env.DB.batch(statements);
+  if (!results[results.length - 1].meta.changes) {
+    return c.json({ error: 'Not found or no longer pending' }, 409);
+  }
+  if (barcodeSet) {
+    applied = results[0].meta.changes ? `upc set on ${barcodeSet}` : `upc already present on ${barcodeSet} (not overwritten)`;
   }
   return c.json({ ok: true, status, applied });
 });

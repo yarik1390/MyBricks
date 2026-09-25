@@ -45,7 +45,10 @@ export async function getCachedSetDetail(setNum, uid) {
   try {
     const store = await bvIDB.get(DETAIL_CACHE_KEY);
     if (!store || store.uid !== (uid ?? null)) return null;
-    return store.items?.[setNum] || null;
+    const item = store.items?.[setNum];
+    // Market data cannot be presented indefinitely as a current valuation.
+    if (!item?.ts || Date.now() - item.ts > 7 * 24 * 60 * 60 * 1000) return null;
+    return item;
   } catch { return null; }
 }
 

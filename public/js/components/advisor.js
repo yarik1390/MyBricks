@@ -221,7 +221,7 @@ function localAnalystHTML() {
   const itemValue = (item) => {
     const base = displayValueOf(item);
     if (!String(item?.condition || '').startsWith('used')) return base;
-    return Number(item.ebay_used_value) || Number(item.used_value) || Number(item.bo_used_value) || base;
+    return Number(item.ebay_used_value) || Number(item.used_value) || base;
   };
 
   items.forEach(i => {

@@ -1,7 +1,7 @@
 import { $, $$, haptic, toast, fetchExchangeRates, bvIDB, installImageFallback, track } from './utils.js';
 import { state, invalidatePortfolio } from './state.js';
 import { nextOfflineBannerState, shouldUseKeyboardShell } from './lib/pure-core.js';
-import { loadSession, saveSession, setSupabaseConfig, drainOutbox, getSessionUserId, snapshotGuestVault, migrateGuestVault, isGuestMode, backfillGuestVault } from './api.js';
+import { loadSession, saveSession, setSupabaseConfig, drainOutbox, getSessionOwnerSnapshot, snapshotGuestVault, migrateGuestVault, isGuestMode, backfillGuestVault, stashRecoveryGrant } from './api.js';
 import { I } from './icons.js';
 import { route } from './router.js';
 import { getThemePref, applyTheme, getModePref, applyMode } from './theme.js';
@@ -100,13 +100,16 @@ function setupFabScrollAwareness() {
 async function hydrateFromIDB() {
   const MAX_AGE = 604_800_000; // 7 days — show last-known data offline; online stale-while-revalidate keeps it fresh
   const now = Date.now();
-  const currentUid = getSessionUserId();
+  const owner = getSessionOwnerSnapshot();
+  const currentUid = owner.userId;
   if (!currentUid) return;
   try {
     const [p, c, b, h, w] = await Promise.all([
       bvIDB.get('portfolio'), bvIDB.get('catalog'), bvIDB.get('blind'),
       bvIDB.get('history'), bvIDB.get('wishlist'),
     ]);
+    const latest = getSessionOwnerSnapshot();
+    if (latest.userId !== currentUid || latest.generation !== owner.generation) return;
     if (p?.ts && now - p.ts < MAX_AGE && p.userId === currentUid) state.portfolio = p.data;
     if (c?.ts && now - c.ts < MAX_AGE && c.data?.items?.length && c.userId === currentUid) {
       Object.assign(state.catalog, c.data);
@@ -214,15 +217,73 @@ function consumeShareTarget() {
   } catch { /* never break boot over a malformed share */ }
 }
 
+// A sign-in transaction older than this is treated as abandoned: a stale
+// redirect callback must not be able to install a session minutes later.
+const AUTH_TRANSACTION_TTL_MS = 10 * 60 * 1000;
+
 async function consumeOAuthHash() {
   if (location.hash.includes('access_token=')) {
     try {
       const hp = new URLSearchParams(location.hash.slice(1));
       if (hp.has('access_token')) {
+        // Password-recovery links arrive from the email with `type=recovery` and no
+        // auth_state: this tab never started a sign-in transaction, so the CSRF guard
+        // below would refuse them and a user could never reset a password. Do NOT
+        // install the grant here — that is exactly the hole the guard closes (a
+        // crafted link installing an attacker's session, then uploading the victim's
+        // guest vault into it). Park it for an explicit set-password action in the
+        // sign-in view instead, and never migrate the guest vault from it.
+        if (hp.get('type') === 'recovery') {
+          stashRecoveryGrant({
+            access_token: hp.get('access_token'),
+            refresh_token: hp.get('refresh_token') || null,
+            expires_at: Date.now() / 1000 + parseInt(hp.get('expires_in') || '3600'),
+            type: 'recovery',
+          });
+          // Strip the token before routing so it never lingers in the address bar
+          // or history, then let the router open the sign-in view.
+          history.replaceState(null, '', location.pathname + location.search);
+          location.hash = '#/login';
+          return true;
+        }
+        // SECURITY: only accept a token that answers a sign-in THIS tab started.
+        // Without this, any crafted link carrying an attacker's access_token signs
+        // the visitor into that account and then uploads their guest vault into it
+        // (login CSRF -> data exfiltration). A tab that never began a transaction
+        // is an unsolicited callback and is discarded without touching the session.
+        let pending = null;
+        try {
+          const raw = sessionStorage.getItem("bv_pending_signin");
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            const age = Date.now() - Number(parsed?.startedAt);
+            if (parsed && typeof parsed.nonce === 'string' && /^[a-f0-9]{64}$/.test(parsed.nonce)
+                && Number.isFinite(age) && age >= 0 && age < AUTH_TRANSACTION_TTL_MS) pending = parsed;
+          }
+        } catch {}
+        const queryState = new URLSearchParams(location.search).get('auth_state');
+        const fragmentState = hp.get('auth_state');
+        const callbackState = fragmentState || queryState;
+        const conflictingState = fragmentState && queryState && fragmentState !== queryState;
+        if (!pending || !callbackState || conflictingState || callbackState !== pending.nonce) {
+          // Never install credentials that were not returned to the random,
+          // transaction-specific redirect URL supplied to the auth server.
+          // Remove callback state and tokens even on an unsolicited link.
+          const clean = new URL(location.href);
+          clean.searchParams.delete('auth_state');
+          history.replaceState(null, '', clean.pathname + clean.search);
+          return true;
+        }
+        // Consume the transaction before any await so a replay of the same URL
+        // cannot reuse it, and never carry it across a different tab/flow.
+        try { sessionStorage.removeItem("bv_pending_signin"); } catch {}
+        const clean = new URL(location.href);
+        clean.searchParams.delete('auth_state');
+        history.replaceState(null, '', clean.pathname + clean.search);
         let guestSnapshot = snapshotGuestVault();
         try {
-          const pending = JSON.parse(sessionStorage.getItem("bv_pending_guest_migration") || "null");
-          if (pending) guestSnapshot = pending;
+          const pendingSnap = JSON.parse(sessionStorage.getItem("bv_pending_guest_migration") || "null");
+          if (pendingSnap) guestSnapshot = pendingSnap;
         } catch {}
         const oauthSess = {
           access_token: hp.get('access_token'),
@@ -506,6 +567,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     // which never fires when navigator.onLine was already true at a failed probe.
     if (offlineUiState === "online") {
       if (offlineRetryTimer) { clearInterval(offlineRetryTimer); offlineRetryTimer = null; }
+      // The window "online" event is the only other drain trigger, and it never
+      // fires when connectivity returns without navigator.onLine changing (stalled
+      // probe, captive-portal recovery, flaky Android WebView) — so queued writes
+      // would otherwise wait for the next launch. drainOutbox() no-ops on an empty
+      // queue and holds its own re-entrancy guard.
+      if (prev !== "online") drainOutbox().catch(() => {});
     } else if (!offlineRetryTimer) {
       offlineRetryTimer = setInterval(() => refreshOfflineState(), OFFLINE_REPROBE_MS);
     }

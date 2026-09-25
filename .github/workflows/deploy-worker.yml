@@ -19,12 +19,11 @@ on:
         required: false
         default: "false"
 
-# Serialize deploys per branch: a newer push cancels an in-progress deploy so
-# parallel-agent commits (and multi-file feature landings) can't race two
-# `wrangler deploy` runs to the same Worker, where the slower one would win.
+# Production mutations must never be interrupted midway. Queued runs serialize;
+# the next run verifies its own immutable version after deploying.
 concurrency:
-  group: deploy-worker-${{ github.ref }}
-  cancel-in-progress: true
+  group: brickvault-production-mutations
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -176,13 +175,23 @@ jobs:
           # on an existing DB can't stop later columns (D1 aborts a multi-statement
           # file on the first error). Adding a column is now a one-line edit to
           # schema_migrate.sql — no workflow change needed.
-          grep -E '^[[:space:]]*ALTER TABLE .+ ADD COLUMN' schema_migrate.sql | while IFS= read -r sql; do
-            npx wrangler d1 execute brickvault --remote --command "$sql" 2>&1 || true
+          set -euo pipefail
+          # schema.sql bootstraps tables/indexes. Only tolerate the known
+          # SQLite duplicate-column error; authentication/SQL/network errors
+          # must stop the deploy. Never re-run the whole migration file.
+          mapfile -t migrations < <(grep -E '^[[:space:]]*ALTER TABLE .+ ADD COLUMN' schema_migrate.sql)
+          [ "${#migrations[@]}" -gt 0 ] || { echo '::error::No column migrations found'; exit 1; }
+          for sql in "${migrations[@]}"; do
+            if output=$(npx wrangler d1 execute brickvault --remote --command "$sql" 2>&1); then
+              continue
+            elif grep -qiE 'duplicate column name: [a-zA-Z_][a-zA-Z_0-9]*' <<< "$output" && ! grep -qiE 'error 10[0-9][0-9]|authentication|unauthorized|timed out|network|fetch failed' <<< "$output"; then
+              echo "Already present: ${sql%%;*}"
+            else
+              echo "::error::D1 migration failed: $sql" >&2
+              printf '%s\n' "$output" >&2
+              exit 1
+            fi
           done
-          # CREATE TABLE/INDEX/FTS bootstrap for fresh DBs (schema.sql is
-          # authoritative and already ran above; best-effort backstop).
-          npx wrangler d1 execute brickvault --remote --file=schema_migrate.sql 2>&1 || true
-
       # NOTE: the FTS search index is bootstrapped idempotently by schema.sql
       # above (CREATE … IF NOT EXISTS + backfill-only-when-empty) and kept live by
       # triggers — so there is deliberately NO per-deploy rebuild step here. The
@@ -201,7 +210,7 @@ jobs:
         run: |
           set -euo pipefail
           probes=(
-            "SELECT valuation_method, valuation_expires_at, bl_new_value, bl_new_qty, bl_used_qty, ebay_new_value, ebay_used_value, retirement_risk_score, upc, bl_cached_at, be_cached_at, ebay_ask_value, ebay_ask_qty, ebay_ask_cached_at, subtheme, age_min, age_max, brickset_rating, brickset_review_count, retired_year, be_growth_12m, bl_new_min, bl_new_max, bl_used_min, bl_used_max, lego_in_stock, lego_retiring_soon, lego_checked_at, bo_new_value, bo_used_value, bo_cached_at, blended_value, theme_group, category, brickset_tags, brickset_msrp, launch_date, exit_date, brickset_enriched_at, brickset_dimensions, packaging_type, instructions_count, additional_image_count, brickset_description, brickset_set_id, brickset_image_urls, brickset_images_cached_at, brickinsights_rating, brickinsights_review_count, brickinsights_url, brickinsights_cached_at FROM lego_sets LIMIT 0"
+            "SELECT valuation_method, valuation_expires_at, bl_new_value, bl_new_qty, bl_used_qty, ebay_new_value, ebay_used_value, retirement_risk_score, upc, bl_cached_at, be_cached_at, ebay_ask_value, ebay_ask_qty, ebay_ask_cached_at, subtheme, age_min, age_max, brickset_rating, brickset_review_count, retired_year, be_growth_12m, bl_new_min, bl_new_max, bl_used_min, bl_used_max, lego_in_stock, lego_retiring_soon, lego_checked_at, blended_value, theme_group, category, brickset_tags, brickset_msrp, launch_date, exit_date, brickset_enriched_at, brickset_dimensions, packaging_type, instructions_count, additional_image_count, brickset_description, brickset_set_id, brickset_image_urls, brickset_images_cached_at, brickinsights_rating, brickinsights_review_count, brickinsights_url, brickinsights_cached_at FROM lego_sets LIMIT 0"
             "SELECT set_num, fig_num, quantity FROM set_minifigs LIMIT 0"
             "SELECT set_num, part_num, color_id, quantity FROM set_parts LIMIT 0"
             "SELECT user_id, set_num, part_num, missing_qty FROM user_missing_parts LIMIT 0"
@@ -266,6 +275,25 @@ jobs:
             echo "::error::Combined probe file failed but every individual probe passed — check wrangler output"
             exit 1
           fi
+          # Every additive migration column must actually be present, not just
+          # the hand-selected route probes above. Validate identifiers before
+          # inserting them into PRAGMA SQL.
+          while IFS= read -r sql; do
+            if [[ ! "$sql" =~ ^ALTER[[:space:]]+TABLE[[:space:]]+([a-zA-Z_][a-zA-Z_0-9]*)[[:space:]]+ADD[[:space:]]+COLUMN[[:space:]]+([a-zA-Z_][a-zA-Z_0-9]*)[[:space:]] ]]; then
+              echo "::error::Unexpected migration syntax: $sql"; exit 1
+            fi
+            table="${BASH_REMATCH[1]}" column="${BASH_REMATCH[2]}"
+            info=$(npx wrangler d1 execute brickvault --remote --json --command "PRAGMA table_info(${table})")
+            if ! jq -e --arg column "$column" '(if type == "array" then .[0] else . end).results | any(.name == $column)' <<< "$info" >/dev/null; then
+              echo "::error::Migration column missing: ${table}.${column}"; exit 1
+            fi
+          done < <(grep -E '^[[:space:]]*ALTER TABLE .+ ADD COLUMN' schema_migrate.sql)
+          # Historical migration-only DDL absent from schema.sql. Apply only
+          # after the additive columns, because idx_lego_deal_signal needs one.
+          npx wrangler d1 execute brickvault --remote --command 'CREATE TABLE IF NOT EXISTS bricklink_minifigs (bl_id TEXT PRIMARY KEY, name TEXT, norm_name TEXT, category TEXT, year INTEGER)'
+          npx wrangler d1 execute brickvault --remote --command 'CREATE INDEX IF NOT EXISTS idx_bl_mf_norm ON bricklink_minifigs(norm_name)'
+          npx wrangler d1 execute brickvault --remote --command 'CREATE INDEX IF NOT EXISTS idx_mvh_fig ON minifig_value_history(fig_num, snapshot_date)'
+          npx wrangler d1 execute brickvault --remote --command 'CREATE INDEX IF NOT EXISTS idx_lego_deal_signal ON lego_sets(deal_signal)'
 
       # Deploy BEFORE uploading secrets: `wrangler secret put` refuses to run
       # while the Worker's latest version isn't deployed (e.g. after a
@@ -275,24 +303,15 @@ jobs:
       - name: Deploy Worker and capture URL
         working-directory: worker
         run: |
-          set +e
-          DEPLOY_OUT=$(npx wrangler deploy 2>&1)
-          DEPLOY_EXIT=$?
-          echo "$DEPLOY_OUT"
-          if [ $DEPLOY_EXIT -ne 0 ]; then
-            # wrangler exits 1 when cron schedule registration fails even though
-            # the Worker itself deployed successfully.  The schedules API requires
-            # a separate permission that may not be present on the token.  Treat
-            # a schedules-only failure as a non-fatal warning: the Worker runs
-            # fine and crons can be configured manually in the CF dashboard.
-            if echo "$DEPLOY_OUT" | grep -qE "triggers failed to deploy|schedules.*failed|failed.*schedules"; then
-              echo "::warning::Cron triggers failed to register — Worker deployed OK. Grant 'Workers Scripts → Schedules: Edit' permission on the API token, or set crons manually in the Cloudflare dashboard."
-            else
-              echo "::error::wrangler deploy failed (exit $DEPLOY_EXIT)" >&2
-              exit $DEPLOY_EXIT
-            fi
-          fi
-          WORKER_URL=$(echo "$DEPLOY_OUT" | grep -oE 'https://[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev' | head -1)
+          set -euo pipefail
+          # Never accept a nonzero deploy, even if its output mentions triggers.
+          # A schedule-only failure must be fixed with token Schedules: Edit.
+          npx wrangler deploy --message "${GITHUB_SHA}" --tag "${GITHUB_SHA}" \
+            > "$RUNNER_TEMP/wrangler-deploy.log" 2>&1 || {
+              echo '::error::wrangler deploy failed; check runner deploy log (not echoed because it may contain credentials).'
+              exit 1
+            }
+          WORKER_URL=$(grep -oE 'https://[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev' "$RUNNER_TEMP/wrangler-deploy.log" | head -1 || true)
           if [ -z "$WORKER_URL" ]; then
             # fallback: query the subdomain API
             SUBDOMAIN=$(curl -sf \
@@ -301,8 +320,35 @@ jobs:
               | jq -r '.result.subdomain // ""')
             WORKER_URL="https://brickvault-api.${SUBDOMAIN}.workers.dev"
           fi
+          [[ "$WORKER_URL" =~ ^https://[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev$ ]] || {
+            echo '::error::No valid Worker URL resolved'; exit 1;
+          }
           echo "Worker URL: ${WORKER_URL}"
           echo "WORKER_URL=${WORKER_URL}" >> "$GITHUB_ENV"
+
+      - name: Verify immutable Worker revision is serving
+        run: |
+          set -euo pipefail
+          # CF documents the first deployment as the active traffic deployment.
+          # A version tag/message tied to github.sha survives secret puts and
+          # cannot be satisfied by a previous workflow's successful deploy.
+          for attempt in 1 2 3 4 5; do
+            deployment=$(curl -fsS --retry 2 --max-time 25 \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/brickvault-api/deployments" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+            version=$(jq -r '.result.deployments[0].versions[]? | select(.percentage == 100) | .version_id' <<< "$deployment")
+            if [ -n "$version" ]; then
+              detail=$(curl -fsS --retry 2 --max-time 25 \
+                "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/brickvault-api/versions/${version}" \
+                -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+              if jq -e --arg sha "$GITHUB_SHA" '.success == true and (.result.annotations["workers/message"] == $sha or .result.annotations["workers/tag"] == $sha)' <<< "$detail" >/dev/null; then
+                echo "Verified active Worker version for ${GITHUB_SHA}"
+                exit 0
+              fi
+            fi
+            sleep 3
+          done
+          echo '::error::Active Worker version does not match this workflow SHA'; exit 1
 
       # Secrets persist across deploys, so re-uploading ~30 of them on EVERY
       # push (each `secret put` re-deploys the Worker!) is a pure time sink —
@@ -316,37 +362,70 @@ jobs:
         working-directory: worker
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_JWT_SECRET: ${{ secrets.SUPABASE_JWT_SECRET }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ADMIN_USER_ID: ${{ secrets.ADMIN_USER_ID }}
+          BRICKSET_API_KEY: ${{ secrets.BRICKSET_API_KEY }}
+          BRICKLINK_CONSUMER_KEY: ${{ secrets.BRICKLINK_CONSUMER_KEY }}
+          BRICKLINK_CONSUMER_SECRET: ${{ secrets.BRICKLINK_CONSUMER_SECRET }}
+          BRICKLINK_TOKEN: ${{ secrets.BRICKLINK_TOKEN }}
+          BRICKLINK_TOKEN_SECRET: ${{ secrets.BRICKLINK_TOKEN_SECRET }}
+          EBAY_APP_ID: ${{ secrets.EBAY_APP_ID }}
+          EBAY_CLIENT_SECRET: ${{ secrets.EBAY_CLIENT_SECRET }}
+          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
+          BRICKECONOMY_API_KEY: ${{ secrets.BRICKECONOMY_API_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MERGE_GATEWAY_API_KEY: ${{ secrets.MERGE_GATEWAY_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          AI_GATEWAY_TOKEN: ${{ secrets.AI_GATEWAY_TOKEN }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          FIRECRAWL_API_KEYS: ${{ secrets.FIRECRAWL_API_KEYS }}
+          BRIGHTDATA_API_TOKEN: ${{ secrets.BRIGHTDATA_API_TOKEN }}
+          BRIGHTDATA_API_TOKENS: ${{ secrets.BRIGHTDATA_API_TOKENS }}
+          BRIGHTDATA_ZONE: ${{ secrets.BRIGHTDATA_ZONE }}
+          PATREON_URL: ${{ secrets.PATREON_URL }}
+          REVENUECAT_WEBHOOK_AUTH: ${{ secrets.REVENUECAT_WEBHOOK_AUTH }}
         run: |
           set -euo pipefail
-          put() { printf '%s' "$2" | npx wrangler secret put "$1"; }
-          put OPENAI_API_KEY            "${{ secrets.OPENAI_API_KEY }}"
-          put REBRICKABLE_API_KEY       "${{ secrets.REBRICKABLE_API_KEY }}"
-          put SUPABASE_URL              "${{ secrets.SUPABASE_URL }}"
-          put SUPABASE_ANON_KEY         "${{ secrets.SUPABASE_ANON_KEY }}"
-          put SUPABASE_JWT_SECRET       "${{ secrets.SUPABASE_JWT_SECRET }}"
+          put() { printf '%s' "$2" | npx wrangler secret put "$1" >/dev/null; }
+          put_optional() { if [ -n "$2" ]; then put "$1" "$2"; fi; }
+          put OPENAI_API_KEY            "${OPENAI_API_KEY}"
+          put REBRICKABLE_API_KEY       "${REBRICKABLE_API_KEY}"
+          put SUPABASE_URL              "${SUPABASE_URL}"
+          put SUPABASE_ANON_KEY         "${SUPABASE_ANON_KEY}"
+          put SUPABASE_JWT_SECRET       "${SUPABASE_JWT_SECRET}"
           # Service-role key lets DELETE /api/me remove the Supabase auth identity
           # (not just app data) — required for a compliant "delete account" flow.
-          [ -n "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ] && put SUPABASE_SERVICE_ROLE_KEY "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" || true
-          put ADMIN_USER_ID             "${{ secrets.ADMIN_USER_ID }}"
-          [ -n "${{ secrets.BRICKSET_API_KEY }}" ]          && put BRICKSET_API_KEY          "${{ secrets.BRICKSET_API_KEY }}"          || true
-          [ -n "${{ secrets.BRICKLINK_CONSUMER_KEY }}" ]   && put BRICKLINK_CONSUMER_KEY   "${{ secrets.BRICKLINK_CONSUMER_KEY }}"   || true
-          [ -n "${{ secrets.BRICKLINK_CONSUMER_SECRET }}" ] && put BRICKLINK_CONSUMER_SECRET "${{ secrets.BRICKLINK_CONSUMER_SECRET }}" || true
-          [ -n "${{ secrets.BRICKLINK_TOKEN }}" ]          && put BRICKLINK_TOKEN          "${{ secrets.BRICKLINK_TOKEN }}"          || true
-          [ -n "${{ secrets.BRICKLINK_TOKEN_SECRET }}" ]   && put BRICKLINK_TOKEN_SECRET   "${{ secrets.BRICKLINK_TOKEN_SECRET }}"   || true
-          [ -n "${{ secrets.BRICKOWL_API_KEY }}" ]          && put BRICKOWL_API_KEY          "${{ secrets.BRICKOWL_API_KEY }}"          || true
-          [ -n "${{ secrets.EBAY_APP_ID }}" ]              && put EBAY_APP_ID              "${{ secrets.EBAY_APP_ID }}"              || true
-          [ -n "${{ secrets.EBAY_CLIENT_SECRET }}" ]       && put EBAY_CLIENT_SECRET       "${{ secrets.EBAY_CLIENT_SECRET }}"       || true
-          [ -n "${{ secrets.APIFY_API_TOKEN }}" ]          && put APIFY_API_TOKEN          "${{ secrets.APIFY_API_TOKEN }}"          || true
-          [ -n "${{ secrets.BRICKECONOMY_API_KEY }}" ]     && put BRICKECONOMY_API_KEY     "${{ secrets.BRICKECONOMY_API_KEY }}"     || true
-          [ -n "${{ secrets.GOOGLE_CLIENT_ID }}" ]         && put GOOGLE_CLIENT_ID         "${{ secrets.GOOGLE_CLIENT_ID }}"         || true
-          [ -n "${{ secrets.GOOGLE_CLIENT_SECRET }}" ]     && put GOOGLE_CLIENT_SECRET     "${{ secrets.GOOGLE_CLIENT_SECRET }}"     || true
-          [ -n "${{ secrets.GEMINI_API_KEY }}" ]           && put GEMINI_API_KEY           "${{ secrets.GEMINI_API_KEY }}"           || true
+          put_optional SUPABASE_SERVICE_ROLE_KEY "${SUPABASE_SERVICE_ROLE_KEY}"
+          put ADMIN_USER_ID             "${ADMIN_USER_ID}"
+          put_optional BRICKSET_API_KEY "${BRICKSET_API_KEY}"
+          put_optional BRICKLINK_CONSUMER_KEY "${BRICKLINK_CONSUMER_KEY}"
+          put_optional BRICKLINK_CONSUMER_SECRET "${BRICKLINK_CONSUMER_SECRET}"
+          put_optional BRICKLINK_TOKEN "${BRICKLINK_TOKEN}"
+          put_optional BRICKLINK_TOKEN_SECRET "${BRICKLINK_TOKEN_SECRET}"
+          put_optional EBAY_APP_ID "${EBAY_APP_ID}"
+          put_optional EBAY_CLIENT_SECRET "${EBAY_CLIENT_SECRET}"
+          put_optional APIFY_API_TOKEN "${APIFY_API_TOKEN}"
+          put_optional BRICKECONOMY_API_KEY "${BRICKECONOMY_API_KEY}"
+          put_optional GOOGLE_CLIENT_ID "${GOOGLE_CLIENT_ID}"
+          put_optional GOOGLE_CLIENT_SECRET "${GOOGLE_CLIENT_SECRET}"
+          put_optional GEMINI_API_KEY "${GEMINI_API_KEY}"
           # Merge Gateway: second LLM gateway alongside OpenRouter. Optional —
           # every workload's route skips an unkeyed provider at runtime.
           # The monthly allowance is NOT here: it is a plain [vars] entry in
           # wrangler.toml. As a secret it was masked to `$***` in deploy logs,
           # and a secret would shadow the var if both existed.
-          [ -n "${{ secrets.MERGE_GATEWAY_API_KEY }}" ]    && put MERGE_GATEWAY_API_KEY    "${{ secrets.MERGE_GATEWAY_API_KEY }}"    || true
+          put_optional MERGE_GATEWAY_API_KEY "${MERGE_GATEWAY_API_KEY}"
           # Economy-mode key only. Pateway runs as post-response scan telemetry;
           # it is deliberately not part of the synchronous routing cascade.
           # NOTE: OPENROUTER_API_KEY is currently set DIRECTLY as a Cloudflare
@@ -354,41 +433,55 @@ jobs:
           # the GitHub secret is unset, so a push_secrets run cannot clobber the
           # Cloudflare-side value. It is listed so key management CAN move here
           # later; do not read its presence as proof the key lives in GitHub.
-          [ -n "${{ secrets.OPENROUTER_API_KEY }}" ]       && put OPENROUTER_API_KEY       "${{ secrets.OPENROUTER_API_KEY }}"       || true
+          put_optional OPENROUTER_API_KEY "${OPENROUTER_API_KEY}"
           put AI_GATEWAY_ACCOUNT_ID    "${CLOUDFLARE_ACCOUNT_ID}"
-          [ -n "${{ secrets.AI_GATEWAY_TOKEN }}" ]         && put AI_GATEWAY_TOKEN         "${{ secrets.AI_GATEWAY_TOKEN }}"         || true
-          [ -n "${{ secrets.RESEND_API_KEY }}" ]           && put RESEND_API_KEY           "${{ secrets.RESEND_API_KEY }}"           || true
-          [ -n "${{ secrets.VAPID_PUBLIC_KEY }}" ]         && put VAPID_PUBLIC_KEY         "${{ secrets.VAPID_PUBLIC_KEY }}"         || true
-          [ -n "${{ secrets.VAPID_PRIVATE_KEY }}" ]        && put VAPID_PRIVATE_KEY        "${{ secrets.VAPID_PRIVATE_KEY }}"        || true
-          [ -n "${{ secrets.VAPID_SUBJECT }}" ]            && put VAPID_SUBJECT            "${{ secrets.VAPID_SUBJECT }}"            || true
+          put_optional AI_GATEWAY_TOKEN "${AI_GATEWAY_TOKEN}"
+          put_optional RESEND_API_KEY "${RESEND_API_KEY}"
+          put_optional VAPID_PUBLIC_KEY "${VAPID_PUBLIC_KEY}"
+          put_optional VAPID_PRIVATE_KEY "${VAPID_PRIVATE_KEY}"
+          put_optional VAPID_SUBJECT "${VAPID_SUBJECT}"
           # The Firebase credential is multiline JSON. Keep it out of the shell
           # source so quotes/backslashes survive exactly; only test presence here.
           if [ -n "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
             put FIREBASE_SERVICE_ACCOUNT_JSON "$FIREBASE_SERVICE_ACCOUNT_JSON"
           fi
-          [ -n "${{ secrets.FIRECRAWL_API_KEY }}" ]        && put FIRECRAWL_API_KEY        "${{ secrets.FIRECRAWL_API_KEY }}"        || true
+          put_optional FIRECRAWL_API_KEY "${FIRECRAWL_API_KEY}"
           # Comma-separated pool of additional Firecrawl keys, drained in order after
           # FIRECRAWL_API_KEY (lib/firecrawl-keys.ts). Was previously set directly on
           # the Worker via `wrangler secret put` outside this pipeline — meaning a
           # from-scratch redeploy (new Cloudflare account, disaster recovery) would
           # silently drop it. A no-op
           # until a FIRECRAWL_API_KEYS GitHub secret is actually added.
-          [ -n "${{ secrets.FIRECRAWL_API_KEYS }}" ]       && put FIRECRAWL_API_KEYS       "${{ secrets.FIRECRAWL_API_KEYS }}"       || true
+          put_optional FIRECRAWL_API_KEYS "${FIRECRAWL_API_KEYS}"
           # Bright Data Web Unlocker tokens. Single token or comma-separated pool;
           # used first for BrickEconomy, Brickset, and LEGO stock raw-HTML lanes.
-          [ -n "${{ secrets.BRIGHTDATA_API_TOKEN }}" ]      && put BRIGHTDATA_API_TOKEN      "${{ secrets.BRIGHTDATA_API_TOKEN }}"      || true
-          [ -n "${{ secrets.BRIGHTDATA_API_TOKENS }}" ]     && put BRIGHTDATA_API_TOKENS     "${{ secrets.BRIGHTDATA_API_TOKENS }}"     || true
+          put_optional BRIGHTDATA_API_TOKEN "${BRIGHTDATA_API_TOKEN}"
+          put_optional BRIGHTDATA_API_TOKENS "${BRIGHTDATA_API_TOKENS}"
           # Web Unlocker zone name. Code defaults to web_unlocker1.
-          [ -n "${{ secrets.BRIGHTDATA_ZONE }}" ]           && put BRIGHTDATA_ZONE           "${{ secrets.BRIGHTDATA_ZONE }}"           || true
+          put_optional BRIGHTDATA_ZONE "${BRIGHTDATA_ZONE}"
           # Patreon creator URL — drives the public Support card on the Me tab.
-          [ -n "${{ secrets.PATREON_URL }}" ]              && put PATREON_URL              "${{ secrets.PATREON_URL }}"              || true
+          put_optional PATREON_URL "${PATREON_URL}"
           # RevenueCat webhook shared secret — verifies POST /api/revenuecat/webhook,
           # which flips is_supporter from Google Play / Apple purchase events.
-          [ -n "${{ secrets.REVENUECAT_WEBHOOK_AUTH }}" ]  && put REVENUECAT_WEBHOOK_AUTH  "${{ secrets.REVENUECAT_WEBHOOK_AUTH }}"  || true
+          put_optional REVENUECAT_WEBHOOK_AUTH "${REVENUECAT_WEBHOOK_AUTH}"
+
+      - name: Verify immutable Worker revision after secret updates
+        run: |
+          set -euo pipefail
+          deployment=$(curl -fsS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/brickvault-api/deployments" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          version=$(jq -r '.result.deployments[0].versions[]? | select(.percentage == 100) | .version_id' <<< "$deployment")
+          [ -n "$version" ] || { echo '::error::No active Worker version'; exit 1; }
+          detail=$(curl -fsS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/brickvault-api/versions/${version}" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          jq -e --arg sha "$GITHUB_SHA" '.success == true and (.result.annotations["workers/message"] == $sha or .result.annotations["workers/tag"] == $sha)' <<< "$detail" >/dev/null || {
+            echo '::error::Worker version changed after secret updates'; exit 1;
+          }
 
       - name: Inject Worker URL into Pages env.js
+        env:
+          RC_PLAY_BILLING_KEY: ${{ secrets.RC_PLAY_BILLING_KEY }}
         run: |
-          echo "window.WORKER_BASE = '${WORKER_URL}';" > public/env.js
+          set -euo pipefail
+          node -e 'require("fs").writeFileSync("public/env.js", "window.WORKER_BASE = " + JSON.stringify(process.env.WORKER_URL) + ";\n")'
           # Keep the CSP's connect-src in step with the URL just deployed. The
           # policy names the API host EXACTLY (it used to allow https://*.workers.dev,
           # which permitted every Cloudflare Workers tenant and so allowed
@@ -407,10 +500,10 @@ jobs:
           # Android build. It's a publishable client key, not a secret, but we
           # source it from a repo secret so it isn't hard-coded. Guarded: absent
           # on web-only deploys, which is fine (native billing no-ops there).
-          if [ -n "${{ secrets.RC_PLAY_BILLING_KEY }}" ]; then
-            echo "window.RC_PLAY_BILLING_KEY = '${{ secrets.RC_PLAY_BILLING_KEY }}';" >> public/env.js
+          if [ -n "$RC_PLAY_BILLING_KEY" ]; then
+            node -e 'require("fs").appendFileSync("public/env.js", "window.RC_PLAY_BILLING_KEY = " + JSON.stringify(process.env.RC_PLAY_BILLING_KEY) + ";\n")'
           fi
-          echo "env.js: $(cat public/env.js)"
+          echo "env.js configured"
 
       - name: Configure Android App Links
         env:
@@ -452,7 +545,7 @@ jobs:
             return 1
           }
           check "${WORKER_URL}/api/config" '.status.d1 == true'
-          check "${WORKER_URL}/api/sets/search?q=Millennium&limit=1" '.sets | length >= 0'
+          check "${WORKER_URL}/api/sets/search?q=Millennium&limit=1" '.sets | type == "array" and length > 0'
 
       - name: Prepare admin smoke token
         env:

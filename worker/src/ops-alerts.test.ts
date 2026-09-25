@@ -68,8 +68,8 @@ describe('runOpsHealthCheck', () => {
   });
 
   it('does not nag about a source that is switched off rather than broken', async () => {
-    // BrickOwl: lots of lifetime failures, but nothing recent because nothing calls it.
-    await seedHealth('brickowl', null, '-40 days').run();
+    // A retired integration with lifetime failures but no recent calls.
+    await seedHealth('retired-source', null, '-40 days').run();
     expect((await runOpsHealthCheck(env as any)).alerts).toEqual([]);
   });
 

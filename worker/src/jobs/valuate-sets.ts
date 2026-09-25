@@ -1,7 +1,6 @@
 import OpenAI from 'openai';
 import type { Env } from '../types';
 import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
-import { fetchBrickOwlPricing } from '../lib/brickowl-pricing';
 import { ebaySoldCompsEnabled } from '../lib/pricing-flags';
 import { callGeminiValuation } from '../lib/gemini';
 import { MODELS, getOpenRouterPools, openAIServerBaseURL, gatewayHeaders, gatewayMetadataHeader, openRouterBaseURL } from '../lib/llm';
@@ -99,7 +98,6 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     ebay: { ok: 0, fail: 0 },
     bricklink: { ok: 0, fail: 0 },
     brickeconomy: { ok: 0, fail: 0 },
-    brickowl: { ok: 0, fail: 0 },
     // Gemini is tracked separately via fetchTracked inside callGeminiValuation;
     // the cron's OpenAI fallback was previously untracked — record it here so
     // its server-key usage shows up in the admin integration-health panel.
@@ -122,10 +120,8 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   };
   const bricklinkEnabled = await sourceEnabled(env, 'bricklink');
   const brickeconomyEnabled = await sourceEnabled(env, 'brickeconomy');
-  const brickowlEnabled = await sourceEnabled(env, 'brickowl');
   const includeSupplemental = options.includeSupplemental === true;
   const bricklinkConfigured = bricklinkEnabled && !!env.BRICKLINK_CONSUMER_KEY;
-  const brickowlConfigured = brickowlEnabled && !!env.BRICKOWL_API_KEY;
   const includeEbay = options.includeEbay === true && await sourceEnabled(env, 'ebay')
     && !!env.EBAY_APP_ID && !!env.EBAY_CLIENT_SECRET;
   // Sold comps need the restricted Marketplace Insights scope; ask-only
@@ -136,7 +132,6 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   const { results, limit, grants } = await selectDueSets(env, {
     scope, options, includeSupplemental,
     includeBrickLink: bricklinkConfigured,
-    includeBrickOwl: brickowlConfigured,
     includeEbay, includeEbaySold, includeAiFallback,
   });
   const quotaRemaining: ValuationQuotaGrants = { ...grants };
@@ -438,18 +433,6 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     // Firecrawl cron — valuate-sets only READS the be_* columns, never stamps
     // be_cached_at (doing so would make the enrich cron treat the set as freshly
     // scraped and skip it).
-    // BrickOwl as 4th supplemental pricing source
-    if (includeSupplemental && brickowlConfigured && takeQuota('brickowl', 2)) {
-      const boPricing = await fetchBrickOwlPricing(set.set_num, env, sourceOptions)
-        .catch((err) => { tallyFail('brickowl', err); return null; });
-      if (boPricing) {
-        tallyOk('brickowl');
-        supplementStmts.push(
-          env.DB.prepare(`UPDATE lego_sets SET bo_new_value=?, bo_used_value=?, bo_new_qty=?, bo_used_qty=?, bo_cached_at=datetime('now') WHERE set_num=?`)
-            .bind(boPricing.new_value, boPricing.used_value, boPricing.new_qty, boPricing.used_qty, set.set_num)
-        );
-      }
-    }
     if (supplementStmts.length) await env.DB.batch(supplementStmts);
 
     if (!pricing && beRejected) {

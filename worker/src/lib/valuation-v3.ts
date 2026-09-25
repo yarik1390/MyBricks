@@ -412,12 +412,10 @@ export function legacySignalsFor(row: Record<string, unknown>): PricingSignal[] 
   const beTrusted = beNew == null ? false : isPlausibleMarketValue(beNew, {
     retailPrice: independentRetailAnchor({ brickset_msrp: positive(row.brickset_msrp), retail_price: positive(row.retail_price), be_retail: positive(row.be_retail) }),
     pieces: Number(row.pieces) || null,
-    corroborators: [positive(row.bl_new_value), positive(row.ebay_new_value), positive(row.ebay_ask_value), positive(row.bo_new_value)],
+    corroborators: [positive(row.bl_new_value), positive(row.ebay_new_value), positive(row.ebay_ask_value)],
   });
   add({ source: 'brickeconomy_new', provider_family: 'brickeconomy', condition: 'new_sealed', signal_type: 'modeled', value: beNew, checked_at: iso(row.be_cached_at) || cached, match_status: beTrusted ? 'verified' : 'quarantined' });
   add({ source: 'brickeconomy_used', provider_family: 'brickeconomy', condition: 'used_complete', signal_type: 'modeled', value: positive(row.be_value_used), checked_at: iso(row.be_cached_at) || cached });
-  add({ source: 'brickowl_new_asking', provider_family: 'brickowl', condition: 'new_sealed', signal_type: 'asking', value: positive(row.bo_new_value), sample_count: positive(row.bo_new_qty), checked_at: iso(row.bo_cached_at) || cached });
-  add({ source: 'brickowl_used_asking', provider_family: 'brickowl', condition: 'used_complete', signal_type: 'asking', value: positive(row.bo_used_value), sample_count: positive(row.bo_used_qty), checked_at: iso(row.bo_cached_at) || cached });
   add({ source: 'ebay_asking', provider_family: 'ebay_market', condition: 'new_sealed', signal_type: 'asking', value: positive(row.ebay_ask_value), sample_count: positive(row.ebay_ask_qty), checked_at: iso(row.ebay_ask_cached_at) || cached });
   // StockX lowest ask — a single new/sealed listing ceiling from an INDEPENDENT
   // marketplace (its own provider_family, so it corroborates rather than collapsing
