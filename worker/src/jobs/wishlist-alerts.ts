@@ -4,6 +4,7 @@ import { sendAlertEmail, wishlistAlertEmailHTML } from '../lib/resend';
 import { sendDiscordAlert } from '../lib/discord';
 import { sendWebPush } from '../lib/webpush';
 import { sendNativePushToUser } from '../lib/firebase-push';
+import { holdingValueForRollout } from '../lib/market-sources';
 
 export async function sendPushToUser(env: Env, userId: string, payload: string) {
   if (env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY) {
@@ -95,10 +96,11 @@ export async function runWishlistAlerts(env: Env) {
 
   if (!results.length) {
     const spike = await runSpikeAlerts(env);
+    const sellTargets = await runSellTargetAlerts(env);
     const retiring = await runRetirementAlerts(env);
     const deals = await runDealAlerts(env);
     const preorders = await runPreorderAlerts(env);
-    return { fired: 0, spikes: spike.fired, retiring: retiring.fired, deals: deals.fired, preorders: preorders.fired };
+    return { fired: 0, spikes: spike.fired, sellTargets: sellTargets.fired, retiring: retiring.fired, deals: deals.fired, preorders: preorders.fired };
   }
 
   const stmts: D1PreparedStatement[] = [];
@@ -155,10 +157,11 @@ export async function runWishlistAlerts(env: Env) {
   }
 
   const spike = await runSpikeAlerts(env);
+  const sellTargets = await runSellTargetAlerts(env);
   const retiring = await runRetirementAlerts(env);
   const deals = await runDealAlerts(env);
   const preorders = await runPreorderAlerts(env);
-  return { fired: results.length, spikes: spike.fired, retiring: retiring.fired, deals: deals.fired, preorders: preorders.fired };
+  return { fired: results.length, spikes: spike.fired, sellTargets: sellTargets.fired, retiring: retiring.fired, deals: deals.fired, preorders: preorders.fired };
 }
 
 async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
@@ -242,6 +245,87 @@ async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
     }
   }
 
+  return { fired: results.length };
+}
+
+// Sell-target alerts: an owned copy's value reached the price its owner said
+// they'd sell at. The copy is valued exactly as the Vault and /api/collection
+// value it (holdingValueForRollout: condition-aware, on the pricing rollout) —
+// a built or parts copy crosses on its used price, not the sealed one. One
+// alert per upward crossing — sell_target_alerted_at latches it, and is cleared
+// (re-armed) when the value falls back below the target or the owner changes
+// the target (PATCH /api/collection/:id). Same trust rule as spikes: only
+// corroborated or market-method values fire.
+export async function runSellTargetAlerts(env: Env): Promise<{ fired: number }> {
+  const rolloutPercent = Number(env.PRICING_V3_READ_PERCENT || 0);
+  const { results: holdings } = await env.DB.prepare(`
+    SELECT uc.id AS collection_id, uc.user_id, uc.set_num, uc.condition, uc.sell_target, uc.sell_target_alerted_at,
+           ls.name AS set_name, ls.image_url, ls.blended_confidence, ls.valuation_method,
+           ls.current_value, ls.blended_value, ls.used_value,
+           ls.ebay_used_value, ls.pc_new_value, ls.pc_complete_value,
+           svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair
+    FROM user_collection uc
+    JOIN lego_sets ls ON ls.set_num = uc.set_num
+    LEFT JOIN set_valuation_state svn ON svn.set_num = ls.set_num AND svn.condition = 'new_sealed'
+    LEFT JOIN set_valuation_state svu ON svu.set_num = ls.set_num AND svu.condition = 'used_complete'
+    WHERE uc.sell_target > 0 AND uc.deleted_at IS NULL
+  `).all<Record<string, unknown>>();
+
+  const rearm: number[] = [];
+  const results: {
+    collection_id: number; user_id: string; set_num: string; sell_target: number;
+    set_name: string; current_value: number; image_url: string | null;
+  }[] = [];
+  for (const h of holdings || []) {
+    const value = holdingValueForRollout(h, rolloutPercent);
+    const target = Number(h.sell_target);
+    if (h.sell_target_alerted_at != null) {
+      // Re-arm holdings whose value dropped back under their target.
+      if (target > value) rearm.push(Number(h.collection_id));
+      continue;
+    }
+    const trusted = h.blended_confidence === 'high' || h.blended_confidence === 'medium'
+      || (!(Number(h.blended_value) > 0) && !['formula_bulk', 'local', 'ai'].includes(String(h.valuation_method ?? '')));
+    if (!(value > 0) || value < target || !trusted || results.length >= ALERTS_PER_KIND) continue;
+    results.push({
+      collection_id: Number(h.collection_id), user_id: String(h.user_id), set_num: String(h.set_num),
+      sell_target: target, set_name: String(h.set_name ?? h.set_num), current_value: value,
+      image_url: h.image_url == null ? null : String(h.image_url),
+    });
+  }
+  if (rearm.length) {
+    await env.DB.batch(rearm.map(id => env.DB.prepare('UPDATE user_collection SET sell_target_alerted_at = NULL WHERE id = ?').bind(id)));
+  }
+  if (!results.length) return { fired: 0 };
+
+  const stmts: D1PreparedStatement[] = [];
+  for (const row of results) {
+    stmts.push(
+      env.DB.prepare(`
+        INSERT INTO wishlist_alerts (user_id, set_num, set_name, target_price, current_value, alert_type)
+        VALUES (?, ?, ?, ?, ?, 'sell_target')
+      `).bind(row.user_id, row.set_num, row.set_name, row.sell_target, row.current_value),
+      env.DB.prepare(`UPDATE user_collection SET sell_target_alerted_at=datetime('now') WHERE id=?`).bind(row.collection_id),
+    );
+  }
+  await env.DB.batch(stmts);
+
+  const users = [...new Set(results.map(row => row.user_id))];
+  const prefsByUser = await loadAlertPrefs(env, users);
+  for (const row of results) {
+    const prefs = prefsByUser.get(row.user_id);
+    if (!prefs || !prefs.notify_price_drops) continue;
+    // Actions deep-link straight to the decision: sell options or a new target.
+    sendPushToUser(env, row.user_id, JSON.stringify({
+      title: `${row.set_name} reached your sell target`,
+      body: `Now $${row.current_value.toFixed(0)} — you set $${row.sell_target.toFixed(0)}.`,
+      url: `#/set/${encodeURIComponent(row.set_num)}/sell`,
+      actions: [
+        { action: 'sell', title: 'Sell options', url: `#/set/${encodeURIComponent(row.set_num)}/sell` },
+        { action: 'target', title: 'Raise target', url: `#/set/${encodeURIComponent(row.set_num)}/target` },
+      ],
+    })).catch(() => {});
+  }
   return { fired: results.length };
 }
 

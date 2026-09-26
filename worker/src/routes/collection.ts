@@ -42,7 +42,7 @@ app.get('/', async (c) => {
     SELECT
       uc.id, uc.set_num, uc.quantity, uc.condition, uc.purchase_price,
       uc.notes, uc.added_at, uc.purchased_at, uc.last_modified,
-      uc.storage_location, uc.acquisition_source, uc.is_complete, uc.missing_pieces, uc.custom_image_url,
+      uc.storage_location, uc.acquisition_source, uc.is_complete, uc.missing_pieces, uc.custom_image_url, uc.sell_target,
       s.name, s.theme, s.year, s.pieces, s.minifigs,
       s.brickset_dimensions, s.packaging_type, s.brickset_image_urls,
       s.retail_price, s.current_value, s.forecast_2y, s.forecast_5y,
@@ -339,7 +339,7 @@ app.get('/export', async (c) => {
     SELECT
       uc.id, uc.set_num, uc.quantity, uc.condition, uc.purchase_price,
       uc.purchased_at, uc.storage_location, uc.acquisition_source,
-      uc.is_complete, uc.missing_pieces, uc.notes, uc.added_at,
+      uc.is_complete, uc.missing_pieces, uc.notes, uc.added_at, uc.sell_target,
       s.name, s.theme, s.year, s.pieces, s.minifigs,
       s.brickset_dimensions, s.packaging_type,
       s.retail_price, s.current_value
@@ -361,7 +361,7 @@ app.get('/export', async (c) => {
     'condition','quantity','purchase_price','purchased_at',
     ...(pro ? ['current_value','retail_price','roi_pct'] : []),
     'storage_location','acquisition_source',
-    'is_complete','missing_pieces','notes','added_at',
+    'is_complete','missing_pieces','notes','added_at','sell_target',
   ];
 
   const rows = results.map(r => {
@@ -376,7 +376,7 @@ app.get('/export', async (c) => {
       ...(pro ? [r.current_value ?? '', r.retail_price ?? '', roi] : []),
       r.storage_location ?? '', r.acquisition_source ?? '',
       r.is_complete == null ? 'true' : String(!!r.is_complete), r.missing_pieces ?? 0,
-      r.notes ?? '', aa,
+      r.notes ?? '', aa, r.sell_target ?? '',
     ].map(csvCell).join(',');
   });
 
@@ -415,7 +415,7 @@ app.get('/history', async (c) => {
 // a data contribution.
 app.post('/sell', async (c) => {
   const userId = c.get('userId');
-  const body = await c.req.json<{ set_num?: string; sold_price?: number; sold_at?: string }>().catch(() => ({} as Record<string, never>));
+  const body = await c.req.json<{ set_num?: string; sold_price?: number; sold_at?: string; sold_fees?: number }>().catch(() => ({} as Record<string, never>));
   const { set_num, sold_price } = body;
   if (!set_num) return c.json({ error: 'set_num required' }, 400);
   if (typeof sold_price !== 'number' || !Number.isFinite(sold_price) || sold_price <= 0) {
@@ -425,15 +425,20 @@ app.post('/sell', async (c) => {
   if (typeof sold_at !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(sold_at) || Number.isNaN(Date.parse(sold_at))) {
     return c.json({ error: 'sold_at must be a valid YYYY-MM-DD date string' }, 400);
   }
+  // Marketplace, payment and shipping costs, so realized gain is net. Optional.
+  const sold_fees = body.sold_fees ?? null;
+  if (sold_fees !== null && (typeof sold_fees !== 'number' || !Number.isFinite(sold_fees) || sold_fees < 0 || sold_fees >= sold_price)) {
+    return c.json({ error: 'sold_fees must be a number >= 0 and below the sold price' }, 400);
+  }
   const res = await c.env.DB.prepare(`
     UPDATE user_collection
-    SET sold_price=?, sold_at=?, deleted_at=datetime('now'), last_modified=datetime('now')
+    SET sold_price=?, sold_at=?, sold_fees=?, deleted_at=datetime('now'), last_modified=datetime('now')
     WHERE user_id=? AND set_num=? AND deleted_at IS NULL
-  `).bind(sold_price, sold_at, userId, set_num).run();
+  `).bind(sold_price, sold_at, sold_fees, userId, set_num).run();
   if (!res.meta.changes) return c.json({ error: 'Set not in your vault' }, 404);
   logEvent(c.env, 'set_sold', userId, { setNum: set_num });
   scheduleBuildCacheRecompute(c.env, userId, c.executionCtx);
-  return c.json({ ok: true, set_num, sold_price, sold_at });
+  return c.json({ ok: true, set_num, sold_price, sold_at, sold_fees });
 });
 
 app.post('/import', async (c) => {
@@ -521,12 +526,16 @@ app.post('/import', async (c) => {
     const acquisition_source = row.acquisition_source ? String(row.acquisition_source).slice(0, FREE_TEXT_MAX) : null;
     const is_complete = row.is_complete === 'false' || row.is_complete === false ? 0 : 1;
     const missing_pieces = parseInt(String(row.missing_pieces)) || 0;
+    // Sell target (USD) round-trips through the CSV export; ignore anything
+    // that isn't a sane positive price.
+    const rawTarget = Number(row.sell_target);
+    const sell_target = Number.isFinite(rawTarget) && rawTarget > 0 && rawTarget <= 10_000_000 ? rawTarget : null;
 
     stmts.push(c.env.DB.prepare(`
       INSERT INTO user_collection
         (user_id, set_num, quantity, condition, purchase_price, purchased_at,
-         notes, storage_location, acquisition_source, is_complete, missing_pieces, last_modified)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+         notes, storage_location, acquisition_source, is_complete, missing_pieces, sell_target, last_modified)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
       ON CONFLICT (user_id, set_num) DO UPDATE SET
         quantity = EXCLUDED.quantity,
         condition = EXCLUDED.condition,
@@ -537,10 +546,11 @@ app.post('/import', async (c) => {
         acquisition_source = COALESCE(EXCLUDED.acquisition_source, user_collection.acquisition_source),
         is_complete = EXCLUDED.is_complete,
         missing_pieces = EXCLUDED.missing_pieces,
+        sell_target = COALESCE(EXCLUDED.sell_target, user_collection.sell_target),
         last_modified = datetime('now'),
         deleted_at = NULL
     `).bind(userId, set_num, quantity, condition, purchase_price, purchased_at,
-        notes, storage_location, acquisition_source, is_complete, missing_pieces));
+        notes, storage_location, acquisition_source, is_complete, missing_pieces, sell_target));
     if (!overwrite) ownedSets.add(key);
   }
 
@@ -617,6 +627,12 @@ app.patch('/:id', async (c) => {
       return c.json({ error: 'Purchased at must be a valid YYYY-MM-DD date string' }, 400);
     }
   }
+  if ('sell_target' in body) {
+    const st = body.sell_target;
+    if (st !== null && (typeof st !== 'number' || !Number.isFinite(st) || st <= 0 || st > 10_000_000)) {
+      return c.json({ error: 'Sell target must be a positive number or null' }, 400);
+    }
+  }
   if ('missing_pieces' in body) {
     const mp = body.missing_pieces;
     if (typeof mp !== 'number' || !Number.isInteger(mp) || mp < 0) {
@@ -625,7 +641,7 @@ app.patch('/:id', async (c) => {
   }
 
   const ALLOWED = ['quantity','condition','purchase_price','purchased_at','notes',
-                   'storage_location','acquisition_source','is_complete','missing_pieces'];
+                   'storage_location','acquisition_source','is_complete','missing_pieces','sell_target'];
   const FREE_TEXT = new Set(['notes', 'storage_location', 'acquisition_source']);
   const fields: string[] = [];
   const vals: unknown[] = [];
@@ -638,6 +654,8 @@ app.patch('/:id', async (c) => {
     }
   }
   if (!fields.length) return c.json({ error: 'No fields to update' }, 400);
+  // A new (or cleared) sell target re-arms its one-shot alert.
+  if ('sell_target' in body) fields.push('sell_target_alerted_at=NULL');
   fields.push(`last_modified=datetime('now')`);
   vals.push(id, userId);
 

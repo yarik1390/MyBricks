@@ -25,7 +25,7 @@ const ROUTES = [
   { match: (hash) => hash.startsWith("/u/"), key: "public-profile", nav: "/me", title: "Public profile", fab: true },
   // nav: null — a set can be reached from Vault, Catalog or Minifigs, so
   // highlighting any one tab (it used to light up Vault) is misleading.
-  { match: (hash) => hash.startsWith("/set/"), key: "set-detail", nav: null, title: "Set detail", fab: true },
+  { match: (hash) => hash.startsWith("/set/"), key: "set-detail", nav: null, title: "Set detail", fab: false, navOff: true },
   { match: (hash) => hash === "/me/admin", key: "admin", nav: "/me", title: "Admin", protected: true, fab: false },
   { match: (hash) => hash === "/me/integrations", key: "integrations", nav: "/me", title: "Integrations", protected: true, fab: false },
   { match: (hash) => hash === "/me/data", key: "data", nav: "/me", title: "Data", protected: true, fab: false },

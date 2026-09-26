@@ -1147,8 +1147,12 @@ async function guestApi(path, opts = {}, streamMode = false) {
   }
   const collectionMatch = pathname.match(/^\/api\/collection\/([^/]+)$/);
   if (collectionMatch) {
-    if (method === 'PATCH') return { handled: true, value: guestPatchCollection(collectionMatch[1], body) };
-    if (method === 'DELETE') return { handled: true, value: guestDeleteCollection(collectionMatch[1]) };
+    // Callers may percent-encode the ref ("guest%3A75192-1"); match on the
+    // decoded id, or the delete silently matches nothing.
+    let ref = collectionMatch[1];
+    try { ref = decodeURIComponent(ref); } catch { /* keep the raw ref */ }
+    if (method === 'PATCH') return { handled: true, value: guestPatchCollection(ref, body) };
+    if (method === 'DELETE') return { handled: true, value: guestDeleteCollection(ref) };
   }
 
   if (method === 'POST' && pathname.endsWith('/acknowledge-alert')) {

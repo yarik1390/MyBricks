@@ -115,7 +115,7 @@ const RUNTIME_EXACT_STRINGS = [
   'Falling', 'Filters', 'First seen', 'Heartbeat:', 'In stock —', 'Insights',
   'Key pool — drains in order:', 'Key pool — monthly spend:', 'LOOKUP',
   'Local AI session failed.', 'Local Gemma error:', 'New sold', 'New sold comps are',
-  'Next:', 'No pending', 'Open eBay', 'Price checked', 'Provider:', 'Release',
+  'Next:', 'No pending', 'Price checked', 'Provider:', 'Release',
   'Retirement risk: High', 'Rising', 'Sealed', 'Sell', "Sorry, couldn't reach the advisor.",
   'Submitted:',
   'Theme Concentration Warning', 'Try a different search or clear filters.',

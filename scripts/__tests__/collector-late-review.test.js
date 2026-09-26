@@ -50,8 +50,8 @@ describe('late-review Minifigs regressions', () => {
 
 describe('late-review set-detail regressions', () => {
   it('completes ARIA tabs: roving tabindex, arrow/home/end movement, associated panels', () => {
-    assert.match(detailJs, /role="tablist"[\s\S]{0,700}tabindex="\$\{state\.detail\.tab === tab \? "0" : "-1"\}"/);
-    assert.match(detailJs, /aria-controls="panel-\$\{tab\}"/);
+    assert.match(detailJs, /role="tablist"[\s\S]{0,700}tabindex="\$\{tab === id \? "0" : "-1"\}"/);
+    assert.match(detailJs, /aria-controls="panel-\$\{id\}"/);
     const keyBody = detailJs.slice(detailJs.indexOf('Keyboard activation of the tabs'), detailJs.indexOf('Keyboard activation of the tabs') + 900);
     for (const key of ["ArrowRight", "ArrowLeft", "Home", "End"]) assert.match(keyBody, new RegExp(key));
     const switchBody = extractBody(detailJs, 'switchDetailTab');
@@ -59,9 +59,13 @@ describe('late-review set-detail regressions', () => {
   });
 
   it('falls back to info for unknown or unavailable tabs, including manage for unowned sets', () => {
-    const paintBody = extractBody(detailJs, 'paintSetDetail');
-    assert.match(detailJs, /const tabs = owned \? \["info", "forecast", "community", "manage"\] : \["info", "forecast", "community"\]/);
-    assert.match(paintBody, /detailTabs\(owned\)\.includes\(state\.detail\.tab\)/);
+    const paintBody = detailJs.slice(detailJs.indexOf('function paintSetDetail('), detailJs.indexOf('function panelHTML('));
+    assert.match(detailJs, /return \["info", "forecast", "community"\];/);
+    assert.match(detailJs, /TAB_ALIASES = \{ overview: "info", history: "forecast", manage: "passport" \}/);
+    assert.match(paintBody, /if \(!detailTabs\(\)\.includes\(tab\)\) tab = "info";/);
+    // Manage/Passport for a set you don't own falls back to the overview.
+    const passportBody = extractBody(detailJs, 'paintPassport');
+    assert.match(passportBody, /if \(!entry\) \{ state\.detail\.tab = "info"; paintSetDetail\(set, entry\); return; \}/);
   });
 
   it('synchronizes a click-selected tab into the hash route', () => {
