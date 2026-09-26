@@ -1,15 +1,12 @@
 import type { Env } from '../types';
 import { fetchBarcodesPage, BARCODE_PAGE_SIZE, getLastBarcodeFetchDiag } from '../lib/brickset';
-import { fetchBrickOwlBarcode } from '../lib/brickowl-barcode';
-import { brickOwlEnabled } from '../lib/pricing-flags';
-import { sourceEnabled } from '../lib/source-config';
 
 export interface BackfillResult {
   processed: number;
   filled: number;
   enriched?: number;
   catalogSize: number;
-  method: 'bulk' | 'brickowl' | 'none';
+  method: 'bulk' | 'none';
   complete: boolean;
   nextPage?: number;
   error?: string;
@@ -104,15 +101,14 @@ export async function recordBarcodeHealth(env: Env, ok: boolean, detail: string)
 }
 
 export async function runBackfillUpc(env: Env, options: BackfillOptions = {}): Promise<BackfillResult> {
-  const brickOwlSourceEnabled = await sourceEnabled(env, 'brickowl');
-  if (!env.BRICKSET_API_KEY && !env.BRICKOWL_API_KEY) {
+  if (!env.BRICKSET_API_KEY) {
     return {
       processed: 0,
       filled: 0,
       catalogSize: 0,
       method: 'none',
       complete: true,
-      error: 'No barcode API key configured (BRICKSET_API_KEY or BRICKOWL_API_KEY)',
+      error: 'BRICKSET_API_KEY is not configured',
     };
   }
 
@@ -129,7 +125,7 @@ export async function runBackfillUpc(env: Env, options: BackfillOptions = {}): P
     };
   }
 
-  if (env.BRICKSET_API_KEY) {
+  {
     const bulkResult = await tryBulkBackfill(env, options);
     if (bulkResult !== null) {
       // Advance the durable cursor so the next run pages forward (or wraps to 1
@@ -138,20 +134,8 @@ export async function runBackfillUpc(env: Env, options: BackfillOptions = {}): P
       await setBarcodeCursor(env, bulkResult.complete ? 1 : (bulkResult.nextPage ?? startPage + 1));
       return { ...bulkResult, catalogSize, method: 'bulk' };
     }
-    // Brickset bulk returned no data (e.g. a timed-out page). Don't fail silently
-    // with zero fills — fall back to BrickOwl per-set lookups when available so
-    // barcode coverage still advances.
-    if (env.BRICKOWL_API_KEY && brickOwlEnabled(env) && brickOwlSourceEnabled) {
-      console.warn('[backfill-upc] Brickset bulk returned no data; falling back to BrickOwl');
-      const perSetResult = await tryBrickOwlBackfill(env);
-      return {
-        ...perSetResult,
-        catalogSize,
-        method: 'brickowl',
-        note: 'Brickset bulk unavailable; used BrickOwl per-set fallback',
-      };
-    }
-    console.warn('[backfill-upc] Brickset bulk failed and no BrickOwl key configured');
+    // A timed-out Brickset page must be retried without advancing the cursor.
+    console.warn('[backfill-upc] Brickset bulk returned no data');
     return {
       processed: 0,
       filled: 0,
@@ -163,11 +147,6 @@ export async function runBackfillUpc(env: Env, options: BackfillOptions = {}): P
     };
   }
 
-  if (!brickOwlSourceEnabled) {
-    return { processed: 0, filled: 0, catalogSize, method: 'none', complete: false, note: 'BrickOwl disabled in source tuning' };
-  }
-  const perSetResult = await tryBrickOwlBackfill(env);
-  return { ...perSetResult, catalogSize, method: 'brickowl' };
 }
 
 async function tryBulkBackfill(
@@ -270,22 +249,3 @@ async function tryBulkBackfill(
   return { processed, filled, enriched, complete, nextPage: next };
 }
 
-async function tryBrickOwlBackfill(env: Env): Promise<{ processed: number; filled: number; complete: boolean }> {
-  const { results } = await env.DB.prepare(
-    'SELECT set_num FROM lego_sets WHERE upc IS NULL ORDER BY year DESC LIMIT 2'
-  ).all<{ set_num: string }>();
-
-  let filled = 0;
-  const stmts: D1PreparedStatement[] = [];
-  for (const { set_num } of results) {
-    const ean = await fetchBrickOwlBarcode(set_num, env);
-    if (ean) {
-      stmts.push(env.DB.prepare('UPDATE lego_sets SET upc=? WHERE set_num=?').bind(ean, set_num));
-      filled++;
-    }
-  }
-  for (let i = 0; i < stmts.length; i += 100) {
-    await env.DB.batch(stmts.slice(i, i + 100));
-  }
-  return { processed: results.length, filled, complete: results.length < 2 };
-}

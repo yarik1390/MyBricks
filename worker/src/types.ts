@@ -35,7 +35,6 @@ export interface Env {
    *  CORS either way — see lib/app-url.ts. */
   APP_BASE_URL?: string;
   BRICKSET_API_KEY: string;
-  BRICKOWL_API_KEY?: string;
   /** Set to "0" for an emergency rollback; enabled for ordinary shared scans by default. */
   BRICKOGNIZE_ENABLED?: string;
   // Apify eBay sold-comps actor. On by default once this secret is configured.
@@ -79,7 +78,6 @@ export interface Env {
   EBAY_SOLD_COMPS_ENABLED?: string;
   /** Test-only escape hatch for isolated eBay job tests. Never configure in deployment. */
   EBAY_SOURCE_AUTHORIZED_FOR_TESTS?: string;
-  BRICKOWL_ENABLED?: string;
   BRICKINSIGHTS_ENABLED?: string;
   // StockX lowest-ask scrape (Firecrawl). OFF unless STOCKX_ENABLED is truthy.
   STOCKX_ENABLED?: string;

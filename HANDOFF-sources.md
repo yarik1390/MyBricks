@@ -61,7 +61,7 @@ they paste one from Admin → Services → "Copy admin token").
 | BrickLink | 3.2k (670 fresh) | Low value-coverage, mostly stale |
 | StockX | 598 | New, blended |
 | eBay sold | was 302, **now growing** | Was stalled; Step 1 un-stalled it |
-| BrickOwl | **0** | ☠️ DEAD — 0 ok / 272 fail, HTTP 403 since ~June 13 |
+| BrickOwl | **0** | ☠️ RETIRED 2026-09-25 — was DEAD (0 ok / 272 fail, HTTP 403 since ~June 13); integration now removed |
 
 Note: Rebrickable's on-page "prices" are just BrickLink guide data we already ingest
 first-hand — **not worth scraping** (also 403s bots). Don't add it.
@@ -108,14 +108,18 @@ cost later, A/B basic-vs-enhanced over a few hundred sets before switching.
 
 ## Remaining roadmap (after eBay-sold)
 
-- **BrickOwl — no code change needed.** Earlier notes called it "misleadingly enabled";
-  that was wrong. It is already gated OFF by its feature flag (`brickOwlEnabled` requires
-  an explicit `BRICKOWL_ENABLED=1`, and no DB override is set — which is why it has made
-  zero calls since 2026-06-13), and `integration-health.ts` already labels it accurately:
-  *"Disabled pending a valid API key (current key returns HTTP 403)."* Its
-  `source-config` `enabled: true` is deliberate and follows the StockX convention — the
-  feature flag is the single activation gate. The ONLY action is external: obtain a valid
-  `BRICKOWL_API_KEY`, then set `BRICKOWL_ENABLED=1`. Don't "fix" it in code.
+- **BrickOwl — RETIRED (2026-09-25).** The integration was removed from the codebase
+  outright: the `brickowl-barcode` / `brickowl-pricing` modules, its blend and attribution
+  contributions, its crons, feature flag, quota cap and API key are all gone. The
+  historical `bo_*` columns are deliberately retained in `lego_sets` (no destructive
+  migration) but are inert — `RETIRED_PRICING_SOURCES` in `lib/market-sources.ts` keeps
+  stored values out of the blend and out of every price response. This supersedes the
+  earlier "gated OFF, just supply a valid key" note below, which is preserved for history:
+  BrickOwl was gated OFF by its feature flag (`brickOwlEnabled` required an explicit
+  `BRICKOWL_ENABLED=1`, and no DB override was set — which is why it made zero calls since
+  2026-06-13), and `integration-health.ts` labelled it accurately:
+  *"Disabled pending a valid API key (current key returns HTTP 403)."* Do not re-enable it
+  by supplying a key; the code path no longer exists.
 
 - **⚠️ BrickEconomy bias — DO NOT apply the 38% haircut earlier notes suggested.**
   That figure compared BE against BrickLink alone, and BrickLink is itself a biased

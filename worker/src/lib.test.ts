@@ -628,9 +628,11 @@ describe('blendMarketValue (valuation v2)', () => {
   });
 
   it('drops a gross outlier source', () => {
-    const r = blendMarketValue({ valuation_method: 'market', bl_new_value: 100, bl_new_qty: 10, bl_cached_at: now, ebay_new_value: 105, ebay_new_qty: 10, ebay_new_cached_at: now, bo_new_value: 900, bo_cached_at: now });
-    expect(r.value).toBeLessThanOrEqual(106);
-    expect(r.high).toBeLessThanOrEqual(120);
+    const baseline = blendMarketValue({ valuation_method: 'market', bl_new_value: 100, bl_new_qty: 10, bl_cached_at: now, ebay_new_value: 105, ebay_new_qty: 10, ebay_new_cached_at: now });
+    const withRetiredData = blendMarketValue({ valuation_method: 'market', bl_new_value: 100, bl_new_qty: 10, bl_cached_at: now, ebay_new_value: 105, ebay_new_qty: 10, ebay_new_cached_at: now, bo_new_value: 900, bo_used_value: 880, bo_new_qty: 99, bo_used_qty: 99, bo_cached_at: now });
+    expect(withRetiredData).toEqual(baseline);
+    expect(withRetiredData.value).toBeLessThanOrEqual(106);
+    expect(withRetiredData.high).toBeLessThanOrEqual(120);
   });
 
   it('does not promote eBay asking into fair market value', () => {
@@ -729,21 +731,19 @@ describe('blendMarketValue (valuation v2)', () => {
     // A sold comp at 80 vs a modeled value at 160 (2x apart, both survive).
     const r = blendMarketValue({ valuation_method: 'brickeconomy', current_value: 160, be_cached_at: now, bl_new_value: 80, bl_new_qty: 6, bl_cached_at: now });
     expect(r.note).toBeTruthy();
-    expect(r.note).not.toMatch(/bricklink|ebay|brickowl|brickeconomy/i);
+    expect(r.note).not.toMatch(/bricklink|ebay|brickeconomy/i);
   });
 
-  it('anchors a two-signal standoff on the reliable tier instead of averaging', () => {
-    // A sold comp ($100) vs a lone live listing ($900): no median to anchor on,
-    // so the wild listing must not pull the value to a ~$500 midpoint. The
-    // higher-reliability sold comp wins outright.
-    const r = blendMarketValue({
-      valuation_method: 'market',
-      bl_new_value: 100, bl_new_qty: 10, bl_cached_at: now,
-      bo_new_value: 900, bo_cached_at: now,
-    });
-    expect(r.value).toBe(100);
-    expect(r.basis.map(b => b.id)).toEqual(['bricklink', 'brickowl']);
-    expect(r.confidence).toBe('medium');
+  it('ignores persisted retired-source columns in headlines, basis and attributions', () => {
+    const baseline = { valuation_method: 'market', bl_new_value: 100, bl_new_qty: 10, bl_cached_at: now };
+    const legacy = { ...baseline, bo_new_value: 900, bo_used_value: 700, bo_new_qty: 20, bo_used_qty: 20, bo_cached_at: now };
+    expect(blendMarketValue(legacy)).toEqual(blendMarketValue(baseline));
+    expect(buildMarketSources(legacy)).toEqual(buildMarketSources(baseline));
+    const enriched = enrichSetRecord(legacy);
+    const plain = enrichSetRecord(baseline);
+    for (const field of ['market_value', 'market_value_low', 'market_value_high', 'market_value_confidence', 'market_value_basis', 'market_sources', 'primary_value_source'] as const) {
+      expect((enriched as Record<string, unknown>)[field]).toEqual((plain as Record<string, unknown>)[field]);
+    }
   });
 
   it('demotes two fresh sold comps to low confidence when they grossly disagree', () => {

@@ -6,7 +6,7 @@ import type { Env } from '../types';
 // Budgets are ~80% of each provider's hard cap so organic on-demand traffic
 // and clock skew can never push us over a provider limit:
 //   BrickLink 5,000/day · eBay 5,000/day · BrickEconomy 100/day (hard) ·
-//   Brickset 100/day · BrickOwl 600/min (we self-impose a daily budget).
+//   Brickset has a bounded daily budget.
 // The ledger lives in the api_quota D1 table keyed by (service, UTC day).
 // Quota consumption policy depends on the helper: spendQuota fails open for
 // best-effort pricing, spendQuotaFailClosed and capped reserveQuota accounting
@@ -26,7 +26,6 @@ export const QUOTA_CAPS: Record<string, number> = {
   apify: 30,
   brickeconomy: 80,
   brickset: 90,
-  brickowl: 1500,
   // PriceCharting per-set /api/product calls (the daily enrich cron). Free/cheap
   // tier but metered so admin usage is honest + a runaway is capped; the weekly
   // bulk CSV is a single download and is not counted here. Enrich runs ~40/day,
@@ -248,7 +247,7 @@ export async function quotaRemaining(env: Env, service: string): Promise<number>
 
 export interface PackProfile {
   brickEconomy: boolean;   // BE primary fetch + KV get/put
-  supplemental: boolean;   // forced BrickLink used pricing + BrickOwl corroboration
+  supplemental: boolean;   // forced BrickLink used pricing
   ebay: boolean;           // eBay sold comps (+ask refresh when stale)
   aiFallback: boolean;     // Gemini/OpenAI estimate when market sources miss
   progressWrites: boolean; // per-set import_runs progress UPDATE
@@ -260,7 +259,7 @@ export function perSetCost(p: PackProfile): number {
   if (p.progressWrites) cost += 1;       // import_runs progress UPDATE
   if (p.brickEconomy) cost += 2;         // BE fetch + KV (amortized hit/miss)
   cost += p.brickEconomy ? 2 : 5;        // BrickLink: fallback risk vs primary (2 fetches + KV)
-  if (p.supplemental) cost += 4;         // BrickOwl lookup + price, extra BL used KV
+  if (p.supplemental) cost += 2;         // extra BrickLink used guide and cache operations
   if (p.ebay) cost += 3;                 // OAuth amortized + sold search (+ask sometimes)
   if (p.aiFallback) cost += 1;           // one model call on market miss
   return cost;

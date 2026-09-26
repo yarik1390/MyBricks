@@ -45,7 +45,7 @@ filters · camera barcode scanner · AI photo identification · deal signals ·
 retirement-risk radar · "what can I build" from owned parts · minifig tracker
 
 **Pricing** · blended valuations from BrickLink, BrickEconomy, eBay (ask +
-sold), PriceCharting, BrickOwl and community comps · AI 2y/5y forecasts ·
+sold), PriceCharting and community comps · AI 2y/5y forecasts ·
 wishlist price-drop alerts (push + email) · per-source confidence and freshness
 grading
 
