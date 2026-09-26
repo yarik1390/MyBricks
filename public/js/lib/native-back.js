@@ -1,21 +1,41 @@
-// Android hardware back button. Without this, Capacitor's default is to walk
-// web history and then EXIT the app — so a user deep in a set page, or with the
-// scanner / a bottom sheet / the advisor drawer open, gets bounced out instead
-// of just closing what's in front of them. This registers one prioritized
-// handler: dismiss the top-most overlay first, then step back through the SPA,
-// and only exit (with a confirm tap) from the home screen.
+// Android back (button and predictive back gesture).
+//
+// Android 16 dispatches back through OnBackInvokedCallback, and the system's
+// "back to home" preview only plays when the app does NOT intercept back. So
+// the app's handler is enabled only while there is something in-app to go
+// back from: an overlay (sheet, scanner, advisor, image viewer, selection) or
+// any screen other than a root. At the Vault root the handler is switched off
+// and Android runs its own back-to-home animation — no "press back again".
 import { getCapacitorPlugin, isNativeCapacitor } from './native-auth.js';
 import { hideSheet } from '../components/sheet.js';
 import { closeScan } from '../components/scanner-lazy.js';
 import { cancelActiveStream } from '../components/advisor-lazy.js';
-import { toast } from '../utils.js';
 
 let wired = false;
-let exitArmed = false;
 
-// Route hashes that count as "home" — a back press here exits the app (with a
-// confirm), rather than navigating. /kids is the locked kids-mode home.
+// Route hashes that are "home": back from here leaves the app.
 const ROOTS = new Set(['', '/', '/kids']);
+
+function currentHash() {
+  return (location.hash.replace('#', '') || '/').split('?')[0];
+}
+
+function overlayOpen(doc = document) {
+  const body = doc.body;
+  if (!body) return false;
+  const c = body.classList;
+  return c.contains('lightbox-open')
+    || c.contains('advisor-open')
+    || !!doc.getElementById('advisorDrawer')?.classList.contains('open')
+    || c.contains('sheet-open')
+    || !!doc.getElementById('scanOverlay')?.classList.contains('open')
+    || c.contains('selection-mode');
+}
+
+/** Pure decision used by the toggle and covered by unit tests. */
+export function appShouldHandleBack({ hash, overlay }) {
+  return !!overlay || !ROOTS.has(hash);
+}
 
 export function initNativeBack(win) {
   if (wired || !isNativeCapacitor(win)) return;
@@ -36,8 +56,7 @@ export function initNativeBack(win) {
       return;
     }
 
-    // 3. Bottom sheet (confirm / prompt / detail sheets). Vault inspection is
-    // represented by this sheet, so Back returns the held box before routing.
+    // 3. Bottom sheet — back closes only the sheet, never the page beneath.
     if (document.body.classList.contains('sheet-open')) { hideSheet(); return; }
 
     // 4. Camera / scanner overlay.
@@ -50,17 +69,40 @@ export function initNativeBack(win) {
     }
 
     // 6. Not on a home screen → step back one view.
-    const hash = (location.hash.replace('#', '') || '/').split('?')[0];
+    const hash = currentHash();
     if (!ROOTS.has(hash)) {
       if (canGoBack) history.back();
       else location.hash = '#/';
       return;
     }
 
-    // 7. On home → require a second press within 2s to actually leave.
-    if (exitArmed) { App.exitApp?.(); return; }
-    exitArmed = true;
-    try { toast('Press back again to exit'); } catch { /* toast unavailable */ }
-    setTimeout(() => { exitArmed = false; }, 2000);
+    // 7. A root with nothing open: the handler should already be off. If a
+    // press raced the toggle, leave the app the way Android would.
+    if (App.minimizeApp) App.minimizeApp();
+    else App.exitApp?.();
   });
+
+  // Keep the handler's enabled state in step with the UI.
+  let enabled = null;
+  const sync = () => {
+    const want = appShouldHandleBack({ hash: currentHash(), overlay: overlayOpen() });
+    if (want === enabled) return;
+    enabled = want;
+    try { App.toggleBackButtonHandler?.({ enabled: want })?.catch?.(() => {}); } catch { /* older plugin: always on */ }
+  };
+  let queued = false;
+  const schedule = () => {
+    if (queued) return;
+    queued = true;
+    queueMicrotask(() => { queued = false; sync(); });
+  };
+  const observer = new MutationObserver(schedule);
+  observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  for (const id of ['scanOverlay', 'advisorDrawer']) {
+    const el = document.getElementById(id);
+    if (el) observer.observe(el, { attributes: true, attributeFilter: ['class'] });
+  }
+  window.addEventListener('hashchange', schedule);
+  window.addEventListener('popstate', schedule);
+  sync();
 }

@@ -1,5 +1,41 @@
 /** Spanish. Missing keys fall back to English (see lib/i18n.js). */
 export const es = {
+  bvCommon: {
+    comingSoon: 'Próximamente',
+    retired: 'Retirado',
+    upPct: 'sube un {pct} por ciento',
+    downPct: 'baja un {pct} por ciento',
+  },
+  // 2026 redesign · Vault screens (one group per area).
+  bvVault: {
+  },
+  // 2026 redesign · Set screens (one group per area).
+  bvSet: {
+  },
+  // 2026 redesign · Add screens (one group per area).
+  bvAdd: {
+  },
+  // 2026 redesign · Alerts screens (one group per area).
+  bvAlerts: {
+  },
+  // 2026 redesign · Account screens (one group per area).
+  bvAccount: {
+  },
+  // 2026 redesign · Community screens (one group per area).
+  bvCommunity: {
+  },
+  // 2026 redesign · First screens (one group per area).
+  bvFirst: {
+  },
+  shell: {
+    tabSets: 'Sets',
+    tabMinifigs: 'Minifiguras',
+    tabLists: 'Listas',
+    tabBuild: 'Construir',
+    scanToAdd: 'Escanear',
+    alertsOne: '{count} alerta',
+    alertsOther: '{count} alertas',
+  },
   setup: {
     privacy: 'Empieza de forma privada en este dispositivo — inicia sesión más tarde si quieres sincronizar tus datos.',
     letsGo: 'Empezar', investor: 'Inversor',
@@ -86,6 +122,8 @@ export const es = {
   },
   nav: { vault: 'Colección', catalog: 'Catálogo', scan: 'Escanear', minifigs: 'Minifiguras', me: 'Yo', badges: 'Insignias' },
   common: {
+    actionFailed: 'No ha funcionado. Inténtalo de nuevo',
+    back: 'Atrás',
     cancel: 'Cancelar', save: 'Guardar', close: 'Cerrar', retry: 'Reintentar',
     delete: 'Eliminar', edit: 'Editar', done: 'Hecho', undo: 'Deshacer',
     loading: 'Cargando…', search: 'Buscar', all: 'Todos', none: 'Ninguno',

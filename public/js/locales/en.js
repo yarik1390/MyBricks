@@ -9,6 +9,33 @@
  * Keys are dotted and grouped by surface. Placeholders are {braced}.
  */
 export const en = {
+  bvCommon: {
+    comingSoon: 'Coming soon',
+    retired: 'Retired',
+    upPct: 'up {pct} percent',
+    downPct: 'down {pct} percent',
+  },
+  // 2026 redesign · Vault screens (one group per area).
+  bvVault: {
+  },
+  // 2026 redesign · Set screens (one group per area).
+  bvSet: {
+  },
+  // 2026 redesign · Add screens (one group per area).
+  bvAdd: {
+  },
+  // 2026 redesign · Alerts screens (one group per area).
+  bvAlerts: {
+  },
+  // 2026 redesign · Account screens (one group per area).
+  bvAccount: {
+  },
+  // 2026 redesign · Community screens (one group per area).
+  bvCommunity: {
+  },
+  // 2026 redesign · First screens (one group per area).
+  bvFirst: {
+  },
   setup: {
     privacy: 'Start privately on this device — sign in later if you want to sync.',
     letsGo: "Let's go",
@@ -64,6 +91,12 @@ export const en = {
     pending: 'Some vault changes are waiting to sync. Progress uses confirmed holdings.',
     deleteHint: 'Remove this list? Your owned sets will stay in your vault.', confirmDelete: 'Remove list',
   },
+  // 2026 redesign app shell: bottom bar / rail, Vault sections, Scan FAB.
+  shell: {
+    tabSets: 'Sets', tabMinifigs: 'Minifigs', tabLists: 'Lists', tabBuild: 'Build',
+    scanToAdd: 'Scan to add',
+    alertsOne: '{count} alert', alertsOther: '{count} alerts',
+  },
   nav: {
     vault: 'Vault',
     catalog: 'Catalog',
@@ -73,6 +106,8 @@ export const en = {
     badges: 'Badges',
   },
   common: {
+    back: 'Back',
+    actionFailed: 'That didn’t work — please try again',
     cancel: 'Cancel',
     save: 'Save',
     close: 'Close',

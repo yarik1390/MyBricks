@@ -1,5 +1,41 @@
 /** Chinese (Simplified). Missing keys fall back to English (see lib/i18n.js). */
 export const zh = {
+  bvCommon: {
+    comingSoon: '即将推出',
+    retired: '已停产',
+    upPct: '上涨 {pct}%',
+    downPct: '下跌 {pct}%',
+  },
+  // 2026 redesign · Vault screens (one group per area).
+  bvVault: {
+  },
+  // 2026 redesign · Set screens (one group per area).
+  bvSet: {
+  },
+  // 2026 redesign · Add screens (one group per area).
+  bvAdd: {
+  },
+  // 2026 redesign · Alerts screens (one group per area).
+  bvAlerts: {
+  },
+  // 2026 redesign · Account screens (one group per area).
+  bvAccount: {
+  },
+  // 2026 redesign · Community screens (one group per area).
+  bvCommunity: {
+  },
+  // 2026 redesign · First screens (one group per area).
+  bvFirst: {
+  },
+  shell: {
+    alertsOne: '{count} 条提醒',
+    tabSets: '套装',
+    tabMinifigs: '人仔',
+    tabLists: '清单',
+    tabBuild: '拼搭',
+    scanToAdd: '扫描添加',
+    alertsOther: '{count} 条提醒',
+  },
   setup: {
     privacy: '先在此设备上私密使用，之后可登录以同步数据。',
     letsGo: '开始吧', investor: '投资者',
@@ -86,6 +122,8 @@ export const zh = {
   },
   nav: { vault: '收藏库', catalog: '目录', scan: '扫描', minifigs: '人仔', me: '我的', badges: '徽章' },
   common: {
+    actionFailed: '操作失败，请重试',
+    back: '返回',
     cancel: '取消', save: '保存', close: '关闭', retry: '重试',
     delete: '删除', edit: '编辑', done: '完成', undo: '撤销',
     loading: '加载中…', search: '搜索', all: '全部', none: '无',

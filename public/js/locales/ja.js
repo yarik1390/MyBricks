@@ -1,5 +1,41 @@
 /** Japanese. Missing keys fall back to English (see lib/i18n.js). */
 export const ja = {
+  bvCommon: {
+    comingSoon: '近日公開',
+    retired: '廃盤',
+    upPct: '{pct}パーセント上昇',
+    downPct: '{pct}パーセント下落',
+  },
+  // 2026 redesign · Vault screens (one group per area).
+  bvVault: {
+  },
+  // 2026 redesign · Set screens (one group per area).
+  bvSet: {
+  },
+  // 2026 redesign · Add screens (one group per area).
+  bvAdd: {
+  },
+  // 2026 redesign · Alerts screens (one group per area).
+  bvAlerts: {
+  },
+  // 2026 redesign · Account screens (one group per area).
+  bvAccount: {
+  },
+  // 2026 redesign · Community screens (one group per area).
+  bvCommunity: {
+  },
+  // 2026 redesign · First screens (one group per area).
+  bvFirst: {
+  },
+  shell: {
+    alertsOne: '{count}件のアラート',
+    tabSets: 'セット',
+    tabMinifigs: 'ミニフィグ',
+    tabLists: 'リスト',
+    tabBuild: '組み立て',
+    scanToAdd: 'スキャンで追加',
+    alertsOther: '{count}件のアラート',
+  },
   setup: {
     privacy: 'まずはこの端末だけで利用できます。データを同期したい場合は、後からログインしてください。',
     letsGo: '始めましょう', investor: '投資家',
@@ -86,6 +122,8 @@ export const ja = {
   },
   nav: { vault: 'コレクション', catalog: 'カタログ', scan: 'スキャン', minifigs: 'ミニフィグ', me: 'マイページ', badges: 'バッジ' },
   common: {
+    actionFailed: 'うまくいきませんでした。もう一度お試しください',
+    back: '戻る',
     cancel: 'キャンセル', save: '保存', close: '閉じる', retry: '再試行',
     delete: '削除', edit: '編集', done: '完了', undo: '元に戻す',
     loading: '読み込み中…', search: '検索', all: 'すべて', none: 'なし',

@@ -1313,7 +1313,8 @@ describe('sanitizeMoneyInput', () => {
 describe('routeMetaFor', () => {
   it('assigns child routes to their owning bottom-nav section', async () => {
     const { routeMetaFor } = await import('../route-meta.js');
-    assert.equal(routeMetaFor('/build').nav, '/add');
+    // "What can I build" is a Vault section in the 2026 shell.
+    assert.equal(routeMetaFor('/build').nav, '/');
     assert.equal(routeMetaFor('/wishlist').nav, '/wishlist');
     // Set detail is reachable from Vault, Catalog and Minifigs alike, so no
     // bottom-nav tab should light up there.
@@ -1322,6 +1323,16 @@ describe('routeMetaFor', () => {
     assert.equal(routeMetaFor('/u/demo').nav, '/me');
     assert.equal(routeMetaFor('/add').nav, '/add');
     assert.equal(routeMetaFor('/pile').nav, '/pile');
+  });
+
+  it('shows the Scan FAB only on collection and Discover roots', async () => {
+    const { routeMetaFor } = await import('../route-meta.js');
+    assert.equal(routeMetaFor('/').scanFab, true);
+    assert.equal(routeMetaFor('/add').scanFab, true);
+    assert.equal(routeMetaFor('/minifigs').scanFab, true);
+    assert.equal(routeMetaFor('/set/10300-1').scanFab, false);
+    assert.equal(routeMetaFor('/me').scanFab, false);
+    assert.equal(routeMetaFor('/pile').scanFab, false);
   });
 
   it('hides the AI FAB on operational and full-screen routes', async () => {

@@ -1,5 +1,41 @@
 /** Dutch. Missing keys fall back to English (see lib/i18n.js). */
 export const nl = {
+  bvCommon: {
+    comingSoon: 'Binnenkort',
+    retired: 'Uit productie',
+    upPct: '{pct} procent hoger',
+    downPct: '{pct} procent lager',
+  },
+  // 2026 redesign · Vault screens (one group per area).
+  bvVault: {
+  },
+  // 2026 redesign · Set screens (one group per area).
+  bvSet: {
+  },
+  // 2026 redesign · Add screens (one group per area).
+  bvAdd: {
+  },
+  // 2026 redesign · Alerts screens (one group per area).
+  bvAlerts: {
+  },
+  // 2026 redesign · Account screens (one group per area).
+  bvAccount: {
+  },
+  // 2026 redesign · Community screens (one group per area).
+  bvCommunity: {
+  },
+  // 2026 redesign · First screens (one group per area).
+  bvFirst: {
+  },
+  shell: {
+    tabSets: 'Sets',
+    tabMinifigs: 'Minifiguren',
+    tabLists: 'Lijsten',
+    tabBuild: 'Bouwen',
+    scanToAdd: 'Scannen',
+    alertsOne: '{count} melding',
+    alertsOther: '{count} meldingen',
+  },
   setup: {
     privacy: 'Begin privé op dit apparaat — meld je later aan als je je gegevens wilt synchroniseren.',
     letsGo: 'Aan de slag', investor: 'Investeerder',
@@ -86,6 +122,8 @@ export const nl = {
   },
   nav: { vault: 'Kluis', catalog: 'Catalogus', scan: 'Scannen', minifigs: 'Minifiguren', me: 'Ik', badges: 'Badges' },
   common: {
+    actionFailed: 'Dat lukte niet — probeer het opnieuw',
+    back: 'Terug',
     cancel: 'Annuleren', save: 'Opslaan', close: 'Sluiten', retry: 'Opnieuw',
     delete: 'Verwijderen', edit: 'Bewerken', done: 'Klaar', undo: 'Ongedaan maken',
     loading: 'Laden…', search: 'Zoeken', all: 'Alle', none: 'Geen',
