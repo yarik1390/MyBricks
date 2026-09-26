@@ -19,7 +19,7 @@ test('fresh guest add renders the saved set in the vault immediately', async ({ 
   });
 
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#setList .set-list-card')).toHaveCount(1);
+  await expect(page.locator('#setList .bv-setrow')).toHaveCount(1);
   await expect(page.locator('#setList')).toContainText('Galaxy Explorer');
 });
 
@@ -40,7 +40,7 @@ test('guest Build gate does not call account-scoped build APIs', async ({ page }
     if (/\/api\/build(?:\/sets)?(?:\?|$)/.test(request.url())) protectedBuildRequests.push(request.url());
   });
   await page.goto('/#/build', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByText('Sign in to build from your vault')).toBeVisible();
+  await expect(page.getByText('Sign in to see what you can build')).toBeVisible();
   await page.waitForTimeout(250);
   expect(protectedBuildRequests).toEqual([]);
 });
@@ -80,7 +80,7 @@ test('Build clears account-scoped state across guest and user identity transitio
   });
   await expect(page).toHaveURL(/#\/me$/);
   await page.evaluate(() => { location.hash = '#/build'; });
-  await expect(page.getByText('Sign in to build from your vault')).toBeVisible();
+  await expect(page.getByText('Sign in to see what you can build')).toBeVisible();
   await expect(page.getByText('User A private build')).toHaveCount(0);
 
   await page.evaluate(async () => {
@@ -154,8 +154,7 @@ test('web Pro options provides a visible fallback instead of a no-op', async ({ 
     localStorage.setItem('bv_onboarded_v1', '1');
     localStorage.setItem('bv_setup_v1', '1');
   });
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.locator('.portfolio-tab[data-tab="insights"]').click();
+  await page.goto('/#/insights', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#insightsUpgradeBtn')).toBeVisible();
   await page.locator('#insightsUpgradeBtn').click();
   await expect(page.locator('#sheet')).toHaveClass(/show/);

@@ -1,4 +1,4 @@
-import { vaultViewSwitch } from '../components/collector-shell.js';
+import { icon } from '../ui/kit.js';
 import { $, escapeHtml, thumbImg, proxyImg } from '../utils.js';
 import { api, getSessionOwnerSnapshot } from '../api.js';
 import { state } from '../state.js';
@@ -71,16 +71,25 @@ export async function renderCollectionRoom() {
   const themeName = item => item.theme || t('room.otherTheme');
   let failed = false;
   const initialPose = rememberedPose?.owner.userId === owner.userId && rememberedPose.owner.generation === owner.generation ? rememberedPose.pose : undefined;
-  $('#root').innerHTML = `<main id="collectionRoomPage" class="showroom" aria-label="${escapeHtml(t('room.title'))}">
+  const shelves = [...new Set(catalog.map(themeName))];
+  const roomBtn = (id, name, label) => `<button type="button" class="bv-iconbtn bv-room-btn" id="${id}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${icon(name)}</button>`;
+  $('#root').innerHTML = `<main id="collectionRoomPage" class="showroom bv-room is-walk" aria-label="${escapeHtml(t('room.title'))}">
     <div id="roomStage" class="showroom-stage" tabindex="0" aria-label="${escapeHtml(t('room.walkInstructions'))}" data-room-state="loading"></div>
     <div class="showroom-chrome-top">
-      <header class="showroom-bar">${vaultViewSwitch('room')}<div class="showroom-heading"><h1>${t('room.title')}</h1><span>${escapeHtml(tPlural('room.count', catalog.length, { count: catalog.length }))}</span></div>
-        <button type="button" id="roomFind">${t('room.find')}</button><button type="button" id="roomList">${t('room.accessibleList')}</button></header>
-      <div class="showroom-notices"><p id="roomStatus" role="status" aria-live="polite">${t('room.loading')}</p>${stale ? `<p>${t('collections.stale')}</p>` : ''}${state.pendingCollectionOperationList?.length ? `<p>${t('collections.pending')}</p>` : ''}</div>
+      <header class="bv-room-bar">
+        <a class="bv-iconbtn bv-room-btn" href="#/" data-vault-view="grid" aria-label="${escapeHtml(t('bvVault.roomBack'))}">${icon('back')}</a>
+        <div class="bv-room-heading"><h1>${escapeHtml(t('bvVault.roomTitle'))}</h1><span>${escapeHtml(tPlural('room.count', catalog.length, { count: catalog.length }))}</span></div>
+        ${roomBtn('roomFind', 'search', t('room.find'))}${roomBtn('roomList', 'list', t('room.accessibleList'))}
+      </header>
     </div>
     <div class="showroom-crosshair" aria-hidden="true"></div>
-    <div id="roomJoystick" class="showroom-stick" role="group" aria-label="${escapeHtml(t('room.joystick'))}"><span class="showroom-stick-knob"></span></div>
-    <footer class="showroom-controls"><button type="button" id="roomReset">${t('room.resetPosition')}</button><button type="button" id="roomMouse">${t('room.captureMouse')}</button><button type="button" id="roomHelp">${t('room.controls')}</button></footer>
+    <div class="bv-room-bottom">
+      <div class="showroom-notices"><p id="roomStatus" role="status" aria-live="polite">${t('room.loading')}</p>${stale ? `<p>${t('collections.stale')}</p>` : ''}${state.pendingCollectionOperationList?.length ? `<p>${t('collections.pending')}</p>` : ''}</div>
+      <div id="roomJoystick" class="showroom-stick" role="group" aria-label="${escapeHtml(t('room.joystick'))}"><span class="showroom-stick-knob"></span></div>
+      ${shelves.length > 1 ? `<nav class="bv-room-shelves" aria-label="${escapeHtml(t('bvVault.roomShelves'))}">${shelves.map((name, index) => `<button type="button" class="bv-chip" data-room-shelf="${index}">${escapeHtml(name)}</button>`).join('')}</nav>` : ''}
+      <footer class="showroom-controls">${roomBtn('roomReset', 'refresh', t('room.resetPosition'))}${roomBtn('roomMouse', 'eye', t('room.captureMouse'))}${roomBtn('roomHelp', 'info', t('room.controls'))}
+        <button type="button" class="bv-btn bv-btn--tonal bv-room-walk" id="roomWalk" aria-pressed="true">${icon('walk', { size: 20 })}<span>${escapeHtml(t('bvVault.roomFreeWalk'))}</span></button></footer>
+    </div>
     <div id="roomFallback" class="showroom-fallback-content" hidden></div>
   </main>`;
   const stage = $('#roomStage');
@@ -236,6 +245,19 @@ export async function renderCollectionRoom() {
     filter();
   }
   $('#roomFind').addEventListener('click', () => browse(true));
+  // Shelf buttons: jump to the first box of a theme (the visible twin of walking there).
+  document.querySelectorAll('[data-room-shelf]').forEach(button => button.addEventListener('click', () => {
+    const name = shelves[Number(button.dataset.roomShelf)];
+    const first = catalog.find(item => themeName(item) === name);
+    document.querySelectorAll('[data-room-shelf]').forEach(b => b.classList.toggle('is-on', b === button));
+    if (first && activeRoom?.teleportToSet(first.set_num)) status.textContent = t('room.arrived');
+    stage.focus({ preventScroll: true });
+  }));
+  // Free walk shows or hides the movement joystick; looking and tapping boxes always work.
+  $('#roomWalk').addEventListener('click', () => {
+    const on = $('#collectionRoomPage').classList.toggle('is-walk');
+    $('#roomWalk').setAttribute('aria-pressed', String(on));
+  });
   $('#roomList').addEventListener('click', () => browse());
   $('#roomReset').addEventListener('click', () => { activeRoom?.reset(); stage.focus({ preventScroll: true }); });
   $('#roomMouse').addEventListener('click', () => {
@@ -280,7 +302,7 @@ export async function renderCollectionRoom() {
     activeRoom = controller;
     controller.setPaused(roomSheet);
     stage.dataset.roomState = 'ready';
-    status.textContent = catalog.length ? t('room.walkHint') : t('room.empty');
+    status.textContent = catalog.length ? t('bvVault.roomHint') : t('room.empty');
     if (useVideoIntro && !roomSheet) {
       activeIntro = startRoomVideoIntro(stage, {
         isCurrent: () => current() && stage.isConnected && activeRoom === controller,

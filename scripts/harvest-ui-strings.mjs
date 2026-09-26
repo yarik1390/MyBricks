@@ -55,7 +55,7 @@ const WORKER_COPY = [
 // evidence-driven list alongside the harvester instead of re-admitting broad
 // false-positive syntax rules.
 const RUNTIME_EXACT_STRINGS = [
-  'ALL ⭐', 'Insights ⭐', 'Value ↓', 'collection value', 'Common', 'Uncommon',
+  'ALL ⭐', 'Insights ⭐', 'Value ↓', 'Common', 'Uncommon',
   'Rare', 'Legendary', 'Rarity ↓', 'Sync resumes when you return.',
   'Keep your spreadsheet "BricksVault Vault" in sync in the background.',
   'Google Sheets is disabled until OAuth is configured.',
@@ -117,7 +117,7 @@ const RUNTIME_EXACT_STRINGS = [
   'Local AI session failed.', 'Local Gemma error:', 'New sold', 'New sold comps are',
   'Next:', 'No pending', 'Open eBay', 'Price checked', 'Provider:', 'Release',
   'Retirement risk: High', 'Rising', 'Sealed', 'Sell', "Sorry, couldn't reach the advisor.",
-  'Submitted:', 'TOP FALLING', 'TOP RISING',
+  'Submitted:',
   'Theme Concentration Warning', 'Try a different search or clear filters.',
   'Used sold', 'Vault:', 'if sold now', 'is a grab', 'not yet run',
   'other themes in your vault', 'skipped —', '· Figs',

@@ -24,11 +24,12 @@ test.describe('design audit regressions', () => {
   });
 
   test('search and manual-entry controls have stable accessible names and form metadata', async ({ page }) => {
-    await page.goto('/#/minifigs', { waitUntil: 'domcontentloaded' });
+    await page.goto('/#/minifigs?owned=0', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('searchbox', { name: 'Search minifigures' })).toHaveAttribute('name', 'minifig_search');
 
     await page.goto('/#/build', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('searchbox', { name: 'Search buildable sets' })).toHaveAttribute('name', 'build_search');
+    await page.locator('#vaultSearchBtn').click();
+    await expect(page.getByRole('searchbox', { name: 'Search builds' })).toHaveAttribute('name', 'build_search');
 
     await page.goto('/#/pile', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('textbox', { name: 'Set number or barcode' })).toHaveAttribute('name', 'set_identifier');

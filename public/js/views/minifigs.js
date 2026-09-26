@@ -1,32 +1,39 @@
-import { vaultNavigation, discoverNavigation } from '../components/collector-shell.js';
-import { $, $$, haptic, escapeHtml, fmtMoney, toast, debounce, bvIDB, SEARCH_DEBOUNCE_MS, mount, drawSparkline, fmtDateUpdated, thumbImg, capturedMoneyContext, CURRENCY_SYMBOLS, setBtnLoading } from '../utils.js';
+import { vaultNavigation, discoverNavigation, setPageFab } from '../components/collector-shell.js';
+import { $, $$, haptic, escapeHtml, toast, debounce, bvIDB, SEARCH_DEBOUNCE_MS, mount, fmtDateUpdated, thumbImg, capturedMoneyContext, CURRENCY_SYMBOLS, setBtnLoading, snackbar } from '../utils.js';
 import { t, tPlural } from '../lib/i18n.js';
 import { state } from '../state.js';
 import { api, getSessionUserId, getSessionOwnerSnapshot } from '../api.js';
-import { I } from '../icons.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
-import { skelPage, skelCardList } from '../components/skeleton.js';
-
 import { activeFigFilterCount } from '../lib/pure.js';
 import { figFilterSummaryText } from '../lib/filter-summary.js';
-import { figAvatarSVG } from '../lib/fig-avatar.js';
-import { wireHorizontalRail } from '../lib/horizontal-rail.js';
 import { confirmedMinifigHoldingResponse, parseMinifigHoldingForm, normalizeMinifigHolding } from '../lib/minifig-holding.js';
 import { usdMoneyInputValue } from '../lib/money-input.js';
 import { exportBlob } from '../lib/native-file-export.js';
+import { icon, iconBtn, topbar, searchBar, chip, card, bar, emptyState, btn, sheetBody, sparkline, attrs, skeletonRows } from '../ui/kit.js';
+import { tileAction } from '../ui/set-ui.js';
+import { vaultTopbar, vaultSearchRow, sortButton, vaultToolbar, openChoiceSheet, openActionSheet, vaultFigTile, rarityLabel, rarityPill, figArtHtml, moneyWhole } from '../ui/vault-ui.js';
 
-const rarityLabel = (rarity) => {
-  const value = String(rarity || 'common').toLowerCase();
-  const suffix = value[0].toUpperCase() + value.slice(1);
-  return t(`minifigs.filterSummaryRarity${suffix}`);
-};
+// Minifigures, in two modes on one route:
+//  · Vault → Minifigs (#/minifigs?owned=1, or bare #/minifigs): the figures
+//    you own — value hero, series progress, sort + series filter, 3-up grid.
+//  · Discover → Minifigs (#/minifigs?owned=0[&series=…]): the whole catalogue
+//    with one-tap add/owned toggles on every tile.
+// Tapping a figure opens the figure sheet: value, where it comes from and the
+// holding editor (copies, price paid, condition, date, notes).
 
 let _blindGen = 0;
 let _figDetailGen = 0;
 let _seriesList = [];
+let _seriesProgress = null;
+let figSearchOpen = false;
 
-// Bi-directional minifig sort options. Each click toggles direction; switching
-// to a new sort uses its default. The backend accepts all keys below.
+const esc = (v) => escapeHtml(v == null ? '' : String(v));
+const onFigs = () => location.hash.split('?')[0] === '#/minifigs';
+const hashParams = () => new URLSearchParams(location.hash.split('?')[1] || '');
+const ownedMode = () => state.filter.figOwned === 'owned';
+
+// Bi-directional minifig sort options. The sort sheet offers both directions;
+// the backend accepts all keys below.
 const FIG_SORTS = [
   { base: "rarity",   asc: "rarity_asc",   desc: "rarity_desc", def: "rarity_desc", label: "Rarity" },
   { base: "scarcity", asc: "scarcity_asc", desc: "scarcity",    def: "scarcity",    label: "Rarest" },
@@ -34,230 +41,206 @@ const FIG_SORTS = [
   { base: "value",    asc: "value_asc",    desc: "value_desc",  def: "value_desc",  label: "Value" },
   { base: "name",     asc: "name_asc",     desc: "name_desc",   def: "name_asc",    label: "A-Z" },
 ];
-const figSortChipText = (o, cur) => {
-  const active = cur === o.asc || cur === o.desc;
-  return o.label + (active ? (cur === o.asc ? " ↑" : " ↓") : "");
+const SORT_KEYS = {
+  rarity_desc: 'figSortRarityDesc', rarity_asc: 'figSortRarityAsc', scarcity: 'figSortScarcity', scarcity_asc: 'figSortScarcityAsc',
+  year_desc: 'figSortYearDesc', year_asc: 'figSortYearAsc', value_desc: 'figSortValueDesc', value_asc: 'figSortValueAsc',
+  name_asc: 'figSortNameAsc', name_desc: 'figSortNameDesc',
 };
+const SHORT_KEYS = { rarity: 'figSortRarity', scarcity: 'figSortRarest', year: 'figSortYear', value: 'sortValue', name: 'sortAz' };
+const sortShortLabel = (value) => {
+  const o = FIG_SORTS.find(s => s.asc === value || s.desc === value) || FIG_SORTS[3];
+  if (o.base === 'year' && value === 'year_asc') return t('bvVault.figSortOldest');
+  if (o.base === 'name' && value === 'name_desc') return t('bvVault.figSortZa');
+  return t(`bvVault.${SHORT_KEYS[o.base]}`);
+};
+const currentSort = () => (ownedMode() ? (state.filter.figOwnedSort || 'value_desc') : (state.filter.figSort || 'year_desc'));
+const currentSeries = () => (ownedMode() ? (state.filter.figOwnedSeries || 'all') : (state.filter.figSeries || 'all'));
+const currentQ = () => (ownedMode() ? (state.filter.figOwnedQ || '') : (state.filter.figQ || ''));
 
-// Distinct series with counts, for the series filter dropdown. Fetched once and
-// cached for the session (the catalog is static between deploys).
+// Series names can be long ("Collectible Minifigures Series 21"); tiles and
+// chips use the short collector form ("CMF Series 21").
+function seriesShort(name = '') {
+  return String(name).replace(/^Collectible Minifigures\s*/i, 'CMF ').replace(/^LEGO\s+/i, '').trim() || String(name);
+}
+
+// Distinct series with counts, for the series pickers. Fetched once and cached
+// for the session (the catalog is static between deploys).
 async function loadSeriesList() {
   if (_seriesList.length) return _seriesList;
   try {
     const res = await api('/api/minifigs/series');
     _seriesList = res.series || [];
-  } catch { /* leave empty — the dropdown still offers "All series" */ }
+  } catch { /* leave empty — the picker still offers "All series" */ }
   return _seriesList;
 }
 
-// Top series shown as quick chips; the rest live behind a "More…" picker
-// (40+ series — too many for a flat row). Mirrors the catalog theme chips.
-function seriesChipsHTML(f) {
-  const top = _seriesList.slice(0, quickSeriesCount());
-  const sel = f.figSeries && f.figSeries !== 'all' ? f.figSeries : null;
-  const inTop = top.some(s => s.series === sel);
-  return `<button class="chip ${!sel ? 'active' : ''}" data-fig-series="all">All series</button>` +
-    (sel && !inTop ? `<button class="chip active" data-fig-series="${escapeHtml(sel)}">${escapeHtml(sel)}</button>` : '') +
-    top.map(s => `<button class="chip ${sel === s.series ? 'active' : ''}" data-fig-series="${escapeHtml(s.series)}">${escapeHtml(s.series)}</button>`).join('') +
-    (_seriesList.length > 6 ? `<button class="chip" id="moreSeriesChip">${I.filter()}<span>More…</span></button>` : '');
-}
-
-function quickSeriesCount() {
-  try { return window.matchMedia?.("(max-width: 480px)")?.matches ? 3 : 6; }
-  catch { return 6; }
-}
-
 function applySeriesFilter(value) {
-  state.filter.figSeries = value; haptic('light');
-  loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) { refreshMiniGrid(); refreshMiniStats(); } }).catch(() => {});
+  if (ownedMode()) state.filter.figOwnedSeries = value; else state.filter.figSeries = value;
+  haptic('light');
+  reloadMiniView().catch(() => {});
 }
 
-function refreshSeriesChips() {
-  const row = document.getElementById('figSeriesChips');
-  if (!row) return;
-  row.innerHTML = seriesChipsHTML(state.filter);
-  wireSeriesChips();
+function openSeriesSheet() {
+  const current = currentSeries();
+  const paint = (list) => openChoiceSheet({
+    title: t('bvVault.figSeriesTitle'),
+    current,
+    options: [{ value: 'all', label: t('bvVault.figAllSeries') }]
+      .concat(current !== 'all' && !list.some(s => s.series === current) ? [{ value: current, label: seriesShort(current) }] : [])
+      .concat(list.map(s => ({ value: s.series, label: seriesShort(s.series), sub: tPlural('bvVault.figSeriesCount', s.n) }))),
+    onPick: (value) => { if (value !== currentSeries()) applySeriesFilter(value); },
+  });
+  if (_seriesList.length) paint(_seriesList);
+  else loadSeriesList().then(paint);
 }
 
-function wireSeriesChips() {
-  $$('[data-fig-series]').forEach(btn => btn.addEventListener('click', () => {
-    applySeriesFilter(btn.dataset.figSeries);
-    refreshSeriesChips();
-  }));
-  $('#moreSeriesChip')?.addEventListener('click', () => {
-    showSheet(`
-      <h2 class="u-serif-h" style="margin:0 4px 12px;">Pick a series</h2>
-      <div class="search-wrap" style="margin:0 4px 14px;">
-        <span class="s-icon">${I.search()}</span>
-        <input class="search-input" id="seriesPickerInput" placeholder="Search series…" autocomplete="off">
-      </div>
-      <div id="seriesPickerResults" class="scrollable u-col u-gap-1" style="max-height:320px;overflow-y:auto;margin:4px;"></div>
-    `);
-    const results = $('#seriesPickerResults');
-    const inp = $('#seriesPickerInput');
-    const paint = (q = '') => {
-      const query = q.toLowerCase().trim();
-      const matches = _seriesList.filter(s => !query || s.series.toLowerCase().includes(query));
-      results.innerHTML = matches.length
-        ? matches.map(s => `<button class="chip u-wfull ${state.filter.figSeries === s.series ? 'active' : ''}" data-pick-series="${escapeHtml(s.series)}" style="justify-content:flex-start;">${escapeHtml(s.series)} (${s.n})</button>`).join('')
-        : `<div class="u-mute u-fs-base" style="text-align:center;padding:20px;">No series match</div>`;
-      results.querySelectorAll('[data-pick-series]').forEach(b => b.addEventListener('click', () => {
-        applySeriesFilter(b.dataset.pickSeries);
-        hideSheet();
-        refreshSeriesChips();
-      }));
-    };
-    paint();
-    inp?.addEventListener('input', e => paint(e.target.value));
+function openFigSortSheet() {
+  haptic('light');
+  openChoiceSheet({
+    title: t('bvVault.figSortTitle'),
+    current: currentSort(),
+    options: FIG_SORTS.flatMap(o => (o.def === o.asc ? [o.asc, o.desc] : [o.desc, o.asc]).map(value => ({ value, label: t(`bvVault.${SORT_KEYS[value]}`) }))),
+    onPick: (value) => {
+      if (value === currentSort()) return;
+      if (ownedMode()) state.filter.figOwnedSort = value; else state.filter.figSort = value;
+      reloadMiniView().catch(() => {});
+    },
   });
 }
 
 export async function renderBlind() {
-  const requestedOwned = new URLSearchParams(location.hash.split('?')[1] || '').get('owned');
-  const requestedFilter = requestedOwned === '1' ? 'owned' : requestedOwned === '0' ? 'all' : null;
-  if (requestedFilter && state.filter.figOwned !== requestedFilter) { state.filter.figOwned = requestedFilter; state.blind.items = []; }
+  const requestedOwned = hashParams().get('owned');
+  // Bare #/minifigs is the Vault's Minifigs tab; ?owned=0 is Discover.
+  const requestedFilter = requestedOwned === '0' ? (state.filter.figOwned === 'unowned' ? 'unowned' : 'all') : 'owned';
+  if (state.filter.figOwned !== requestedFilter) { state.filter.figOwned = requestedFilter; state.blind.items = []; }
+  const requestedSeries = hashParams().get('series');
+  if (!ownedMode() && requestedSeries && requestedSeries !== state.filter.figSeries) { state.filter.figSeries = requestedSeries; state.blind.items = []; }
+  // Cached results (memory or the offline IndexedDB copy) belong to one mode.
+  if (state.blind.mode && state.blind.mode !== state.filter.figOwned) state.blind.items = [];
 
   if (!state.blind.items.length) {
-    $("#root").innerHTML = skelPage(skelCardList(6));
+    $("#root").innerHTML = `<main class="bv-page vault-figs" aria-busy="true">${ownedMode() ? vaultTopbar() : topbar({ title: t('collector.discover') })}${skeletonRows(4)}</main>`;
     await loadBlind({ reset: true });
-    if (isFigFilterDefault()) bvIDB.set('blind', { data: { items: state.blind.items, total: state.blind.total, hasMore: state.blind.hasMore, offset: state.blind.offset }, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
+    if (isFigFilterDefault()) bvIDB.set('blind', { data: { items: state.blind.items, total: state.blind.total, hasMore: state.blind.hasMore, offset: state.blind.offset, mode: state.blind.mode }, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
   } else if (state.blind._stale) {
     state.blind._stale = false;
     loadBlind({ reset: true }).then(() => {
-      if (location.hash === '#/minifigs' && $('#miniGrid')) {
+      if (onFigs() && $('#miniGrid')) {
         refreshMiniGrid();
         refreshMiniStats();
-        if (isFigFilterDefault()) bvIDB.set('blind', { data: { items: state.blind.items, total: state.blind.total, hasMore: state.blind.hasMore, offset: state.blind.offset }, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
+        if (isFigFilterDefault()) bvIDB.set('blind', { data: { items: state.blind.items, total: state.blind.total, hasMore: state.blind.hasMore, offset: state.blind.offset, mode: state.blind.mode }, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
       }
     }).catch(() => {});
   }
-  const b = state.blind;
-  const f = state.filter;
-  const ownedCount = b.ownedCount || 0;
-  const ownedValue = b.ownedValue || 0;
-  const activeFilterCount = activeFigFilterCount(f);
+  if (!onFigs()) return;
+  paintFigs();
+  loadSeriesList();
+  loadSeriesProgress();
+}
 
-  $("#root").innerHTML = `
-    <div class="page">
-      <div class="topbar minifigs-topbar">
-        <div class="topbar-heading">
-          <div class="topbar-eyebrow" id="blindCount">${tPlural('counts.collected', ownedCount, { owned: ownedCount, total: b.total.toLocaleString() })}</div>
-          <h1 class="topbar-title">Minifigs</h1>
-        </div>
-        <button class="btn-secondary" id="figExportBtn">${I.download ? I.download() : ''}<span>${escapeHtml(t('minifigs.exportCsv'))}</span></button>
-      </div>
-
-${location.hash.includes('owned=0') ? discoverNavigation('minifigs') : vaultNavigation('minifigs')}
-      <section class="fig-collection-overview" aria-label="Minifigure collection summary">
-        <div class="fig-stats-row">
-          <div class="fig-stat-pill">
-            <div class="fig-stat-num" id="figStatCount">${tPlural('counts.owned', ownedCount)}</div>
-            <div class="fig-stat-lbl">${tPlural('counts.ofFigs', b.total, { total: b.total.toLocaleString() })}</div>
-          </div>
-          <div class="fig-stat-pill">
-            <div class="fig-stat-num" id="figStatValue">${fmtMoney(ownedValue, { cents: 0 })}</div>
-            <div class="fig-stat-lbl">collection value</div>
-          </div>
-        </div>
-      </section>
-
-      <div id="rareFindsSection"></div>
-
-      <div class="fig-filter-bar fig-catalog-toolbar">
-        <div class="fig-catalog-actions">
-          <div class="search-wrap open">
-            <span class="s-icon">${I.search()}</span>
-            <input class="search-input" id="figSearch" name="minifig_search" type="search" aria-label="Search minifigures" aria-describedby="figResultsMeta" placeholder="Search minifigs…" autocomplete="off" value="${escapeHtml(f.figQ)}">
-          </div>
-          <button class="btn-secondary fig-filter-trigger ${activeFilterCount ? 'active' : ''}" id="figFilterChip" aria-haspopup="dialog" aria-controls="sheet" aria-expanded="false">
-            ${I.filter()}<span>${escapeHtml(activeFilterCount ? tPlural('catalog.filtersWithCount', activeFilterCount) : t('catalog.filters'))}</span>
-          </button>
-        </div>
-        <div class="fig-sort-toolbar">
-          <span class="fig-sort-label">Sort</span>
-          <div class="filter-row horizontal-rail fig-sort-row" aria-label="Sort minifigures">
-            ${FIG_SORTS.map(o => `<button class="chip ${(f.figSort === o.asc || f.figSort === o.desc) ? 'active' : ''}" data-fig-sort-base="${o.base}">${figSortChipText(o, f.figSort)}</button>`).join('')}
-          </div>
-        </div>
-        <div class="filter-summary" id="figFilterSummary">${escapeHtml(figFilterSummaryText(f, t, tPlural))}</div>
-      </div>
-
-      <div class="catalog-meta" id="figResultsMeta" role="status" aria-live="polite">${tPlural('counts.results', b.total)}</div>
-      <div class="mini-grid" id="miniGrid">
-        ${miniGridHTML()}
-      </div>
-      <div id="blindSentinel" class="load-sentinel" style="${b.hasMore ? "" : "display:none;"}">
-        <div class="spinner"></div>
-      </div>
-    </div>`;
-
-  const figSearchInput = $("#figSearch");
-  figSearchInput?.addEventListener("input", (e) => { state.filter.figQ = e.target.value; debouncedFigSearch(); });
-
-  $$("[data-fig-sort-base]").forEach(btn => btn.addEventListener("click", () => {
-    const o = FIG_SORTS.find(s => s.base === btn.dataset.figSortBase);
-    if (!o) return;
-    const cur = state.filter.figSort;
-    // Same sort active → flip direction; new sort → its default direction.
-    state.filter.figSort = cur === o.desc ? o.asc : cur === o.asc ? o.desc : o.def;
-    haptic("light");
-    $$("[data-fig-sort-base]").forEach(x => {
-      const xo = FIG_SORTS.find(s => s.base === x.dataset.figSortBase);
-      if (!xo) return;
-      x.classList.toggle("active", state.filter.figSort === xo.asc || state.filter.figSort === xo.desc);
-      x.textContent = figSortChipText(xo, state.filter.figSort);
-    });
-    loadBlind({ reset: true }).then(() => { if (location.hash === '#/minifigs' && $('#miniGrid')) { refreshMiniGrid(); refreshMiniStats(); } }).catch(() => {});
-  }));
-
-  $("#figFilterChip")?.addEventListener("click", () => showFigFilterSheet());
-  $("#figExportBtn")?.addEventListener("click", exportMinifigHoldings);
-
-  // Series filter: top series as quick chips, the rest behind a "More…" picker.
-  // The facet list loads async; re-render the chip row once it arrives.
-  wireSeriesChips();
-  loadSeriesList().then(() => { if (location.hash === '#/minifigs') refreshSeriesChips(); });
-
-
+function paintFigs() {
+  const owned = ownedMode();
+  const q = currentQ();
+  const searchOpen = owned && (!!q || figSearchOpen);
+  $("#root").innerHTML = owned ? `
+    <main class="bv-page has-fab vault-figs is-owned" id="figsPage">
+      ${vaultTopbar({ searchOpen, searchControls: 'figSearchRow', searchLabel: t('bvVault.figSearchOwned') })}
+      ${searchOpen ? vaultSearchRow({ id: 'figSearch', rowId: 'figSearchRow', name: 'minifig_search', value: q, placeholder: t('bvVault.figSearchPlaceholder'), label: t('bvVault.figSearchLabel') }) : ''}
+      ${searchOpen ? '' : ownedHeroHTML()}
+      ${vaultNavigation('minifigs')}
+      ${vaultToolbar(sortButton(sortShortLabel(currentSort()), { id: 'figSortBtn' }), chip(currentSeries() === 'all' ? t('bvVault.figAllSeries') : seriesShort(currentSeries()), { drop: true, id: 'figSeriesChip', pressed: currentSeries() !== 'all', attrs: { 'aria-haspopup': 'dialog' } }))}
+      <p class="bv-sr" id="figResultsMeta" role="status" aria-live="polite">${esc(tPlural('bvVault.figResults', state.blind.total))}</p>
+      <div class="bv-grid bv-grid--3 vault-fig-grid" id="miniGrid">${miniGridHTML()}</div>
+      <div id="blindSentinel" class="vault-sentinel"${state.blind.hasMore ? '' : ' hidden'}><span class="bv-skel"></span></div>
+    </main>` : `
+    <main class="bv-page vault-figs is-discover" id="figsPage">
+      ${topbar({ title: t('collector.discover'), actionsHtml: iconBtn({ icon: 'more', label: t('bvVault.moreOptions'), id: 'figMoreBtn', attrs: { 'aria-haspopup': 'dialog' } }) })}
+      ${searchBar({ id: 'figSearch', name: 'minifig_search', value: q, placeholder: t('bvVault.figSearchPlaceholder'), label: t('bvVault.figSearchLabel') }).replace('<input', '<input aria-describedby="figResultsMeta"')}
+      ${discoverNavigation('minifigs')}
+      <div class="bv-chips vault-fig-chips">${discoverChipsHTML()}</div>
+      <div id="figSeriesProgress">${seriesProgressHTML()}</div>
+      <p class="bv-sr" id="figResultsMeta" role="status" aria-live="polite">${esc(tPlural('bvVault.figResults', state.blind.total))}</p>
+      <div class="bv-grid bv-grid--3 vault-fig-grid" id="miniGrid">${miniGridHTML()}</div>
+      <div id="blindSentinel" class="vault-sentinel"${state.blind.hasMore ? '' : ' hidden'}><span class="bv-skel"></span></div>
+    </main>`;
+  if (!owned) setPageFab(null);
+  wireFigsPage();
   wireMiniCards();
   mountBlindSentinel();
-  document.querySelectorAll('.fig-filter-bar .horizontal-rail').forEach(wireHorizontalRail);
-  loadRareFinds();
+  if (searchOpen && figSearchOpen) {
+    const input = $('#figSearch');
+    if (input && document.activeElement !== input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+  }
 }
 
-// "Rare finds in your vault" — surfaces the signed-in user's owned
-// rare/legendary figs as a tappable highlight row above the catalog. Empty for
-// guests / collections with none, so it self-hides. Loaded lazily (non-blocking).
-async function loadRareFinds() {
-  let figs = [];
-  try { const r = await api('/api/minifigs/rare-finds'); figs = (r && r.figs) || []; } catch { return; }
-  const el = $('#rareFindsSection');
-  if (!el || !figs.length) return;
-  el.innerHTML = `
-    <h2 class="section-title" style="margin-top:0;">Rare finds in your vault</h2>
-    <div class="rare-finds-rail horizontal-rail" aria-label="Rare minifigures in your vault">
-      ${figs.map((f) => {
-        const r = f.rarity || 'rare';
-        const spokenLabel = `${String(f.name || 'Minifigure')}, ${rarityLabel(r)}${f.current_value ? `, ${fmtMoney(f.current_value, { cents: 0 })}` : ''}`;
-        return `<button class="rare-find-card" data-fig="${escapeHtml(String(f.fig_num))}" aria-label="${escapeHtml(spokenLabel)}">
-          <div class="rare-find-image">
-            ${f.image_url ? `<img src="${escapeHtml(thumbImg(String(f.image_url)))}" alt="" loading="lazy" decoding="async" style="max-width:100%;max-height:72px;object-fit:contain;">` : figAvatarSVG(String(f.fig_num), String(f.name || ''))}
-          </div>
-          <div class="rare-find-name">${escapeHtml(String(f.name || ''))}</div>
-          <div class="rare-find-meta">
-            <span class="mini-rarity-tag rarity-${r}">${escapeHtml(rarityLabel(r))}</span>
-            ${f.current_value ? `<span class="rare-find-value">${fmtMoney(f.current_value, { cents: 0 })}</span>` : ''}
-          </div>
-        </button>`;
-      }).join('')}
-    </div>`;
-  wireHorizontalRail(el.querySelector('.rare-finds-rail'));
-  el.querySelectorAll('.rare-find-card').forEach((btn) => btn.addEventListener('click', () => {
-    const fig = figs.find((x) => String(x.fig_num) === btn.dataset.fig);
-    if (fig) { haptic('light'); showFigDetail(fig); }
-  }));
+function discoverChipsHTML() {
+  const series = currentSeries();
+  const n = activeFigFilterCount({ ...state.filter, figSeries: 'all', figQ: '', figOwned: 'all' });
+  return chip(series === 'all' ? t('bvVault.figAllSeries') : seriesShort(series), { drop: true, id: 'figSeriesChip', pressed: series !== 'all', attrs: { 'aria-haspopup': 'dialog' } })
+    + chip(t('bvVault.figNotOwned'), { id: 'figOwnedChip', pressed: state.filter.figOwned === 'unowned' })
+    + chip(sortShortLabel(currentSort()), { icon: 'sort', drop: true, id: 'figSortBtn', attrs: { 'aria-haspopup': 'dialog', 'aria-label': t('bvVault.sortCurrent', { sort: sortShortLabel(currentSort()) }) } })
+    // Rarity lives in More options → Minifig filters; an active one shows here.
+    + (n ? chip(tPlural('catalog.filtersWithCount', n), { icon: 'filter', id: 'figFilterChip', pressed: true, attrs: { 'aria-haspopup': 'dialog', 'aria-controls': 'sheet', 'aria-expanded': 'false' } }) : '');
 }
 
+/* ---------------------------------------------------------------- owned hero + series progress */
+function ownedHeroHTML() {
+  const b = state.blind;
+  const figures = tPlural('bvVault.figFigures', b.ownedCount || 0);
+  const unique = tPlural('bvVault.figUnique', b.total || 0);
+  return card(`<span class="vault-hero__head"><span class="vault-hero__label">${esc(t('bvVault.figValue'))}</span><span class="bv-label" id="figStatCount">${esc(`${figures} · ${unique}`)}</span></span>
+    <span class="bv-hero__value" id="figStatValue">${esc(moneyWhole(b.ownedValue || 0))}</span>
+    <span id="figSeriesProgress">${seriesProgressHTML()}</span>`, { cls: 'bv-hero vault-fig-hero', attrs: { 'aria-label': t('bvVault.figSummaryLabel') } });
+}
+
+function seriesProgressHTML() {
+  const sp = _seriesProgress;
+  const series = currentSeries();
+  if (ownedMode()) {
+    if (!sp || !sp.total) {
+      return `<a class="vault-fig-progress" href="#/minifigs?owned=0"><span class="vault-fig-progress__text"><span class="vault-fig-progress__title">${esc(t('bvVault.figBrowse'))}</span></span><span class="bv-card__link">${esc(t('bvVault.figFind'))}${icon('chev', { size: 16 })}</span></a>`;
+    }
+    const left = Math.max(0, sp.total - sp.owned);
+    return `<a class="vault-fig-progress" href="#/minifigs?owned=0&series=${encodeURIComponent(sp.series)}"><span class="vault-fig-progress__text"><span class="vault-fig-progress__title">${esc(tPlural('bvVault.figSeriesOf', sp.total, { series: seriesShort(sp.series), owned: sp.owned }))}</span>${bar((sp.owned / sp.total) * 100, { label: tPlural('bvVault.figSeriesOf', sp.total, { series: seriesShort(sp.series), owned: sp.owned }) })}</span>
+      <span class="bv-card__link">${esc(left ? tPlural('bvVault.figToFind', left) : t('bvVault.figComplete'))}${icon('chev', { size: 16 })}</span></a>`;
+  }
+  if (series === 'all' || !sp || sp.series !== series || !sp.total) return '';
+  const left = Math.max(0, sp.total - sp.owned);
+  return card(`<span class="vault-fig-progress__head"><span class="vault-fig-progress__title">${esc(tPlural('bvVault.figSeriesOwnedOf', sp.total, { series: seriesShort(series).replace(/^CMF\s+/, ''), owned: sp.owned }))}</span><span class="bv-label">${esc(left ? tPlural('bvVault.figToFind', left) : t('bvVault.figComplete'))}</span></span>${bar((sp.owned / sp.total) * 100)}`, { cls: 'vault-fig-series' });
+}
+
+// The series you are furthest into (by owned figures), or the one Discover is
+// filtered to, with owned / total counts.
+async function loadSeriesProgress() {
+  const owner = getSessionOwnerSnapshot();
+  let series = null;
+  if (ownedMode()) {
+    const counts = new Map();
+    for (const f of state.blind.items) if (f.series && /series|collectible|cmf/i.test(f.series)) counts.set(f.series, (counts.get(f.series) || 0) + 1);
+    // Most owned first; ties go to the newest series ("Series 21" before "Series 13").
+    series = [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0], undefined, { numeric: true }))[0]?.[0] || null;
+  } else if (currentSeries() !== 'all') series = currentSeries();
+  if (!series) { if (_seriesProgress) { _seriesProgress = null; repaintProgress(); } return; }
+  try {
+    const q = (extra) => api(`/api/minifigs?${new URLSearchParams({ series, limit: '1', ...extra })}`);
+    const [all, mine] = await Promise.all([q({}), getSessionUserId() ? q({ owned: 'yes' }) : Promise.resolve(null)]);
+    const now = getSessionOwnerSnapshot();
+    if (now.userId !== owner.userId || now.generation !== owner.generation) return;
+    const owned = mine ? Number(mine.total) || 0
+      : [...state.ownedFigs].filter(num => (state.blind.items.find(f => f.fig_num === num)?.series ?? guestFigSeries(num)) === series).length;
+    _seriesProgress = { series, total: Number(all?.total) || 0, owned };
+  } catch { _seriesProgress = null; }
+  repaintProgress();
+}
+function guestFigSeries(num) {
+  try { return JSON.parse(localStorage.getItem('bv_guest_fig_details') || '{}')[num]?.series; } catch { return undefined; }
+}
+function repaintProgress() {
+  const host = $('#figSeriesProgress');
+  if (host && onFigs()) host.innerHTML = seriesProgressHTML();
+}
+
+/* ---------------------------------------------------------------- data */
 export async function loadBlind({ reset = false } = {}) {
   const b = state.blind;
   if (!reset && b.loading) return [];
@@ -268,11 +251,14 @@ export async function loadBlind({ reset = false } = {}) {
   try {
     const res = await api("/api/minifigs?" + blindQuery());
     if (myGen !== _blindGen) return [];
-    const fresh = res.minifigs || [];
+    let fresh = res.minifigs || [];
     fresh.forEach(f => { if (f.owned_qty > 0) state.ownedFigs.add(f.fig_num); });
     saveFigs();
+    // Guest owned lists come back unfiltered from the device; apply the same
+    // search, series and sort the server would.
+    if (!getSessionUserId() && ownedMode()) fresh = localFigFilter(fresh);
     b.items = reset ? fresh : b.items.concat(fresh);
-    b.total = res.total ?? b.items.length;
+    b.total = (!getSessionUserId() && ownedMode()) ? b.items.length : (res.total ?? b.items.length);
     if (getSessionUserId() && res.aggregates) {
       b.ownedCount = Number(res.aggregates.owned_count) || 0;
       b.ownedValue = Number(res.aggregates.owned_value) || 0;
@@ -284,25 +270,47 @@ export async function loadBlind({ reset = false } = {}) {
     }
     b.offset = b.items.length;
     b.hasMore = !!res.hasMore;
+    b.mode = state.filter.figOwned;
     return fresh;
   } catch (_e) {
-    if (myGen === _blindGen) toast("Couldn't load minifigs", "error");
+    if (myGen === _blindGen) toast(t('bvVault.figLoadFailed'), "error");
     return [];
   } finally {
     if (myGen === _blindGen) b.loading = false;
   }
 }
 
+function localFigFilter(list) {
+  const q = currentQ().toLowerCase().trim();
+  const series = currentSeries();
+  let rows = list.filter(f => (!q || String(f.name || '').toLowerCase().includes(q) || String(f.series || '').toLowerCase().includes(q))
+    && (series === 'all' || f.series === series));
+  const rarityRank = { legendary: 4, rare: 3, uncommon: 2 };
+  const v = (f) => Number(f.current_value) || 0;
+  const sorters = {
+    value_desc: (a, b) => v(b) - v(a), value_asc: (a, b) => v(a) - v(b),
+    name_asc: (a, b) => String(a.name).localeCompare(String(b.name)), name_desc: (a, b) => String(b.name).localeCompare(String(a.name)),
+    year_desc: (a, b) => (Number(b.year) || 0) - (Number(a.year) || 0), year_asc: (a, b) => (Number(a.year) || 9999) - (Number(b.year) || 9999),
+    rarity_desc: (a, b) => (rarityRank[b.rarity] || 1) - (rarityRank[a.rarity] || 1), rarity_asc: (a, b) => (rarityRank[a.rarity] || 1) - (rarityRank[b.rarity] || 1),
+  };
+  const sorter = sorters[currentSort()];
+  if (sorter) rows = rows.slice().sort(sorter);
+  return rows;
+}
+
 function blindQuery() {
   const f = state.filter;
   const b = state.blind;
   const p = new URLSearchParams({ limit: b.pageSize, offset: b.offset });
-  if (f.figQ)                       p.set('q', f.figQ);
-  if (f.figRarity !== 'all')        p.set('rarity', f.figRarity);
-  if (f.figSeries && f.figSeries !== 'all') p.set('series', f.figSeries);
+  const q = currentQ();
+  const series = currentSeries();
+  const rarity = ownedMode() ? (f.figOwnedRarity || 'all') : f.figRarity;
+  if (q)                            p.set('q', q);
+  if (rarity && rarity !== 'all')   p.set('rarity', rarity);
+  if (series && series !== 'all')   p.set('series', series);
   if (f.figOwned === 'owned')       p.set('owned', 'yes');
   if (f.figOwned === 'unowned')     p.set('owned', 'no');
-  if (f.figSort)                    p.set('sort', f.figSort);
+  p.set('sort', currentSort());
   return p.toString();
 }
 
@@ -320,66 +328,60 @@ function refreshMiniGrid() {
 }
 
 function refreshFigFilterSummary() {
-  const el = $('#figFilterSummary');
-  if (el) el.textContent = figFilterSummaryText(state.filter, t, tPlural);
-  const chip = $('#figFilterChip');
-  if (chip) {
-    const n = activeFigFilterCount(state.filter);
-    chip.classList.toggle('active', n > 0);
-    const span = chip.querySelector('span');
-    if (span) span.textContent = n ? tPlural('catalog.filtersWithCount', n) : t('catalog.filters');
+  const meta = $('#figResultsMeta');
+  if (meta) meta.textContent = tPlural('bvVault.figResults', state.blind.total);
+  const chips = $('.vault-fig-chips');
+  if (chips) { chips.innerHTML = discoverChipsHTML(); wireChips(); }
+  const sortBtn = $('.vault-figs.is-owned #figSortBtn');
+  if (sortBtn) { sortBtn.outerHTML = sortButton(sortShortLabel(currentSort()), { id: 'figSortBtn' }); $('#figSortBtn')?.addEventListener('click', openFigSortSheet); }
+  const seriesChip = $('.vault-figs.is-owned #figSeriesChip');
+  if (seriesChip) {
+    seriesChip.outerHTML = chip(currentSeries() === 'all' ? t('bvVault.figAllSeries') : seriesShort(currentSeries()), { drop: true, id: 'figSeriesChip', pressed: currentSeries() !== 'all', attrs: { 'aria-haspopup': 'dialog' } });
+    $('#figSeriesChip')?.addEventListener('click', openSeriesSheet);
   }
 }
 
 async function reloadMiniView() {
   await loadBlind({ reset: true });
-  if (location.hash === '#/minifigs' && $('#miniGrid')) {
-    refreshSeriesChips();
+  if (onFigs() && $('#miniGrid')) {
     refreshMiniGrid();
     refreshMiniStats();
+    loadSeriesProgress();
   }
 }
 
 function miniGridHTML() {
   if (state.blind.items.length) return state.blind.items.map(f => miniCardHTML(f)).join('');
-  const hasFilters = !isFigFilterDefault() || !!state.filter.figQ;
-  return `
-    <div class="empty card" style="grid-column:1/-1;">
-      <div class="empty-icon">${I.figure()}</div>
-      <h3>No minifigs found</h3>
-      <p>${escapeHtml(state.filter.figQ
-        ? t('minifigs.emptySearchResults', { query: state.filter.figQ })
-        : t('minifigs.emptyFilteredResults'))}</p>
-      ${hasFilters ? `<button class="btn-secondary" id="figClearFilters" style="margin-top:12px;">Clear filters</button>` : ""}
-    </div>`;
+  const q = currentQ();
+  const hasFilters = !isFigFilterDefault() || !!q;
+  if (ownedMode() && !hasFilters) {
+    return `<div class="vault-fig-empty">${emptyState({ icon: 'fig', title: t('bvVault.figEmptyTitle'), body: t('bvVault.figEmptyBody'), actionsHtml: btn(t('bvVault.figBrowse'), { href: '#/minifigs?owned=0', icon: 'search' }) })}</div>`;
+  }
+  return `<div class="vault-fig-empty">${emptyState({ icon: 'fig', title: t('bvVault.figNoMatches'),
+    body: q ? t('minifigs.emptySearchResults', { query: q }) : t('minifigs.emptyFilteredResults'),
+    actionsHtml: hasFilters ? btn(t('bvVault.figClearFilters'), { kind: 'tonal', id: 'figClearFilters' }) : '' })}</div>`;
 }
 
 function clearFigFilters() {
-  state.filter.figQ = "";
-  state.filter.figRarity = "all";
-  state.filter.figOwned = "all";
-  state.filter.figSeries = "all";
-  state.filter.figSort = "year_desc";
+  if (ownedMode()) {
+    state.filter.figOwnedQ = '';
+    state.filter.figOwnedSeries = 'all';
+    state.filter.figOwnedRarity = 'all';
+  } else {
+    state.filter.figQ = "";
+    state.filter.figRarity = "all";
+    state.filter.figOwned = "all";
+    state.filter.figSeries = "all";
+    state.filter.figSort = "year_desc";
+  }
   haptic("light");
   loadBlind({ reset: true }).then(() => {
-    if (location.hash === '#/minifigs' && $('#miniGrid')) {
+    if (onFigs() && $('#miniGrid')) {
       const q = $("#figSearch");
       if (q) q.value = "";
-      $$("[data-fig-rarity]").forEach(x => x.classList.toggle("active", x.dataset.figRarity === "all"));
-      const owned = $("#figOwnedChip");
-      if (owned) {
-        owned.textContent = "All";
-        owned.classList.remove("active");
-      }
-      $$("[data-fig-sort-base]").forEach(btn => {
-        const opt = FIG_SORTS.find(s => s.base === btn.dataset.figSortBase);
-        if (!opt) return;
-        btn.classList.toggle("active", state.filter.figSort === opt.asc || state.filter.figSort === opt.desc);
-        btn.textContent = figSortChipText(opt, state.filter.figSort);
-      });
-      refreshSeriesChips();
       refreshMiniGrid();
       refreshMiniStats();
+      loadSeriesProgress();
     }
   }).catch(() => {});
 }
@@ -388,65 +390,73 @@ function showFigFilterSheet() {
   const trigger = $("#figFilterChip");
   trigger?.setAttribute("aria-expanded", "true");
   const f = state.filter;
-  const activeCount = activeFigFilterCount(f);
-  const rarityOptions = ['all', 'common', 'uncommon', 'rare', 'legendary'];
-  const ownedOptions = [['all', 'All'], ['owned', 'Owned'], ['unowned', 'Unowned']];
-  const sortOptions = FIG_SORTS.flatMap(o => [[o.asc, `${o.label} ↑`], [o.desc, `${o.label} ↓`]]);
+  const owned = ownedMode();
+  const rarityOptions = [['all', t('common.all')], ...['common', 'uncommon', 'rare', 'legendary'].map(r => [r, rarityLabel(r)])];
+  const ownedOptions = [['all', t('common.all')], ['owned', t('minifigs.filterSummaryOwned')], ['unowned', t('minifigs.filterSummaryUnowned')]];
+  const sortOptions = FIG_SORTS.flatMap(o => (o.def === o.asc ? [o.asc, o.desc] : [o.desc, o.asc]).map(value => [value, t(`bvVault.${SORT_KEYS[value]}`)]));
   const chipGroup = (label, id, values, current) => `
-    <section class="filter-sheet-section">
-      <div class="field-lbl">${escapeHtml(label)}</div>
-      <div class="sheet-chip-grid sheet-facet" data-fig-facet="${escapeHtml(id)}">
-        ${values.map(v => {
-          const value = Array.isArray(v) ? v[0] : v;
-          const labelText = Array.isArray(v) ? v[1] : (value === 'all' ? 'All' : value.charAt(0).toUpperCase() + value.slice(1));
-          return `<button class="chip ${current === value ? 'active' : ''}" data-fval="${escapeHtml(value)}">${escapeHtml(labelText)}</button>`;
-        }).join('')}
+    <section class="vault-facet">
+      <h3 class="vault-actions__title">${esc(label)}</h3>
+      <div class="bv-chips bv-chips--wrap" data-fig-facet="${esc(id)}">
+        ${values.map(([value, labelText]) => chip(labelText, { pressed: current === value, attrs: { 'data-fval': value } })).join('')}
       </div>
     </section>`;
   const seenSeries = new Set();
-  const seriesValues = [['all', 'All series']]
-    .concat((f.figSeries && f.figSeries !== 'all' ? [[f.figSeries, f.figSeries]] : []))
-    .concat(_seriesList.slice(0, 10).map(s => [s.series, `${s.series} (${s.n})`]))
+  const seriesNow = currentSeries();
+  const seriesValues = [['all', t('bvVault.figAllSeries')]]
+    .concat(seriesNow !== 'all' ? [[seriesNow, seriesShort(seriesNow)]] : [])
+    .concat(_seriesList.slice(0, 10).map(s => [s.series, seriesShort(s.series)]))
     .filter(([value]) => {
       if (seenSeries.has(value)) return false;
       seenSeries.add(value);
       return true;
     });
-  showSheet(`
-    <div class="sheet-title-row">
-      <h2 class="u-serif-h" style="margin:0;">Minifig Filters</h2>
-      ${activeCount ? `<span class="trust-badge warn">${tPlural('catalog.activeFilters', activeCount)}</span>` : `<span class="trust-badge neutral">None active</span>`}
+  const summary = figFilterSummaryText(owned ? { ...f, figOwned: 'all', figRarity: f.figOwnedRarity || 'all', figSeries: seriesNow, figQ: currentQ() } : f, t, tPlural);
+  showSheet(sheetBody({
+    title: t('bvVault.figFiltersTitle'), sub: summary,
+    inner: `<div class="vault-facets">
+      ${chipGroup(t('bvVault.figRarity'), 'rarity', rarityOptions, (owned ? f.figOwnedRarity : f.figRarity) || 'all')}
+      ${owned ? '' : chipGroup(t('bvVault.figOwnership'), 'owned', ownedOptions, f.figOwned || 'all')}
+      ${chipGroup(t('bvVault.figSeriesTitle'), 'series', seriesValues, seriesNow)}
+      ${chipGroup(t('bvVault.figSortTitle'), 'sort', sortOptions, owned ? currentSort() : (f.figSort || 'year_desc'))}
     </div>
-    <div class="filter-active-line">${escapeHtml(figFilterSummaryText(f, t, tPlural))}</div>
-    <div class="scrollable advanced-filter-sheet">
-      ${chipGroup('Rarity', 'rarity', rarityOptions, f.figRarity || 'all')}
-      ${chipGroup('Ownership', 'owned', ownedOptions, f.figOwned || 'all')}
-      ${chipGroup('Series', 'series', seriesValues, f.figSeries || 'all')}
-      ${chipGroup('Sort', 'sort', sortOptions, f.figSort || 'year_desc')}
-    </div>
-    <div class="btn-row sheet-sticky-actions">
-      <button class="btn-secondary" id="figFilterClear">Clear all</button>
-      <button class="btn-primary" id="figFilterApply">Apply filters</button>
-    </div>`);
+    <div class="bv-btn-row vault-facets__actions">${btn(t('bvVault.figClearAll'), { kind: 'outline', id: 'figFilterClear' })}${btn(t('bvVault.figApply'), { id: 'figFilterApply' })}</div>`,
+  }));
   $("#sheet")?.addEventListener("sheet:closing", () => {
-    trigger?.setAttribute("aria-expanded", "false");
+    $("#figFilterChip")?.setAttribute("aria-expanded", "false");
   }, { once: true });
 
   $$("[data-fig-facet]").forEach(group => group.addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-fval]");
-    if (!btn) return;
-    group.querySelectorAll("[data-fval]").forEach(x => x.classList.toggle("active", x === btn));
+    const b = e.target.closest("[data-fval]");
+    if (!b) return;
+    group.querySelectorAll("[data-fval]").forEach(x => x.setAttribute('aria-pressed', String(x === b)));
   }));
-  const readFacet = (id) => document.querySelector(`[data-fig-facet="${id}"] .chip.active`)?.dataset.fval || 'all';
+  const readFacet = (id) => document.querySelector(`[data-fig-facet="${id}"] [aria-pressed="true"]`)?.dataset.fval || 'all';
   $("#figFilterClear")?.addEventListener("click", () => {
     hideSheet();
     clearFigFilters();
   });
   $("#figFilterApply")?.addEventListener("click", () => {
-    state.filter.figRarity = readFacet('rarity');
-    state.filter.figOwned = readFacet('owned');
-    state.filter.figSeries = readFacet('series');
-    state.filter.figSort = readFacet('sort');
+    if (owned) {
+      state.filter.figOwnedRarity = readFacet('rarity');
+      state.filter.figOwnedSeries = readFacet('series');
+      state.filter.figOwnedSort = readFacet('sort');
+    } else if (readFacet('owned') === 'owned') {
+      // "Owned" is the Vault's own Minifigs view, not a catalogue filter: carry
+      // the other choices across and open it instead of dropping the choice.
+      state.filter.figOwnedRarity = readFacet('rarity');
+      state.filter.figOwnedSeries = readFacet('series');
+      state.filter.figOwnedSort = readFacet('sort');
+      hideSheet();
+      haptic("light");
+      location.hash = '#/minifigs?owned=1';
+      return;
+    } else {
+      state.filter.figRarity = readFacet('rarity');
+      state.filter.figOwned = readFacet('owned');
+      state.filter.figSeries = readFacet('series');
+      state.filter.figSort = readFacet('sort');
+    }
     hideSheet();
     haptic("light");
     reloadMiniView().catch(() => {});
@@ -455,9 +465,56 @@ function showFigFilterSheet() {
 
 const debouncedFigSearch = debounce(async () => {
   await loadBlind({ reset: true });
+  if (!onFigs()) return;
   refreshMiniGrid();
   refreshMiniStats();
 }, SEARCH_DEBOUNCE_MS);
+
+function openFigMoreSheet() {
+  haptic('light');
+  const owned = ownedMode();
+  openActionSheet({
+    title: t('bvVault.moreOptions'),
+    groups: [{ rows: [
+      { id: 'figMoreFilters', icon: 'filter', label: t('bvVault.figFiltersTitle'), sub: t('bvVault.figFiltersSub'), onClick: showFigFilterSheet },
+      { id: 'figExportBtn', icon: 'download', label: t('minifigs.exportCsv'), sub: t('bvVault.figExportSub'), onClick: exportMinifigHoldings },
+      owned ? { id: 'figMoreDiscover', icon: 'search', label: t('bvVault.figBrowse'), href: '#/minifigs?owned=0' } : { id: 'figMoreOwned', icon: 'fig', label: t('bvVault.figYours'), href: '#/minifigs?owned=1' },
+      owned ? { id: 'figMoreChanges', icon: 'bell', label: t('bvVault.whatChanged'), href: '#/changes' } : null,
+    ] }],
+  });
+}
+
+function wireChips() {
+  $('#figSeriesChip')?.addEventListener('click', openSeriesSheet);
+  $('#figSortBtn')?.addEventListener('click', openFigSortSheet);
+  $('#figFilterChip')?.addEventListener('click', () => showFigFilterSheet());
+  $('#figOwnedChip')?.addEventListener('click', () => {
+    state.filter.figOwned = state.filter.figOwned === 'unowned' ? 'all' : 'unowned';
+    haptic('light');
+    reloadMiniView().catch(() => {});
+  });
+}
+
+function wireFigsPage() {
+  const figSearchInput = $("#figSearch");
+  figSearchInput?.addEventListener("input", (e) => {
+    if (ownedMode()) state.filter.figOwnedQ = e.target.value; else state.filter.figQ = e.target.value;
+    debouncedFigSearch();
+  });
+  $('#vaultSearchBtn')?.addEventListener('click', () => {
+    haptic('light');
+    const wasOpen = !!$('#figSearch');
+    figSearchOpen = !wasOpen;
+    if (wasOpen && state.filter.figOwnedQ) {
+      state.filter.figOwnedQ = '';
+      reloadMiniView().then(() => { if (onFigs()) paintFigs(); }).catch(() => {});
+    }
+    paintFigs();
+  });
+  $('#vaultMoreBtn')?.addEventListener('click', openFigMoreSheet);
+  $('#figMoreBtn')?.addEventListener('click', openFigMoreSheet);
+  wireChips();
+}
 
 function wireMiniCards() {
   const grid = $("#miniGrid");
@@ -465,33 +522,54 @@ function wireMiniCards() {
   grid._delegated = true;
   grid.addEventListener("click", (evt) => {
     if (evt.target.closest("#figClearFilters")) { clearFigFilters(); return; }
-    const card = evt.target.closest(".mini-card");
-    if (!card) return;
-    const num = card.dataset.fig;
-    if (!num) return;
-    haptic("light");
+    const tile = evt.target.closest("[data-fig-num]");
+    if (!tile) return;
+    const num = tile.dataset.figNum;
     const f = state.blind.items.find(x => x.fig_num === num);
-    if (f) showFigDetail(f);
+    if (!f) return;
+    haptic("light");
+    if (evt.target.closest('[data-fig-add]')) { quickAdd(f); return; }
+    showFigDetail(f);
   });
 }
 
+// One-tap add from Discover: optimistic tile + counts, then the holding write,
+// with Undo in the snackbar (never a new screen).
+async function quickAdd(f) {
+  if (state.ownedFigs.has(f.fig_num)) { showFigDetail(f); return; }
+  const ownerSnapshot = getSessionOwnerSnapshot();
+  const next = { quantity: 1, condition: 'unknown', purchase_price: null, purchased_at: null, notes: null };
+  updateFigHoldingState(f, null, next);
+  try {
+    const response = await api(`/api/minifigs/${encodeURIComponent(f.fig_num)}`, { method: 'PUT', body: { quantity: 1 }, retry: false, offlineQueue: false });
+    if (ownerSnapshot.generation !== getSessionOwnerSnapshot().generation) return;
+    const saved = confirmedMinifigHoldingResponse(response, f.fig_num) || next;
+    snackbar(t('bvVault.figAdded', { name: f.name || f.fig_num }), { actions: [{ label: t('common.undo'), kind: 'undo', onClick: async () => {
+      try {
+        await api(`/api/minifigs/${encodeURIComponent(f.fig_num)}`, { method: 'DELETE', retry: false, offlineQueue: false });
+        updateFigHoldingState(f, saved, null);
+      } catch (cause) { toast(t('minifigs.removeFailed', { error: cause?.message || cause }), 'error'); }
+    } }] });
+  } catch (cause) {
+    updateFigHoldingState(f, next, null);
+    toast(t('minifigs.saveFailed', { error: cause?.message || cause }), 'error');
+  }
+}
+
 function updateBlindCount() {
-  const el = $("#blindCount");
+  const el = $("#figStatCount");
   if (!el) return;
-  const owned = state.blind.ownedCount || 0;
-  el.textContent = tPlural('counts.collected', owned, { owned, total: state.blind.total.toLocaleString() });
+  el.textContent = [tPlural('bvVault.figFigures', state.blind.ownedCount || 0), tPlural('bvVault.figUnique', ownedMode() ? state.blind.total : state.ownedFigs.size)].join(' · ');
 }
 
 function updateFigStats() {
   const { ownedCount = 0, ownedValue = 0 } = state.blind;
-  const countEl = $("#figStatCount");
   const valueEl = $("#figStatValue");
-  if (countEl) countEl.textContent = tPlural('minifigs.ownedCount', ownedCount);
-  const totalEl = countEl?.nextElementSibling;
-  if (totalEl) totalEl.textContent = tPlural('counts.ofFigs', state.blind.total, { total: state.blind.total.toLocaleString() });
-  if (valueEl) {
-    valueEl.textContent = fmtMoney(ownedValue, { cents: 0 });
-  }
+  if (valueEl) valueEl.textContent = moneyWhole(ownedValue);
+  const meta = $('#figResultsMeta');
+  if (meta) meta.textContent = tPlural('bvVault.figResults', state.blind.total);
+  // Owned figures across the collection, for the Discover progress card.
+  if (_seriesProgress && ownedCount >= 0) repaintProgress();
 }
 
 function refreshMiniStats() {
@@ -502,16 +580,16 @@ function refreshMiniStats() {
 // Attribution label for a fig's market value. Per the source-naming policy we
 // name the API sources (BrickLink, eBay) and fall back to a neutral estimate.
 function figSourceLabel(source) {
-  if (source === 'bricklink+ebay') return 'via BrickLink + eBay sold comps';
-  if (source === 'bricklink') return 'via BrickLink price guide';
-  return 'Blended market estimate';
+  if (source === 'bricklink+ebay') return t('bvVault.figSourceBlEbay');
+  if (source === 'bricklink') return t('bvVault.figSourceBl');
+  return t('bvVault.figSourceBlend');
 }
 
 async function exportMinifigHoldings() {
-  const btn = $('#figExportBtn');
-  if (btn?.disabled) return;
+  const btnEl = $('#figExportBtn');
+  if (btnEl?.disabled) return;
   const ownerSnapshot = getSessionOwnerSnapshot();
-  setBtnLoading(btn, true);
+  setBtnLoading(btnEl, true);
   try {
     const blob = await api('/api/minifigs/export', { responseType: 'blob' });
     if (ownerSnapshot.generation !== getSessionOwnerSnapshot().generation) throw new Error(t('minifigs.accountChanged'));
@@ -520,49 +598,46 @@ async function exportMinifigHoldings() {
   } catch (error) {
     toast(t('minifigs.exportFailed', { error: error?.message || error }), 'error');
   } finally {
-    setBtnLoading(btn, false);
+    setBtnLoading(btnEl, false);
   }
 }
 
+/* ---------------------------------------------------------------- figure sheet + holding editor */
 function holdingFormHTML(holding, moneyContext) {
   const saved = normalizeMinifigHolding(holding);
   const condition = saved?.condition || 'unknown';
   const currency = moneyContext.currency;
   const symbol = CURRENCY_SYMBOLS[currency] || currency;
+  const option = (value, key) => `<option value="${value}"${condition === value ? ' selected' : ''}>${esc(t(key))}</option>`;
   return `
-    <section class="detail-card" aria-labelledby="figHoldingTitle" style="margin-top:14px;">
-      <div class="detail-card-title" id="figHoldingTitle">${escapeHtml(saved ? t('minifigs.editHolding') : t('minifigs.addHolding'))}</div>
-      <p style="font-size:12.5px;color:var(--ink-mute);margin:0 0 12px;">${escapeHtml(t('minifigs.looseOnly'))}</p>
-      <div class="manage-field-grid">
-        <div class="field">
-          <label class="field-lbl" for="figQuantity">${escapeHtml(t('minifigs.quantity'))}</label>
-          <input id="figQuantity" type="number" inputmode="numeric" min="1" max="9999" step="1" value="${saved?.quantity || 1}">
+    <section class="vault-fig-form" aria-labelledby="figHoldingTitle">
+      <h3 class="bv-sr" id="figHoldingTitle">${esc(saved ? t('minifigs.editHolding') : t('minifigs.addHolding'))}</h3>
+      <div class="bv-form-grid">
+        <div class="bv-field">
+          <label for="figQuantity">${esc(t('bvVault.figCopies'))}</label>
+          <div class="bv-field__box vault-stepper">${iconBtn({ icon: 'minus', label: t('bvVault.figOneFewer'), id: 'figQtyDown' })}<input id="figQuantity" class="bv-mono-input" type="number" inputmode="numeric" min="1" max="9999" step="1" value="${saved?.quantity || 1}">${iconBtn({ icon: 'plus', label: t('bvVault.figOneMore'), id: 'figQtyUp' })}</div>
         </div>
-        <div class="field">
-          <label class="field-lbl" for="figCondition">${escapeHtml(t('minifigs.condition'))}</label>
-          <select id="figCondition">
-            <option value="unknown" ${condition === 'unknown' ? 'selected' : ''}>${escapeHtml(t('minifigs.conditionUnknown'))}</option>
-            <option value="new" ${condition === 'new' ? 'selected' : ''}>${escapeHtml(t('minifigs.conditionNew'))}</option>
-            <option value="used_good" ${condition === 'used_good' ? 'selected' : ''}>${escapeHtml(t('minifigs.conditionUsedGood'))}</option>
-            <option value="used_acceptable" ${condition === 'used_acceptable' ? 'selected' : ''}>${escapeHtml(t('minifigs.conditionUsedAcceptable'))}</option>
-          </select>
+        <div class="bv-field">
+          <label for="figPurchasePrice">${esc(t('bvVault.figPricePaid'))}</label>
+          <div class="bv-field__box"><span class="bv-field__prefix">${esc(symbol)}</span><input id="figPurchasePrice" class="bv-mono-input" type="text" inputmode="decimal" autocomplete="off" value="${esc(usdMoneyInputValue(saved?.purchase_price, moneyContext))}" placeholder="${esc(t('bvVault.figOptional'))}" aria-label="${esc(t('minifigs.purchasePrice', { currency, symbol }))}"></div>
         </div>
-        <div class="field">
-          <label class="field-lbl" for="figPurchasePrice">${escapeHtml(t('minifigs.purchasePrice', { currency, symbol }))}</label>
-          <input id="figPurchasePrice" type="text" inputmode="decimal" autocomplete="off" value="${escapeHtml(usdMoneyInputValue(saved?.purchase_price, moneyContext))}" placeholder="${escapeHtml(t('minifigs.unknownIfBlank'))}">
+        <div class="bv-field">
+          <label for="figCondition">${esc(t('minifigs.condition'))}</label>
+          <div class="bv-field__box"><select id="figCondition">${option('unknown', 'minifigs.conditionUnknown')}${option('new', 'minifigs.conditionNew')}${option('used_good', 'minifigs.conditionUsedGood')}${option('used_acceptable', 'minifigs.conditionUsedAcceptable')}</select></div>
         </div>
-        <div class="field">
-          <label class="field-lbl" for="figPurchasedAt">${escapeHtml(t('minifigs.purchasedAt'))}</label>
-          <input id="figPurchasedAt" type="date" value="${escapeHtml(saved?.purchased_at || '')}">
-        </div>
-        <div class="field" style="grid-column:1/-1;">
-          <label class="field-lbl" for="figNotes">${escapeHtml(t('minifigs.notes'))}</label>
-          <textarea id="figNotes" maxlength="2000" placeholder="${escapeHtml(t('minifigs.notesPlaceholder'))}">${escapeHtml(saved?.notes || '')}</textarea>
+        <div class="bv-field">
+          <label for="figPurchasedAt">${esc(t('minifigs.purchasedAt'))}</label>
+          <div class="bv-field__box"><input id="figPurchasedAt" type="date" value="${esc(saved?.purchased_at || '')}"></div>
         </div>
       </div>
-      <div id="figHoldingError" role="alert" style="min-height:18px;color:var(--down);font-size:12px;margin-top:6px;"></div>
-      <button class="btn-primary" id="figSaveHolding">${escapeHtml(saved ? t('common.save') : t('minifigs.addToVault'))}</button>
-      ${saved ? `<div id="figRemoveActions" style="margin-top:10px;"><button class="btn-secondary" id="figRemoveHolding">${escapeHtml(t('minifigs.removeHolding'))}</button></div>` : ''}
+      <div class="bv-field">
+        <label for="figNotes">${esc(t('minifigs.notes'))}</label>
+        <div class="bv-field__box"><textarea id="figNotes" rows="2" maxlength="2000" placeholder="${esc(t('minifigs.notesPlaceholder'))}">${esc(saved?.notes || '')}</textarea></div>
+      </div>
+      <p class="bv-field__help">${esc(t('minifigs.looseOnly'))}</p>
+      <p class="bv-field__error" id="figHoldingError" role="alert"></p>
+      ${btn(saved ? t('common.save') : t('minifigs.addToVault'), { id: 'figSaveHolding', full: true, size: 'lg' })}
+      ${saved ? `<div id="figRemoveActions">${btn(t('bvVault.figRemove'), { kind: 'danger', full: true, id: 'figRemoveHolding' })}</div>` : ''}
     </section>`;
 }
 
@@ -572,14 +647,17 @@ function updateFigHoldingState(f, previous, next) {
   if (next) state.ownedFigs.add(f.fig_num); else state.ownedFigs.delete(f.fig_num);
   f.owned_qty = newQuantity;
   saveFigs();
-  const card = $(`.mini-card[data-fig="${CSS.escape(f.fig_num)}"]`);
-  if (card) card.outerHTML = miniCardHTML(f);
+  const tile = $(`#miniGrid [data-fig-num="${CSS.escape(f.fig_num)}"]`);
+  if (tile) tile.outerHTML = miniCardHTML(f);
   state.blind.ownedCount = Math.max(0, (state.blind.ownedCount || 0) + newQuantity - oldQuantity);
   state.blind.ownedValue = Math.max(0, (state.blind.ownedValue || 0) + (newQuantity - oldQuantity) * (Number(f.current_value ?? f.value) || 0));
+  if (_seriesProgress && f.series === _seriesProgress.series && !previous !== !next) {
+    _seriesProgress = { ..._seriesProgress, owned: Math.max(0, _seriesProgress.owned + (next ? 1 : -1)) };
+  }
   refreshMiniStats();
   if (state.filter.figOwned !== 'all' && !previous !== !next) {
     loadBlind({ reset: true }).then(() => {
-      if (location.hash === '#/minifigs') { refreshMiniGrid(); refreshMiniStats(); }
+      if (onFigs()) { refreshMiniGrid(); refreshMiniStats(); }
     }).catch(() => {});
   }
 }
@@ -597,6 +675,10 @@ function wireHoldingForm(f, initialHolding, detailGen, ownerSnapshot, moneyConte
     setBtnLoading(loadingButton, on);
   };
   priceInput?.addEventListener('input', () => { priceChanged = true; });
+  const qty = $('#figQuantity');
+  const step = (d) => { if (!qty || qty.disabled) return; qty.value = String(Math.min(9999, Math.max(1, (Number(qty.value) || 1) + d))); haptic('light'); };
+  $('#figQtyDown')?.addEventListener('click', () => step(-1));
+  $('#figQtyUp')?.addEventListener('click', () => step(1));
   $('#figSaveHolding')?.addEventListener('click', async () => {
     if (saving || !live()) return;
     const result = parseMinifigHoldingForm({
@@ -614,8 +696,8 @@ function wireHoldingForm(f, initialHolding, detailGen, ownerSnapshot, moneyConte
     }
     if (error) error.textContent = '';
     saving = true;
-    const button = $('#figSaveHolding');
-    setBusy(true, button);
+    const saveBtn = $('#figSaveHolding');
+    setBusy(true, saveBtn);
     try {
       const response = await api(`/api/minifigs/${encodeURIComponent(f.fig_num)}`, { method: 'PUT', body: result.payload, retry: false, offlineQueue: false });
       if (!live()) return;
@@ -641,9 +723,9 @@ function wireHoldingForm(f, initialHolding, detailGen, ownerSnapshot, moneyConte
     if (!live() || saving) return;
     const actions = $('#figRemoveActions');
     if (!actions) return;
-    actions.innerHTML = `<p style="font-size:12.5px;color:var(--ink-mute);margin:0 0 8px;">${escapeHtml(t('minifigs.removeConfirm'))}</p><div class="btn-row"><button class="btn-danger" id="figConfirmRemove">${escapeHtml(t('minifigs.removeAction'))}</button><button class="btn-secondary" id="figCancelRemove">${escapeHtml(t('common.cancel'))}</button></div>`;
+    actions.innerHTML = `<p class="bv-field__help">${esc(t('minifigs.removeConfirm'))}</p><div class="bv-btn-row">${btn(t('minifigs.removeAction'), { kind: 'danger-fill', id: 'figConfirmRemove' })}${btn(t('common.cancel'), { kind: 'tonal', id: 'figCancelRemove' })}</div>`;
     $('#figCancelRemove')?.addEventListener('click', () => {
-      actions.innerHTML = `<button class="btn-secondary" id="figRemoveHolding">${escapeHtml(t('minifigs.removeHolding'))}</button>`;
+      actions.innerHTML = btn(t('bvVault.figRemove'), { kind: 'danger', full: true, id: 'figRemoveHolding' });
       wireRemoveButton();
     }, { once: true });
     $('#figConfirmRemove')?.addEventListener('click', async () => {
@@ -685,43 +767,25 @@ function showFigDetail(f) {
   const scarcityTxt = (n != null && n > 0)
     ? (n === 1 ? t('minifigs.setExclusive') : tPlural('minifigs.appearsInSets', n))
     : null;
-  const hasImg = f.image_url;
   const rbUrl = `https://rebrickable.com/minifigs/${encodeURIComponent(f.fig_num)}/`;
+  const facts = [scarcityTxt, f.year ? t('bvVault.figFirstSeen', { year: f.year }) : '', f.num_parts ? tPlural('minifigs.parts', f.num_parts) : ''].filter(Boolean);
 
-  showSheet(`
-    <div class="fig-detail">
-      <div class="fig-detail-hero${hasImg ? ' has-photo' : ''}">
-        ${figAvatarSVG(String(f.fig_num), String(f.name || ''))}
-        ${hasImg ? `<img class="fig-photo" src="${escapeHtml(thumbImg(f.image_url))}" alt="${escapeHtml(f.name)}" loading="lazy" decoding="async">` : ''}
-        <span class="mini-rarity-tag rarity-${rarity}">${escapeHtml(rarityLabel(rarity))}</span>
-      </div>
-      <div class="fig-detail-body">
-        <div class="fig-detail-series">${escapeHtml(f.series || 'Minifig')}</div>
-        <div class="fig-detail-name">${escapeHtml(f.name)}</div>
-        ${realVal != null && realVal > 0 ? `
-        <div class="fig-detail-value">
-          <span class="fig-detail-value-lbl">Est. resale value</span>
-          <span class="fig-detail-value-num">${fmtMoney(realVal, { cents: 0 })}</span>
-        </div>
-        <div class="fig-detail-source">${figSourceLabel(f.source)}${f.cached_at ? ` · ${escapeHtml(fmtDateUpdated(f.cached_at))}` : ''}</div>
-        <div class="fig-spark-wrap" id="figSparkWrap" style="display:none;">
-          <div class="fig-spark-lbl">${tPlural('detail.priceHistoryShort', 90)}</div>
-          <div class="fig-spark" id="figSparkline" style="height:72px;"></div>
-        </div>` : ''}
-        ${(scarcityTxt || f.year || f.num_parts) ? `
-        <div class="fig-detail-facts" style="display:flex;gap:14px;flex-wrap:wrap;margin:4px 0 12px;font-size:12.5px;color:var(--ink-mute);">
-          ${scarcityTxt ? `<span>${scarcityTxt}</span>` : ''}
-          ${f.year ? `<span>First seen ${f.year}</span>` : ''}
-          ${f.num_parts ? `<span>${escapeHtml(tPlural('minifigs.parts', f.num_parts))}</span>` : ''}
-          <span>${escapeHtml(t('minifigs.filterSummaryRarity', { rarity: rarityLabel(rarity) }))}</span>
-        </div>` : ''}
-        <div id="figHoldingContainer" aria-live="polite"><div class="spinner" aria-label="${escapeHtml(t('minifigs.loadingHolding'))}"></div></div>
-        <a class="fig-detail-link" href="${rbUrl}" target="_blank" rel="noopener noreferrer">
-          ${I.extLink()}<span>View on Rebrickable</span>
-        </a>
-        <div id="figSetsSection" style="margin-top:16px;"></div>
-      </div>
-    </div>`);
+  showSheet(`<div class="bv-sheet vault-fig-sheet">
+    <div class="vault-fig-sheet__head">
+      <span class="vault-fig-sheet__art">${figArtHtml(f, { size: 76, width: 320 })}</span>
+      <div class="vault-fig-sheet__title">${rarityPill(rarity) || `<span class="bv-pill">${esc(rarityLabel(rarity))}</span>`}<h2>${esc(f.name)}</h2><span class="bv-label">${esc(f.series || t('bvVault.figMinifig'))}</span></div>
+      <button type="button" class="bv-iconbtn" data-bv-sheet-close aria-label="${esc(t('common.close'))}">${icon('x')}</button>
+    </div>
+    <div class="vault-fig-sheet__facts">
+      <div><span class="bv-label">${esc(t('bvVault.figMarketValue'))}</span><span class="bv-num vault-fig-sheet__value">${realVal != null && realVal > 0 ? esc(moneyWhole(realVal)) : '—'}</span>${realVal != null && realVal > 0 ? `<span class="bv-field__help">${esc(figSourceLabel(f.source))}${f.cached_at ? ` · ${esc(fmtDateUpdated(f.cached_at))}` : ''}</span>` : ''}</div>
+      <div id="figComesIn"><span class="bv-label">${esc(t('bvVault.figComesIn'))}</span><span class="vault-fig-sheet__comes">${esc(f.series ? seriesShort(f.series) : '—')}</span></div>
+    </div>
+    <div class="vault-fig-sheet__spark" id="figSparkWrap" hidden></div>
+    ${facts.length ? `<p class="vault-fig-sheet__meta">${esc(facts.join(' · '))}</p>` : ''}
+    <div id="figHoldingContainer" aria-live="polite"><div class="bv-skel" style="height:52px" aria-label="${esc(t('minifigs.loadingHolding'))}"></div></div>
+    <div id="figSetsSection"></div>
+    <a class="bv-btn bv-btn--text vault-fig-sheet__ext" href="${rbUrl}" target="_blank" rel="noopener noreferrer">${icon('ext', { size: 20 })}<span>${esc(t('bvVault.figRebrickable'))}</span></a>
+  </div>`);
 
   (async () => {
     try {
@@ -737,13 +801,12 @@ function showFigDetail(f) {
       if (detailGen !== _figDetailGen || ownerSnapshot.generation !== getSessionOwnerSnapshot().generation) return;
       const container = $('#figHoldingContainer');
       if (!container) return;
-      container.innerHTML = `<div role="alert" style="color:var(--down);font-size:13px;margin-bottom:10px;">${escapeHtml(t('minifigs.loadHoldingFailed', { error: cause?.message || cause }))}</div><button class="btn-secondary" id="figRetryHolding">${escapeHtml(t('common.retry'))}</button>`;
+      container.innerHTML = `<p class="bv-field__error" role="alert">${esc(t('minifigs.loadHoldingFailed', { error: cause?.message || cause }))}</p>${btn(t('common.retry'), { kind: 'tonal', id: 'figRetryHolding' })}`;
       $('#figRetryHolding')?.addEventListener('click', () => showFigDetail(f), { once: true });
     }
   })();
 
-  // Lazily load the 90-day price history and draw the trend sparkline (mirrors
-  // the set detail chart). Only shown once we have ≥2 snapshots.
+  // Lazily load the 90-day price history (shown only with ≥2 snapshots).
   if (realVal != null && realVal > 0) {
     (async () => {
       try {
@@ -752,48 +815,31 @@ function showFigDetail(f) {
         const hist = (r && r.history) || [];
         if (hist.length < 2) return;
         const wrap = $('#figSparkWrap');
-        const el = $('#figSparkline');
-        if (!wrap || !el) return;
-        const first = Number(hist[0].current_value) || 0;
-        const last = Number(hist[hist.length - 1].current_value) || 0;
-        wrap.style.display = '';
-        drawSparkline(el, hist, {
-          up: last >= first,
-          series: [{ key: 'ebay_value', color: 'var(--ink-mute)', dash: '4 3' }],
-        });
+        if (!wrap) return;
+        wrap.hidden = false;
+        wrap.innerHTML = `<span class="bv-label">${esc(tPlural('detail.priceHistoryShort', 90))}</span>${sparkline(hist.map(h => Number(h.current_value)), { width: 340, height: 48, label: tPlural('detail.priceHistoryShort', 90) })}`;
       } catch { /* non-fatal — the chart just stays hidden */ }
     })();
   }
 
-  // Lazily load the sets this minifig appears in — a navigable hub from the fig
-  // to each set's detail. (Hidden if the fig isn't mapped to any catalog sets.)
+  // Lazily load the sets this minifig appears in — "Comes in" plus a navigable
+  // list of every set (hidden if the fig isn't mapped to any catalog sets).
   (async () => {
     try {
       const r = await api('/api/minifigs/' + encodeURIComponent(f.fig_num) + '/sets');
       if (detailGen !== _figDetailGen || detailFigNum !== f.fig_num) return;
       const sets = (r && r.sets) || [];
+      if (!sets.length) return;
+      const comes = $('#figComesIn');
+      if (comes) comes.outerHTML = `<a id="figComesIn" class="vault-fig-sheet__comes-link" href="#/set/${encodeURIComponent(String(sets[0].set_num))}"><span class="bv-label">${esc(t('bvVault.figComesIn'))}</span><span class="vault-fig-sheet__comes">${esc(String(sets[0].name || sets[0].set_num))}${icon('chev', { size: 16 })}</span></a>`;
       const el = $('#figSetsSection');
-      if (!el || !sets.length) return;
-      el.innerHTML = `
-        <div class="fig-detail-series" style="margin-bottom:8px;">${escapeHtml(tPlural('minifigs.appearsInSets', sets.length))}</div>
-        <div class="u-col" style="gap:8px;">
-          ${sets.map((s) => `
-            <button class="fig-set-row" data-set="${escapeHtml(String(s.set_num))}" style="display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r-2);padding:8px 10px;cursor:pointer;">
-              ${s.image_url ? `<img src="${escapeHtml(thumbImg(String(s.image_url)))}" alt="" loading="lazy" decoding="async" style="width:40px;height:40px;object-fit:contain;background:var(--surface-3);border-radius:6px;flex:0 0 auto;">` : figAvatarSVG(String(s.fig_num || s.set_num), String(s.name || ''))}
-              <div style="flex:1;min-width:0;">
-                <div style="font-size:13px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(String(s.name || s.set_num))}</div>
-                <div style="font-size:11px;color:var(--ink-mute);font-family:var(--mono);">#${escapeHtml(String(s.set_num).replace(/-\d+$/, ''))}${s.year ? ` · ${s.year}` : ''}</div>
-              </div>
-              ${s.value ? `<span style="font-size:13px;font-weight:700;color:var(--ink);flex:0 0 auto;">${fmtMoney(s.value, { cents: 0 })}</span>` : ''}
-            </button>`).join('')}
-        </div>`;
-      el.querySelectorAll('.fig-set-row').forEach((b) => b.addEventListener('click', () => {
-        haptic('light');
-        location.hash = '#/set/' + encodeURIComponent(b.dataset.set);
-      }));
+      if (!el || sets.length < 2) return;
+      el.innerHTML = `<h3 class="vault-actions__title">${esc(tPlural('minifigs.appearsInSets', sets.length))}</h3><div class="bv-group__box">${sets.map((s) => `<a class="bv-row vault-fig-set" href="#/set/${encodeURIComponent(String(s.set_num))}"${attrs({ 'data-set': s.set_num })}>
+          ${s.image_url ? `<span class="bv-thumb" style="--size:40px"><img class="set-photo" src="${esc(thumbImg(String(s.image_url)))}" alt="" loading="lazy" decoding="async"></span>` : icon('brick', { size: 22 })}
+          <span class="bv-row__text"><span class="bv-row__title">${esc(String(s.name || s.set_num))}</span><span class="bv-row__sub">${esc([String(s.set_num).replace(/-\d+$/, ''), s.year].filter(Boolean).join(' · '))}</span></span>
+          ${s.value ? `<span class="bv-row__trail bv-num">${esc(moneyWhole(s.value))}</span>` : ''}</a>`).join('')}</div>`;
     } catch { /* non-fatal — the section just stays empty */ }
   })();
-
 }
 
 function mountBlindSentinel() {
@@ -801,7 +847,7 @@ function mountBlindSentinel() {
   const sentinel = $("#blindSentinel");
   if (!grid || !sentinel) return;
   if (state._blindObserver) state._blindObserver.disconnect();
-  sentinel.style.display = state.blind.hasMore ? "" : "none";
+  sentinel.hidden = !state.blind.hasMore;
   if (!state.blind.hasMore) return;
   state._blindObserver = new IntersectionObserver(async (entries) => {
     if (!entries[0].isIntersecting || state.blind.loading) return;
@@ -810,7 +856,7 @@ function mountBlindSentinel() {
       grid.insertAdjacentHTML("beforeend", fresh.map(f => miniCardHTML(f)).join(""));
       wireMiniCards();
     }
-    sentinel.style.display = state.blind.hasMore ? "" : "none";
+    sentinel.hidden = !state.blind.hasMore;
     if (!state.blind.hasMore) state._blindObserver.disconnect();
   }, { rootMargin: "400px" });
   state._blindObserver.observe(sentinel);
@@ -818,39 +864,27 @@ function mountBlindSentinel() {
 
 function isFigFilterDefault() {
   const f = state.filter;
+  if (ownedMode()) return !f.figOwnedQ && (!f.figOwnedSeries || f.figOwnedSeries === 'all') && (!f.figOwnedRarity || f.figOwnedRarity === 'all');
   return !f.figQ && f.figRarity === 'all' && f.figOwned === 'all' && (!f.figSeries || f.figSeries === 'all');
 }
 
 function miniCardHTML(f) {
   const owned = state.ownedFigs.has(f.fig_num);
-  const hasImg = f.image_url;
   const realVal = f.current_value ?? null;
-  const rarity = f.rarity || "common";
   const n = f.appears_in_sets ?? null;
   // Honest footer: a real market price when we have one, otherwise a true fact
   // (set-exclusivity / debut year) — never a fabricated rarity-constant price.
   const scarcityLabel = (n != null && n > 0)
     ? (n === 1 ? t('minifigs.setExclusive') : tPlural('minifigs.inSets', n))
     : (f.year ? String(f.year) : '');
-  const valHTML = realVal != null && realVal > 0
-    ? `<div class="mini-value">${fmtMoney(realVal, { cents: 0 })}</div>`
-    : (scarcityLabel ? `<div class="mini-value mini-value-est">${scarcityLabel}</div>` : '');
-  return `
-    <button class="mini-card rarity-${rarity}" data-fig="${escapeHtml(f.fig_num)}" aria-label="${escapeHtml(f.name)}">
-      <div class="mini-img${hasImg ? " has-photo" : ""}">
-        ${figAvatarSVG(String(f.fig_num), String(f.name || ''))}
-        ${hasImg ? `<img class="fig-photo" src="${escapeHtml(thumbImg(f.image_url))}" alt="" loading="lazy" decoding="async">` : ""}
-        <span class="mini-rarity-tag rarity-${rarity}">${escapeHtml(rarityLabel(rarity))}</span>
-      </div>
-      <div class="mini-body">
-        <div class="mini-name">${escapeHtml(f.name)}</div>
-        <div class="mini-meta">
-          <span>${escapeHtml(f.series || "Minifig")}</span>
-        </div>
-        <div class="mini-card-footer">
-          ${valHTML}
-          ${owned ? `<span class="mini-owned-badge">${I.check()}</span>` : ''}
-        </div>
-      </div>
-    </button>`;
+  const hasValue = realVal != null && realVal > 0;
+  const valueHtml = hasValue ? null : (scarcityLabel ? `<span class="bv-tile__meta vault-fig__fact">${esc(scarcityLabel)}</span>` : '');
+  const series = currentSeries() !== 'all' && !ownedMode() ? seriesShort(f.series || '').replace(/^CMF\s+/, '') : seriesShort(f.series || t('bvVault.figMinifig'));
+  const rar = String(f.rarity || '').toLowerCase();
+  const label = [f.name, (rar === 'rare' || rar === 'legendary') ? rarityLabel(rar) : '', hasValue ? moneyWhole(realVal) : scarcityLabel, owned && !ownedMode() ? t('bvVault.figInVault') : ''].filter(Boolean).join(', ');
+  const action = ownedMode() ? '' : tileAction({ owned, label: owned ? t('bvVault.figEditOwned', { name: f.name }) : t('bvVault.figAddOne', { name: f.name }), attrs: { 'data-fig-add': '1', 'aria-pressed': null } });
+  return vaultFigTile(f, { meta: series, value: hasValue ? realVal : null, valueHtml, qty: Number(f.owned_qty) || 0, actionHtml: action, label });
 }
+
+window.addEventListener('bv:owner-changed', () => { _seriesProgress = null; figSearchOpen = false; });
+window.addEventListener('hashchange', () => { if (!onFigs()) figSearchOpen = false; });

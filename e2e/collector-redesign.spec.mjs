@@ -9,13 +9,14 @@ test('collector navigation, permanent search, one-tap scan, and room entry', asy
   await expect(page.locator('#nav .nav-tab:visible')).toHaveCount(4);
   await expect(page.locator('#nav [aria-current="page"]')).toHaveAttribute('data-route', '/');
   await expect(page.locator('#advisorFab')).toBeHidden();
+  // Search lives behind the top-bar icon and filters the list in place.
+  await page.locator('#vaultSearchBtn').click();
   await expect(page.locator('#portfolioSearch')).toBeVisible();
-  await expect(page.locator('.collector-market')).not.toHaveAttribute('open');
   await page.locator('#portfolioSearch').fill('no-such-set');
   await expect(page.locator('#clearVaultSearch')).toBeVisible();
   await expect(page.getByText('Your collection starts here')).toHaveCount(0);
   await page.locator('#clearVaultSearch').click();
-  await expect(page.locator('#setList .set-list-card')).toHaveCount(1);
+  await expect(page.locator('#setList .bv-setrow')).toHaveCount(1);
   await page.locator('#portfolioSearch').blur();
   // One primary action, one tap: the FAB opens the camera directly.
   await fab.click();
@@ -37,7 +38,7 @@ test('collector navigation, permanent search, one-tap scan, and room entry', asy
   await expect(page.locator('#nav [aria-current="page"]')).toHaveAttribute('data-route', '/me');
   await expect(fab).toBeHidden();
   await page.locator('#nav [data-route="/"]').click();
-  await expect(page.locator('#setList .set-list-card')).toBeVisible();
+  await expect(page.locator('#setList .bv-setrow')).toBeVisible();
   await expect(fab).toBeVisible();
   await page.screenshot({ path: 'audit/collector-vault-mobile.png' });
   await page.locator('[data-vault-view="room"]').click();
@@ -55,8 +56,9 @@ test('pinned collection returns from Vault and filters retain their context', as
   await expect(page.locator('[data-pin]')).toHaveAttribute('aria-pressed', 'true');
   await page.locator('#nav [data-route="/"]').click();
   await expect(page.locator('.collector-pins')).toContainText('Space shelf');
+  await page.locator('#vaultSearchBtn').click();
   await page.locator('#portfolioSearch').fill('Falcon');
-  await expect(page.locator('#setList .set-list-card')).toHaveCount(1);
+  await expect(page.locator('#setList .bv-setrow')).toHaveCount(1);
   await page.locator('#portfolioSearch').blur();
   await page.locator('#nav [data-route="/wishlist"]').click();
   await expect(page.locator('#nav [aria-current="page"]')).toHaveAttribute('data-route', '/wishlist');
@@ -68,7 +70,7 @@ test('dark theme and large text retain usable navigation', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('bv_theme', 'dark'));
   await page.goto('/#/');
   await expect(page.locator('#bvFab')).toBeVisible();
-  await expect(page.locator('#setList .set-list-card')).toBeVisible();
+  await expect(page.locator('#setList .bv-setrow')).toBeVisible();
   await page.evaluate(() => { document.documentElement.style.fontSize = '24px'; });
   await expect(page.locator('#nav .nav-tab:visible')).toHaveCount(4);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();

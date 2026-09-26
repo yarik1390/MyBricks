@@ -15,8 +15,8 @@ for (const language of ['en', 'uk']) for (const theme of ['light', 'dark']) {
     await page.route('**/api/subcollections', route => route.fulfill({ json: { subcollections: [] } }));
     for (const [route, ready, name] of [
       ['/', '#setList', 'vault'], ['/add', '#catalogLayoutToggle', 'catalog'],
-      ['/wishlist', '.page', 'wishlist'], ['/collections', '#collectionCreate', 'collections'],
-      ['/minifigs?owned=0', '#figExportBtn', 'minifigures'], ['/me', '#themeSeg', 'profile'],
+      ['/wishlist', '.page', 'wishlist'], ['/collections', '#subcollectionsPage', 'collections'],
+      ['/minifigs?owned=0', '#figSearch', 'minifigures'], ['/me', '#themeSeg', 'profile'],
     ]) {
       await page.goto(`/#${route}`);
       await expect(page.locator(ready)).toBeVisible();
@@ -56,13 +56,14 @@ for (const language of ['en', 'uk']) for (const theme of ['light', 'dark']) {
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({ path: `${output}/${name}-${language}-${theme}-after.png`, animations: 'disabled' });
       if (name === 'vault') {
-        await page.locator('[data-collector-advisor]').scrollIntoViewIfNeeded();
-        const tool = await page.locator('[data-collector-advisor]').boundingBox();
+        // Secondary vault actions (advisor, export, select…) live in More options.
+        const tool = await page.locator('#vaultMoreBtn').boundingBox();
+        expect(tool.height).toBeGreaterThanOrEqual(48);
         expect(tool.y + tool.height).toBeLessThanOrEqual((await page.locator('#nav').boundingBox()).y);
         await page.screenshot({ path: `${output}/vault-links-${language}-${theme}-after.png`, animations: 'disabled' });
       }
       if (name === 'collections') {
-        await page.locator('#collectionCreate').click();
+        await page.locator('#bvFab').click();
         await expect(page.locator('#collectionEditor input').first()).toBeVisible();
       }
       if (name === 'profile') {
@@ -89,7 +90,7 @@ test('touch room fits translated controls in portrait and landscape', async ({ p
   await expect(page.locator('#roomJoystick')).toBeVisible();
   for (const viewport of [{ width: 320, height: 740 }, { width: 390, height: 844 }, { width: 412, height: 915 }, { width: 915, height: 412 }]) {
     await page.setViewportSize(viewport);
-    const bar = await page.locator('.showroom-bar').boundingBox();
+    const bar = await page.locator('.bv-room-bar').boundingBox();
     const status = await page.locator('.showroom-notices').boundingBox();
     expect(overlaps(bar, status)).toBe(false);
     const find = await page.locator('#roomFind').boundingBox();
@@ -100,7 +101,9 @@ test('touch room fits translated controls in portrait and landscape', async ({ p
     const joystick = await page.locator('#roomJoystick').boundingBox();
     const controls = await page.locator('.showroom-controls').boundingBox();
     expect(overlaps(joystick,controls)).toBe(false);
-    expect(status.y + status.height).toBeLessThan(viewport.height / 2);
+    // The hint pill sits above the bottom controls, clear of the top bar.
+    expect(status.y + status.height).toBeLessThanOrEqual(controls.y);
+    expect(status.y).toBeGreaterThan(bar.y + bar.height);
     await page.screenshot({ path: `${output}/room-touch-${viewport.width}-after.png`, animations: 'disabled' });
   }
 });

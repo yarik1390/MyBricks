@@ -5,7 +5,7 @@ import { test, expect } from './fixtures.mjs';
 
 test('boots into the authed app (not the login screen) and loads the profile', async ({ page, stub }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('h1.brand-name')).toHaveText('BricksVault');
+  await expect(page.locator('#vaultPage h1')).toHaveText('Vault');
   // Guests never see the vault header; reaching it proves the injected session took.
   expect(stub.calls.some((c) => c.path === '/api/me')).toBeTruthy();
   expect(stub.calls.some((c) => c.path === '/api/collection')).toBeTruthy();
@@ -14,7 +14,7 @@ test('boots into the authed app (not the login screen) and loads the profile', a
 
 test('portfolio renders the collection', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('h1.brand-name')).toBeVisible();
+  await expect(page.locator('#vaultHero')).toBeVisible();
   await expect(page.getByText('Millennium Falcon').first()).toBeVisible();
 });
 
@@ -223,15 +223,16 @@ test('set detail renders with the action bar', async ({ page }) => {
 test('optimized collector pages keep mobile hierarchy and accessible controls', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
 
-  await page.goto('/#/minifigs', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('.fig-collection-overview')).toHaveAttribute('aria-label', 'Minifigure collection summary');
-  await expect(page.locator('.fig-catalog-toolbar')).toBeVisible();
+  // Discover · minifigs keeps its searchable, filterable catalog.
+  await page.goto('/#/minifigs?owned=0', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#figSearch')).toHaveAttribute('aria-describedby', 'figResultsMeta');
-  await expect(page.locator('#figFilterChip')).toHaveAttribute('aria-expanded', 'false');
-  await page.locator('#figFilterChip').click();
-  await expect(page.locator('#figFilterChip')).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#figSortBtn')).toHaveAttribute('aria-haspopup', 'dialog');
+  await page.locator('#figSortBtn').click();
   await expect(page.locator('#sheet')).toHaveClass(/show/);
   await page.keyboard.press('Escape');
+  // Vault · minifigs leads with a labelled summary card.
+  await page.goto('/#/minifigs?owned=1', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.vault-fig-hero')).toHaveAttribute('aria-label', /.+/);
 
   await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.detail-identity-block')).toBeVisible();
@@ -375,11 +376,10 @@ test('Pixel-sized vault shows an uncluttered gallery and readable compact prices
   }));
   await page.goto('/', { waitUntil: 'domcontentloaded' });
 
-  await expect(page.locator('.set-list-card:not(.compact) .sl-right')).toBeHidden();
-  await page.locator('#layoutToggle').click();
-  const layout = await page.locator('.set-list-card.compact').first().evaluate((card) => {
-    const name = card.querySelector('.sl-name').getBoundingClientRect();
-    const value = card.querySelector('.sl-value');
+  // List layout (default): the name ellipsizes and never collides with the price.
+  const layout = await page.locator('#setList .bv-setrow').first().evaluate((card) => {
+    const name = card.querySelector('.bv-setrow__name').getBoundingClientRect();
+    const value = card.querySelector('.bv-setrow__value');
     const valueRect = value.getBoundingClientRect();
     return {
       nameRight: name.right,
@@ -497,7 +497,7 @@ test('vivid light mode gives set photos a neutral non-blended stage', async ({ p
 test('wishlist toggle removes the set and flips the button', async ({ page, stub }) => {
   // Load the portfolio first so state.wishlist is populated (the set is wished).
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('h1.brand-name')).toBeVisible();
+  await expect(page.locator('#vaultHero')).toBeVisible();
   // In-app (no-reload) navigation preserves the in-memory wishlist state.
   await page.evaluate(() => { location.hash = '#/set/75192-1'; });
 
@@ -633,7 +633,9 @@ test('forecast tab shows only the caveated 2-year projection (no 5-year)', async
 
 test('free user sees the Insights teaser instead of the toolkit', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.locator('.portfolio-tab[data-tab="insights"]').click();
+  // The value hero opens Insights.
+  await page.locator('#vaultHero').click();
+  await expect(page).toHaveURL(/#\/insights$/);
   await expect(page.getByTestId('insights-teaser')).toBeVisible();
   await expect(page.locator('#insightsUpgradeBtn')).toBeVisible();
   // The real toolkit sections must NOT render — "Top Movers (90-day Slope)" is
@@ -643,14 +645,14 @@ test('free user sees the Insights teaser instead of the toolkit', async ({ page 
 });
 
 test('free user: 1Y range pill is locked and explains itself instead of lying', async ({ page }) => {
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.locator('.collector-market > summary').click();
-  const pill = page.locator('#rangePills button[data-r="1Y"]');
-  await expect(pill).toContainText('⭐');
+  await page.goto('/#/insights', { waitUntil: 'domcontentloaded' });
+  const pill = page.locator('#rangePills [data-r="1Y"]');
+  // Locked ranges carry a lock icon and say why in their accessible name.
+  await expect(pill.locator('svg')).toHaveCount(1);
   await pill.click();
   await expect(page.getByText('History beyond 90 days is a Pro perk')).toBeVisible();
   // The pill did not activate — the range selection stayed put.
-  await expect(pill).not.toHaveClass(/active/);
+  await expect(pill).not.toHaveAttribute('aria-pressed', 'true');
 });
 
 test('Pro user gets the full Insights toolkit, no teaser', async ({ page }) => {
@@ -664,9 +666,8 @@ test('Pro user gets the full Insights toolkit, no teaser', async ({ page }) => {
       ],
     }),
   }));
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.locator('.portfolio-tab[data-tab="insights"]').click();
-  await expect(page.getByText('Retirement Radar')).toBeVisible();
+  await page.goto('/#/insights', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByText('Retirement radar')).toBeVisible();
   await expect(page.getByTestId('insights-teaser')).toHaveCount(0);
 });
 
@@ -737,8 +738,10 @@ test('viewing the alerts sheet marks alerts read and clears the badge', async ({
     }),
   }));
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.locator('#alertsBtn').click();
-  await expect(page.getByText('Price drop ·')).toBeVisible();
+  // The alerts inbox is now "What changed", reached from the Since card.
+  await page.locator('#vaultSince').click();
+  await expect(page).toHaveURL(/#\/changes$/);
+  await expect(page.getByText('Millennium Falcon is $800')).toBeVisible();
   // Viewing IS reading: the per-alert mark-read POST fires without any tap.
   await expect.poll(() => stub.calls.some((c) => c.method === 'POST' && c.path === '/api/wishlist/a1')).toBe(true);
 });

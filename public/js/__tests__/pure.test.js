@@ -2038,11 +2038,13 @@ describe('i18n', () => {
 
   it('keeps production alert and Pro-insight template branches catalogued', () => {
     const wishlist = readFileSync(new URL('../views/portfolio-wishlist.js', import.meta.url), 'utf8');
-    const portfolio = readFileSync(new URL('../views/portfolio.js', import.meta.url), 'utf8');
+    // The Pro investor toolkit moved from the Vault's old Insights tab to the
+    // dedicated Insights screen (#/insights) in the 2026 redesign.
+    const insights = readFileSync(new URL('../views/insights.js', import.meta.url), 'utf8');
     assert.match(wishlist, /tPlural\('wishlist\.unreadAlerts', totalAlerts\)/);
     assert.doesNotMatch(wishlist, /\$\{totalAlerts\}\s*unread\s+alert/);
-    assert.match(portfolio, /t\('portfolio\.insightSignal'/);
-    assert.doesNotMatch(portfolio, /Resale\s+\$\{hot[^\n]*\$\{Math\.abs\(s\.spread/);
+    assert.match(insights, /t\('portfolio\.insightSignal'/);
+    assert.doesNotMatch(insights, /Resale\s+\$\{hot[^\n]*\$\{Math\.abs\(s\.spread/);
   });
 
   it('selects Ukrainian one/few/many count forms', async () => {

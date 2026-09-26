@@ -11,7 +11,7 @@ test('Vault hero value animation pins its final width until interpolation finish
   // Prepare fonts, the constrained row, and the sampler before changing route.
   await page.goto('/#/me', { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => document.fonts.ready);
-  await page.addStyleTag({ content: '.hero > .u-row { width: 260px; }' });
+  await page.addStyleTag({ content: '.bv-hero__line { width: 260px; }' });
   await page.evaluate(() => {
     const frames = [];
     let sampling = false;
@@ -21,7 +21,7 @@ test('Vault hero value animation pins its final width until interpolation finish
       if (!el || !row) return;
       const valueRect = el.getBoundingClientRect();
       const rowRect = row.getBoundingClientRect();
-      const delta = row.querySelector('.delta');
+      const delta = row.querySelector('.bv-delta');
       const deltaRect = delta && getComputedStyle(delta).display !== 'none' ? delta.getBoundingClientRect() : null;
       frames.push({
         relativeTop: valueRect.top - rowRect.top,
@@ -50,7 +50,6 @@ test('Vault hero value animation pins its final width until interpolation finish
   await page.evaluate(() => { location.hash = '#/'; });
 
   const value = page.locator('#heroValue');
-  await page.locator('.collector-market > summary').click();
   await expect(value).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.__vaultAnimationFrames?.length ?? 0)).toBeGreaterThan(1);
   const samples = await page.evaluate(() => window.__vaultAnimationFrames.filter(({ fontsLoaded }) => fontsLoaded));
@@ -70,9 +69,9 @@ test('Vault hero value retains the final accessible amount while its digits anim
   await page.goto('/#/', { waitUntil: 'domcontentloaded' });
 
   const value = page.locator('#heroValue');
-  await expect(value).toHaveAttribute('aria-label', '$850.00');
+  await expect(value).toHaveAttribute('aria-label', '$850');
   await expect(value).toHaveAttribute('aria-live', 'off');
-  await expect(value).toContainText('$850.00');
+  await expect(value).toContainText('$850');
 });
 
 test('reduced motion renders the final Vault hero value without interpolation', async ({ page }) => {
@@ -80,6 +79,6 @@ test('reduced motion renders the final Vault hero value without interpolation', 
   await page.goto('/#/', { waitUntil: 'domcontentloaded' });
 
   const value = page.locator('#heroValue');
-  await expect(value).toContainText('$850.00');
+  await expect(value).toContainText('$850');
   await expect(value).toHaveCSS('min-width', 'auto');
 });
