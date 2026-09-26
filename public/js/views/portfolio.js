@@ -1,3 +1,4 @@
+import { markValuesFresh, setSyncState, syncSlotHTML, reachErrorHTML } from '../ui/first-ui.js';
 import { vaultNavigation, setNavBadge, setPageFab, resetPageFab, syncCollectorChrome } from '../components/collector-shell.js';
 import { routeMetaFor } from '../route-meta.js';
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, daysAgo, prefersReducedMotion, themeHue, getExchangeRate, CURRENCY_SYMBOLS, ratesUnavailable, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone, publicOrigin, celebrate, fmtPct, advisorEnabled, fmtDateUpdated, parseUTCDate } from '../utils.js';
@@ -59,6 +60,7 @@ export async function loadPortfolioData() {
   try {
     state.portfolio = await api("/api/collection");
     bvIDB.set('portfolio', { data: state.portfolio, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
+    markValuesFresh();
   } catch (e) {
     toast(t('portfolio.collectionLoadFailed', { error: e.message || e }), "error");
     state.portfolio = { items: [], total_value: 0, total_paid: 0, count: 0, _loadFailed: true };
@@ -91,6 +93,9 @@ async function _revalidatePortfolio() {
   if (_revalidating) return;
   _revalidating = true;
   const token = state._revalToken || 0;
+  // "Updating prices" while the saved values are refreshed (canvas: Syncing).
+  const online = navigator.onLine !== false && !document.body.classList.contains('offline');
+  if (online) setSyncState({ active: true, done: 0, total: 0 });
   try {
     const fresh = await api("/api/collection");
     if ((state._revalToken || 0) !== token) return; // mutation happened mid-flight
@@ -100,11 +105,21 @@ async function _revalidatePortfolio() {
       || Math.abs((prev.total_value ?? 0) - (fresh.total_value ?? 0)) > 0.005;
     state.portfolio = fresh;
     bvIDB.set('portfolio', { data: fresh, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
+    markValuesFresh();
+    const slot = document.getElementById('bvReachSlot');
+    if (slot) slot.innerHTML = '';
     if (changed && onVaultRoute() && !state.selectionMode) paintPortfolio();
   } catch {
-    // network / offline — keep stale data
+    // Offline: keep the saved values; the offline banner explains. Online but
+    // unreachable: say so, keep the saved values and offer Retry.
+    const slot = document.getElementById('bvReachSlot');
+    if (slot && onVaultRoute() && navigator.onLine !== false && !document.body.classList.contains('offline')) {
+      slot.innerHTML = reachErrorHTML();
+      document.getElementById('bvReachRetry')?.addEventListener('click', () => _revalidatePortfolio());
+    }
   } finally {
     _revalidating = false;
+    setSyncState({ active: false });
   }
 }
 
@@ -409,6 +424,7 @@ function heroHTML(p, totals) {
     <span class="vault-hero__sub" id="vaultHeroSub">${heroSubHTML(totals)}</span>
     ${spark || (hist.length ? `<span class="vault-hero__note">${escapeHtml(t('bvVault.trendSoon'))}</span>` : '')}
     ${heroStatusHTML(p)}
+    ${syncSlotHTML()}
   </a>`;
 }
 
@@ -483,6 +499,7 @@ function paintPortfolio() {
       ${vaultTopbar({ searchOpen: showSearch })}
       ${showSearch ? vaultSearchRow({ id: 'portfolioSearch', name: 'vault_search', value: state.filter.q, placeholder: t('bvVault.searchPlaceholder'), label: t('collector.search') }) : ''}
       ${saveStatusHTML()}
+      <div id="bvReachSlot"></div>
       ${isEmptyVault ? `${emptyVaultHTML()}${hasFigs ? vaultNavigation('sets') : ''}` : `
       ${showSearch ? '' : heroHTML(p, totals)}
       ${showSearch ? '' : `<div id="vaultSinceSlot">${state.vaultChanges?.owner === getSessionUserId() ? sinceCardHTML(state.vaultChanges.data) : ''}</div>`}

@@ -651,14 +651,16 @@ export function showSetup() {
   }
 }
 
-// First-run trigger for the setup wizard. Defensive: only when not yet seen, the
-// main nav is visible (i.e. not the login screen), and never throws into boot.
+// First-run trigger. The 2026 redesign replaces the overlay wizard with the
+// Welcome flow (#/welcome → fill → import → ready); showSetup() stays for the
+// admin "replay setup" tool. Defensive: only when not yet done, only from the
+// Vault (never over the login screen or a deep link), never throws into boot.
 export function maybeShowWelcome() {
   try {
     if (localStorage.getItem(SETUP_FLAG)) return;
     if (!isLaunchSurface()) return;
     const nav = document.getElementById('nav');
     if (!nav || getComputedStyle(nav).display === 'none') return;
-    showSetup();
+    location.hash = '#/welcome';
   } catch {}
 }

@@ -86,6 +86,7 @@
   {
     "text": "2-digit",
     "files": [
+      "ui/first-ui.js",
       "views/me-notifications.js"
     ]
   },
@@ -575,12 +576,6 @@
     ]
   },
   {
-    "text": "App locked",
-    "files": [
-      "lib/app-lock.js"
-    ]
-  },
-  {
     "text": "App revenue (month)",
     "files": [
       "views/me-admin.js"
@@ -1015,12 +1010,6 @@
     ]
   },
   {
-    "text": "BricksVault is locked",
-    "files": [
-      "lib/app-lock.js"
-    ]
-  },
-  {
     "text": "Brickset / Rebrickable",
     "files": [
       "methodology.html"
@@ -1072,12 +1061,6 @@
     "text": "Bright Data Web Unlocker — raw page transport for BrickEconomy, Brickset, and LEGO stock.",
     "files": [
       "views/me-admin-config.js"
-    ]
-  },
-  {
-    "text": "Browse Catalog",
-    "files": [
-      "router.js"
     ]
   },
   {
@@ -1605,27 +1588,9 @@
     ]
   },
   {
-    "text": "Continue as guest",
-    "files": [
-      "views/login.js"
-    ]
-  },
-  {
     "text": "Continue valuation v3 shadow checks.",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Continue with Apple",
-    "files": [
-      "views/login.js"
-    ]
-  },
-  {
-    "text": "Continue with Google",
-    "files": [
-      "views/login.js"
     ]
   },
   {
@@ -2897,7 +2862,8 @@
   {
     "text": "Full investor view — market value, ROI and 2-year projections.",
     "files": [
-      "components/onboarding.js"
+      "components/onboarding.js",
+      "views/welcome.js"
     ]
   },
   {
@@ -3007,12 +2973,6 @@
     "text": "Go to Background Activity & Jobs",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Go to Vault",
-    "files": [
-      "router.js"
     ]
   },
   {
@@ -3135,13 +3095,8 @@
     "text": "Guest Collector",
     "files": [
       "api.js",
-      "router.js"
-    ]
-  },
-  {
-    "text": "Guest data stays on this device. Sign in later to sync your vault and wishlist.",
-    "files": [
-      "views/login.js"
+      "router.js",
+      "views/welcome.js"
     ]
   },
   {
@@ -3611,7 +3566,8 @@
   {
     "text": "Kids",
     "files": [
-      "components/onboarding.js"
+      "components/onboarding.js",
+      "views/welcome.js"
     ]
   },
   {
@@ -5134,18 +5090,6 @@
     ]
   },
   {
-    "text": "Page not found",
-    "files": [
-      "router.js"
-    ]
-  },
-  {
-    "text": "Page not found · BricksVault",
-    "files": [
-      "router.js"
-    ]
-  },
-  {
     "text": "Paper bag",
     "files": [
       "views/portfolio-detail.js"
@@ -5337,7 +5281,8 @@
   {
     "text": "Playful, price-free mode with XP and badges.",
     "files": [
-      "components/onboarding.js"
+      "components/onboarding.js",
+      "views/welcome.js"
     ]
   },
   {
@@ -6319,7 +6264,6 @@
     "files": [
       "components/advisor.js",
       "components/legal-sheet.js",
-      "router.js",
       "views/catalog.js",
       "views/me-admin.js",
       "views/me-data.js",
@@ -7096,7 +7040,8 @@
   {
     "text": "Sign in first — a parent PIN keeps kids from exiting.",
     "files": [
-      "components/onboarding.js"
+      "components/onboarding.js",
+      "views/welcome.js"
     ]
   },
   {
@@ -7120,7 +7065,8 @@
   {
     "text": "Sign in to use Kids Mode — the parent PIN needs an account.",
     "files": [
-      "components/onboarding.js"
+      "components/onboarding.js",
+      "views/welcome.js"
     ]
   },
   {
@@ -7162,7 +7108,8 @@
   {
     "text": "Simple",
     "files": [
-      "components/onboarding.js"
+      "components/onboarding.js",
+      "views/welcome.js"
     ]
   },
   {
@@ -7267,12 +7214,6 @@
     "files": [
       "app.js",
       "views/login.js"
-    ]
-  },
-  {
-    "text": "Something went wrong",
-    "files": [
-      "router.js"
     ]
   },
   {
@@ -7730,12 +7671,6 @@
     ]
   },
   {
-    "text": "The link may be outdated or mistyped.",
-    "files": [
-      "router.js"
-    ]
-  },
-  {
     "text": "The most common price-guide error isn't a wrong price — it's the right price for the",
     "files": [
       "methodology.html"
@@ -8067,12 +8002,6 @@
     "text": "Unlikely",
     "files": [
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Unlock",
-    "files": [
-      "lib/app-lock.js"
     ]
   },
   {
@@ -8461,12 +8390,6 @@
     ]
   },
   {
-    "text": "We couldn't load this page. Check your connection and try again.",
-    "files": [
-      "router.js"
-    ]
-  },
-  {
     "text": "We sent a confirmation link to",
     "files": [
       "views/login.js"
@@ -8685,12 +8608,6 @@
     ]
   },
   {
-    "text": "Your brick portfolio, always in hand.",
-    "files": [
-      "views/login.js"
-    ]
-  },
-  {
     "text": "Your collection rolls back to this snapshot. Sets added since stay; nothing is permanently deleted.",
     "files": [
       "views/me-data.js"
@@ -8778,6 +8695,12 @@
     "text": "a set's value is a weighted median of",
     "files": [
       "methodology.html"
+    ]
+  },
+  {
+    "text": "a.bv-setrow[data-set-num], .vault-row[data-set-num] a.vault-row__link, .bv-tile[data-set-num] a.bv-tile__link",
+    "files": [
+      "lib/list-detail.js"
     ]
   },
   {
@@ -8914,6 +8837,12 @@
     ]
   },
   {
+    "text": "bv-card bv-ready__alerts",
+    "files": [
+      "views/welcome.js"
+    ]
+  },
+  {
     "text": "bv-card__link bv-linkbtn",
     "files": [
       "views/catalog.js"
@@ -9002,6 +8931,12 @@
     "text": "bv-group__box bv-themepicker",
     "files": [
       "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bv-group__box bv-wel__prefs",
+    "files": [
+      "views/welcome.js"
     ]
   },
   {
@@ -9218,6 +9153,18 @@
     "text": "bv-valuecard__value bv-num detail-summary-val",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "bv-wel__body bv-wel__center",
+    "files": [
+      "views/welcome.js"
+    ]
+  },
+  {
+    "text": "bv-wel__note bv-note",
+    "files": [
+      "views/welcome.js"
     ]
   },
   {
@@ -9569,12 +9516,6 @@
     ]
   },
   {
-    "text": "bvCommon.comingSoon",
-    "files": [
-      "views/welcome.js"
-    ]
-  },
-  {
     "text": "bvCommunity.advOffTitle",
     "files": [
       "components/advisor.js"
@@ -9669,6 +9610,42 @@
     "text": "bvCommunity.risingEmptyTitle",
     "files": [
       "views/portfolio-social.js"
+    ]
+  },
+  {
+    "text": "bvFirst.alertsBlocked",
+    "files": [
+      "views/welcome.js"
+    ]
+  },
+  {
+    "text": "bvFirst.alertsFailed",
+    "files": [
+      "views/welcome.js"
+    ]
+  },
+  {
+    "text": "bvFirst.currencyHelp",
+    "files": [
+      "views/welcome.js"
+    ]
+  },
+  {
+    "text": "bvFirst.lookSub",
+    "files": [
+      "views/welcome.js"
+    ]
+  },
+  {
+    "text": "bvFirst.lookSubAuto",
+    "files": [
+      "views/welcome.js"
+    ]
+  },
+  {
+    "text": "bvFirst.marketHelp",
+    "files": [
+      "views/welcome.js"
     ]
   },
   {
