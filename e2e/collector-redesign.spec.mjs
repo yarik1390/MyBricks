@@ -74,3 +74,28 @@ test('dark theme and large text retain usable navigation', async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
   await page.screenshot({ path: 'audit/collector-dark-mobile.png' });
 });
+
+test('the advisor button returns wherever no other floating action is shown', async ({ page }) => {
+  await page.goto('/#/');
+  const advisor = page.locator('#advisorFab');
+  // Vault has the Scan FAB, so the advisor steps aside…
+  await expect(page.locator('#bvFab')).toBeVisible();
+  await expect(advisor).toBeHidden();
+  // …and comes back on routes without one.
+  for (const route of ['#/leaderboard', '#/build', '#/set/75192-1']) {
+    await page.goto(`/${route}`);
+    await expect(page.locator('#bvFab')).toBeHidden();
+    await expect(advisor).toBeVisible();
+  }
+  await page.goto('/#/');
+  await expect(advisor).toBeHidden();
+  // Settings, the scanner and sign-in still never show it.
+  for (const route of ['#/me', '#/pile']) {
+    await page.goto(`/${route}`);
+    await expect(advisor).toBeHidden();
+  }
+  // Turning the assistant off keeps it hidden everywhere.
+  await page.evaluate(() => localStorage.setItem('bv_advisor', 'off'));
+  await page.goto('/#/leaderboard');
+  await expect(advisor).toBeHidden();
+});
