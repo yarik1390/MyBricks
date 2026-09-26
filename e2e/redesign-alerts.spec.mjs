@@ -87,6 +87,13 @@ test('"I bought it" moves the set to the vault with an Undo', async ({ page }) =
 });
 
 test('notifications: switches save per category, quiet hours carry the time zone, push is explained in context', async ({ page }) => {
+  // The explainer is for a browser that has never been asked. Full Chromium
+  // reports that as Notification.permission 'default', but chrome-headless-shell
+  // (what CI runs) reports 'denied', which correctly reads as blocked and skips
+  // the explainer. Pin the never-asked state this test is about.
+  await page.addInitScript(() => {
+    Object.defineProperty(Notification, 'permission', { configurable: true, get: () => 'default' });
+  });
   const patches = [];
   await page.route('**/api/me', (route) => {
     if (route.request().method() === 'PATCH') {

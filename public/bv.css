@@ -1560,7 +1560,7 @@ body.collector-ui .bv-discover #catalogSortBtn { grid-column: auto; grid-row: au
   font: inherit; cursor: pointer; min-height: 0;
 }
 .bv-profile__foot .me-footer-links { display: block; }
-.bv-profile__version { font: 500 11px/16px var(--bv-mono); letter-spacing: .06em; opacity: .8; }
+.bv-profile__version { font: 500 11px/16px var(--bv-mono); letter-spacing: .06em; }
 .bv-btn--danger-fill { background: var(--bv-loss); color: #fff; }
 .bv-btn--danger-fill:disabled { opacity: .45; }
 

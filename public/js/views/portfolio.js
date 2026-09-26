@@ -699,11 +699,19 @@ let _heroAnimationFrame = 0;
 function animateHeroValue(target) {
   const el = $("#heroValue");
   if (!el || target == null || isNaN(target) || target <= 0) return;
-  cancelAnimationFrame(_heroAnimationFrame);
   // Keep the final amount in the accessibility tree while the visible digits
   // interpolate. Screen readers should not announce dozens of frame updates.
   el.setAttribute("aria-label", heroValueText(target));
   el.setAttribute("aria-live", "off");
+  // A repaint while the count-up toward this same total is still running (a
+  // queued route, a background refresh) swaps in a fresh #heroValue. Pin it
+  // and let the running animation drive it instead of snapping to the end.
+  if (_heroAnimationFrame && _lastHeroValue === target && !prefersReducedMotion()) {
+    el.style.minWidth = `${el.getBoundingClientRect().width}px`;
+    return;
+  }
+  cancelAnimationFrame(_heroAnimationFrame);
+  _heroAnimationFrame = 0;
   if (prefersReducedMotion() || _lastHeroValue === target) { el.style.removeProperty("min-width"); el.textContent = heroValueHTML(target); _lastHeroValue = target; return; }
   // The template initially contains the final value. Preserve that exact width
   // while counting from the previous total so the neighbouring delta chip
@@ -719,9 +727,10 @@ function animateHeroValue(target) {
     // so the first value cannot extrapolate below `from`.
     const p = Math.max(0, Math.min(1, (now - start) / dur));
     const eased = 1 - Math.pow(1 - p, 3);
-    el.textContent = heroValueHTML(from + (target - from) * eased);
+    const current = $("#heroValue");
+    if (current) current.textContent = heroValueHTML(from + (target - from) * eased);
     if (p < 1) _heroAnimationFrame = requestAnimationFrame(tick);
-    else { _heroAnimationFrame = 0; el.style.removeProperty("min-width"); }
+    else { _heroAnimationFrame = 0; current?.style.removeProperty("min-width"); }
   };
   _heroAnimationFrame = requestAnimationFrame(tick);
 }
