@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures.mjs';
+import { test, expect, SET } from './fixtures.mjs';
 
 // Hermetic smoke tests: auth + all /api/* are stubbed by the `stub` fixture, so
 // these exercise the real frontend bundle without any live service.
@@ -617,6 +617,34 @@ test('market-valued set cites its provenance (source count + typical range)', as
   await summary.locator('.bv-linkbtn[data-set-sheet="why"]').click();
   await expect(page.locator('#whySheet .detail-summary-src')).toContainText('From 3 market sources');
   await expect(page.locator('#whySheet .detail-summary-src')).toContainText('typically');
+});
+
+test('a built copy shows its used market value and range, not the sealed ones', async ({ page }) => {
+  const valuation = {
+    read_enabled: true,
+    new: { fair_value: 850, low: 800, high: 900 },
+    used: { fair_value: 510, low: 480, high: 540 },
+  };
+  await page.route('**/api/sets/75192-1', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ set: { ...SET, valuation }, entry: { id: 1, set_num: '75192-1', quantity: 1, condition: 'used_good', purchase_price: 400 } }),
+  }));
+  await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
+  const summary = page.locator('.detail-market-summary');
+  await expect(summary.locator('.detail-summary-lbl')).toContainText('built');
+  await expect(summary.locator('.detail-summary-val')).toHaveText('$510');
+  await expect(summary.locator('.bv-range')).toHaveAttribute('aria-label', /\$480.*\$540/);
+  await expect(page.locator('#sellTargetBtn')).toBeVisible();
+});
+
+test('a guest copy has no sell target: its alerts could never reach a local vault', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.removeItem('bv_session');
+    localStorage.setItem('bv_guest_collection', JSON.stringify([{ id: 'g-1', set_num: '75192-1', quantity: 1, condition: 'sealed', purchase_price: 700 }]));
+  });
+  await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('[data-set-sheet="edit"]').first()).toBeVisible();
+  await expect(page.locator('#sellTargetBtn')).toHaveCount(0);
 });
 
 test('forecast tab shows only the caveated 2-year projection (no 5-year)', async ({ page }) => {
