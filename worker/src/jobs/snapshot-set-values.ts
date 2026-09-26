@@ -8,8 +8,10 @@ import { pricingWritesAllowed, recordPricingWrites } from '../lib/pricing-budget
 // where price movement actually matters to investors.
 const CATALOG_SNAPSHOT_TOP_N = 2000;
 
-// Charts read at most 90 days; keep a wide margin for a future longer window
-// while bounding table growth now that coverage extends past owned/wishlisted.
+// The set page's "All" range reads up to five years of set_value_history, so
+// that table keeps five years. Minifig and v3 valuation histories are read over
+// shorter windows and stay bounded at 400 days.
+const SET_HISTORY_RETENTION_DAYS = 1825;
 const HISTORY_RETENTION_DAYS = 400;
 
 /**
@@ -25,7 +27,7 @@ const HISTORY_RETENTION_DAYS = 400;
 export async function runSnapshotSetValues(env: Env) {
   // BrickLink's permission covers display of its guide content for at most 24
   // hours and does not extend to historical retention. bl_value used to carry
-  // the RAW guide figure forever (400-day retention), so it is no longer
+  // the RAW guide figure forever (multi-year retention), so it is no longer
   // written — the column stays for schema compatibility but receives NULL.
   const result = await env.DB.prepare(`
     INSERT INTO set_value_history (set_num, snapshot_date, current_value, ebay_value, bl_value)
@@ -109,7 +111,7 @@ export async function runSnapshotSetValues(env: Env) {
     const cutoff = `-${HISTORY_RETENTION_DAYS} days`;
     const del = await env.DB.prepare(
       `DELETE FROM set_value_history WHERE snapshot_date < DATE('now', ?)`,
-    ).bind(cutoff).run();
+    ).bind(`-${SET_HISTORY_RETENTION_DAYS} days`).run();
     pruned = (del.meta.changes as number | undefined) ?? 0;
     await env.DB.prepare(
       `DELETE FROM minifig_value_history WHERE snapshot_date < DATE('now', ?)`,
