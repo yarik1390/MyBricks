@@ -49,8 +49,11 @@ export async function turnOffPush() {
   }
   const reg = await withTimeout(navigator.serviceWorker.ready, 3000).catch(() => null);
   const current = reg ? await reg.pushManager.getSubscription().catch(() => null) : null;
+  const endpoint = current?.endpoint;
   await current?.unsubscribe().catch(() => {});
-  await api('/api/push/subscribe', { method: 'DELETE', body: {} }).catch(() => {});
+  // Only this browser's subscription: without an endpoint the server removes
+  // every device's, turning push off on the user's other phones too.
+  if (endpoint) await api('/api/push/subscribe', { method: 'DELETE', body: { endpoint } }).catch(() => {});
 }
 
 function withTimeout(promise, ms) {

@@ -233,6 +233,26 @@ describe('runWishlistAlerts — per-set switches', () => {
     expect(r.retiring).toBe(0);
     expect(r.preorders).toBe(0);
   });
+
+  it('a switched-off category records nothing: no in-app alert, no cooldown stamp', async () => {
+    await db.batch([
+      db.prepare(`INSERT INTO user_prefs (user_id, notify_price_drops, notify_big_moves, notify_retiring) VALUES ('u1', 1, 0, 0)`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, valuation_method) VALUES ('S-9','Spiker', 200, 'market')`),
+      db.prepare(`INSERT INTO user_collection (user_id, set_num, purchase_price) VALUES ('u1','S-9', 100)`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, retired, lego_retiring_soon) VALUES ('R-9','Retiring', 30, 0, 1)`),
+      db.prepare(`INSERT INTO user_wishlist (user_id, set_num) VALUES ('u1','R-9')`),
+      // A collector who wants both still gets both.
+      db.prepare(`INSERT INTO user_collection (user_id, set_num, purchase_price) VALUES ('u2','S-9', 100)`),
+      db.prepare(`INSERT INTO user_wishlist (user_id, set_num) VALUES ('u2','R-9')`),
+    ]);
+    const r = await runWishlistAlerts(e);
+    expect(r.spikes).toBe(1);
+    expect(r.retiring).toBe(1);
+    const mine = await db.prepare(`SELECT COUNT(*) AS n FROM wishlist_alerts WHERE user_id='u1'`).first<{ n: number }>();
+    expect(mine!.n).toBe(0);
+    const stamp = await db.prepare(`SELECT spike_alerted_at FROM user_collection WHERE user_id='u1'`).first<{ spike_alerted_at: string | null }>();
+    expect(stamp!.spike_alerted_at).toBeNull();
+  });
 });
 
 describe('alert preferences', () => {

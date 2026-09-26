@@ -61,6 +61,14 @@ export function inQuietHours(prefs: AlertPrefs, now: Date = new Date()): boolean
   return start < end ? hour >= start && hour < end : hour >= start || hour < end;
 }
 
+// SQL twin of wantsAlert() for the candidate queries. A switched-off category
+// is never selected, so it records nothing — no in-app alert row, no cooldown
+// stamp — and cannot take a LIMIT slot from collectors who do want the alert.
+// A collector with no prefs row keeps today's behaviour (recorded in-app,
+// nothing delivered).
+const categoryWanted = (alias: string, col: string) =>
+  `(${alias}.user_id IS NULL OR COALESCE(${alias}.${col}, ${alias}.notify_price_drops, 0) != 0)`;
+
 const money = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
 const setLink = (setNum: string, tail = '') => `#/set/${encodeURIComponent(setNum)}${tail}`;
 
@@ -223,7 +231,9 @@ async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
            COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) AS current_value
     FROM user_collection uc
     JOIN lego_sets ls ON ls.set_num = uc.set_num
+    LEFT JOIN user_prefs up ON up.user_id = uc.user_id
     WHERE uc.purchase_price > 0
+      AND ${categoryWanted('up', 'notify_big_moves')}
       AND COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) > 1.30 * uc.purchase_price
       AND (
         ls.blended_confidence IN ('high', 'medium')
@@ -317,11 +327,13 @@ export async function runSellTargetAlerts(env: Env): Promise<{ fired: number }> 
            ls.name AS set_name, ls.image_url, ls.blended_confidence, ls.valuation_method,
            ls.current_value, ls.blended_value, ls.used_value,
            ls.ebay_used_value, ls.pc_new_value, ls.pc_complete_value,
-           svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair
+           svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair,
+           ${categoryWanted('up', 'notify_sell_targets')} AS wanted
     FROM user_collection uc
     JOIN lego_sets ls ON ls.set_num = uc.set_num
     LEFT JOIN set_valuation_state svn ON svn.set_num = ls.set_num AND svn.condition = 'new_sealed'
     LEFT JOIN set_valuation_state svu ON svu.set_num = ls.set_num AND svu.condition = 'used_complete'
+    LEFT JOIN user_prefs up ON up.user_id = uc.user_id
     WHERE uc.sell_target > 0 AND uc.deleted_at IS NULL
   `).all<Record<string, unknown>>();
 
@@ -340,7 +352,8 @@ export async function runSellTargetAlerts(env: Env): Promise<{ fired: number }> 
     }
     const trusted = h.blended_confidence === 'high' || h.blended_confidence === 'medium'
       || (!(Number(h.blended_value) > 0) && !['formula_bulk', 'local', 'ai'].includes(String(h.valuation_method ?? '')));
-    if (!(value > 0) || value < target || !trusted || results.length >= ALERTS_PER_KIND) continue;
+    // A switched-off category records nothing (see categoryWanted).
+    if (!Number(h.wanted) || !(value > 0) || value < target || !trusted || results.length >= ALERTS_PER_KIND) continue;
     results.push({
       collection_id: Number(h.collection_id), user_id: String(h.user_id), set_num: String(h.set_num),
       sell_target: target, set_name: String(h.set_name ?? h.set_num), current_value: value,
@@ -397,7 +410,9 @@ async function runRetirementAlerts(env: Env): Promise<{ fired: number }> {
       UNION
       SELECT user_id, set_num FROM user_wishlist WHERE COALESCE(notify_retiring, 1) = 1
     ) u ON u.set_num = ls.set_num
+    LEFT JOIN user_prefs up ON up.user_id = u.user_id
     WHERE ls.retired = 0 AND ls.lego_retiring_soon = 1
+      AND ${categoryWanted('up', 'notify_retiring')}
       AND NOT EXISTS (
         SELECT 1 FROM wishlist_alerts wa
         WHERE wa.user_id = u.user_id AND wa.set_num = ls.set_num
@@ -538,8 +553,10 @@ async function runPreorderAlerts(env: Env): Promise<{ fired: number }> {
     SELECT w.user_id, ls.set_num, ls.name AS set_name, ls.current_value, ls.image_url, ls.lego_availability
     FROM user_wishlist w
     JOIN lego_sets ls ON ls.set_num = w.set_num
+    LEFT JOIN user_prefs up ON up.user_id = w.user_id
     WHERE ls.lego_availability IN ('pre_order', 'coming_soon')
       AND COALESCE(w.notify_stock, 1) = 1
+      AND ${categoryWanted('up', 'notify_back_in_stock')}
       AND NOT EXISTS (
         SELECT 1 FROM wishlist_alerts wa
         WHERE wa.user_id = w.user_id AND wa.set_num = ls.set_num

@@ -393,8 +393,10 @@ export async function renderMeIntegrations() {
       if (!reg) { toast("Service worker not available", "error"); return; }
       const current = await reg.pushManager.getSubscription().catch(() => null);
       if (current || pushBtn.dataset.pushState === "enabled") {
+        const endpoint = current?.endpoint;
         await current?.unsubscribe().catch(() => {});
-        await api("/api/push/subscribe", { method: "DELETE", body: {} }).catch(() => {});
+        // This browser only — an empty body would clear every device's subscription.
+        if (endpoint) await api("/api/push/subscribe", { method: "DELETE", body: { endpoint } }).catch(() => {});
         pushBtn.textContent = "Enable";
         pushBtn.dataset.pushState = "disabled";
         toast("Push notifications disabled", "info");
