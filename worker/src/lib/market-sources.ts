@@ -228,33 +228,6 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
     });
   }
 
-  if (num(row.bo_new_value)) {
-    sources.push({
-      id: 'brickowl_new',
-      name: 'BrickOwl',
-      value: num(row.bo_new_value),
-      condition: 'new',
-      sample_count: num(row.bo_new_qty),
-      last_updated: text(row.bo_cached_at) || cachedAt,
-      freshness: sourceFreshness(row, 'bo_cached_at', 'bo_new_value'),
-      reliability: 'corroborating',
-      note: 'Median new-condition BrickOwl listing price.',
-    });
-  }
-
-  if (num(row.bo_used_value)) {
-    sources.push({
-      id: 'brickowl_used',
-      name: 'BrickOwl used',
-      value: num(row.bo_used_value),
-      condition: 'used',
-      sample_count: num(row.bo_used_qty),
-      last_updated: text(row.bo_cached_at) || cachedAt,
-      freshness: sourceFreshness(row, 'bo_cached_at', 'bo_used_value'),
-      reliability: 'corroborating',
-      note: 'Median used-condition BrickOwl listing price.',
-    });
-  }
 
   if (method === 'ai' && num(row.current_value)) {
     sources.push({
@@ -326,8 +299,7 @@ export function marketConfidence(row: Record<string, unknown>, sources = buildMa
   // scraped figure must read as low so the UI never badges it "Market price".
   if ((method === 'market' || method === 'ebay_rss' || method === 'ebay_sold') && fresh !== 'expired') return 'medium';
   if (method === 'brickeconomy' && fresh !== 'expired') {
-    const hasBrickOwl = sources.some(s => s.id === 'brickowl_new' && s.value);
-    return (hasBrickLink || hasEbay || hasBrickOwl) ? 'medium' : 'low';
+    return (hasBrickLink || hasEbay) ? 'medium' : 'low';
   }
   return 'low';
 }
@@ -431,7 +403,6 @@ export interface HoldingValuationRow {
   blended_value?: unknown;
   used_value?: unknown;
   ebay_used_value?: unknown;
-  bo_used_value?: unknown;
   pc_new_value?: unknown;
   pc_complete_value?: unknown;
   v3_new_fair?: unknown;
@@ -444,8 +415,7 @@ export function holdingValueForRollout(
   percent = pricingV3ReadPercent,
 ): number {
   const legacyNew = num(row.blended_value) || num(row.current_value) || 0;
-  const legacyUsed = num(row.ebay_used_value) || num(row.used_value)
-    || num(row.bo_used_value) || legacyNew;
+  const legacyUsed = num(row.ebay_used_value) || num(row.used_value) || legacyNew;
   const isUsed = String(row.condition || '').startsWith('used');
   const quarantineOverride = !!(num(row.pc_new_value) || num(row.pc_complete_value));
   if (!pricingV3ReadEnabled(row.set_num, percent) && !quarantineOverride) {
@@ -469,13 +439,12 @@ export function resetSourceWeightMultipliers(): void {
 
 /** Providers retired from the pricing engine. Their signals are filtered out at
  *  read time so residual rows can never influence a valuation. */
-export const RETIRED_PRICING_SOURCES: readonly string[] = ['brickpicker'];
+export const RETIRED_PRICING_SOURCES: readonly string[] = ['brickpicker', 'brickowl'];
 
 function sourceOwner(signal: PricingSignal): string {
   if (signal.source.startsWith('bricklink')) return 'bricklink';
   if (signal.source.startsWith('ebay')) return 'ebay';
   if (signal.source.startsWith('brickeconomy')) return 'brickeconomy';
-  if (signal.source.startsWith('brickowl')) return 'brickowl';
   if (signal.source.startsWith('pricecharting')) return 'pricecharting';
   if (signal.source.startsWith('stockx')) return 'stockx';
   return signal.source;
@@ -515,7 +484,9 @@ export function valueMarketSignals(
   history?: BlendHistory,
 ): ValuationStateV3 {
   // Preserve sample_count; family independence has its own explicit field.
-  return valueSignalsV3(condition, deduplicatePricingSignals(signals), history);
+  const active = signals.filter((signal) => !RETIRED_PRICING_SOURCES.some((source) =>
+    signal.provider_family?.toLowerCase() === source || signal.source.toLowerCase().startsWith(source)));
+  return valueSignalsV3(condition, deduplicatePricingSignals(active), history);
 }
 
 function effectiveSignals(row: Record<string, unknown>, extraSignals: MarketPricingSignal[] = []): MarketPricingSignal[] {
@@ -612,7 +583,6 @@ export function blendMarketValue(row: Record<string, unknown>, history?: BlendHi
   push('ebay_sold_new', 'eBay sold', num(row.ebay_new_value), num(row.ebay_new_qty), row.ebay_new_last_sold || row.ebay_new_cached_at, 1.0, true, RANK_SOLD);
   // BrickEconomy's value is only stored as current_value when it's the method.
   if (method === 'brickeconomy') push('brickeconomy', 'BrickEconomy', num(row.current_value), null, row.be_cached_at || row.cached_at, 0.9, false, RANK_MODEL);
-  push('brickowl_new', 'BrickOwl', num(row.bo_new_value), null, row.bo_cached_at, 0.7, false, RANK_LISTING);
   // PriceCharting sealed price — aggregated closed eBay auctions; an independent
   // sold comp source. When it agrees with BrickLink within ~40%, the blend reaches
   // "high" confidence without eBay Marketplace Insights approval.
@@ -621,7 +591,7 @@ export function blendMarketValue(row: Record<string, unknown>, history?: BlendHi
   // corroborating only (not a sealed comp, so sold=false for confidence gating).
   push('pc_complete', 'Market data', num(row.pc_complete_value), null, row.pc_cached_at, 0.75, false, RANK_MODEL);
   // eBay asking (median of active Browse listings) — soft FALLBACK only: used
-  // when no sold/BrickEconomy/BrickOwl point exists, haircut + lowest weight, so
+  // when no sold/BrickEconomy point exists, haircut + lowest weight, so
   // it fills the gap for unpriced sets without dragging real-comp blends upward.
   if (!pts.length) {
     const ask = num(row.ebay_ask_value);
@@ -1027,7 +997,7 @@ export const BLEND_INPUT_COLUMNS =
   'ebay_new_value, ebay_new_qty, ebay_new_cached_at, ebay_new_last_sold, ' +
   'ebay_used_value, ebay_used_qty, ebay_used_cached_at, ebay_used_last_sold, ' +
   'be_value_new, be_value_used, be_cached_at, cached_at, ' +
-  'bo_new_value, bo_new_qty, bo_used_value, bo_used_qty, bo_cached_at, ' +
+
   'ebay_ask_value, ebay_ask_qty, ebay_ask_cached_at, ' +
   'pc_new_value, pc_complete_value, pc_cached_at, ' +
   // Extra inputs the deal signal needs (persisted alongside blended_value so the

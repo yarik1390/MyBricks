@@ -25,11 +25,14 @@ export function openLightbox(images, startIndex = 0) {
       <button class="lb-nav lb-prev" aria-label="Previous image">&#x2039;</button>
       <button class="lb-nav lb-next" aria-label="Next image">&#x203A;</button>` : ""}
   `;
+  const priorFocus = document.activeElement;
+  const background = Array.from(document.body.children).filter(node => node !== el && !node.inert);
   document.body.appendChild(el);
+  for (const node of background) node.inert = true;
   document.body.classList.add("lightbox-open");
 
   const onPop = () => close(false);
-  lb = { el, images, index: 0, onPop };
+  lb = { el, images, index: 0, onPop, priorFocus, background };
   history.pushState({ lightbox: true }, "", location.href);
   window.addEventListener("popstate", onPop);
   window.addEventListener("keydown", onKey);
@@ -73,6 +76,13 @@ function show(i) {
 
 function onKey(e) {
   if (!lb) return;
+  if (e.key === "Tab") {
+    const controls = Array.from(lb.el.querySelectorAll('button:not([disabled])'));
+    const first = controls[0], last = controls[controls.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    return;
+  }
   if (e.key === "Escape") { e.preventDefault(); close(true); }
   else if (e.key === "ArrowLeft") show(lb.index - 1);
   else if (e.key === "ArrowRight") show(lb.index + 1);
@@ -82,11 +92,13 @@ function onKey(e) {
 // popHistory=false → back button already popped it (we're inside popstate).
 function close(popHistory) {
   if (!lb) return;
-  const { el, onPop } = lb;
+  const { el, onPop, priorFocus, background } = lb;
   lb = null;
   window.removeEventListener("popstate", onPop);
   window.removeEventListener("keydown", onKey);
   document.body.classList.remove("lightbox-open");
   el.remove();
+  for (const node of background) node.inert = false;
+  if (priorFocus?.isConnected) priorFocus.focus();
   if (popHistory) history.back();
 }

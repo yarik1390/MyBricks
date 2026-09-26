@@ -142,7 +142,7 @@ async function healImplausibleBeValues(env: Env): Promise<number> {
       FROM lego_sets
       WHERE valuation_method = 'brickeconomy'
         AND bl_new_value IS NULL AND ebay_new_value IS NULL
-        AND ebay_ask_value IS NULL AND bo_new_value IS NULL
+        AND ebay_ask_value IS NULL
         AND brickset_msrp IS NULL
         AND (retail_price IS NULL OR retail_price = current_value OR retail_price = be_retail)
         AND ((pieces >= 30 AND current_value / pieces > 20)

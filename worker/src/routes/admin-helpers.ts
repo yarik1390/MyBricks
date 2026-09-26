@@ -195,13 +195,10 @@ export async function getDataCoverage(env: Env) {
         SELECT
           (CASE WHEN bl_new_value>0 THEN 1 ELSE 0 END)
          +(CASE WHEN ebay_new_value>0 THEN 1 ELSE 0 END)
-         +(CASE WHEN bo_new_value>0 THEN 1 ELSE 0 END)
          +(CASE WHEN valuation_method='brickeconomy' AND current_value>0 THEN 1 ELSE 0 END) AS src,
           (CASE WHEN bl_new_value>0 AND bl_cached_at > datetime('now','-30 days') THEN 1 ELSE 0 END) AS bl_fresh,
           (CASE WHEN ebay_new_value>0 AND ebay_new_cached_at > datetime('now','-30 days') THEN 1 ELSE 0 END) AS ebay_fresh,
           (CASE WHEN valuation_method='brickeconomy' AND current_value>0 AND COALESCE(be_cached_at,cached_at) > datetime('now','-30 days') THEN 1 ELSE 0 END) AS be_fresh,
-          (CASE WHEN bo_new_value>0 AND bo_cached_at > datetime('now','-30 days') THEN 1 ELSE 0 END) AS bo_fresh,
-          (CASE WHEN bo_new_value>0 THEN 1 ELSE 0 END) AS has_bo,
           (CASE WHEN ebay_ask_value>0 THEN 1 ELSE 0 END) AS has_ask,
           (CASE WHEN brickinsights_rating>0 THEN 1 ELSE 0 END) AS has_bi,
           blended_value, current_value
@@ -218,8 +215,6 @@ export async function getDataCoverage(env: Env) {
         CAST(SUM(bl_fresh) AS INTEGER) AS bl_fresh_30d,
         CAST(SUM(ebay_fresh) AS INTEGER) AS ebay_sold_fresh_30d,
         CAST(SUM(be_fresh) AS INTEGER) AS be_fresh_30d,
-        CAST(SUM(bo_fresh) AS INTEGER) AS bo_fresh_30d,
-        CAST(SUM(has_bo) AS INTEGER) AS sets_with_brickowl,
         CAST(SUM(has_ask) AS INTEGER) AS sets_with_ebay_ask,
         CAST(SUM(has_bi) AS INTEGER) AS sets_with_brickinsights,
         CAST(SUM(CASE WHEN (bl_fresh+ebay_fresh)>=2 THEN 1 ELSE 0 END) AS INTEGER) AS conf_high,
@@ -272,8 +267,6 @@ export async function getDataCoverage(env: Env) {
     blended_count: Number(blend?.blended_count || 0),
     blended_coverage_pct: pct(Number(blend?.blended_count || 0)),
     blended_diverged: Number(blend?.blended_diverged || 0),
-    sets_with_brickowl: Number(blend?.sets_with_brickowl || 0),
-    brickowl_coverage_pct: pct(Number(blend?.sets_with_brickowl || 0)),
     sets_with_ebay_ask: Number(blend?.sets_with_ebay_ask || 0),
     ebay_ask_coverage_pct: pct(Number(blend?.sets_with_ebay_ask || 0)),
     sets_with_brickinsights: Number(blend?.sets_with_brickinsights || 0),
@@ -282,7 +275,6 @@ export async function getDataCoverage(env: Env) {
       bricklink: Number(blend?.bl_fresh_30d || 0),
       ebay_sold: Number(blend?.ebay_sold_fresh_30d || 0),
       brickeconomy: Number(blend?.be_fresh_30d || 0),
-      brickowl: Number(blend?.bo_fresh_30d || 0),
     },
     confidence: {
       high: Number(blend?.conf_high || 0),
@@ -389,7 +381,7 @@ export async function getPopulationSnapshot(env: Env) {
       SELECT
         CAST(COUNT(*) AS INTEGER) AS total,
         CAST(SUM(CASE WHEN valuation_method IS NOT NULL AND valuation_method <> 'formula_bulk' THEN 1 ELSE 0 END) AS INTEGER) AS non_formula,
-        CAST(SUM(CASE WHEN bl_new_value IS NOT NULL OR ebay_new_value IS NOT NULL OR ebay_used_value IS NOT NULL OR bo_new_value IS NOT NULL OR bo_used_value IS NOT NULL OR ebay_ask_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS has_real,
+        CAST(SUM(CASE WHEN bl_new_value IS NOT NULL OR ebay_new_value IS NOT NULL OR ebay_used_value IS NOT NULL OR ebay_ask_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS has_real,
         CAST(SUM(CASE WHEN blended_value IS NOT NULL THEN 1 ELSE 0 END) AS INTEGER) AS has_blended
       FROM lego_sets
       WHERE set_num IN (SELECT set_num FROM user_collection WHERE deleted_at IS NULL)

@@ -1,6 +1,5 @@
 import type { Env } from '../types';
 import { DEFAULT_CRON_BUDGET, packBatch, reserveQuota, type PackProfile } from '../lib/api-quota';
-import { brickOwlEnabled } from '../lib/pricing-flags';
 
 // One row of the valuation due-set query (the shape runValuateSets iterates).
 export interface DueSetRow {
@@ -88,7 +87,6 @@ export const BRICKLINK_REFRESH_ORDER_SQL = `
 
 export interface ValuationQuotaGrants {
   bricklink: number;
-  brickowl: number;
   ebay: number;
   gemini: number;
   openrouter: number;
@@ -108,7 +106,6 @@ export interface SelectDueSetsConfig {
   };
   includeSupplemental: boolean;
   includeBrickLink?: boolean;
-  includeBrickOwl?: boolean;
   includeEbay: boolean;
   includeEbaySold: boolean;
   includeAiFallback: boolean;
@@ -126,7 +123,6 @@ export async function selectDueSets(
     scope, options, includeSupplemental, includeEbay, includeEbaySold, includeAiFallback,
   } = cfg;
   const includeBrickLink = cfg.includeBrickLink !== false;
-  const includeBrickOwl = cfg.includeBrickOwl ?? brickOwlEnabled(env);
 
   const requestedLimit = Number(options.limit);
   // Default raised from the old hand-tuned 4: the invocation packer below is
@@ -238,7 +234,7 @@ export async function selectDueSets(
   // the provider helpers must not spendQuota again or they would double-charge.
   //
   // Multiplicity:
-  //   BrickLink NEW=1, retired USED=1; BrickOwl lookup+price=2;
+  //   BrickLink NEW=1, retired USED=1;
   //   eBay sold NEW+USED=2 and stale ask=1; Gemini/OpenAI=1 logical call;
   //   OpenRouter <=6 free attempts + 1 paid backstop per set.
   const blReserve = includeBrickLink ? results.reduce(
@@ -247,7 +243,6 @@ export async function selectDueSets(
   ) : 0;
   const rawGrants = await reserveQuota(env, {
     bricklink: blReserve,
-    brickowl: (includeSupplemental && includeBrickOwl) ? results.length * 2 : 0,
     ebay: includeEbay
       ? results.reduce((n, s) => n + (includeEbaySold ? 2 : 0) + (s.ask_stale ? 1 : 0), 0)
       : 0,
@@ -260,7 +255,6 @@ export async function selectDueSets(
   });
   const grants: ValuationQuotaGrants = {
     bricklink: rawGrants.bricklink ?? 0,
-    brickowl: rawGrants.brickowl ?? 0,
     ebay: rawGrants.ebay ?? 0,
     gemini: rawGrants.gemini ?? 0,
     openrouter: rawGrants.openrouter ?? 0,

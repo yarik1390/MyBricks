@@ -1082,3 +1082,10 @@ Object.assign(de.room, {
   rotateControls: 'Steuerung zum Drehen der Box', rotateLeft: 'Box nach links drehen', rotateRight: 'Box nach rechts drehen', setNumber: 'Setnummer', owned: 'Im Besitz',
   listHint: 'Durchsuche deine Sets in der Liste und öffne ihre Details.', retry3D: '3D erneut versuchen', empty: 'Dein Ausstellungsraum ist bereit. Füge deinem Tresor Sets hinzu, um die Regale zu füllen.',
 });
+
+// Bewertung im Rezensions-Sheet (fehlende Formen fallen auf Englisch zurück).
+Object.assign(de.contributions, {
+  starRatingOne: 'Bewerte mit 1 von 5',
+  starRatingOther: 'Bewerte mit {n} von 5',
+  ratingRequired: 'Bewertung (erforderlich)',
+});

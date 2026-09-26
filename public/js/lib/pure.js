@@ -628,9 +628,8 @@ export function classifyProviderHealth(row = {}) {
   // amazon/stockx are explicitly non-core — Amazon is an acquisition link that
   // never feeds valuation (weight pinned at 0) and StockX is a corroborating
   // probe — so neither should be triaged as if the app depended on it.
-  const optional = !!row.optional || /brickowl|pricecharting|firecrawl|brightdata|amazon|stockx|discord|openrouter|openai|gemini|resend|push|vapid|google/.test(service);
+  const optional = !!row.optional || /pricecharting|firecrawl|brightdata|amazon|stockx|discord|openrouter|openai|gemini|resend|push|vapid|google/.test(service);
   // A source the admin has deliberately switched OFF needs nothing, whatever its
-  // last recorded error says. BrickOwl sat in "Needs action" as "Needs access"
   // over a 403 from 46 days ago while its own switch read "off" — an alert about
   // a source nobody is calling. Checked first: "off" outranks unconfigured,
   // quota-limited and failing alike.
