@@ -166,6 +166,12 @@ export async function renderMe() {
   if (!onMe()) return;
   $("#root").innerHTML = pageHTML(me);
   wire(me, publicProfile);
+  // Leaderboard "Go public" and the profile preview's "Turn on" land here.
+  if (new URLSearchParams(location.hash.split("?")[1] || "").get("sheet") === "public") {
+    history.replaceState(null, "", "#/me");
+    if (isGuestMode()) go("#/login");
+    else openPublicProfileSheet(me, publicProfile);
+  }
   if (stripeSuccess) toast(t('bvAccount.thanksSupport'), "success");
 }
 
@@ -178,7 +184,7 @@ function wire(me, publicProfile) {
   }).catch(() => {});
 
   $("#replayTourRow")?.addEventListener("click", () => { haptic("light"); startOnboarding(); });
-  $("#wrappedRow")?.addEventListener("click", () => { haptic("medium"); showWrappedSheet(); });
+  $("#wrappedRow")?.addEventListener("click", () => { haptic("medium"); go("#/wrapped"); });
   $$("[data-legal-sheet]").forEach(link => link.addEventListener("click", () => openLegalSheet(link.dataset.legalSheet)));
   $("#publicProfileRow")?.addEventListener("click", () => {
     haptic("light");
@@ -723,116 +729,4 @@ function showSearchableTrophyPicker(currentSetNums) {
 
   searchInp.addEventListener("input", (e) => renderResults(e.target.value));
   $("#trophyPickerClose").addEventListener("click", hideSheet);
-}
-
-// --- Brick Wrapped ----------------------------------------------------------
-// The collector's year in numbers, rendered as story stats + a shareable card.
-async function showWrappedSheet() {
-  showSheet(`
-    <div style="font-family:var(--serif);font-size:22px;font-weight:500;margin:0 4px 12px;">${t('share.wrappedHeading')}</div>
-    <div id="wrappedContent" style="text-align:center;padding:30px 0;color:var(--ink-mute);">
-      <div class="spinner" style="margin:0 auto 10px;"></div>${t('share.wrappedLoading')}
-    </div>`);
-  let w;
-  try { w = await api("/api/me/wrapped"); }
-  catch (e) {
-    const el = $("#wrappedContent");
-    if (el) el.innerHTML = `<p style="color:var(--down);font-size:13px;">${t('me.wrappedLoadFailed', { error: escapeHtml(e.message) })}</p>`;
-    return;
-  }
-  const el = $("#wrappedContent");
-  if (!el) return;
-  const gain = (w.value_end != null && w.value_start != null) ? w.value_end - w.value_start : null;
-  const stat = (num, lbl) => `
-    <div style="background:var(--surface-2);border:1.5px solid var(--line-soft);border-radius:var(--r-2);padding:12px 8px;">
-      <div style="font-family:var(--serif);font-size:22px;font-weight:600;">${num}</div>
-      <div style="font-size:10px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-mute);margin-top:2px;">${lbl}</div>
-    </div>`;
-  el.style.textAlign = "";
-  el.style.padding = "";
-  el.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;">
-      ${stat(w.sets_added, tPlural('share.wrappedSetsAdded', w.sets_added))}
-      ${stat(w.pieces_added >= 1000 ? (w.pieces_added / 1000).toFixed(1) + "k" : w.pieces_added, tPlural('share.wrappedPiecesAdded', w.pieces_added))}
-      ${stat(w.minifig_count, tPlural('share.wrappedMinifigs', w.minifig_count))}
-      ${stat(fmtMoneyShort(w.invested), t('share.wrappedInvested'))}
-      ${gain != null ? stat(`${gain >= 0 ? "+" : ""}${fmtMoneyShort(gain)}`, t('share.wrappedValueChange')) : stat("—", t('share.wrappedValueChange'))}
-      ${stat(w.sets_sold ? fmtMoneyShort(w.sale_total) : "—", w.sets_sold ? tPlural('share.wrappedSold', w.sets_sold) : t('share.wrappedSoldLabel'))}
-    </div>
-    ${w.best_performer ? `
-      <div style="margin-top:12px;background:var(--surface-2);border:1.5px solid var(--line-soft);border-radius:var(--r-2);padding:12px 14px;font-size:13px;">
-        <div class="u-mono-label" style="margin-bottom:4px;">${t('share.wrappedBestLabel')}</div>
-        <strong>${escapeHtml(w.best_performer.name)}</strong>
-        ${w.best_performer.roi_pct != null ? `<span style="color:var(--up);font-weight:700;"> +${w.best_performer.roi_pct}%</span>` : ""}
-      </div>` : ""}
-    ${w.longest_held ? `
-      <div style="margin-top:8px;font-size:12px;color:var(--ink-mute);">${t('share.wrappedLongestHeld', { name: `<strong>${escapeHtml(w.longest_held.name)}</strong>`, year: escapeHtml(String(w.longest_held.purchased_at).slice(0, 4)) })}</div>` : ""}
-    <div class="btn-row" style="margin-top:14px;">
-      <button class="btn-secondary" id="wrappedClose">${t('share.wrappedClose')}</button>
-      <button class="btn-primary" id="wrappedShare">${I.share ? I.share() : ""}<span>${t('share.wrappedShareYear')}</span></button>
-    </div>`;
-  $("#wrappedClose")?.addEventListener("click", hideSheet);
-  $("#wrappedShare")?.addEventListener("click", async () => {
-    haptic("medium");
-    const img = renderWrappedCard(w, gain);
-    // Prefer sharing the image card; fall back to a text summary anywhere the
-    // platform can't share files.
-    try {
-      if (img && navigator.canShare) {
-        const blob = await new Promise(res => img.toBlob(res, "image/png"));
-        if (blob) {
-          const file = new File([blob], `brick-wrapped-${w.year}.png`, { type: "image/png" });
-          if (navigator.canShare({ files: [file] })) {
-            await navigator.share({ files: [file], title: t('share.wrappedTitle', { year: w.year }) });
-            return;
-          }
-        }
-      }
-    } catch (e) { if (e?.name === "AbortError") return; }
-    const { shareContent } = await import("../lib/native-share.js");
-    const lines = [
-      t('share.wrappedSummaryTitle', { year: w.year }),
-      `${tPlural('share.wrappedSetsAdded', w.sets_added)} · ${tPlural('share.wrappedPiecesAdded', w.pieces_added)}`,
-      gain != null ? t('me.wrappedValueChange', { direction: t(gain >= 0 ? 'me.wrappedUp' : 'me.wrappedDown'), value: fmtMoneyShort(Math.abs(gain)) }) : null,
-      w.best_performer ? t('share.wrappedBest', { name: w.best_performer.name, roi: w.best_performer.roi_pct != null ? ` (+${w.best_performer.roi_pct}%)` : '' }) : null,
-      t('share.wrappedTracked'),
-    ].filter(Boolean);
-    shareContent({ title: t('share.wrappedTitle', { year: w.year }), text: lines.join("\n") });
-  });
-}
-
-// Offscreen 1080×1080 share card. Deliberately simple: bold numbers on the
-// brand cream, no external assets, so it renders instantly everywhere.
-function renderWrappedCard(w, gain) {
-  try {
-    const c = document.createElement("canvas");
-    c.width = 1080; c.height = 1080;
-    const x = c.getContext("2d");
-    x.fillStyle = "#F5F1E8"; x.fillRect(0, 0, 1080, 1080);
-    x.fillStyle = "#26231d";
-    x.font = "600 64px Georgia, serif";
-    x.fillText(t('share.wrappedTitle', { year: '' }).trim(), 80, 140);
-    x.fillStyle = "#b9821f";
-    x.fillText(String(w.year), 80, 220);
-    const rows = [
-      [`${w.sets_added}`, tPlural('share.wrappedSetsAdded', w.sets_added)],
-      [`${w.pieces_added}`, tPlural('share.wrappedPiecesAdded', w.pieces_added)],
-      [gain != null ? `${gain >= 0 ? "+" : "−"}${fmtMoneyShort(Math.abs(gain))}` : "—", t('share.wrappedValueChange')],
-      [w.best_performer ? w.best_performer.name.slice(0, 26) : "—", w.best_performer?.roi_pct != null ? t('share.wrappedBestCanvasWithRoi', { roi: `+${w.best_performer.roi_pct}%` }) : t('share.wrappedBestCanvas')],
-    ];
-    let y = 380;
-    for (const [big, small] of rows) {
-      x.fillStyle = "#26231d";
-      x.font = "700 88px Georgia, serif";
-      x.fillText(String(big), 80, y);
-      x.fillStyle = "#6b6455";
-      x.font = "500 34px -apple-system, sans-serif";
-      x.fillText(String(small), 80, y + 48);
-      y += 170;
-    }
-    x.fillStyle = "#b9821f";
-    x.font = "600 36px -apple-system, sans-serif";
-    x.fillText(t('share.wrappedTagline'), 80, 1020);
-    return c;
-  } catch { return null; }
 }

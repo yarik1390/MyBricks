@@ -210,7 +210,7 @@ test.describe(() => {
       return route.fallback();
     });
     await page.goto('/#/me/contributions', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#contribMineBody .u-mute').first()).toHaveText('3 схвалені внески');
+    await expect(page.locator('#contribMineBody .bv-contribsum__sr')).toHaveText('3 схвалені внески');
   });
 
   test('uses localized relative time in the live admin activity row', async ({ page }) => {
