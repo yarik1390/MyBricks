@@ -564,8 +564,20 @@ test('Scan FAB floats above the navigation and never covers the last row', async
   const fabBox = await fab.boundingBox();
   expect(fabBox.y + fabBox.height).toBeLessThanOrEqual(navBox.y - 8);
   expect(fabBox.height).toBeGreaterThanOrEqual(48);
-  // At the end of the page the last interactive element clears the FAB.
-  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  // At the end of the page the last interactive element clears the FAB. The
+  // Vault mounts rows in frame slices and loads the next page as its sentinel
+  // nears the viewport, so keep scrolling until the page stops growing:
+  // measuring earlier checks a mid-list row, which a floating FAB may overlap.
+  let lastHeight = -1;
+  await expect.poll(async () => {
+    const height = await page.evaluate(() => {
+      window.scrollTo(0, document.documentElement.scrollHeight);
+      return document.documentElement.scrollHeight;
+    });
+    const settled = height === lastHeight;
+    lastHeight = height;
+    return settled;
+  }, { intervals: [250] }).toBe(true);
   const covered = await page.evaluate(() => {
     const fabRect = document.getElementById('bvFab').getBoundingClientRect();
     const items = [...document.querySelectorAll('#root a, #root button')].filter(el => {
