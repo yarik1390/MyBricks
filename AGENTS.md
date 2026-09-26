@@ -114,7 +114,7 @@ Runtime notes:
 > bump) or offline route navigation to it will 404.
 
 Key `worker/src/lib` integrations: `bricklink`, `ebay`, `brickeconomy`,
-`brickset`, `brickowl-barcode`/`brickowl-pricing`, `brickinsights`
+`brickset`, `brickinsights`
 (eBay-sold scraping), `rebrickable`, `upcitemdb`, `lego-stock`, `gemini`/`llm`,
 `valuation` (formula), `market-sources` (blend), `price-trend`,
 `retirement-risk`, `search-index` (FTS rebuilder), `api-quota`,
@@ -147,7 +147,10 @@ Key `worker/src/lib` integrations: `bricklink`, `ebay`, `brickeconomy`,
   `ebay_used_cached_at`, `ebay_ask_value`, `ebay_ask_qty`,
   `ebay_ask_cached_at`, `used_value`.
 - **BrickEconomy:** `be_cached_at`, `be_growth_12m`.
-- **BrickOwl:** `bo_new_value`, `bo_used_value`, `bo_cached_at`.
+- **BrickOwl (retired 2026-09-25):** `bo_new_value`, `bo_used_value`, `bo_cached_at`,
+  `bo_new_qty`, `bo_used_qty` are retained historical columns. Never render them, feed
+  them to the blend, or attribute prices to them — the integration was removed and
+  `RETIRED_PRICING_SOURCES` (`lib/market-sources.ts`) suppresses the stored values.
 - **Ratings:** `brickset_rating`, `brickset_review_count`,
   `brickinsights_rating`, `brickinsights_review_count`, `brickinsights_url`,
   `brickinsights_cached_at`.
@@ -194,8 +197,9 @@ filter/sort set added during the audit: `theme_group`, `category`, `year`,
   year × theme × retired heuristic.
 - Real signals come from multiple sources: **BrickLink** (workhorse),
   **BrickEconomy**, **eBay ask** (Browse API), **eBay sold** (Firecrawl, plus a
-  weekly Apify lane), **BrickOwl**, plus **BrickInsights**/Brickset **ratings** (quality, not
-  price).
+  weekly Apify lane), plus **BrickInsights**/Brickset **ratings** (quality, not
+  price). **BrickOwl was retired 2026-09-25** — it is no longer a source; its stored
+  `bo_*` values stay in `RETIRED_PRICING_SOURCES` and never reach the blend.
 - `lib/market-sources.ts → enrichSetRecord(row)` is the **read-side** blender: it
   builds `market_sources`, `confidence`, `freshness`, `primary_value_source`,
   `valuation_explanation`, and the v2 fields `market_value` / `_low` / `_high` /
@@ -363,7 +367,7 @@ be recalled. See `worker/src/lib/app-url.ts`.
 
 **Pricing/catalog APIs:** `BRICKLINK_CONSUMER_KEY`, `BRICKLINK_CONSUMER_SECRET`,
 `BRICKLINK_TOKEN`, `BRICKLINK_TOKEN_SECRET`, `BRICKECONOMY_API_KEY`,
-`BRICKOWL_API_KEY`, `BRICKSET_API_KEY`, `REBRICKABLE_API_KEY`, `EBAY_APP_ID`,
+`BRICKSET_API_KEY`, `REBRICKABLE_API_KEY`, `EBAY_APP_ID`,
 `EBAY_CLIENT_SECRET`. (Dashboard-managed extras seen in prod: a
 token, a UPCitemdb key.)
 

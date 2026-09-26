@@ -801,12 +801,6 @@
     ]
   },
   {
-    "text": "Asking (new/used)",
-    "files": [
-      "methodology.html"
-    ]
-  },
-  {
     "text": "Asking data plus sold comps only when approved and reachable. No weak sold fallback.",
     "files": [
       "views/me-admin-config.js"
@@ -1183,24 +1177,6 @@
     ]
   },
   {
-    "text": "BrickOwl new",
-    "files": [
-      "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "BrickOwl source",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
-    "text": "BrickOwl used",
-    "files": [
-      "views/portfolio-detail-market.js"
-    ]
-  },
-  {
     "text": "BricksVault Pro",
     "files": [
       "lib/revenuecat-native.js",
@@ -1230,12 +1206,6 @@
     "text": "BricksVault is locked",
     "files": [
       "lib/app-lock.js"
-    ]
-  },
-  {
-    "text": "Brickset / BrickOwl",
-    "files": [
-      "views/me-admin-config.js"
     ]
   },
   {
@@ -1397,6 +1367,7 @@
       "components/contribute.js",
       "components/scanner.js",
       "components/sheet.js",
+      "views/login.js",
       "views/me-integrations.js",
       "views/portfolio-detail.js"
     ]
@@ -1838,6 +1809,12 @@
     ]
   },
   {
+    "text": "Confirm password",
+    "files": [
+      "views/login.js"
+    ]
+  },
+  {
     "text": "Confirmed set number",
     "files": [
       "views/me-admin.js"
@@ -2149,6 +2126,13 @@
     "text": "Couldn't set PIN. Try again.",
     "files": [
       "components/kids-pin.js"
+    ]
+  },
+  {
+    "text": "Couldn't set the new password",
+    "files": [
+      "api.js",
+      "views/login.js"
     ]
   },
   {
@@ -5048,6 +5032,12 @@
     ]
   },
   {
+    "text": "New password",
+    "files": [
+      "views/login.js"
+    ]
+  },
+  {
     "text": "New sets every day at midnight UTC. Values are BricksVault market prices.",
     "files": [
       "views/game.js"
@@ -5691,6 +5681,12 @@
     ]
   },
   {
+    "text": "Opened from your reset link. Choose a new password for your account.",
+    "files": [
+      "views/login.js"
+    ]
+  },
+  {
     "text": "Operational triage and background activity. Start with services that need action, or choose a category.",
     "files": [
       "views/me-admin.js"
@@ -5704,12 +5700,6 @@
   },
   {
     "text": "Optional Discord webhook alerts.",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
-    "text": "Optional marketplace signal and cross-check.",
     "files": [
       "views/me-admin-config.js"
     ]
@@ -5891,6 +5881,12 @@
   },
   {
     "text": "Password",
+    "files": [
+      "views/login.js"
+    ]
+  },
+  {
+    "text": "Password updated — you're signed in",
     "files": [
       "views/login.js"
     ]
@@ -7500,6 +7496,12 @@
     ]
   },
   {
+    "text": "Save new password",
+    "files": [
+      "views/login.js"
+    ]
+  },
+  {
     "text": "Save to Wishlist",
     "files": [
       "views/portfolio-detail.js"
@@ -7643,6 +7645,12 @@
     ]
   },
   {
+    "text": "Secure sign-in is unavailable in this browser",
+    "files": [
+      "views/login.js"
+    ]
+  },
+  {
     "text": "Security",
     "files": [
       "views/me-admin-config.js"
@@ -7773,6 +7781,12 @@
     "text": "Set a 4-digit PIN to enable a gamified, price-free view for kids.",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Set a new password",
+    "files": [
+      "views/login.js"
     ]
   },
   {
@@ -7977,6 +7991,18 @@
     "text": "Show values in your local currency.",
     "files": [
       "components/onboarding.js"
+    ]
+  },
+  {
+    "text": "Showing bundled data — live prices are unavailable",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Showing cached data — live prices are unavailable",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -8595,6 +8621,7 @@
   {
     "text": "Tab",
     "files": [
+      "components/lightbox.js",
       "components/sheet.js",
       "utils.js"
     ]
@@ -8853,6 +8880,12 @@
     "text": "This will remove the multi-GB model weights from your local browser storage.",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "Those passwords don't match.",
+    "files": [
+      "views/login.js"
     ]
   },
   {
@@ -9261,6 +9294,12 @@
     "text": "Use ID",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Use at least 6 characters.",
+    "files": [
+      "views/login.js"
     ]
   },
   {
@@ -9824,8 +9863,7 @@
   {
     "text": "You're offline — showing cached data",
     "files": [
-      "index.html",
-      "views/portfolio-detail.js"
+      "index.html"
     ]
   },
   {

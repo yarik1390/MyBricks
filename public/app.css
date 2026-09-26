@@ -159,6 +159,14 @@ a { color: inherit; text-decoration: none; }
   clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
 }
 
+/* Review-sheet star rating: the radio is visually hidden and the star label is the
+   touch target, sized to clear the 44px minimum hit-area guidance. */
+.star-opt {
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  gap: 2px; min-width: 44px; min-height: 44px; border-radius: 8px;
+}
+.star-opt:focus-within { outline: 2px solid var(--ink); outline-offset: 2px; }
+
 /* skip link for accessibility */
 .skip-link {
   position: absolute; top: -200px; left: 0;

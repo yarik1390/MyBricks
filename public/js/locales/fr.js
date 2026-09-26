@@ -1203,3 +1203,10 @@ Object.assign(fr.room, {
   rotateControls: 'Commandes de rotation de la boîte', rotateLeft: 'Faire pivoter la boîte vers la gauche', rotateRight: 'Faire pivoter la boîte vers la droite', setNumber: 'Numéro du set', owned: 'Possédé',
   listHint: 'Parcourez vos sets dans la liste et ouvrez leurs détails.', retry3D: 'Réessayer en 3D', empty: 'Votre salle d’exposition est prête. Ajoutez des sets à votre coffre pour remplir les étagères.',
 });
+
+// Note dans la fiche d'avis (les formes manquantes retombent sur l'anglais).
+Object.assign(fr.contributions, {
+  starRatingOne: 'Notez 1 sur 5',
+  starRatingOther: 'Notez {n} sur 5',
+  ratingRequired: 'Note (obligatoire)',
+});
