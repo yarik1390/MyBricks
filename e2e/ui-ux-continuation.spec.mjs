@@ -50,7 +50,9 @@ for (const theme of ['light', 'dark']) {
   test(`selected vault tab has readable contrast: ${theme}`, async ({ page }) => {
     await page.addInitScript(theme => localStorage.setItem('bv_theme', theme), theme);
     await page.goto('/#/');
-    const selected = page.locator('.collector-tabs [aria-current="page"]');
+    // #vaultPage is the painted Vault — the loading skeleton has the same tabs
+    // and is replaced a moment later, which would detach a tab picked from it.
+    const selected = page.locator('#vaultPage .collector-tabs [aria-current="page"]');
     await expect(selected).toBeAttached();
     const contrast = await selected.evaluate(element => {
       const style = getComputedStyle(element);
