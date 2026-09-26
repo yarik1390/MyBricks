@@ -31,20 +31,24 @@ app.get('/status', async (c) => {
 // POST /api/push/native - upsert a Firebase registration token for this user.
 app.post('/native', async (c) => {
   const userId = c.get('userId');
-  const body = await c.req.json<{ token?: string; platform?: string }>()
-    .catch(() => ({} as { token?: string; platform?: string }));
+  const body = await c.req.json<{ token?: string; platform?: string; actions?: boolean }>()
+    .catch(() => ({} as { token?: string; platform?: string; actions?: boolean }));
   const token = String(body.token || '').trim();
   const platform = body.platform === 'ios' ? 'ios' : 'android';
+  // Android builds that draw their own notifications (with action buttons)
+  // say so; everything else keeps FCM's system-drawn notification.
+  const supportsActions = platform === 'android' && body.actions === true ? 1 : 0;
   if (token.length < 20 || token.length > 4096 || /\s/.test(token)) {
     return c.json({ error: 'invalid device token' }, 400);
   }
   await c.env.DB.prepare(`
-    INSERT INTO native_push_tokens (user_id, token, platform, updated_at)
-    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+    INSERT INTO native_push_tokens (user_id, token, platform, supports_actions, updated_at)
+    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT (user_id, token) DO UPDATE SET
       platform=excluded.platform,
+      supports_actions=excluded.supports_actions,
       updated_at=CURRENT_TIMESTAMP
-  `).bind(userId, token, platform).run();
+  `).bind(userId, token, platform, supportsActions).run();
   // A reinstalled app can leave old FCM tokens behind. Keep only the five most
   // recently refreshed devices so one account cannot grow delivery work forever.
   await c.env.DB.prepare(`

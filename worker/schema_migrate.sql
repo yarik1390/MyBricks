@@ -722,3 +722,4 @@ ALTER TABLE user_prefs ADD COLUMN timezone TEXT;
 ALTER TABLE user_wishlist ADD COLUMN notify_target INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE user_wishlist ADD COLUMN notify_retiring INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE user_wishlist ADD COLUMN notify_stock INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE native_push_tokens ADD COLUMN supports_actions INTEGER NOT NULL DEFAULT 0;
