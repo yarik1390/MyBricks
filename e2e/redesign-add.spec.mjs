@@ -123,6 +123,78 @@ test('scanner session: add, add again, then Done lists both with working Undo', 
   await expect(sheet.locator('[data-undo]')).toHaveCount(0);
 });
 
+test('filter sheet keeps unapplied choices when a theme comes from More themes', async ({ page }) => {
+  const queries = [];
+  await page.route('**/api/themes', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ themes: ['Star Wars', 'Icons', 'Technic', 'Ideas', 'City', 'Harry Potter'], theme_groups: [], categories: [] }),
+  }));
+  await page.route('**/api/sets/search*', (route) => {
+    queries.push(new URL(route.request().url()).searchParams);
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sets: [OTHER], total: 3, hasMore: false }) });
+  });
+  await page.goto('/#/add', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /^Filters/ }).click();
+  const sheet = page.locator('#filterSheet');
+  await sheet.locator('[data-facet="retired"] [data-fval="retired"]').click();
+  await sheet.locator('#f_min_value').fill('100');
+  await page.locator('#filterMoreThemes').click();
+  await page.locator('[data-pick-theme="Harry Potter"]').click();
+  // Back on the filter sheet: the earlier choices survive and the theme is picked.
+  await expect(sheet.locator('[data-facet="retired"] [data-fval="retired"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(sheet.locator('#f_min_value')).toHaveValue('100');
+  await expect(sheet.locator('[data-facet="theme"] [data-fval="Harry Potter"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#filterApply').click();
+  await expect.poll(() => {
+    const q = queries.at(-1);
+    return q && q.get('limit') !== '1' ? `${q.get('theme')}|${q.get('retired')}|${q.get('min_value')}` : null;
+  }).toBe('Harry Potter|1|100');
+});
+
+test('scanner session: undoing one of two scans of the same set takes back only that copy', async ({ page }) => {
+  let quantity = 1;
+  await page.route('**/api/collection/*', (route) => {
+    const body = route.request().postData() ? JSON.parse(route.request().postData()) : {};
+    if (route.request().method() === 'PATCH' && body.quantity != null) quantity = body.quantity;
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+  });
+  await page.route('**/api/sets/75192-1', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ set: { set_num: '75192-1', name: 'Millennium Falcon' }, entry: { id: 1, set_num: '75192-1', quantity, purchase_price: 700 } }),
+  }));
+  const calls = await trackCalls(page);
+  await page.goto('/#/add', { waitUntil: 'domcontentloaded' });
+  await page.evaluate(async () => {
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async () => ({ getTracks: () => [{ stop() {} }], getVideoTracks: () => [] }) },
+    });
+    const scanner = await import('/js/components/scanner.js');
+    scanner.openScan('barcode', { deferStart: true });
+  });
+  const falcon = { set_num: '75192-1', name: 'Millennium Falcon', theme: 'Star Wars', year: 2017, current_value: 850 };
+  for (const n of [1, 2]) {
+    await page.evaluate(async (s) => {
+      const scanner = await import('/js/components/scanner.js');
+      scanner.showScanResult({ identified: true, set: s });
+    }, falcon);
+    await page.locator('#scanAdd').click();
+    await expect(page.locator('#scanCloseBtn')).toHaveText(new RegExp(`Done · ${n}`));
+    await expect(page.locator('#scanAdd')).toHaveCount(0);
+  }
+  const quantities = () => calls.filter((c) => c.method === 'PATCH' && c.path === '/api/collection/1').map((c) => c.body.quantity);
+  expect(quantities()).toEqual([2, 3]);
+
+  // Undo the FIRST scan: one copy comes off (3 → 2), not both.
+  await page.locator('#scanCloseBtn').click();
+  const sheet = page.locator('#sheet');
+  await sheet.locator('[data-undo="0"]').click();
+  await expect.poll(() => quantities().at(-1)).toBe(2);
+  await sheet.locator('[data-undo="1"]').click();
+  await expect.poll(() => quantities().at(-1)).toBe(1);
+  expect(calls.some((c) => c.method === 'DELETE')).toBe(false);
+});
+
 test('unknown barcode offers photo, typing the number and teaching the code', async ({ page }) => {
   await page.route('**/api/scan/identify', (route) => route.fulfill({
     status: 200, contentType: 'application/json',

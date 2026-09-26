@@ -562,23 +562,17 @@ export async function migrateGuestVault(snapshot = snapshotGuestVault()) {
     const setNum = String(item?.set_num || "").trim();
     if (!setNum) continue;
     try {
-      const created = await api("/api/wishlist", {
+      // The guest's per-set switches travel in the same POST, so they survive
+      // a queued (offline) create and can't be lost to a failed follow-up.
+      await api("/api/wishlist", {
         method: "POST",
         body: {
           set_num: setNum,
           target_price: numberOrNull(item.target_price),
           notes: item.notes || null,
+          ...Object.fromEntries(['notify_target', 'notify_retiring', 'notify_stock'].filter((key) => item[key] != null).map((key) => [key, item[key] !== 0])),
         },
       });
-      // Carry the guest's per-set switches over when any were turned off.
-      if (['notify_target', 'notify_retiring', 'notify_stock'].some((key) => item[key] === 0)) {
-        if (created?.item?.id != null) {
-          await api(`/api/wishlist/${created.item.id}`, {
-            method: "PATCH",
-            body: Object.fromEntries(['notify_target', 'notify_retiring', 'notify_stock'].filter((key) => item[key] != null).map((key) => [key, item[key] !== 0])),
-          }).catch(() => {});
-        }
-      }
       assertMigrationOwner();
       result.wishlist++;
       result.migrated++;

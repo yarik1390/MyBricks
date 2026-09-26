@@ -606,7 +606,8 @@ app.get('/wrapped', async (c) => {
 
   const sold = await c.env.DB.prepare(`
     SELECT COUNT(*) AS sets_sold, COALESCE(SUM(sold_price), 0) AS sale_total,
-           COALESCE(SUM(sold_price - COALESCE(sold_fees, 0) - COALESCE(purchase_price, 0)), 0) AS realized_gain
+           -- sold_price is what the whole holding fetched, so every copy's cost comes off.
+           COALESCE(SUM(sold_price - COALESCE(sold_fees, 0) - COALESCE(purchase_price, 0) * COALESCE(quantity, 1)), 0) AS realized_gain
     FROM user_collection
     WHERE user_id=? AND sold_at >= ? AND sold_at < ?
   `).bind(userId, y0, y1).first<{ sets_sold: number; sale_total: number; realized_gain: number }>();

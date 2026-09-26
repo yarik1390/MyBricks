@@ -94,11 +94,21 @@ app.get('/', async (c) => {
   });
 });
 
-// POST /api/wishlist
+// POST /api/wishlist — add a set (or update its target/notes). The per-set
+// alert switches may come along, so a migrated guest item or an undone removal
+// is recreated in one write with the switches the user had, not the defaults.
+const SWITCHES = ['notify_target', 'notify_retiring', 'notify_stock'] as const;
 app.post('/', async (c) => {
   const userId = c.get('userId');
-  const body = await c.req.json<{ set_num?: string; target_price?: number; notes?: string }>();
+  const body = await c.req.json<{
+    set_num?: string; target_price?: number; notes?: string;
+    notify_target?: boolean; notify_retiring?: boolean; notify_stock?: boolean;
+  }>();
   const { set_num, target_price } = body;
+  for (const col of SWITCHES) {
+    if (body[col] !== undefined && typeof body[col] !== 'boolean') return c.json({ error: `${col} must be a boolean` }, 400);
+  }
+  const sw = (col: typeof SWITCHES[number]) => (body[col] === undefined ? null : body[col] ? 1 : 0);
   // Cap free text (same 500-char bound as collection notes).
   const notes = body.notes != null ? String(body.notes).slice(0, 500) : body.notes;
   if (!set_num) return c.json({ error: 'set_num required' }, 400);
@@ -111,12 +121,15 @@ app.post('/', async (c) => {
   if (!existing) return c.json({ error: 'Set not found in catalog' }, 404);
 
   await c.env.DB.prepare(`
-    INSERT INTO user_wishlist (user_id, set_num, target_price, notes)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO user_wishlist (user_id, set_num, target_price, notes, notify_target, notify_retiring, notify_stock)
+    VALUES (?1, ?2, ?3, ?4, COALESCE(?5, 1), COALESCE(?6, 1), COALESCE(?7, 1))
     ON CONFLICT (user_id, set_num) DO UPDATE SET
       target_price = COALESCE(EXCLUDED.target_price, user_wishlist.target_price),
-      notes = COALESCE(EXCLUDED.notes, user_wishlist.notes)
-  `).bind(userId, set_num, target_price ?? null, notes ?? null).run();
+      notes = COALESCE(EXCLUDED.notes, user_wishlist.notes),
+      notify_target = COALESCE(?5, user_wishlist.notify_target),
+      notify_retiring = COALESCE(?6, user_wishlist.notify_retiring),
+      notify_stock = COALESCE(?7, user_wishlist.notify_stock)
+  `).bind(userId, set_num, target_price ?? null, notes ?? null, sw('notify_target'), sw('notify_retiring'), sw('notify_stock')).run();
 
   const item = await c.env.DB.prepare(
     'SELECT * FROM user_wishlist WHERE user_id=? AND set_num=?'
@@ -126,7 +139,8 @@ app.post('/', async (c) => {
 
 // PATCH /api/wishlist/:id — the price alert sheet: target price (null clears
 // it) and the per-set switches. Changing the target re-arms the alert so a
-// set already under the NEW target can fire on the next run.
+// set already under the NEW target can fire on the next run; re-sending the
+// same target (the sheet always includes it) leaves an acknowledged hit alone.
 app.patch('/:id', async (c) => {
   const userId = c.get('userId');
   const id = parseInt(c.req.param('id'), 10);
@@ -142,8 +156,16 @@ app.patch('/:id', async (c) => {
     if (tp !== null && (typeof tp !== 'number' || !Number.isFinite(tp) || tp <= 0 || tp > 1e7)) {
       return c.json({ error: 'Target price must be a positive number or null' }, 400);
     }
-    sets.push('target_price = ?', 'alerted_at = NULL', 'acknowledged_at = NULL');
-    binds.push(tp);
+    // SQLite evaluates every SET expression against the old row, so these
+    // compare with the stored target. Within a cent counts as unchanged: the
+    // sheet converts from the display currency and may round differently.
+    const unchanged = '((target_price IS NULL AND ? IS NULL) OR ABS(target_price - ?) < 0.01)';
+    sets.push(
+      `alerted_at = CASE WHEN ${unchanged} THEN alerted_at ELSE NULL END`,
+      `acknowledged_at = CASE WHEN ${unchanged} THEN acknowledged_at ELSE NULL END`,
+      'target_price = ?',
+    );
+    binds.push(tp, tp, tp, tp, tp);
   }
   for (const col of ['notify_target', 'notify_retiring', 'notify_stock'] as const) {
     const v = body[col];

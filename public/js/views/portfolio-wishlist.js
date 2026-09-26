@@ -436,7 +436,9 @@ async function removeFromWishlist(item) {
   snackbar(t('bvAlerts.removed', { name }), {
     actions: [{ label: t('common.undo'), kind: 'undo', onClick: async () => {
       try {
-        await api('/api/wishlist', { method: 'POST', body: { set_num: item.set_num, target_price: Number(item.target_price) > 0 ? Number(item.target_price) : null, notes: item.notes || null } });
+        // Recreate it as it was, per-set alert switches included.
+        const switches = Object.fromEntries(['notify_target', 'notify_retiring', 'notify_stock'].filter((key) => item[key] != null).map((key) => [key, Number(item[key]) !== 0]));
+        await api('/api/wishlist', { method: 'POST', body: { set_num: item.set_num, target_price: Number(item.target_price) > 0 ? Number(item.target_price) : null, notes: item.notes || null, ...switches } });
         delete state.recentWishlistDeletes[item.set_num];
         if (onWishlist()) renderWishlist();
       } catch { toast(t('common.actionFailed'), 'error'); }
