@@ -264,7 +264,8 @@ const productionRegressions = [
   ['public/js/views/me.js', /navigator\.share\(\{ files: \[file\], title: t\('share\.wrappedTitle'/, /navigator\.share\(\{ files: \[file\], title:\s*['"`]/],
   ['public/js/views/me.js', /shareContent\(\{ title: t\('share\.wrappedTitle', \{ year: w\.year \}\), text: lines\.join\("\\n"\) \}\)/, /shareContent\(\{ title:\s*['"`]/],
   ['public/js/views/me.js', /fillText\(t\('share\.wrappedTagline'\)/, /fillText\(\s*['"`]/],
-  ['public/js/views/me-data.js', /exportBlob\(blob, "bricksvault-insurance-report\.html", \{ title: t\('data\.insuranceReportTitle'\) \}\)[\s\S]*?exportBlob\(blob, "brickvault-collection\.csv", \{ title: t\('data\.collectionExportTitle'\) \}\)/, /title:\s*["'](?:BricksVault insurance report|Share BricksVault collection)/],
+  // The HTML insurance export moved to the on-device PDF (#/me/insurance).
+  ['public/js/views/me-data.js', /exportBlob\(blob, "brickvault-collection\.csv", \{ title: t\('data\.collectionExportTitle'\) \}\)/, /title:\s*["'](?:BricksVault insurance report|Share BricksVault collection)/],
 ];
 const bad = [];
 for (const file of files) {

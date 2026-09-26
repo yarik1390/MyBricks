@@ -1,4 +1,9 @@
-import { $, $$, haptic, escapeHtml, fmtMoneyShort, toast, setHue, bvIDB, celebrate, celebrateChime, soundEnabled, advisorEnabled, publicOrigin, setBtnLoading } from '../utils.js';
+// Profile (#/me) — 2026 redesign. An identity card with three stat tiles,
+// then grouped rows: Collection, Preferences, Data, Play, Membership, Owner,
+// Account, and the legal footer. Every setting the old page carried is still
+// here — the long tail lives in sheets (Appearance, Currency & region, Public
+// profile) so the hub stays one scannable list.
+import { $, $$, haptic, escapeHtml, fmtMoneyShort, toast, setHue, bvIDB, celebrate, celebrateChime, soundEnabled, advisorEnabled, publicOrigin } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, sbSignOut, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
@@ -6,16 +11,125 @@ import { promptSheet, showSheet, hideSheet } from '../components/sheet.js';
 import { go } from '../router.js';
 import { getThemePref, setThemePref, getSkinPref, setSkinPref, getModePref, setModePref } from '../theme.js';
 import { t, tPlural, SUPPORTED, savedLocale, getLocale, setLocale, clearLocale } from '../lib/i18n.js';
+import { skelPage, skelStatGrid, skelSettingRows } from '../components/skeleton.js';
+import { startOnboarding } from '../components/onboarding.js';
+import { getCapacitorPlugin } from '../lib/native-auth.js';
+import { clearVaultWidget } from '../lib/native-widget.js';
+import { openLegalSheet } from '../components/legal-sheet.js';
+import { topbar, iconBtn, icon, row, group, sheetBody, btn, toggle, seg, banner } from '../ui/kit.js';
 
 // The picker shows each language in its OWN language — "German" is no help to
 // someone who only reads German.
 const nativeName = (code) => (SUPPORTED.find((l) => l.code === code) || SUPPORTED[0]).native;
-import { skelPage, skelStatGrid, skelSettingRows } from '../components/skeleton.js';
-import { startOnboarding } from '../components/onboarding.js';
-import { isNativeBilling, presentProPaywall, restorePurchases, presentCustomerCenter } from '../lib/revenuecat-native.js';
-import { getCapacitorPlugin } from '../lib/native-auth.js';
-import { clearVaultWidget } from '../lib/native-widget.js';
-import { openLegalSheet } from '../components/legal-sheet.js';
+const CURRENCIES = ['USD', 'GBP', 'EUR', 'CAD', 'AUD'];
+const MARKETS = ['FR', 'US', 'GB', 'DE', 'CA', 'AU', 'NL'];
+const onMe = () => location.hash.split('?')[0] === '#/me';
+
+function marketName(code) {
+  try { return new Intl.DisplayNames([getLocale()], { type: 'region' }).of(code) || code; } catch { return code; }
+}
+
+function notificationsOn(me) {
+  const master = me.notify_price_drops !== false;
+  const keys = ['notify_sell_targets', 'notify_big_moves', 'notify_retiring', 'notify_back_in_stock'];
+  return (master ? 1 : 0) + keys.filter((k) => (me[k] ?? master)).length + (me.notify_weekly_digest ? 1 : 0);
+}
+
+function themeLabel() {
+  return t({ light: 'bvAccount.themeLight', dark: 'bvAccount.themeDark', auto: 'bvAccount.themeAuto' }[getThemePref()] || 'bvAccount.themeAuto');
+}
+
+function identityHTML(me, guest) {
+  const c = me.portfolio_stats || {};
+  const sets = Number(c.set_count ?? c.count) || 0;
+  const value = Number(c.total_value) || 0;
+  const paid = Number(c.total_paid) || 0;
+  const gain = value - paid;
+  const pct = paid ? (gain / paid) * 100 : 0;
+  const up = gain >= 0;
+  const name = me.display_name || t('bvAccount.collector');
+  const initial = (name.trim()[0] || '?').toUpperCase();
+  const meta = guest
+    ? t('bvAccount.guestMeta')
+    : [me.handle ? `@${me.handle}` : null, t(me.is_public ? 'bvAccount.publicVault' : 'bvAccount.privateVault'), me.is_supporter ? t('bvAccount.pro') : null].filter(Boolean).join(' · ');
+  // No prices paid yet → no honest gain to show.
+  const pctText = paid > 0 ? `${up ? '+' : '−'}${Math.abs(pct).toFixed(1)}%` : '—';
+  const moneyText = paid > 0 ? `${up ? '+' : '-'}${fmtMoneyShort(Math.abs(gain))}` : t('bvAccount.noPaid');
+  return `<section class="bv-ident profile-identity-card" aria-label="${escapeHtml(t('bvAccount.overviewLabel'))}">
+      <div class="bv-ident__head">
+        <span class="bv-ident__avatar" aria-hidden="true">${escapeHtml(initial)}</span>
+        <span class="bv-ident__text"><span class="bv-ident__name">${escapeHtml(name)}</span><span class="bv-ident__meta">${escapeHtml(meta)}</span></span>
+        ${iconBtn({ icon: 'edit', label: t('bvAccount.editName'), id: 'editName', tonal: true })}
+      </div>
+      <div class="bv-ident__stats profile-summary" aria-label="${escapeHtml(t('bvAccount.summaryLabel'))}">
+        <a class="bv-ident__stat" href="#/"><span class="bv-ident__num">${escapeHtml(String(sets))}</span><span class="bv-ident__lbl">${escapeHtml(tPlural('bvAccount.setsLabel', sets))}</span></a>
+        <a class="bv-ident__stat" href="#/insights"><span class="bv-ident__num">${escapeHtml(fmtMoneyShort(value))}</span><span class="bv-ident__lbl">${escapeHtml(t('bvAccount.valueLabel'))}</span></a>
+        <div class="bv-ident__stat portfolio-change ${up ? 'is-gain' : 'is-loss'}" data-testid="portfolio-change" aria-label="${escapeHtml(t(up ? 'bvAccount.gainAria' : 'bvAccount.lossAria', { money: moneyText, pct: pctText }))}">
+          <span class="bv-ident__num">${paid > 0 ? `<span class="arrow" aria-hidden="true">${up ? '▲' : '▼'}</span>` : ''}${escapeHtml(pctText)}</span>
+          <span class="bv-ident__lbl">${escapeHtml(t(up ? 'bvAccount.gainLabel' : 'bvAccount.lossLabel'))} · ${escapeHtml(moneyText)}</span>
+        </div>
+      </div>
+    </section>`;
+}
+
+function footerHTML() {
+  return `<footer class="bv-profile__foot">
+      <p class="me-footer-links"><a href="/methodology.html">How We Price</a> · <button type="button" class="legal-sheet-link" data-legal-sheet="partners">${escapeHtml(t('bvAccount.dataSources'))}</button> · <button type="button" class="legal-sheet-link" data-legal-sheet="privacy">${escapeHtml(t('bvAccount.privacy'))}</button> · <button type="button" class="legal-sheet-link" data-legal-sheet="terms">${escapeHtml(t('bvAccount.terms'))}</button></p>
+      <p class="app-credits">${escapeHtml(t('bvAccount.credits'))} ${escapeHtml(t('bvAccount.trademark'))}</p>
+      <p class="bv-profile__version" id="appVersionLine">BRICKSVAULT · STACK SOMETHING BEAUTIFUL</p>
+    </footer>`;
+}
+
+function pageHTML(me) {
+  const guest = isGuestMode();
+  const contributions = Number(me.contributions_approved) || 0;
+  const collection = [
+    row({ icon: 'globe', title: t('bvAccount.publicProfile'), sub: guest ? t('bvAccount.publicGuest') : !me.handle ? t('bvAccount.publicNoHandle') : me.is_public ? t('bvAccount.publicOn') : t('bvAccount.publicOff'), id: 'publicProfileRow' }),
+    row({ icon: 'trophy', title: t('bvAccount.leaderboard'), href: '#/leaderboard' }),
+    guest ? '' : row({ icon: 'star', title: t('share.wrappedTitle', { year: new Date().getFullYear() }), id: 'wrappedRow' }),
+    guest ? '' : row({ icon: 'check', title: t('bvAccount.contributions'), sub: contributions ? tPlural('bvAccount.approvedCount', contributions, { count: contributions }) : t('bvAccount.contributionsSub'), href: '#/me/contributions' }),
+    row({ icon: 'brick', title: t('bvAccount.build'), sub: t('bvAccount.buildSub'), href: '#/build' }),
+  ].join('');
+  const on = notificationsOn(me);
+  const prefs = [
+    row({ icon: 'palette', title: t('bvAccount.appearance'), trail: themeLabel(), id: 'appearanceRow' }),
+    row({ icon: 'bell', title: t('bvAccount.notifications'), trail: t('bvAccount.onCount', { count: on }), href: '#/me/notifications' }),
+    row({ icon: 'globe', title: t('bvAccount.currencyRegion'), trail: `${me.currency || 'USD'} · ${marketName(me.retail_market || 'FR')}`, id: 'currencyRow' }),
+    row({ icon: 'lock', title: t('bvAccount.appLock'), trail: t('bvAccount.off'), id: 'appLockRow', attrs: { hidden: true } }),
+  ].join('');
+  const data = [
+    row({ icon: 'plug', title: t('bvAccount.integrations'), sub: t('bvAccount.integrationsSub'), href: '#/me/integrations' }),
+    row({ icon: 'db', title: t('bvAccount.importExport'), sub: t('bvAccount.importExportSub'), href: '#/me/data' }),
+    guest ? '' : row({ icon: 'shield', title: t('bvAccount.insurance'), sub: t('bvAccount.insuranceSub'), href: '#/me/insurance' }),
+  ].join('');
+  const play = [
+    row({ icon: 'game', title: t('bvAccount.priceIt'), sub: t('bvAccount.priceItSub'), href: '#/game' }),
+    guest ? '' : row({ icon: 'kid', title: t('bvAccount.kidsMode'), sub: t(me.has_kids_pin ? 'bvAccount.kidsOn' : 'bvAccount.kidsOff'), id: 'kidsModeRow' }),
+    row({ icon: 'walk', title: t('bvAccount.tour'), sub: t('bvAccount.tourSub'), id: 'replayTourRow' }),
+  ].join('');
+  const membership = row({ icon: 'star', title: t('bvAccount.proTitle'), sub: me.is_supporter ? t('bvAccount.proActive') : t('bvAccount.proPitch'), href: '#/pro', id: 'proRow' });
+  const account = guest
+    ? row({ icon: 'user', title: t('bvAccount.signIn'), sub: t('bvAccount.signInSub'), id: 'signInRow' })
+    : row({ icon: 'logout', title: t('bvAccount.signOut'), sub: t('bvAccount.signOutSub'), id: 'signOutRow' })
+      + row({ icon: 'user', title: t('bvAccount.deleteAccount'), sub: t('bvAccount.deleteSub'), id: 'deleteAccountRow', danger: true });
+  const shareBtn = !guest && me.handle && me.is_public ? iconBtn({ icon: 'share', label: t('bvAccount.shareProfile'), id: 'shareProfileBtn' }) : '';
+  return `<main class="bv-page bv-profile" id="profilePage">
+      ${topbar({ title: t('bvAccount.profile'), actionsHtml: shareBtn })}
+      ${identityHTML(me, guest)}
+      ${guest ? `<div class="bv-profile__banner">${banner({ icon: 'cloud', kind: 'neutral', text: t('bvAccount.guestBanner'), action: t('bvAccount.signInSync'), actionId: 'guestSignInBtn' })}</div>` : ''}
+      ${state.pwa.deferredPrompt ? `<div class="bv-profile__banner">${banner({ icon: 'download', text: t('bvAccount.installBody'), action: t('bvAccount.install'), actionId: 'installBtn' })}</div>` : ''}
+      <div class="profile-settings-nav" aria-label="${escapeHtml(t('bvAccount.settingsLabel'))}">
+        ${group(t('bvAccount.groupCollection'), collection)}
+        ${group(t('bvAccount.groupPreferences'), prefs)}
+        ${group(t('bvAccount.groupData'), data)}
+        ${group(t('bvAccount.groupPlay'), play)}
+        ${group(t('bvAccount.groupMembership'), membership)}
+        ${me.is_admin ? group(t('bvAccount.groupOwner'), row({ icon: 'shield', title: t('bvAccount.admin'), sub: t('bvAccount.adminSub'), href: '#/me/admin' })) : ''}
+        ${group(t('bvAccount.groupAccount'), account)}
+      </div>
+      ${footerHTML()}
+    </main>`;
+}
 
 export async function renderMe() {
   // Legacy Stripe return: detect a Checkout success redirect (?supported=1) before
@@ -26,10 +140,6 @@ export async function renderMe() {
     state.me = null; // force fresh fetch to pick up is_supporter flag
     history.replaceState(null, '', '#/me');
   }
-
-  let me = state.me;
-  let publicProfile = null;
-
   // Older Worker deployments redirect the Google OAuth return to #/me —
   // forward to the Integrations sub-page where the section now lives.
   if (location.hash.includes("google_sync=")) {
@@ -37,246 +147,29 @@ export async function renderMe() {
     return;
   }
 
-  if (!me) $("#root").innerHTML = skelPage(skelStatGrid(4) + skelSettingRows(4));
+  let me = state.me;
+  let publicProfile = null;
+  if (!me) $("#root").innerHTML = skelPage(skelStatGrid(3) + skelSettingRows(6));
   try {
     me = me || await api("/api/me");
     state.me = me;
-    if (me.handle) {
-      publicProfile = await fetch((window.WORKER_BASE || '') + "/api/users/" + encodeURIComponent(me.handle) + "/profile")
-        .then(r => r.ok ? r.json() : null)
-        .catch(() => null);
+    if (me.handle && !isGuestMode()) {
+      // The owner's own shelf — readable even while the profile is private.
+      // Any failure leaves publicProfile null and the shelf editor stays closed
+      // rather than editing an empty copy.
+      publicProfile = await api("/api/users/" + encodeURIComponent(me.handle) + "/showcase").catch(() => null);
     }
   } catch (_e) {
-    toast("Couldn't load profile", "error");
-    me = me || { display_name: "Collector", handle: "you", notify_price_drops: true, portfolio_stats: {} };
+    toast(t('bvAccount.loadFailed'), "error");
+    me = me || { display_name: t('bvAccount.collector'), handle: null, notify_price_drops: true, portfolio_stats: {} };
   }
-  const c = me.portfolio_stats || {};
-  const gain = (c.total_value || 0) - (c.total_paid || 0);
-  const gainPct = c.total_paid ? gain / c.total_paid : 0;
-  const guest = isGuestMode();
+  if (!onMe()) return;
+  $("#root").innerHTML = pageHTML(me);
+  wire(me, publicProfile);
+  if (stripeSuccess) toast(t('bvAccount.thanksSupport'), "success");
+}
 
-  const showcase = publicProfile?.showcase || [];
-  let trophyShelfHTML = '';
-  if (!guest && me.handle && me.is_public) {
-    trophyShelfHTML = `
-      <h2 class="section-title">${tPlural('me.trophyShelf', showcase.length)}</h2>
-      <div class="card" style="padding:14px 16px;margin-bottom:14px;">
-        <div class="trophy-shelf scrollable" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;margin-bottom:12px;">
-          ${showcase.map(s => {
-            const hasImg = s.image_url && !s.image_url.startsWith("data:");
-            const h = setHue(s);
-            return `
-              <div class="trophy-card" style="width:104px;flex-shrink:0;position:relative;">
-                <button class="remove-trophy-btn" data-set="${escapeHtml(s.set_num)}" aria-label="Remove from shelf" style="position:absolute;top:-4px;right:-4px;background:var(--bv-red);color:#fff;border:none;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:10;font-size:15px;line-height:1;font-weight:bold;">×</button>
-                <div class="set-card-img${hasImg ? " has-photo" : ""}" style="height:70px;border-radius:var(--r-2);position:relative;">
-                  <div class="brick-tile" style="--h:${h};width:64%;height:64%;"></div>
-                  ${hasImg ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="" loading="lazy">` : ""}
-                </div>
-                <div class="u-fs-xs u-ellipsis" style="font-weight:500;margin-top:4px;">${escapeHtml(s.name)}</div>
-              </div>
-            `;
-          }).join("")}
-          ${showcase.length < 6 ? `
-            <button id="addTrophyBtn" style="width:104px;height:95px;flex-shrink:0;border:2.5px dashed var(--border-c);border-radius:var(--r-2);background:var(--surface-2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;color:var(--ink-soft);outline:none;">
-              <span style="font-size:20px;">+</span>
-              <span class="u-fs-xs" style="font-weight:600;">Add to shelf</span>
-            </button>
-          ` : ''}
-        </div>
-        ${showcase.length === 0 ? `<div class="empty-inline"><strong>Your Trophy Shelf is empty.</strong><span>Pick up to six favorite sets from your vault to make your public profile feel alive.</span></div>` : ''}
-      </div>
-    `;
-  }
-
-  const linkRow = (href, label, desc) => `
-    <a class="setting-row" href="${href}" style="cursor:pointer;">
-      <div class="lbl-wrap"><div class="lbl">${label}</div><div class="desc">${desc}</div></div>
-      ${I.chev()}
-    </a>`;
-
-  $("#root").innerHTML = `
-    <div class="page">
-      <div class="topbar">
-        <div class="topbar-heading">
-          <div class="topbar-eyebrow">${guest ? "Local guest" : "@" + escapeHtml(me.handle || "you")}</div>
-          <h1 class="topbar-title">Profile</h1>
-        </div>
-      </div>
-
-      <div class="profile-command-center profile-identity-card" aria-label="Collector profile overview">
-        <span class="profile-command-kicker">Collector command center</span>
-        <strong>${escapeHtml(me.display_name || "Collector")}</strong>
-        <span>${guest ? "Local-only vault" : me.handle ? `@${escapeHtml(me.handle)}` : "Private profile"} · ${c.set_count || 0} ${(c.set_count || 0) === 1 ? "set" : "sets"} tracked</span>
-      </div>
-
-      <div class="profile-head">
-        <div class="avatar">${(me.display_name || "?").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}</div>
-        <div class="u-flex1">
-          <div class="profile-name">${escapeHtml(me.display_name || "Collector")}</div>
-          <div class="profile-handle">${guest ? "Guest mode - saved on this device" : "Member - BricksVault"}</div>
-        </div>
-        <button class="profile-pencil" aria-label="Edit name" id="editName">${I.pencil()}</button>
-      </div>
-
-      <div class="summary-grid profile-summary" aria-label="Portfolio summary">
-        <div class="summary-cell"><div class="lbl">Sets owned</div><div class="val">${c.set_count || 0}</div></div>
-        <div class="summary-cell"><div class="lbl">Total value</div><div class="val">${fmtMoneyShort(c.total_value || 0)}</div></div>
-        <div class="summary-cell"><div class="lbl">Invested</div><div class="val">${fmtMoneyShort(c.total_paid || 0)}</div></div>
-        <div class="summary-cell portfolio-change ${gain >= 0 ? "is-gain" : "is-loss"}" data-testid="portfolio-change">
-          <div class="lbl">${gain >= 0 ? "Gain" : "Loss"}</div>
-          <div class="val">${gain >= 0 ? "+" : "-"}${fmtMoneyShort(Math.abs(gain))}</div>
-          <div class="delta ${gain >= 0 ? "up" : "down"}" style="margin-top:6px;"><span class="arrow" aria-hidden="true">${gain >= 0 ? "▲" : "▼"}</span>${gain >= 0 ? "+" : "-"}${(Math.abs(gainPct) * 100).toFixed(1)}%</div>
-        </div>
-      </div>
-
-      ${state.pwa.deferredPrompt ? `
-        <button class="install-card" id="installBtn">
-          <div class="install-icon">${I.download()}</div>
-          <div class="install-text">
-            <div class="install-t1">Install BricksVault</div>
-            <div class="install-t2">Add to your home screen for a full-screen, app-like experience.</div>
-          </div>
-          ${I.arrowR()}
-        </button>` : ""}
-
-      <div class="profile-layout">
-        <section class="profile-main">
-          ${guest ? guestModeCardHTML() : ""}
-          ${publicProfileSectionHTML(me)}
-          ${trophyShelfHTML}
-          ${!guest ? supportCardHTML(me, state.config?.patreon_url) : ''}
-        </section>
-        <aside class="profile-side profile-settings-nav" aria-label="Profile and app settings">
-
-      <h2 class="section-title profile-settings-heading" id="profileSettingsHeading">Preferences</h2>
-      <div class="profile-settings-group">
-        <h3 class="profile-settings-heading">Appearance &amp; view</h3>
-        <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Appearance</div><div class="desc">Match your device or pick a side.</div></div>
-          <div class="theme-seg" id="themeSeg" role="group" aria-label="Theme">
-            ${[["light","Light"],["auto","Auto"],["dark","Dark"]].map(([v,l]) =>
-              `<button data-theme-val="${v}" class="${getThemePref() === v ? "active" : ""}" aria-pressed="${getThemePref() === v}">${l}</button>`).join("")}
-          </div>
-        </div>
-        <div class="setting-row skin-seg-row">
-          <div class="lbl-wrap"><div class="lbl">Style</div><div class="desc">Pick a visual skin — free or supporter.</div></div>
-          <div class="theme-seg" id="skinSeg" role="group" aria-label="Visual style">
-            ${[
-              ["retro","Retro"],
-              ["modular","Modular"],
-              ["vivid","Vivid"],
-              ...(me.is_supporter ? [["premium","Premium"],["gold","Gold ★"]] : [["premium","Premium ★"],["gold","Gold ★"]]),
-            ].map(([v,l]) =>
-              `<button data-skin-val="${v}" class="${getSkinPref() === v ? "active" : ""}" aria-pressed="${getSkinPref() === v}">${l}</button>`).join("")}
-          </div>
-        </div>
-        <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">View mode</div><div class="desc">Simple hides ROI charts &amp; forecasts — just value &amp; your sets.</div></div>
-          <div class="theme-seg" id="modeSeg" role="group" aria-label="View mode">
-            ${[["pro","Pro"],["simple","Simple"]].map(([v,l]) =>
-              `<button data-mode-val="${v}" class="${getModePref() === v ? "active" : ""}" aria-pressed="${getModePref() === v}">${l}</button>`).join("")}
-          </div>
-        </div>
-        ${!guest ? `<div class="setting-row" id="kidsModeRow" style="cursor:pointer;">
-          <div class="lbl-wrap">
-            <div class="lbl">Kids Mode</div>
-            <div class="desc">${me.has_kids_pin
-              ? "PIN set — tap to enter Kids Mode or change settings."
-              : "Set a 4-digit PIN to enable a gamified, price-free view for kids."}</div>
-          </div>
-          ${I.chev()}
-        </div>` : ""}
-        <h3 class="profile-settings-heading">Notifications</h3>
-        <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Price-drop alerts</div><div class="desc">Alert when wishlisted sets hit your target.</div></div>
-          <button class="toggle ${me.notify_price_drops ? "on" : ""}" id="notifyToggle" role="switch" aria-label="Price-drop alerts" aria-checked="${!!me.notify_price_drops}"></button>
-        </div>
-        <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Weekly vault digest</div><div class="desc">${guest ? "Sign in to get the Sunday email summary." : "A Sunday summary: value change, top mover, wishlist hits."}</div></div>
-          <button class="toggle ${me.notify_weekly_digest ? "on" : ""}" id="digestToggle" role="switch" aria-label="Weekly vault digest" aria-checked="${!!me.notify_weekly_digest}" ${guest ? 'disabled aria-disabled="true"' : ''}></button>
-        </div>
-        <h3 class="profile-settings-heading">App experience</h3>
-        <div class="setting-row" id="appLockRow" style="display:none;">
-          <div class="lbl-wrap"><div class="lbl">App lock</div><div class="desc">Require your fingerprint (or device PIN) to open BricksVault.</div></div>
-          <button class="toggle" id="appLockToggle" role="switch" aria-label="App lock" aria-checked="false"></button>
-        </div>
-        <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Celebration sounds</div><div class="desc">Play a chime on milestones and rewards.</div></div>
-          <button class="toggle ${soundEnabled() ? "on" : ""}" id="soundToggle" role="switch" aria-label="Celebration sounds" aria-checked="${soundEnabled()}"></button>
-        </div>
-        <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">AI assistant</div><div class="desc">Show the floating assistant button for price help.</div></div>
-          <button class="toggle ${advisorEnabled() ? "on" : ""}" id="advisorToggle" role="switch" aria-label="AI assistant" aria-checked="${advisorEnabled()}"></button>
-        </div>
-        <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">${escapeHtml(t("settings.language"))}</div><div class="desc">${escapeHtml(t("settings.languageDesc"))}</div></div>
-          <select id="languageSelect" class="setting-select" aria-label="${escapeHtml(t("settings.language"))}">
-            <option value="auto" ${savedLocale() ? "" : "selected"}>${escapeHtml(t("settings.languageAuto", { name: nativeName(getLocale()) }))}</option>
-            ${SUPPORTED.map(l => `<option value="${l.code}" ${savedLocale() === l.code ? "selected" : ""}>${escapeHtml(l.native)}</option>`).join("")}
-          </select>
-        </div>
-        <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">${escapeHtml(t("settings.currency"))}</div><div class="desc">${escapeHtml(t("settings.currencyDesc"))}</div></div>
-          <select id="currencySelect" aria-label="${escapeHtml(t('settings.currency'))}" style="font-family:var(--mono);font-weight:600;font-size:14px;border:none;background:transparent;color:var(--ink);cursor:pointer;outline:none;text-align-last:right;">
-            ${["USD","GBP","EUR","CAD","AUD"].map(cur => `<option value="${cur}" ${me.currency === cur ? "selected" : ""}>${cur}</option>`).join("")}
-          </select>
-        </div>
-        <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Retail market</div><div class="desc">Local market for store offers. Resale values remain in USD.</div></div>
-          <select id="retailMarketSelect" class="setting-select" aria-label="Retail market">
-            ${[["FR","France"],["US","United States"],["GB","United Kingdom"],["DE","Germany"],["CA","Canada"],["AU","Australia"]].map(([code, label]) => `<option value="${code}" ${me.retail_market === code ? "selected" : ""}>${label}</option>`).join("")}
-          </select>
-        </div>
-      </div>
-
-      <h2 class="section-title">More</h2>
-      <div>
-        ${linkRow("#/me/integrations", "Integrations", "Google Sheets, Discord, Brickset, push alerts, AI keys")}
-        ${linkRow("#/me/data", "Data", "Export &amp; import your vault as CSV")}
-        ${!guest ? linkRow("#/me/contributions", "Your contributions", "Reviews, photos &amp; data fixes you've submitted") : ""}
-        ${!guest ? `
-        <div class="setting-row" id="wrappedRow" style="cursor:pointer;">
-          <div class="lbl-wrap"><div class="lbl">${t('share.wrappedTitle', { year: new Date().getFullYear() })}</div><div class="desc">${t('share.wrappedDescription')}</div></div>
-          ${I.chev()}
-        </div>` : ""}
-        ${me.is_admin ? linkRow("#/me/admin", "Admin console", "Catalog imports, jobs, integration health") : ""}
-        ${linkRow("#/leaderboard", "Leaderboard", "Top public collections by value")}
-        ${linkRow("#/build", "What Can I Build?", "Models you can build from sets you own")}
-        <div class="setting-row" id="replayTourRow" style="cursor:pointer;">
-          <div class="lbl-wrap"><div class="lbl">App tour</div><div class="desc">Replay the quick guided walkthrough.</div></div>
-          ${I.chev()}
-        </div>
-        <div class="setting-row" id="${guest ? "signInRow" : "signOutRow"}" style="cursor:pointer;">
-          <div class="lbl-wrap"><div class="lbl">${guest ? "Sign in" : "Sign out"}</div><div class="desc">${guest ? "Sync your local vault across devices." : "Sync resumes when you return."}</div></div>
-          ${I.chev()}
-        </div>
-        ${guest ? "" : `
-        <div class="setting-row" id="deleteAccountRow" style="cursor:pointer;">
-          <div class="lbl-wrap"><div class="lbl" style="color:var(--down);">Delete account</div><div class="desc">Permanently erase your account and all data.</div></div>
-          ${I.chev()}
-        </div>`}
-      </div>
-        </aside>
-      </div>
-
-      <div class="u-mono-label u-fs-2xs u-faint" id="appVersionLine" style="text-align:center;margin-top:24px;">
-        BRICKSVAULT · STACK SOMETHING BEAUTIFUL
-      </div>
-      <div class="me-footer-links" style="text-align:center;margin-top:16px;font-size:12px;">
-        <a href="/methodology.html">How We Price</a>
-        <span class="dot">·</span>
-        <button type="button" class="legal-sheet-link" data-legal-sheet="partners">Data sources &amp; partners</button>
-        <span class="dot">·</span>
-        <button type="button" class="legal-sheet-link" data-legal-sheet="privacy">Privacy Policy</button>
-        <span class="dot">·</span>
-        <button type="button" class="legal-sheet-link" data-legal-sheet="terms">Terms of Service</button>
-      </div>
-      <div class="app-credits" style="text-align:center;margin-top:10px;font-size:11px;line-height:1.5;color:var(--ink-mute);">
-        Catalog data &amp; images from <a href="https://rebrickable.com/" target="_blank" rel="noopener noreferrer" style="color:var(--ink-soft);text-decoration:underline;">Rebrickable</a>.
-        Market data partner: PriceCharting. Sources: BrickLink, eBay, BrickEconomy &amp; Brickset. LEGO® is a trademark of the LEGO Group, which does not sponsor or endorse this app.
-      </div>
-    </div>`;
-
+function wire(me, publicProfile) {
   // Native installs are versioned by the store build — show the real one
   // instead of a hand-maintained string that drifts out of date.
   getCapacitorPlugin('App')?.getInfo?.().then(info => {
@@ -286,9 +179,21 @@ export async function renderMe() {
 
   $("#replayTourRow")?.addEventListener("click", () => { haptic("light"); startOnboarding(); });
   $("#wrappedRow")?.addEventListener("click", () => { haptic("medium"); showWrappedSheet(); });
-  $$("[data-legal-sheet]").forEach(link => link.addEventListener("click", () => {
-    openLegalSheet(link.dataset.legalSheet);
-  }));
+  $$("[data-legal-sheet]").forEach(link => link.addEventListener("click", () => openLegalSheet(link.dataset.legalSheet)));
+  $("#publicProfileRow")?.addEventListener("click", () => {
+    haptic("light");
+    if (isGuestMode()) { go("#/login"); return; }
+    openPublicProfileSheet(me, publicProfile);
+  });
+  $("#appearanceRow")?.addEventListener("click", () => { haptic("light"); openAppearanceSheet(me); });
+  $("#currencyRow")?.addEventListener("click", () => { haptic("light"); openCurrencySheet(me); });
+  $("#kidsModeRow")?.addEventListener("click", () => openKidsMode(me));
+  $("#shareProfileBtn")?.addEventListener("click", async () => {
+    haptic("light");
+    const url = `${publicOrigin()}/#/u/${encodeURIComponent(me.handle)}`;
+    const { shareContent } = await import("../lib/native-share.js");
+    shareContent({ title: t('bvAccount.shareTitle', { name: me.display_name || me.handle }), url });
+  });
 
   $("#installBtn")?.addEventListener("click", async () => {
     const dp = state.pwa.deferredPrompt;
@@ -297,58 +202,351 @@ export async function renderMe() {
     dp.prompt();
     try {
       const { outcome } = await dp.userChoice;
-      if (outcome === "accepted") toast("Installing BricksVault…", "success");
+      if (outcome === "accepted") toast(t('bvAccount.installing'), "success");
     } catch {}
     state.pwa.deferredPrompt = null;
-    $("#installBtn")?.remove();
+    $("#installBtn")?.closest('.bv-profile__banner')?.remove();
   });
 
   ["#guestSignInBtn", "#signInRow"].forEach(sel => {
-    $(sel)?.addEventListener("click", () => {
-      haptic("medium");
-      go("#/login");
-    });
+    $(sel)?.addEventListener("click", () => { haptic("medium"); go("#/login"); });
   });
 
-  $$("#themeSeg button").forEach(b => b.addEventListener("click", () => {
-    const val = b.dataset.themeVal;
-    haptic("light");
-    setThemePref(val);
-    $$("#themeSeg button").forEach(x => {
-      const on = x === b;
-      x.classList.toggle("active", on);
-      x.setAttribute("aria-pressed", on);
-    });
-  }));
+  $("#editName")?.addEventListener("click", async () => {
+    const res = await promptSheet({ title: t('bvAccount.editNameTitle'), label: t('bvAccount.displayName'), value: me.display_name || "" });
+    if (res === null) return;
+    try {
+      await api("/api/me", { method: "PATCH", body: { display_name: res } });
+      state.me = null;
+      toast(t('bvAccount.nameUpdated'), "success");
+      await renderMe();
+    } catch (e) {
+      toast(t('common.errorWithDetails', { error: e.message || e }), "error");
+    }
+  });
 
-  $$("#skinSeg button").forEach(b => b.addEventListener("click", () => {
+  wireAppLock();
+
+  async function clearLocalSessionState() {
+    invalidatePortfolio(); state.me = null; state.catalog.items = [];
+    state.blind.items = []; state.wishlist = []; state.portfolioHistory = null;
+    try {
+      await Promise.all([bvIDB.del('portfolio'), bvIDB.del('catalog'), bvIDB.del('blind')]);
+    } catch {}
+  }
+
+  $("#signOutRow")?.addEventListener("click", async () => {
+    haptic("medium");
+    await clearVaultWidget();
+    await sbSignOut();
+    await clearLocalSessionState();
+    go("#/");
+  });
+
+  $("#deleteAccountRow")?.addEventListener("click", () => {
+    haptic("medium");
+    showSheet(sheetBody({
+      title: t('bvAccount.deleteTitle'),
+      inner: `<p class="bv-sheet__sub">${escapeHtml(t('bvAccount.deleteBody'))}</p>
+        <p class="bv-sheet__sub">${escapeHtml(t('bvAccount.deleteType'))}</p>
+        <div class="bv-field"><div class="bv-field__box"><input id="deleteConfirmInput" type="text" autocomplete="off" autocapitalize="characters" placeholder="DELETE" aria-label="${escapeHtml(t('bvAccount.deleteType'))}" class="bv-mono-input"></div></div>
+        <p class="bv-field__error" id="deleteAccountErr" role="alert" hidden></p>
+        <button type="button" class="bv-btn bv-btn--danger-fill bv-btn--full" id="deleteAccountBtn" disabled>${escapeHtml(t('bvAccount.deleteConfirm'))}</button>`,
+    }));
+    setTimeout(() => $("#deleteConfirmInput")?.focus(), 100);
+    const input = $("#deleteConfirmInput");
+    const btnEl = $("#deleteAccountBtn");
+    input?.addEventListener("input", () => {
+      const ok = (input.value || "").trim().toUpperCase() === "DELETE";
+      if (btnEl) btnEl.disabled = !ok;
+    });
+    btnEl?.addEventListener("click", async () => {
+      if ((input?.value || "").trim().toUpperCase() !== "DELETE") return;
+      const errEl = $("#deleteAccountErr");
+      btnEl.disabled = true;
+      btnEl.textContent = t('bvAccount.deleting');
+      try {
+        await api("/api/me", { method: "DELETE", body: { confirm: "DELETE" } });
+        await clearVaultWidget();
+        await sbSignOut();
+        await clearLocalSessionState();
+        hideSheet();
+        toast(t('bvAccount.deleted'), "info");
+        go("#/");
+      } catch {
+        if (errEl) { errEl.textContent = t('bvAccount.deleteFailed'); errEl.hidden = false; }
+        btnEl.disabled = false;
+        btnEl.textContent = t('bvAccount.deleteConfirm');
+      }
+    });
+  });
+}
+
+// App lock (biometric) — native only, revealed once biometrics are confirmed
+// available. Enabling/disabling both require a successful verify so only the
+// device owner can change it (and can't be locked out — device PIN fallback).
+async function wireAppLock() {
+  const rowEl = $("#appLockRow");
+  if (!rowEl) return;
+  try {
+    const [{ biometricAvailable, verifyBiometricResult }, { appLockEnabled, setAppLockEnabled }] = await Promise.all([
+      import("../lib/native-biometric.js"),
+      import("../lib/app-lock.js"),
+    ]);
+    if (!(await biometricAvailable(window))) return; // not native / no biometrics → keep hidden
+    rowEl.hidden = false;
+    const paint = () => {
+      const trail = rowEl.querySelector('.bv-row__trail');
+      if (trail?.firstChild) trail.firstChild.textContent = t(appLockEnabled() ? 'bvAccount.fingerprint' : 'bvAccount.off');
+    };
+    paint();
+    rowEl.addEventListener("click", async () => {
+      const turningOn = !appLockEnabled();
+      const result = await verifyBiometricResult(turningOn ? "Enable app lock" : "Disable app lock");
+      if (!result.ok) { toast(t('settings.appLockUnchanged', { error: result.message }), "error"); return; }
+      setAppLockEnabled(turningOn);
+      paint();
+      haptic("medium");
+      toast(t(turningOn ? 'bvAccount.appLockOn' : 'bvAccount.appLockOff'), "info");
+    });
+  } catch { /* biometric modules unavailable — leave the row hidden */ }
+}
+
+// ------------------------------------------------------------- Appearance
+function openAppearanceSheet(me) {
+  const skins = [['retro', 'bvAccount.skinRetro'], ['modular', 'bvAccount.skinModular'], ['vivid', 'bvAccount.skinVivid'], ['premium', 'bvAccount.skinPremium'], ['gold', 'bvAccount.skinGold']];
+  const locked = (v) => !me.is_supporter && (v === 'premium' || v === 'gold');
+  const switchRow = (id, label, sub, on) => `<div class="bv-prefrow"><span class="bv-prefrow__text"><span class="bv-prefrow__title">${escapeHtml(label)}</span><span class="bv-prefrow__sub">${escapeHtml(sub)}</span></span>${toggle({ id, on, label })}</div>`;
+  showSheet(sheetBody({
+    title: t('bvAccount.appearance'),
+    id: 'appearanceSheet',
+    inner: `<div class="bv-prefs">
+        <div class="bv-field"><span class="bv-field__label">${escapeHtml(t('bvAccount.theme'))}</span>${seg([['light', 'bvAccount.themeLight'], ['auto', 'bvAccount.themeAuto'], ['dark', 'bvAccount.themeDark']].map(([value, key]) => ({ label: t(key), value, current: getThemePref() === value })), { label: t('bvAccount.theme'), id: 'themeSeg' })}</div>
+        <div class="bv-field"><span class="bv-field__label">${escapeHtml(t('bvAccount.style'))}</span>
+          <div class="bv-chips bv-chips--wrap" id="skinSeg" role="group" aria-label="${escapeHtml(t('bvAccount.style'))}">${skins.map(([v, key]) => `<button type="button" class="bv-chip" data-skin-val="${v}" aria-pressed="${getSkinPref() === v}">${escapeHtml(t(key))}${locked(v) ? ' ★' : ''}</button>`).join('')}</div>
+          <span class="bv-field__help">${escapeHtml(t(me.is_supporter ? 'bvAccount.styleHelpPro' : 'bvAccount.styleHelp'))}</span></div>
+        <div class="bv-field"><span class="bv-field__label">${escapeHtml(t('bvAccount.viewMode'))}</span>${seg([['pro', 'bvAccount.modeFull'], ['simple', 'bvAccount.modeSimple']].map(([value, key]) => ({ label: t(key), value, current: getModePref() === value })), { label: t('bvAccount.viewMode'), id: 'modeSeg' })}
+          <span class="bv-field__help">${escapeHtml(t('bvAccount.viewModeHelp'))}</span></div>
+        <div class="bv-field"><label for="languageSelect">${escapeHtml(t("settings.language"))}</label>
+          <div class="bv-field__box"><select id="languageSelect" aria-label="${escapeHtml(t("settings.language"))}">
+            <option value="auto" ${savedLocale() ? "" : "selected"}>${escapeHtml(t("settings.languageAuto", { name: nativeName(getLocale()) }))}</option>
+            ${SUPPORTED.map(l => `<option value="${l.code}" ${savedLocale() === l.code ? "selected" : ""}>${escapeHtml(l.native)}</option>`).join("")}
+          </select></div><span class="bv-field__help">${escapeHtml(t("settings.languageDesc"))}</span></div>
+        <div class="bv-group__box">
+          ${switchRow('soundToggle', t('bvAccount.sounds'), t('bvAccount.soundsSub'), soundEnabled())}
+          ${switchRow('advisorToggle', t('bvAccount.assistant'), t('bvAccount.assistantSub'), advisorEnabled())}
+        </div>
+      </div>`,
+  }));
+  const pressIn = (sel, el) => $$(`${sel} [data-value], ${sel} [data-skin-val]`).forEach(x => x.setAttribute("aria-pressed", String(x === el)));
+  $$("#themeSeg [data-value]").forEach(b => b.addEventListener("click", () => {
+    haptic("light");
+    setThemePref(b.dataset.value);
+    pressIn('#themeSeg', b);
+    const trail = $('#appearanceRow .bv-row__trail');
+    if (trail?.firstChild) trail.firstChild.textContent = themeLabel();
+  }));
+  $$("#skinSeg [data-skin-val]").forEach(b => b.addEventListener("click", () => {
     const val = b.dataset.skinVal;
     if (!me.is_supporter && (val === "premium" || val === "gold")) {
-      toast("Unlock Premium & Gold by supporting BricksVault ★", "info");
+      toast(t('bvAccount.skinLocked'), "info");
       return;
     }
     haptic("light");
     setSkinPref(val);
-    $$("#skinSeg button").forEach(x => {
-      const on = x === b;
-      x.classList.toggle("active", on);
-      x.setAttribute("aria-pressed", on);
-    });
+    pressIn('#skinSeg', b);
   }));
-
-  $$("#modeSeg button").forEach(b => b.addEventListener("click", () => {
-    const val = b.dataset.modeVal;
+  $$("#modeSeg [data-value]").forEach(b => b.addEventListener("click", () => {
     haptic("light");
-    setModePref(val);
-    $$("#modeSeg button").forEach(x => {
-      const on = x === b;
-      x.classList.toggle("active", on);
-      x.setAttribute("aria-pressed", on);
-    });
+    setModePref(b.dataset.value);
+    pressIn('#modeSeg', b);
   }));
+  $("#soundToggle")?.addEventListener("click", (e) => {
+    // Device-local preference (no server round-trip). Turning it on previews the
+    // chime so the user hears what they enabled.
+    const on = localStorage.getItem("bv_sound") === "off";
+    localStorage.setItem("bv_sound", on ? "on" : "off");
+    e.currentTarget.setAttribute("aria-checked", String(on));
+    haptic("medium");
+    if (on) celebrateChime();
+  });
+  $("#advisorToggle")?.addEventListener("click", (e) => {
+    // Device-local preference. The router reads advisorEnabled() to show/hide the
+    // FAB per route; hide it immediately here so the change is instant.
+    const on = localStorage.getItem("bv_advisor") === "off";
+    localStorage.setItem("bv_advisor", on ? "on" : "off");
+    e.currentTarget.setAttribute("aria-checked", String(on));
+    haptic("medium");
+    const fab = document.getElementById("advisorFab");
+    if (fab && !on) fab.style.display = "none";
+  });
+  // "auto" clears the stored choice so the app follows the device again — the
+  // reason setLocale/clearLocale are separate calls rather than one setter.
+  $("#languageSelect")?.addEventListener("change", async (e) => {
+    haptic("medium");
+    const val = e.target.value;
+    if (val === "auto") await clearLocale();
+    else await setLocale(val);
+    // setLocale awaits the dictionary listener; repainting only after that
+    // boundary keeps an old locale from touching fresh markup.
+    await renderMe();
+    openAppearanceSheet(state.me || me);
+  });
+}
 
-  // Kids Mode PIN flow
-  $("#kidsModeRow")?.addEventListener("click", () => {
+// ------------------------------------------------------- Currency & region
+function openCurrencySheet(me) {
+  showSheet(sheetBody({
+    title: t('bvAccount.currencyRegion'),
+    inner: `<div class="bv-prefs">
+        <div class="bv-field"><label for="currencySelect">${escapeHtml(t('settings.currency'))}</label>
+          <div class="bv-field__box"><select id="currencySelect" aria-label="${escapeHtml(t('settings.currency'))}">${CURRENCIES.map(cur => `<option value="${cur}" ${me.currency === cur ? "selected" : ""}>${cur}</option>`).join("")}</select></div>
+          <span class="bv-field__help">${escapeHtml(t('settings.currencyDesc'))}</span></div>
+        <div class="bv-field"><label for="retailMarketSelect">${escapeHtml(t('bvAccount.retailMarket'))}</label>
+          <div class="bv-field__box"><select id="retailMarketSelect" aria-label="${escapeHtml(t('bvAccount.retailMarket'))}">${MARKETS.map(code => `<option value="${code}" ${(me.retail_market || 'FR') === code ? "selected" : ""}>${escapeHtml(marketName(code))}</option>`).join("")}</select></div>
+          <span class="bv-field__help">${escapeHtml(t('bvAccount.retailMarketHelp'))}</span></div>
+      </div>`,
+  }));
+  $("#currencySelect")?.addEventListener("change", async (e) => {
+    const val = e.target.value;
+    haptic("medium");
+    try {
+      await api("/api/me", { method: "PATCH", body: { currency: val } });
+      if (state.me) state.me.currency = val;
+      bvIDB.del('portfolio').catch(() => {});
+      invalidatePortfolio();
+      state.portfolioHistory = null;
+      toast(t('settings.currencyUpdated', { currency: val }), "success");
+      hideSheet();
+      await renderMe();
+    } catch (err) {
+      toast(t('common.errorWithDetails', { error: err.message || err }), "error");
+    }
+  });
+  $("#retailMarketSelect")?.addEventListener("change", async (e) => {
+    const val = e.target.value;
+    haptic("medium");
+    try {
+      await api("/api/me", { method: "PATCH", body: { retail_market: val } });
+      if (state.me) state.me.retail_market = val;
+      toast(t('bvAccount.marketUpdated'), "success");
+      const trail = $('#currencyRow .bv-row__trail');
+      if (trail?.firstChild) trail.firstChild.textContent = [state.me?.currency || me.currency || 'USD', marketName(val)].join(' · ');
+    } catch (error) {
+      toast(error?.message || t('common.actionFailed'), "error");
+    }
+  });
+}
+
+// ----------------------------------------------------------- Public profile
+function openPublicProfileSheet(me, publicProfile) {
+  if (!me.handle) {
+    showSheet(sheetBody({
+      title: t('bvAccount.publicProfile'),
+      sub: t('bvAccount.handleIntro'),
+      inner: `<form class="bv-form" id="handleForm" novalidate>
+          <div class="bv-field"><label for="chooseHandleInp">${escapeHtml(t('bvAccount.handle'))}</label><div class="bv-field__box"><span class="bv-field__prefix">@</span><input type="text" id="chooseHandleInp" placeholder="your-name" autocomplete="off" autocapitalize="none" maxlength="30"></div><span class="bv-field__help">${escapeHtml(t('bvAccount.handleHelp'))}</span></div>
+          <button type="submit" class="bv-btn bv-btn--primary bv-btn--full" id="saveHandleBtn">${escapeHtml(t('bvAccount.setHandle'))}</button>
+        </form>`,
+    }));
+    $("#handleForm")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const h = ($("#chooseHandleInp")?.value || "").trim().toLowerCase();
+      if (!h) { toast(t('bvAccount.handleEmpty'), "info"); return; }
+      if (!/^[a-zA-Z0-9-]{3,30}$/.test(h)) { toast(t('bvAccount.handleHelp'), "error"); return; }
+      try {
+        await api("/api/me", { method: "PATCH", body: { handle: h } });
+        state.me = null;
+        hideSheet();
+        toast(t('bvAccount.handleSaved'), "success");
+        await renderMe();
+      } catch (err) {
+        toast(t('common.errorWithDetails', { error: err.message || err }), "error");
+      }
+    });
+    return;
+  }
+  const url = `${publicOrigin()}/#/u/${encodeURIComponent(me.handle)}`;
+  const showcase = publicProfile?.showcase || [];
+  // Adding a trophy replaces the whole stored shelf with this list, so the
+  // editor only opens when the real shelf loaded — never from an empty stand-in.
+  const shelf = !publicProfile ? '' : `<div class="bv-shelf">
+      <div class="bv-shelf__head"><span class="bv-field__label">${escapeHtml(tPlural('me.trophyShelf', showcase.length))}</span></div>
+      <div class="trophy-shelf">
+        ${showcase.map(s => {
+          const hasImg = s.image_url && !s.image_url.startsWith("data:");
+          return `<div class="trophy-card">
+              <button type="button" class="remove-trophy-btn" data-set="${escapeHtml(s.set_num)}" aria-label="${escapeHtml(t('bvAccount.removeTrophy', { name: s.name || s.set_num }))}">${icon('x', { size: 16, stroke: 2.4 })}</button>
+              <div class="trophy-card__img${hasImg ? " has-photo" : ""}"><div class="brick-tile" style="--h:${setHue(s)};"></div>${hasImg ? `<img class="set-photo" src="${escapeHtml(s.image_url)}" alt="" loading="lazy">` : ""}</div>
+              <div class="trophy-card__name">${escapeHtml(s.name)}</div>
+            </div>`;
+        }).join("")}
+        ${showcase.length < 6 ? `<button type="button" class="trophy-add" id="addTrophyBtn">${icon('plus', { size: 20 })}<span>${escapeHtml(t('bvAccount.addToShelf'))}</span></button>` : ''}
+      </div>
+      ${showcase.length === 0 ? `<p class="bv-field__help">${escapeHtml(t('bvAccount.shelfEmpty'))}</p>` : ''}
+    </div>`;
+  const sw = (id, label, sub, on) => `<div class="bv-prefrow"><span class="bv-prefrow__text"><span class="bv-prefrow__title">${escapeHtml(label)}</span><span class="bv-prefrow__sub">${escapeHtml(sub)}</span></span>${toggle({ id, on, label })}</div>`;
+  showSheet(sheetBody({
+    title: t('bvAccount.publicProfile'),
+    id: 'publicProfileSheet',
+    inner: `<div class="bv-prefs">
+        <div class="bv-group__box">
+          ${sw('publicToggle', t('bvAccount.publicPortfolio'), t('bvAccount.publicPortfolioSub'), !!me.is_public)}
+          ${sw('publicValToggle', t('bvAccount.showValue'), t('bvAccount.showValueSub'), !!me.expose_public_value)}
+        </div>
+        <div class="bv-linkbox public-profile-linkbox"><a href="${escapeHtml(url)}" class="public-profile-link">${escapeHtml(url)}</a>${btn(t('bvAccount.copy'), { kind: 'tonal', size: 'sm', id: 'copyProfileUrl' })}</div>
+        ${shelf}
+      </div>`,
+  }));
+  $$('#sheet a.public-profile-link').forEach(a => a.addEventListener('click', () => hideSheet()));
+
+  // Switches update in place — repainting would jump the sheet on every flip.
+  const wireSwitch = (id, field, onMsg, offMsg) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("click", async () => {
+      const next = el.getAttribute('aria-checked') !== 'true';
+      el.setAttribute("aria-checked", String(next));
+      haptic("medium");
+      try {
+        await api("/api/me", { method: "PATCH", body: { [field]: next } });
+        if (state.me) state.me[field] = next;
+        toast(t(next ? onMsg : offMsg), "info");
+        const sub = $('#publicProfileRow .bv-row__sub');
+        if (field === 'is_public' && sub) sub.textContent = t(next ? 'bvAccount.publicOn' : 'bvAccount.publicOff');
+      } catch (err) {
+        el.setAttribute("aria-checked", String(!next));
+        toast(t('common.errorWithDetails', { error: err.message || err }), "error");
+      }
+    });
+  };
+  wireSwitch('publicToggle', 'is_public', 'bvAccount.profilePublic', 'bvAccount.profilePrivate');
+  wireSwitch('publicValToggle', 'expose_public_value', 'bvAccount.valueVisible', 'bvAccount.valueHidden');
+
+  $("#copyProfileUrl")?.addEventListener("click", () => {
+    navigator.clipboard.writeText(url).then(() => toast(t('bvAccount.linkCopied'), "success")).catch(() => toast(t('bvAccount.copyFailed'), "error"));
+  });
+  $$(".remove-trophy-btn").forEach(b => {
+    b.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const setNum = b.dataset.set;
+      const next = showcase.filter(s => s.set_num !== setNum).map(s => s.set_num);
+      haptic("medium");
+      try {
+        await api("/api/users/" + encodeURIComponent(me.handle) + "/showcase", { method: "POST", body: { set_nums: next } });
+        toast(t('bvAccount.trophyRemoved'), "success");
+        hideSheet();
+        await renderMe();
+      } catch (err) {
+        toast(t('common.errorWithDetails', { error: err.message || err }), "error");
+      }
+    });
+  });
+  $("#addTrophyBtn")?.addEventListener("click", () => showSearchableTrophyPicker(showcase.map(s => s.set_num)));
+}
+
+// Kids Mode PIN flow (unchanged behaviour: set, enter, change, remove).
+function openKidsMode(me) {
     haptic("light");
     const hasPin = me.has_kids_pin;
     if (!hasPin) {
@@ -450,431 +648,6 @@ export async function renderMe() {
         });
       });
     }
-  });
-
-  if (stripeSuccess) toast("Thank you for supporting BricksVault!", "success");
-
-  // Native (Google Play / Apple) billing via RevenueCat. Handlers are no-ops on web.
-  $("#rcUpgradeBtn")?.addEventListener("click", async () => {
-    haptic("medium");
-    const r = await presentProPaywall();
-    if (r.ok && r.active) {
-      state.me = null;
-      celebrate("Welcome to BricksVault Pro! ⭐", { quip: "Thanks for the support — you rock. 🧱", hue: 300 });
-      go("#/me");
-    }
-    else if (!r.ok && r.reason !== "cancelled") toast("Store unavailable — try again", "error");
-  });
-  $("#rcRestoreBtn")?.addEventListener("click", async () => {
-    haptic("light");
-    const active = await restorePurchases();
-    toast(active ? "Purchases restored ⭐" : "No purchases to restore", active ? "success" : "info");
-    if (active) { state.me = null; go("#/me"); }
-  });
-  $("#rcManageBtn")?.addEventListener("click", () => { haptic("light"); presentCustomerCenter(); });
-
-  // Shared save flow for member notification toggles: disable while saving,
-  // optimistically flip the switch, roll back + surface the error on failure
-  // (same honesty rules as the public-profile toggles below).
-  const wirePrefToggle = (id, field, onMsg, offMsg) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    let on = !!me[field];
-    el.addEventListener("click", async () => {
-      if (el.disabled) return;
-      on = !on;
-      el.classList.toggle("on", on);
-      el.setAttribute("aria-checked", on);
-      setBtnLoading(el, true);
-      haptic("medium");
-      try {
-        await api("/api/me", { method: "PATCH", body: { [field]: on } });
-        state.me = null;
-        toast(on ? onMsg : offMsg, "info");
-      } catch (err) {
-        on = !on;
-        el.classList.toggle("on", on);
-        el.setAttribute("aria-checked", on);
-        toast(t('common.errorWithDetails', { error: err.message || err }), "error");
-      } finally {
-        setBtnLoading(el, false);
-      }
-    });
-  };
-
-  if (!guest) {
-    wirePrefToggle("notifyToggle", "notify_price_drops", "Alerts on", "Alerts paused");
-    wirePrefToggle("digestToggle", "notify_weekly_digest", "Weekly digest on — first one this Sunday", "Weekly digest off");
-  }
-
-  // App lock (biometric) — native only, revealed once biometrics are confirmed
-  // available. Enabling/disabling both require a successful verify so only the
-  // device owner can change it (and can't be locked out — device PIN fallback).
-  (async () => {
-    const row = $("#appLockRow");
-    const toggle = $("#appLockToggle");
-    if (!row || !toggle) return;
-    try {
-      const [{ biometricAvailable, verifyBiometricResult }, { appLockEnabled, setAppLockEnabled }] = await Promise.all([
-        import("../lib/native-biometric.js"),
-        import("../lib/app-lock.js"),
-      ]);
-      if (!(await biometricAvailable(window))) return; // not native / no biometrics → keep hidden
-      row.style.display = "";
-      const paint = () => {
-        const on = appLockEnabled();
-        toggle.classList.toggle("on", on);
-        toggle.setAttribute("aria-checked", String(on));
-      };
-      paint();
-      toggle.addEventListener("click", async () => {
-        const turningOn = !appLockEnabled();
-        const result = await verifyBiometricResult(turningOn ? "Enable app lock" : "Disable app lock");
-        if (!result.ok) { toast(t('settings.appLockUnchanged', { error: result.message }), "error"); return; }
-        setAppLockEnabled(turningOn);
-        paint();
-        haptic("medium");
-        toast(turningOn ? "App lock on — fingerprint required to open" : "App lock off", "info");
-      });
-    } catch { /* biometric modules unavailable — leave the row hidden */ }
-  })();
-
-  $("#soundToggle")?.addEventListener("click", (e) => {
-    // Device-local preference (no server round-trip). Turning it on previews the
-    // chime so the user hears what they enabled.
-    const on = localStorage.getItem("bv_sound") === "off";
-    localStorage.setItem("bv_sound", on ? "on" : "off");
-    e.currentTarget.classList.toggle("on", on);
-    e.currentTarget.setAttribute("aria-checked", String(on));
-    haptic("medium");
-    if (on) celebrateChime();
-    toast(on ? "Sounds on" : "Sounds off", "info");
-  });
-
-  $("#advisorToggle")?.addEventListener("click", (e) => {
-    // Device-local preference. The router reads advisorEnabled() to show/hide the
-    // FAB per route; hide it immediately here so the change is instant.
-    const on = localStorage.getItem("bv_advisor") === "off";
-    localStorage.setItem("bv_advisor", on ? "on" : "off");
-    e.currentTarget.classList.toggle("on", on);
-    e.currentTarget.setAttribute("aria-checked", String(on));
-    haptic("medium");
-    const fab = document.getElementById("advisorFab");
-    if (fab && !on) fab.style.display = "none";
-    toast(on ? "AI assistant on" : "AI assistant off", "info");
-  });
-
-  // "auto" clears the stored choice so the app follows the device again — the
-  // reason setLocale/clearLocale are separate calls rather than one setter.
-  $("#languageSelect")?.addEventListener("change", async (e) => {
-    haptic("medium");
-    const val = e.target.value;
-    if (val === "auto") await clearLocale();
-    else await setLocale(val);
-    // setLocale awaits the dictionary listener; rendering only after that
-    // boundary prevents an old locale from touching fresh Settings markup.
-    await renderMe();
-  });
-
-  $("#currencySelect")?.addEventListener("change", async (e) => {
-    const val = e.target.value;
-    haptic("medium");
-    try {
-      await api("/api/me", { method: "PATCH", body: { currency: val } });
-      if (state.me) state.me.currency = val;
-      bvIDB.del('portfolio').catch(() => {});
-      invalidatePortfolio();
-      state.portfolioHistory = null;
-      toast(t('settings.currencyUpdated', { currency: val }), "success");
-      await renderMe();
-    } catch {}
-  });
-
-  $("#retailMarketSelect")?.addEventListener("change", async (e) => {
-    const val = e.target.value;
-    haptic("medium");
-    try {
-      await api("/api/me", { method: "PATCH", body: { retail_market: val } });
-      if (state.me) state.me.retail_market = val;
-      toast("Retail market updated", "success");
-    } catch (error) {
-      toast(error?.message || "Could not update retail market", "error");
-    }
-  });
-
-  $("#editName")?.addEventListener("click", async () => {
-    const res = await promptSheet({ title: "Edit Display Name", label: "Display Name", value: me.display_name || "" });
-    if (res === null) return;
-    try {
-      await api("/api/me", { method: "PATCH", body: { display_name: res } });
-      state.me = null;
-      toast("Name updated", "success");
-      await renderMe();
-    } catch (e) {
-      toast(t('common.errorWithDetails', { error: e.message || e }), "error");
-    }
-  });
-
-  // Trophy shelf hooks
-  $$(".remove-trophy-btn").forEach(btn => {
-    btn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-      const setNum = btn.dataset.set;
-      const newShowcase = showcase.filter(s => s.set_num !== setNum).map(s => s.set_num);
-      haptic("medium");
-      try {
-        await api("/api/users/" + encodeURIComponent(me.handle) + "/showcase", {
-          method: "POST",
-          body: { set_nums: newShowcase }
-        });
-        toast("Removed from trophy shelf", "success");
-        await renderMe();
-      } catch (err) {
-        toast(t('common.errorWithDetails', { error: err.message || err }), "error");
-      }
-    });
-  });
-
-  $("#addTrophyBtn")?.addEventListener("click", () => {
-    showSearchableTrophyPicker(showcase.map(s => s.set_num));
-  });
-
-  // Public Profile privacy & configuration hooks
-  $("#saveHandleBtn")?.addEventListener("click", async () => {
-    const h = ($("#chooseHandleInp")?.value || "").trim().toLowerCase();
-    if (!h) { toast("Enter a handle", "info"); return; }
-    if (!/^[a-zA-Z0-9-]{3,30}$/.test(h)) { toast("Handle: 3-30 chars, letters, numbers, hyphens only", "error"); return; }
-    try {
-      await api("/api/me", { method: "PATCH", body: { handle: h } });
-      state.me = null;
-      toast("Handle saved successfully", "success");
-      await renderMe();
-    } catch (err) {
-      toast(t('common.errorWithDetails', { error: err.message || err }), "error");
-    }
-  });
-
-  let isPublicState = me.is_public;
-  $("#publicToggle")?.addEventListener("click", async (e) => {
-    isPublicState = !isPublicState;
-    e.currentTarget.classList.toggle("on", isPublicState);
-    e.currentTarget.setAttribute("aria-checked", isPublicState);
-    haptic("medium");
-    const toggleEl = e.currentTarget;
-    try {
-      await api("/api/me", { method: "PATCH", body: { is_public: isPublicState } });
-      // Update in place — a full renderMe() here repainted the whole page and
-      // jumped the scroll on every flip.
-      if (state.me) state.me.is_public = isPublicState;
-      toast(isPublicState ? "Profile public" : "Profile private", "info");
-    } catch (err) {
-      isPublicState = !isPublicState;
-      toggleEl.classList.toggle("on", isPublicState);
-      toggleEl.setAttribute("aria-checked", isPublicState);
-      toast(t('common.errorWithDetails', { error: err.message || err }), "error");
-    }
-  });
-
-  let epvState = me.expose_public_value;
-  $("#publicValToggle")?.addEventListener("click", async (e) => {
-    epvState = !epvState;
-    e.currentTarget.classList.toggle("on", epvState);
-    e.currentTarget.setAttribute("aria-checked", epvState);
-    haptic("medium");
-    const epvEl = e.currentTarget;
-    try {
-      await api("/api/me", { method: "PATCH", body: { expose_public_value: epvState } });
-      if (state.me) state.me.expose_public_value = epvState;
-      toast(epvState ? "Valuation visible publicly" : "Valuation hidden publicly", "info");
-    } catch (err) {
-      epvState = !epvState;
-      epvEl.classList.toggle("on", epvState);
-      epvEl.setAttribute("aria-checked", epvState);
-      toast(t('common.errorWithDetails', { error: err.message || err }), "error");
-    }
-  });
-
-  $("#copyProfileUrl")?.addEventListener("click", () => {
-    const url = `${publicOrigin()}/#/u/${encodeURIComponent(me.handle)}`;
-    navigator.clipboard.writeText(url).then(() => {
-      toast("Link copied to clipboard", "success");
-    }).catch(() => {
-      toast("Failed to copy link", "error");
-    });
-  });
-
-  async function clearLocalSessionState() {
-    invalidatePortfolio(); state.me = null; state.catalog.items = [];
-    state.blind.items = []; state.wishlist = []; state.portfolioHistory = null;
-    try {
-      await Promise.all([
-        bvIDB.del('portfolio'),
-        bvIDB.del('catalog'),
-        bvIDB.del('blind')
-      ]);
-    } catch {}
-  }
-
-  $("#signOutRow")?.addEventListener("click", async () => {
-    haptic("medium");
-    await clearVaultWidget();
-    await sbSignOut();
-    await clearLocalSessionState();
-    go("#/");
-  });
-
-  $("#deleteAccountRow")?.addEventListener("click", () => {
-    haptic("medium");
-    showSheet(`
-      <h2 class="u-serif-h" style="color:var(--down)">Delete account</h2>
-      <p style="color:var(--ink-mute);margin-bottom:10px;line-height:1.5">
-        This permanently erases your vault, wishlist, showcase, uploaded photos,
-        reviews, contributions, and preferences. <strong>This cannot be undone.</strong>
-      </p>
-      <p style="color:var(--ink-mute);margin-bottom:12px;line-height:1.5">
-        Type <strong>DELETE</strong> to confirm.
-      </p>
-      <input id="deleteConfirmInput" type="text" autocomplete="off" autocapitalize="characters"
-        placeholder="DELETE" style="font-size:18px;text-align:center;letter-spacing:2px;width:100%;margin-bottom:12px" class="input">
-      <div id="deleteAccountErr" style="color:var(--down);font-size:13px;margin-bottom:10px;display:none"></div>
-      <button class="btn-primary" style="width:100%;background:var(--down);opacity:.5" id="deleteAccountBtn" disabled>Delete my account</button>
-    `);
-    setTimeout(() => $("#deleteConfirmInput")?.focus(), 100);
-    const input = $("#deleteConfirmInput");
-    const btn = $("#deleteAccountBtn");
-    input?.addEventListener("input", () => {
-      const ok = (input.value || "").trim().toUpperCase() === "DELETE";
-      if (btn) { btn.disabled = !ok; btn.style.opacity = ok ? "1" : ".5"; }
-    });
-    btn?.addEventListener("click", async () => {
-      if ((input?.value || "").trim().toUpperCase() !== "DELETE") return;
-      const errEl = $("#deleteAccountErr");
-      if (btn) { btn.disabled = true; btn.textContent = "Deleting…"; }
-      try {
-        await api("/api/me", { method: "DELETE", body: { confirm: "DELETE" } });
-        await clearVaultWidget();
-        await sbSignOut();
-        await clearLocalSessionState();
-        hideSheet();
-        toast("Your account has been deleted.", "info");
-        go("#/");
-      } catch {
-        if (errEl) { errEl.textContent = "Couldn't delete your account. Please try again."; errEl.style.display = "block"; }
-        if (btn) { btn.disabled = false; btn.textContent = "Delete my account"; }
-      }
-    });
-  });
-}
-
-function supportCardHTML(me, patreonUrl) {
-  const perksHTML = `
-    <ul class="support-perks">
-      <li>Investor insights: sell/buy signals, top movers, retirement radar</li>
-      <li>Full 1-year portfolio history (free: 90 days)</li>
-      <li>Market value &amp; ROI columns in CSV export</li>
-      <li>5× photo-scan and revaluation limits</li>
-      <li>Gold ★ skin + ⭐ badge on your public profile</li>
-    </ul>`;
-  const native = isNativeBilling();
-  if (me.is_supporter) {
-    // Premium members get BricksVault Pro. On native, offer the RevenueCat
-    // Customer Center to manage/cancel.
-    return `
-      <h2 class="section-title">BricksVault Pro</h2>
-      <div class="card support-card support-card-active">
-        <div class="supporter-badge-lg">⭐ BricksVault Pro</div>
-        <p class="support-desc">Thank you for going Pro. Your support keeps BricksVault alive — enjoy your perks.</p>
-        ${perksHTML}
-        ${native ? `<button class="btn-secondary" id="rcManageBtn" style="margin-top:12px;">Manage subscription</button>` : ''}
-      </div>`;
-  }
-  // Native (Google Play / Apple) build → Play Billing paywall. Web → Patreon.
-  if (native) {
-    return `
-      <h2 class="section-title">BricksVault Pro</h2>
-      <div class="card support-card">
-        <p class="support-desc">Unlock BricksVault Pro:</p>
-        ${perksHTML}
-        <button class="btn-primary" id="rcUpgradeBtn" style="margin-top:4px;">Upgrade to Pro</button>
-        <button class="btn-ghost" id="rcRestoreBtn" style="width:100%;margin-top:8px;font-size:13px;color:var(--ink-mute);">Restore purchases</button>
-      </div>`;
-  }
-  if (!patreonUrl) return '';
-  return `
-    <h2 class="section-title">Support BricksVault</h2>
-    <div class="card support-card">
-      <p class="support-desc">Back BricksVault on Patreon to unlock supporter perks:</p>
-      ${perksHTML}
-      <a href="${patreonUrl}" target="_blank" rel="noopener" class="btn-primary patreon-btn">
-        Support on Patreon →
-      </a>
-      <p class="u-mute" style="font-size:11px;margin-top:10px;text-align:center;">
-        After pledging, your badge is granted within 24 hours.
-      </p>
-    </div>`;
-}
-
-function guestModeCardHTML() {
-  return `
-    <div class="card" style="padding:14px 16px;margin-bottom:14px;">
-      <div style="font-weight:600;font-size:14px;margin-bottom:6px;">Local guest vault</div>
-      <div class="u-fs-base u-mute" style="line-height:1.45;margin-bottom:12px;">
-        Your sets are saved on this device. Sign in before switching devices to sync your vault, publish a profile, unlock Trophy Shelf, and connect Google Sheets.
-      </div>
-      <button class="btn-primary u-wfull" id="guestSignInBtn">${I.user()}<span>Sign in to sync</span></button>
-    </div>
-  `;
-}
-
-function publicProfileSectionHTML(me) {
-  if (me.is_guest) {
-    return `
-      <h2 class="section-title">Public Profile</h2>
-      <div class="card" style="padding:14px 16px;margin-bottom:14px;">
-        <div class="u-fs-base u-mute" style="line-height:1.45;">
-          Public profiles and Trophy Shelf sync require an account — use <b>Sign in to sync</b> above.
-        </div>
-      </div>
-    `;
-  }
-  if (!me.handle) {
-    return `
-      <h2 class="section-title">Public Profile</h2>
-      <div class="card" style="padding:14px 16px;margin-bottom:14px;">
-        <div class="u-fs-base u-mute" style="margin-bottom:12px;line-height:1.45;">
-          Choose a unique username/handle to create a public profile page showing off your stats and Trophy Shelf.
-        </div>
-        <div class="u-row" style="flex-wrap:wrap;">
-          <input type="text" id="chooseHandleInp" placeholder="your-name" style="flex:1 1 180px;min-width:0;padding:10px;border:var(--bw-thin) solid var(--border-c);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);font-size:14px;outline:none;font-family:var(--sans);">
-          <button class="btn-primary" id="saveHandleBtn" style="width:auto;max-width:100%;white-space:nowrap;padding:10px 16px;">Set Handle</button>
-        </div>
-      </div>
-    `;
-  }
-  const url = `${publicOrigin()}/#/u/${encodeURIComponent(me.handle)}`;
-  return `
-    <div class="section-title">Public Profile</div>
-    <div class="card" style="padding:14px 16px;margin-bottom:14px;">
-      <div class="u-between" style="margin-bottom:10px;">
-        <span class="u-fs-base" style="font-weight:600;">Public Portfolio</span>
-        <button class="toggle ${me.is_public ? "on" : ""}" id="publicToggle" role="switch" aria-label="Public profile" aria-checked="${!!me.is_public}"></button>
-      </div>
-      <div class="u-fs-sm u-mute" style="margin-bottom:12px;line-height:1.45;">
-        When turned on, anyone with the link can view your vault and showcase shelf.
-      </div>
-      <div class="u-between" style="margin-bottom:10px;margin-top:14px;border-top:1px solid var(--border-soft-c);padding-top:10px;">
-        <span class="u-fs-base" style="font-weight:600;">Show total valuation</span>
-        <button class="toggle ${me.expose_public_value ? "on" : ""}" id="publicValToggle" role="switch" aria-label="Public valuation" aria-checked="${!!me.expose_public_value}"></button>
-      </div>
-      <div class="u-fs-sm u-mute" style="margin-bottom:12px;line-height:1.45;">
-        Expose the total value and thematic breakdown of your vault on your public profile.
-      </div>
-      <div class="u-between u-fs-sm public-profile-linkbox">
-        <a href="${url}" class="u-ellipsis public-profile-link">${url}</a>
-        <button class="btn-secondary" id="copyProfileUrl" style="padding:6px 14px;font-size:12px;width:auto;margin:0;min-height:44px;">Copy</button>
-      </div>
-    </div>
-  `;
 }
 
 function showSearchableTrophyPicker(currentSetNums) {

@@ -100,6 +100,20 @@ export async function presentProPaywall() {
   }
 }
 
+// Plan prices for display only (the purchase itself stays in the RevenueCat
+// paywall). Returns [] on the web or when offerings can't be read.
+export async function proPlanPrices() {
+  const Purchases = await configure();
+  if (!Purchases?.getOfferings) return [];
+  try {
+    const offerings = await Purchases.getOfferings();
+    const packages = offerings?.current?.availablePackages || [];
+    return packages
+      .map((p) => ({ type: String(p.packageType || ''), price: p.product?.priceString || '' }))
+      .filter((p) => p.price && (p.type === 'ANNUAL' || p.type === 'MONTHLY'));
+  } catch (e) { console.error('[rc-native] offerings', e); return []; }
+}
+
 // Restore previous purchases (App Store / Play require a visible "Restore").
 export async function restorePurchases() {
   const Purchases = await configure();

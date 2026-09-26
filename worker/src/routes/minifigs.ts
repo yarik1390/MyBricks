@@ -74,7 +74,8 @@ app.get('/', async (c) => {
     c.env.DB.prepare(
       `SELECT m.fig_num, m.name, m.series, m.rarity, m.image_url, m.added_at, m.source,
               m.current_value, m.ebay_value, m.cached_at, m.year, m.num_parts, m.appears_in_sets,
-              COALESCE(um.quantity, 0) as owned_qty
+              COALESCE(um.quantity, 0) as owned_qty,
+              um.purchase_price -- the caller's own holding (NULL when signed out); signed requests are no-store
        FROM minifigs m
        LEFT JOIN user_minifigs um ON um.fig_num = m.fig_num AND um.user_id = ?
        ${pageWhereSQL}

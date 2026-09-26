@@ -3,6 +3,7 @@ import { state, invalidatePortfolio } from '../state.js';
 import { api, isGuestMode } from '../api.js';
 import { checkGemma3Downloaded, downloadGemma3Model, importGemma3ModelFile, deleteGemma3Model, getLocalAiAvailability, getDownloadMetadata, checkStoragePersisted, DEFAULT_MODEL_URL, MODEL_LICENSE_PAGE } from '../lib/local-ai.js';
 import { I } from '../icons.js';
+import { icon as kitIcon } from '../ui/kit.js';
 import { confirmSheet, showSheet, hideSheet } from '../components/sheet.js';
 import { go } from '../router.js';
 import { subpageTopbarHTML, loadMe } from './me-shared.js';
@@ -41,181 +42,121 @@ export async function renderMeIntegrations() {
   if ((localStorage.getItem('bv_gemma_model_url') || '').includes('jardpound')) {
     localStorage.removeItem('bv_gemma_model_url');
   }
-  const gemmaDescDefault = `Requires the model weights (~3GB) to run set photo scanning 100% on-device for free. Official Gemma weights are license-gated: <a href="${MODEL_LICENSE_PAGE}" target="_blank" rel="noopener" style="color:var(--bv-red);font-weight:600;text-decoration:underline;">accept the license</a>, then download with a Hugging Face token — or download the file in your browser and import it below.`;
+  const gemmaDescDefault = `Requires the model weights (~3GB) to run set photo scanning 100% on-device for free. Official Gemma weights are license-gated: <a href="${MODEL_LICENSE_PAGE}" target="_blank" rel="noopener">accept the license</a>, then download with a Hugging Face token — or download the file in your browser and import it below.`;
+
+  const pill = (text, kind = '') => `<span class="bv-pill${kind ? ` bv-pill--${kind}` : ''}">${escapeHtml(text)}</span>`;
+  const head = (ic, title, statusHtml) => `<div class="bv-intcard__head"><span class="bv-intcard__icon" aria-hidden="true">${kitIcon(ic, { size: 22 })}</span><h2 class="bv-intcard__title">${escapeHtml(title)}</h2>${statusHtml}</div>`;
+  const aiEngine = localStorage.getItem('bv_ai_engine') === 'local' ? 'local' : 'cloud';
 
   $("#root").innerHTML = `
-    <div class="page integrations-page">
-      ${subpageTopbarHTML("Connected services", "Integrations")}
+    <main class="bv-page integrations-page bv-integrations">
+      ${subpageTopbarHTML(t('bvAccount.integrationsLead'), t('bvAccount.integrations'))}
 
-      <h2 class="section-title">Google Sheets Sync</h2>
-      <div>
-        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
-          <div class="lbl-wrap">
-            <div class="lbl">Google Sheets Auto-Sync</div>
-            <div class="desc">Keep your spreadsheet "BricksVault Vault" in sync in the background.</div>
+      <section class="bv-intcard" aria-labelledby="intGoogleTitle">
+        ${head('sheets', t('bvAccount.intSheets'), googleStatus.connected ? pill(t('bvAccount.connected'), 'gain') : !googleConfigured ? pill(t('bvAccount.setupNeeded')) : pill(t('bvAccount.notConnected')))}
+        <p class="bv-intcard__desc" id="intGoogleTitle">Keep your spreadsheet "BricksVault Vault" in sync in the background.</p>
+        ${googleStatus.connected ? `
+          ${googleStatus.spreadsheet_id ? `<p class="bv-intcard__meta">Spreadsheet ID: <a href="https://docs.google.com/spreadsheets/d/${escapeHtml(googleStatus.spreadsheet_id)}" target="_blank" rel="noopener">${escapeHtml(googleStatus.spreadsheet_id.slice(0, 16))}...</a></p>` : ''}
+          <div class="bv-intcard__actions">
+            <button type="button" class="bv-btn bv-btn--tonal" id="syncGoogleNowBtn">Sync Now</button>
+            <button type="button" class="bv-btn bv-btn--danger" id="disconnectGoogleBtn">Disconnect</button>
           </div>
-          ${googleStatus.connected ? `
-            <div class="u-col u-wfull">
-              <div class="u-row u-fs-sm u-up" style="font-weight:600;">
-                <span aria-hidden="true" style="display:inline-block;width:8px;height:8px;background:var(--up);border-radius:50%;"></span>
-                Connected to Google Sheets
-              </div>
-              ${googleStatus.spreadsheet_id ? `
-                <div class="u-fs-xs u-mute">
-                  Spreadsheet ID: <a href="https://docs.google.com/spreadsheets/d/${googleStatus.spreadsheet_id}" target="_blank" rel="noopener" style="text-decoration:underline;color:var(--ink);">${googleStatus.spreadsheet_id.slice(0, 16)}...</a>
-                </div>
-              ` : ''}
-              <div class="u-row u-wfull u-mt-1">
-                <button class="btn-secondary u-flex1" id="syncGoogleNowBtn" style="font-size:12px;padding:8px 12px;">Sync Now</button>
-                <button class="btn-secondary" id="disconnectGoogleBtn" style="color:var(--bv-red);font-size:12px;padding:8px 12px;">Disconnect</button>
-              </div>
-            </div>
-          ` : !googleConfigured ? `
-            <div class="u-wfull u-fs-sm u-mute" style="border:var(--bw-thin) solid var(--border-soft-c);border-radius:var(--r-2);background:var(--surface-2);padding:10px 12px;line-height:1.45;">
-              <span>Google Sheets is disabled until OAuth is configured.</span>
-              <span>Missing Worker secrets:</span> ${escapeHtml(googleMissing.join(', '))}. <span>Add them as GitHub Actions secrets and redeploy to enable account linking.</span>
-            </div>
-          ` : guest ? `
-            <div class="integration-ready-note">
-              ${I.check({ w: 16 })}
-              <span>Google OAuth is ready. Sign in first, then connect the spreadsheet you want BricksVault to keep in sync.</span>
-            </div>
-            <button class="btn-primary u-wfull" id="connectGoogleBtn" style="font-size:13px;padding:10px 14px;background:#4285F4;border-color:#4285F4;color:#fff;">
-              ${I.user()} <span>Sign in to connect</span>
-            </button>
-          ` : `
-            <button class="btn-primary u-wfull" id="connectGoogleBtn" style="font-size:13px;padding:10px 14px;background:#4285F4;border-color:#4285F4;color:#fff;">
-              ${I.extLink()} <span>Connect Google Sheets</span>
-            </button>
-          `}
-        </div>
-      </div>
+        ` : !googleConfigured ? `
+          <p class="bv-intcard__note">
+            <span>Google Sheets is disabled until OAuth is configured.</span>
+            <span>Missing Worker secrets:</span> ${escapeHtml(googleMissing.join(', '))}. <span>Add them as GitHub Actions secrets and redeploy to enable account linking.</span>
+          </p>
+        ` : guest ? `
+          <p class="bv-intcard__note integration-ready-note">${I.check({ w: 16 })}<span>Google OAuth is ready. Sign in first, then connect the spreadsheet you want BricksVault to keep in sync.</span></p>
+          <button type="button" class="bv-btn bv-btn--primary bv-btn--full" id="connectGoogleBtn">${kitIcon('user', { size: 20 })}<span>Sign in to connect</span></button>
+        ` : `
+          <button type="button" class="bv-btn bv-btn--primary bv-btn--full" id="connectGoogleBtn">${kitIcon('ext', { size: 20 })}<span>Connect Google Sheets</span></button>
+        `}
+      </section>
 
-      <h2 class="section-title">Discord Alerts</h2>
-      <div>
-        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
-          <div class="lbl-wrap"><div class="lbl">Discord webhook</div><div class="desc">Post price-drop and spike alerts to a Discord channel.</div></div>
-          <div class="u-row u-wfull integration-inline-actions">
-            <input id="discordWebhook" type="url" placeholder="https://discord.com/api/webhooks/…" value="${me.discord_webhook_url ? escapeHtml(me.discord_webhook_url) : ""}" class="u-flex1 u-fs-sm integration-control" style="font-family:var(--mono);border:1px solid var(--border-c);border-radius:var(--r-1);background:var(--surface-2);color:var(--ink);outline:none;" autocomplete="off" spellcheck="false" />
-            <button id="discordWebhookSave" class="btn-secondary u-fs-sm integration-action">Save</button>
-            ${me.discord_webhook_url ? `<button id="discordWebhookClear" class="btn-secondary u-fs-sm integration-action integration-action-danger">Clear</button>` : ""}
+      <section class="bv-intcard" aria-label="Brickset">
+        ${head('brick', t('bvAccount.intBrickset'), me.brickset_connected ? pill(t('bvAccount.connected'), 'gain') : pill(t('bvAccount.notConnected')))}
+        <p class="bv-intcard__desc">Sync sets you've marked as owned on Brickset.com into your vault.</p>
+        ${me.brickset_connected ? `
+          <div class="bv-intcard__actions">
+            <button type="button" id="bricksetSyncBtn" class="bv-btn bv-btn--tonal">Sync Now</button>
+            <button type="button" id="bricksetDisconnectBtn" class="bv-btn bv-btn--danger">Disconnect</button>
           </div>
-        </div>
-      </div>
-
-      <h2 class="section-title">Push Notifications</h2>
-      <div>
-        <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Push notifications</div><div class="desc" id="pushNotifDesc">Receive price alerts on your device even when the app is closed.</div></div>
-          <button class="btn-secondary u-fs-sm integration-action" id="pushNotifBtn" data-push-state="unknown">Enable</button>
-        </div>
-      </div>
-
-      <h2 class="section-title">Brickset Collection Sync</h2>
-      <div>
-        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
-          <div class="lbl-wrap">
-            <div class="lbl">Import from Brickset</div>
-            <div class="desc">Sync sets you've marked as owned on Brickset.com into your vault.</div>
+          <p id="bricksetSyncResult" class="bv-intcard__meta" role="status"></p>
+        ` : `
+          <div class="bv-intcard__form">
+            <div class="bv-field"><div class="bv-field__box"><input id="bricksetUsername" type="text" placeholder="Brickset username" aria-label="Brickset username" autocomplete="username"></div></div>
+            <div class="bv-field"><div class="bv-field__box"><input id="bricksetPassword" type="password" placeholder="Brickset password" aria-label="Brickset password" autocomplete="current-password"></div></div>
+            <button type="button" id="bricksetConnectBtn" class="bv-btn bv-btn--primary bv-btn--full integration-action">Connect Brickset Account</button>
+            <p id="bricksetConnectError" class="bv-field__error" role="alert" style="display:none;"></p>
           </div>
-          ${me.brickset_connected ? `
-            <div class="u-col u-wfull">
-              <div class="u-row u-fs-sm u-up" style="font-weight:600;">
-                <span aria-hidden="true" style="display:inline-block;width:8px;height:8px;background:var(--up);border-radius:50%;"></span>
-                Brickset account connected
-              </div>
-              <div class="u-row u-wfull">
-                <button id="bricksetSyncBtn" class="btn-secondary u-flex1 u-fs-sm" style="padding:8px 12px;">Sync Now</button>
-                <button id="bricksetDisconnectBtn" class="btn-secondary u-fs-sm" style="padding:8px 12px;color:var(--down);">Disconnect</button>
-              </div>
-              <div id="bricksetSyncResult" class="u-fs-xs u-mute"></div>
+        `}
+      </section>
+
+      <section class="bv-intcard" aria-label="Discord">
+        ${head('chat', t('bvAccount.intDiscord'), me.discord_webhook_url ? pill(t('bvAccount.on'), 'gain') : pill(t('bvAccount.off')))}
+        <p class="bv-intcard__desc">Post price-drop and spike alerts to a Discord channel.</p>
+        <div class="bv-field"><label for="discordWebhook">${escapeHtml(t('bvAccount.webhookUrl'))}</label>
+          <div class="bv-field__box"><input id="discordWebhook" type="url" placeholder="https://discord.com/api/webhooks/…" value="${me.discord_webhook_url ? escapeHtml(me.discord_webhook_url) : ""}" class="bv-mono-input integration-control" autocomplete="off" spellcheck="false"></div></div>
+        <div class="bv-intcard__actions integration-inline-actions">
+          <button type="button" id="discordWebhookSave" class="bv-btn bv-btn--tonal integration-action">Save</button>
+          ${me.discord_webhook_url ? `<button type="button" id="discordWebhookClear" class="bv-btn bv-btn--danger integration-action integration-action-danger">Clear</button>` : ""}
+        </div>
+      </section>
+
+      <section class="bv-intcard" aria-label="${escapeHtml(t('bvAccount.intPush'))}">
+        ${head('bell', t('bvAccount.intPush'), '')}
+        <p class="bv-intcard__desc" id="pushNotifDesc">Receive price alerts on your device even when the app is closed.</p>
+        <div class="bv-intcard__actions">
+          <button type="button" class="bv-btn bv-btn--tonal integration-action" id="pushNotifBtn" data-push-state="unknown">Enable</button>
+          <a class="bv-btn bv-btn--text" href="#/me/notifications">${escapeHtml(t('bvAccount.notifications'))}</a>
+        </div>
+      </section>
+
+      <section class="bv-intcard" aria-label="${escapeHtml(t('bvAccount.intAi'))}">
+        ${head('sparkle', t('bvAccount.intAi'), pill(t(aiEngine === 'local' ? 'bvAccount.aiOnDevice' : 'bvAccount.aiCloud'), aiEngine === 'local' ? 'gain' : ''))}
+        <p class="bv-intcard__desc">Scanning and the advisor use <strong>Cloud AI by default</strong> — most accurate and works on any device. Choose “Prefer on-device” to run free, private Gemma / Gemini Nano locally <strong>when your device supports it</strong> (WebGPU) or you're offline; it falls back to Cloud automatically, so scanning always works.</p>
+        <div class="bv-field"><label for="globalAiEngineSelect">Global AI Engine</label>
+          <div class="bv-field__box"><select id="globalAiEngineSelect">
+            <option value="cloud" ${aiEngine !== 'local' ? 'selected' : ''}>Cloud AI (recommended)</option>
+            <option value="local" ${aiEngine === 'local' ? 'selected' : ''}>Prefer on-device (falls back to cloud)</option>
+          </select></div></div>
+        <p class="bv-intcard__meta">${escapeHtml(t('bvAccount.yourKeys', { gemini: savedGeminiKey ? '✓' : '—', openai: savedOpenAIKey ? '✓' : '—' }))}</p>
+        <details class="bv-intcard__more"${localStorage.getItem('bv_gemma_dl') ? ' open' : ''}>
+          <summary>${escapeHtml(t('bvAccount.manageKeys'))}</summary>
+          <div class="bv-intcard__sub">
+            <p class="bv-intcard__label">Gemini API key (free)</p>
+            <p class="bv-intcard__meta">${savedGeminiKey ? "Active - powers scans, advisor, listings, and valuation fallback on your Google quota" : 'Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> - bypasses shared AI limits'}</p>
+            <div class="bv-intcard__inline"><div class="bv-field__box"><input type="password" id="geminiKeyInput" value="${escapeHtml(savedGeminiKey)}" placeholder="AIza..." aria-label="Gemini API key (free)" class="bv-mono-input"></div><button type="button" class="bv-btn bv-btn--tonal" id="saveGeminiKey">Save</button></div>
+          </div>
+          <div class="bv-intcard__sub">
+            <p class="bv-intcard__label">OpenAI key (optional)</p>
+            <p class="bv-intcard__meta">${savedOpenAIKey ? "Active - powers scans, advisor, and listing drafts with your key" : "Optional: use your own OpenAI key for scans, advisor, and listing drafts"}</p>
+            <div class="bv-intcard__inline"><div class="bv-field__box"><input type="password" id="openaiKeyInput" value="${escapeHtml(savedOpenAIKey)}" placeholder="sk-..." aria-label="OpenAI key (optional)" class="bv-mono-input"></div><button type="button" class="bv-btn bv-btn--tonal" id="saveOpenAIKey">Save</button></div>
+          </div>
+          <div class="bv-intcard__sub">
+            <p class="bv-intcard__label">Gemini Nano (Chrome Built-in AI)</p>
+            <p class="bv-intcard__meta" id="chromeAiStatus">Checking compatibility...</p>
+          </div>
+          <div class="bv-intcard__sub">
+            <p class="bv-intcard__label">Gemma Vision Model (Offline Scanning)</p>
+            <p class="bv-intcard__meta" id="gemmaModelDesc">${gemmaDescDefault}</p>
+            <div id="gemmaDownloadStatus" class="bv-intcard__progress" style="display:none;">
+              <div class="bv-intcard__progress-row"><span><span id="gemmaDownloadLabel">Downloading:</span> <span id="gemmaDownloadPct">0%</span></span><button type="button" id="cancelGemmaBtn" class="bv-btn bv-btn--text bv-btn--sm">Cancel</button></div>
+              <div class="bv-intcard__track"><div id="gemmaDownloadBar" style="width:0%;"></div></div>
             </div>
-          ` : `
-            <div class="u-col u-wfull">
-              <input id="bricksetUsername" type="text" placeholder="Brickset username" autocomplete="username" class="u-wfull u-fs-base integration-control" style="border:1px solid var(--border-c);border-radius:var(--r-1);background:var(--surface-2);color:var(--ink);outline:none;box-sizing:border-box;" />
-              <input id="bricksetPassword" type="password" placeholder="Brickset password" autocomplete="current-password" class="u-wfull u-fs-base integration-control" style="border:1px solid var(--border-c);border-radius:var(--r-1);background:var(--surface-2);color:var(--ink);outline:none;box-sizing:border-box;" />
-              <button id="bricksetConnectBtn" class="btn-primary u-wfull integration-action" style="font-size:13px;">Connect Brickset Account</button>
-              <div id="bricksetConnectError" class="u-fs-xs u-down" style="display:none;"></div>
-            </div>
-          `}
-        </div>
-      </div>
-
-      <h2 class="section-title">AI Scanning</h2>
-      <div>
-        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
-          <div class="lbl-wrap">
-            <div class="lbl">Gemini API key (free)</div>
-            <div class="desc">${savedGeminiKey ? "Active - powers scans, advisor, listings, and valuation fallback on your Google quota" : 'Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--bv-red);font-weight:600;text-decoration:underline;">aistudio.google.com/apikey</a> - bypasses shared AI limits'}</div>
-          </div>
-          <div class="u-row u-wfull">
-            <input type="password" id="geminiKeyInput" value="${escapeHtml(savedGeminiKey)}" placeholder="AIza..."
-              class="u-flex1 u-fs-base" style="padding:10px;border:var(--bw-thin) solid var(--border-c);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);font-family:var(--mono);outline:none;">
-            <button class="btn-secondary" id="saveGeminiKey" style="white-space:nowrap;">Save</button>
-          </div>
-        </div>
-        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
-          <div class="lbl-wrap">
-            <div class="lbl">OpenAI key (optional)</div>
-            <div class="desc">${savedOpenAIKey ? "Active - powers scans, advisor, and listing drafts with your key" : "Optional: use your own OpenAI key for scans, advisor, and listing drafts"}</div>
-          </div>
-          <div class="u-row u-wfull">
-            <input type="password" id="openaiKeyInput" value="${escapeHtml(savedOpenAIKey)}" placeholder="sk-..."
-              class="u-flex1 u-fs-base" style="padding:10px;border:var(--bw-thin) solid var(--border-c);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);font-family:var(--mono);outline:none;">
-            <button class="btn-secondary" id="saveOpenAIKey" style="white-space:nowrap;">Save</button>
-          </div>
-        </div>
-      </div>
-
-      <h2 class="section-title">On-Device Offline AI</h2>
-      <div>
-        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
-          <div class="lbl-wrap">
-            <div class="lbl">Global AI Engine</div>
-            <div class="desc">Scanning and the advisor use <strong>Cloud AI by default</strong> — most accurate and works on any device. Choose “Prefer on-device” to run free, private Gemma / Gemini Nano locally <strong>when your device supports it</strong> (WebGPU) or you're offline; it falls back to Cloud automatically, so scanning always works.</div>
-          </div>
-          <div class="u-row u-wfull">
-            <select id="globalAiEngineSelect" class="u-wfull u-fs-base" style="border:1px solid var(--border-c);border-radius:var(--r-1);padding:8px 10px;background:var(--surface-2);color:var(--ink);outline:none;box-sizing:border-box;">
-              <option value="cloud" ${localStorage.getItem('bv_ai_engine') !== 'local' ? 'selected' : ''}>Cloud AI (recommended)</option>
-              <option value="local" ${localStorage.getItem('bv_ai_engine') === 'local' ? 'selected' : ''}>Prefer on-device (falls back to cloud)</option>
-            </select>
-          </div>
-        </div>
-        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
-          <div class="lbl-wrap">
-            <div class="lbl">Gemini Nano (Chrome Built-in AI)</div>
-            <div class="desc" id="chromeAiStatus">Checking compatibility...</div>
-          </div>
-        </div>
-        <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
-          <div class="lbl-wrap">
-            <div class="lbl">Gemma Vision Model (Offline Scanning)</div>
-            <div class="desc" id="gemmaModelDesc">${gemmaDescDefault}</div>
-          </div>
-          <div class="u-col u-wfull" style="gap: 8px;">
-            <div id="gemmaDownloadStatus" class="u-fs-sm u-mute" style="display:none; width: 100%;">
-              <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-                <span><span id="gemmaDownloadLabel">Downloading:</span> <span id="gemmaDownloadPct">0%</span></span>
-                <button id="cancelGemmaBtn" class="btn-secondary" style="padding:2px 10px; font-size:11px; flex-shrink:0;">Cancel</button>
-              </div>
-              <div style="background:var(--line-soft); border-radius:4px; height:6px; width:100%; overflow:hidden; margin-top:4px;">
-                <div id="gemmaDownloadBar" style="background:var(--up); height:100%; width:0%; transition:width 0.2s ease;"></div>
-              </div>
-            </div>
-            <input type="text" id="gemmaModelUrlInput" value="${escapeHtml(localStorage.getItem('bv_gemma_model_url') || DEFAULT_MODEL_URL)}" placeholder="Model URL (.task / .litertlm)"
-              class="u-wfull u-fs-sm" style="padding:8px 10px;border:var(--bw-thin) solid var(--border-c);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);font-family:var(--mono);outline:none;box-sizing:border-box;">
-            <input type="password" id="hfTokenInput" value="${escapeHtml(localStorage.getItem('bv_hf_token') || '')}" placeholder="Hugging Face token (hf_…) — needed for gated models" autocomplete="off"
-              class="u-wfull u-fs-sm" style="padding:8px 10px;border:var(--bw-thin) solid var(--border-c);border-radius:var(--r-2);background:var(--surface-2);color:var(--ink);font-family:var(--mono);outline:none;box-sizing:border-box;">
-            <div class="u-row u-wfull" style="gap: 8px;">
-              <button class="btn-primary u-flex1" id="downloadGemmaBtn" style="padding: 8px 12px; font-size:12px;">Download</button>
-              <button class="btn-secondary u-flex1" id="importGemmaBtn" style="padding: 8px 12px; font-size:12px;">Import file</button>
-              <button class="btn-secondary" id="deleteGemmaBtn" style="white-space:nowrap; padding: 8px 12px; font-size:12px; color:var(--down); display:none;">Delete</button>
-              <input type="file" id="gemmaFileInput" accept=".task,.litertlm,.bin" style="display:none;">
+            <div class="bv-field__box"><input type="text" id="gemmaModelUrlInput" value="${escapeHtml(localStorage.getItem('bv_gemma_model_url') || DEFAULT_MODEL_URL)}" placeholder="Model URL (.task / .litertlm)" aria-label="Model URL (.task / .litertlm)" class="bv-mono-input"></div>
+            <div class="bv-field__box"><input type="password" id="hfTokenInput" value="${escapeHtml(localStorage.getItem('bv_hf_token') || '')}" placeholder="Hugging Face token (hf_…) — needed for gated models" aria-label="Hugging Face token (hf_…) — needed for gated models" autocomplete="off" class="bv-mono-input"></div>
+            <div class="bv-intcard__actions">
+              <button type="button" class="bv-btn bv-btn--primary" id="downloadGemmaBtn">Download</button>
+              <button type="button" class="bv-btn bv-btn--tonal" id="importGemmaBtn">Import file</button>
+              <button type="button" class="bv-btn bv-btn--danger" id="deleteGemmaBtn" style="display:none;">Delete</button>
+              <input type="file" id="gemmaFileInput" accept=".task,.litertlm,.bin" hidden>
             </div>
           </div>
-        </div>
-      </div>
-    </div>`;
+        </details>
+      </section>
+    </main>`;
 
   // --- Google Sheets hooks (secure code-flow redirect) ---
   $("#connectGoogleBtn")?.addEventListener("click", async () => {

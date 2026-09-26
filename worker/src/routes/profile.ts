@@ -10,6 +10,29 @@ const HOLDING_VALUE_COLUMNS = `uc.set_num, uc.condition, uc.quantity,
   ls.ebay_used_value, ls.pc_new_value, ls.pc_complete_value,
   svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair`;
 
+// Up to six trophy sets in shelf order, each valued like the rest of the vault.
+async function loadShowcase(env: Env, userId: string) {
+  const res = await env.DB.prepare(`
+    SELECT ${HOLDING_VALUE_COLUMNS}, ls.name, ls.theme, ls.year, ls.pieces,
+           ls.minifigs, ls.image_url, ls.retired, ls.valuation_method
+    FROM user_showcase us
+    JOIN user_collection uc ON uc.user_id = us.user_id
+      AND uc.set_num = us.set_num AND uc.deleted_at IS NULL
+    JOIN lego_sets ls ON ls.set_num = us.set_num
+    LEFT JOIN set_valuation_state svn ON svn.set_num=ls.set_num AND svn.condition='new_sealed'
+    LEFT JOIN set_valuation_state svu ON svu.set_num=ls.set_num AND svu.condition='used_complete'
+    WHERE us.user_id=?
+    ORDER BY us.display_order ASC
+    LIMIT 6
+  `).bind(userId).all<Record<string, unknown>>();
+  const rolloutPercent = Number(env.PRICING_V3_READ_PERCENT || 0);
+  return (res.results || []).map(s => ({
+    ...s,
+    retired: !!s.retired,
+    market_value: holdingValueForRollout(s, rolloutPercent),
+  }));
+}
+
 // GET /api/users/leaderboard — public ranking of opted-in collections by value.
 // Opt-in = a public profile that also exposes its value and has a handle.
 app.get('/leaderboard', async (c) => {
@@ -78,19 +101,7 @@ app.get('/:handle/profile', async (c) => {
       WHERE uc.user_id=? AND uc.deleted_at IS NULL
     `).bind(userId).all<Record<string, unknown>>(),
 
-    c.env.DB.prepare(`
-      SELECT ${HOLDING_VALUE_COLUMNS}, ls.name, ls.theme, ls.year, ls.pieces,
-             ls.minifigs, ls.image_url, ls.retired, ls.valuation_method
-      FROM user_showcase us
-      JOIN user_collection uc ON uc.user_id = us.user_id
-        AND uc.set_num = us.set_num AND uc.deleted_at IS NULL
-      JOIN lego_sets ls ON ls.set_num = us.set_num
-      LEFT JOIN set_valuation_state svn ON svn.set_num=ls.set_num AND svn.condition='new_sealed'
-      LEFT JOIN set_valuation_state svu ON svu.set_num=ls.set_num AND svu.condition='used_complete'
-      WHERE us.user_id=?
-      ORDER BY us.display_order ASC
-      LIMIT 6
-    `).bind(userId).all<Record<string, unknown>>(),
+    loadShowcase(c.env, userId),
 
     c.env.DB.prepare(`
       SELECT (
@@ -125,11 +136,7 @@ app.get('/:handle/profile', async (c) => {
     set_count: holdingResult.results?.length ?? 0,
     total_value: exposeValue ? totalValue : null,
     top_themes: themes,
-    showcase: showcase.results.map(s => ({
-      ...s,
-      retired: !!s.retired,
-      market_value: holdingValueForRollout(s, rolloutPercent),
-    })),
+    showcase,
   });
 });
 
@@ -172,6 +179,19 @@ app.get('/check-handle/:handle', requireMember, async (c) => {
   ).bind(handle, userId).first();
   
   return c.json({ available: !existing });
+});
+
+// GET /api/users/:handle/showcase — auth required, own handle only. The shelf
+// editor reads from here: the public profile 404s while private, and editing
+// an empty stand-in would overwrite the stored shelf. Registered after
+// /check-handle/:handle so checking the handle "showcase" still works.
+app.get('/:handle/showcase', requireMember, async (c) => {
+  const userId = c.get('userId');
+  const prefs = await c.env.DB.prepare(
+    'SELECT user_id FROM user_prefs WHERE handle=? AND user_id=?'
+  ).bind(c.req.param('handle'), userId).first();
+  if (!prefs) return c.json({ error: 'Not your profile' }, 403);
+  return c.json({ showcase: await loadShowcase(c.env, userId) });
 });
 
 export { app as profileRoute };
