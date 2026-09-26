@@ -393,3 +393,10 @@ Object.assign(es.room, {
   rotateControls: 'Controles de giro de la caja', rotateLeft: 'Girar la caja a la izquierda', rotateRight: 'Girar la caja a la derecha', setNumber: 'Número del set', owned: 'En propiedad',
   listHint: 'Explora tus sets en la lista y abre sus detalles.', retry3D: 'Reintentar 3D', empty: 'Tu sala de exposición está lista. Añade sets a tu bóveda para llenar los estantes.',
 });
+
+// Valoración en el formulario de reseña (las formas ausentes usan el inglés).
+Object.assign(es.contributions, {
+  starRatingOne: 'Valora 1 de 5',
+  starRatingOther: 'Valora {n} de 5',
+  ratingRequired: 'Valoración (obligatoria)',
+});

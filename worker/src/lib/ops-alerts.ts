@@ -66,7 +66,7 @@ export async function runOpsHealthCheck(env: Env): Promise<OpsHealthReport> {
   try {
     // Providers that are actively failing and have not succeeded in 24h. Ones
     // that are simply idle (no recent failures either) are not reported —
-    // BrickOwl is switched off on purpose and must not alert forever.
+    // Inactive providers must not alert forever.
     const { results } = await env.DB.prepare(`
       SELECT service, last_ok_at, last_fail_at, fail_count, last_error
       FROM integration_health

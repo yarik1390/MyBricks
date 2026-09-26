@@ -28,7 +28,6 @@ function baseEnv(extra: Record<string, unknown> = {}): any {
   return {
     ...env,
     EBAY_SOLD_COMPS_ENABLED: undefined,
-    BRICKOWL_ENABLED: undefined,
     BRICKINSIGHTS_ENABLED: undefined,
     FIRECRAWL_ENABLED: undefined,
     FIRECRAWL_API_KEY: undefined,
@@ -67,10 +66,10 @@ describe('feature-flags', () => {
   });
 
   it('ignores non-boolean / unknown values and round-trips through the DB', async () => {
-    await saveFeatureFlags(baseEnv(), { firecrawl: 'yes', brickowl: true, bogus: true });
+    await saveFeatureFlags(baseEnv(), { firecrawl: 'yes', bogus: true });
     clearFeatureFlagsCache();
     const stored = await getFeatureFlags(baseEnv());
-    expect(stored.brickowl).toBe(true);
+    expect('brickowl' in stored).toBe(false);
     expect('firecrawl' in stored).toBe(false); // string 'yes' rejected
     expect('bogus' in stored).toBe(false); // unknown flag rejected
     expect(FEATURE_FLAGS).toContain('firecrawl');

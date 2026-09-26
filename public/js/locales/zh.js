@@ -393,3 +393,10 @@ Object.assign(zh.room, {
   rotateControls: '套装盒旋转控制', rotateLeft: '向左旋转套装盒', rotateRight: '向右旋转套装盒', setNumber: '套装编号', owned: '已收藏',
   listHint: '在列表中浏览套装并打开详情。', retry3D: '重试 3D', empty: '你的展厅已准备就绪。将套装添加到收藏库以摆满陈列架。',
 });
+
+// 评价表单中的评分（缺失形式回退到英文）。
+Object.assign(zh.contributions, {
+  starRatingOne: '评 1 分（满分 5 分）',
+  starRatingOther: '评 {n} 分（满分 5 分）',
+  ratingRequired: '评分（必填）',
+});

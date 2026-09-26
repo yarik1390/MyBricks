@@ -192,7 +192,7 @@ describe('sold evidence pricing card', () => {
       basis({ signal_type: 'asking', sample_count: 50 }),
       basis({ provider_family: 'bricklink', identity_verified: false }),
       basis({ provider_family: 'pricecharting', identity_verified: undefined }),
-      basis({ provider_family: 'brickowl', value: 0 }),
+      basis({ provider_family: 'unknown', value: 0 }),
     ] } } });
 
     assert.equal(result.sampleCount, 0);
@@ -850,10 +850,9 @@ describe('admin helper classification', () => {
   });
 
   it('reports a switched-off source as Off rather than demanding action', () => {
-    // BrickOwl: switch off, 403 recorded 46 days ago — it was sitting in
-    // "Needs action" as "Needs access" for a source nothing calls.
+    // A disabled provider must not be presented as a current failure.
     const provider = classifyProviderHealth({
-      service: 'brickowl',
+      service: 'retired-source',
       configured: true,
       disabled: true,
       status: 'down',
@@ -869,7 +868,7 @@ describe('admin helper classification', () => {
 
   it('still flags a source that is switched ON but failing', () => {
     const provider = classifyProviderHealth({
-      service: 'brickowl',
+      service: 'retired-source',
       configured: true,
       disabled: false,
       status: 'down',
@@ -1402,9 +1401,17 @@ describe('native auth helpers', () => {
     assert.equal(oauthHashFromCallbackUrl('https://example.com/#access_token=tok'), '');
     assert.equal(
       nativeOAuthCallbackFromWebBridge('https://bricksvault.app/?native_oauth=1#access_token=tok&refresh_token=ref'),
-      'app.bricksvault://auth/callback#access_token=tok&refresh_token=ref',
+      '', // A bridge without transaction state must never forward credentials.
     );
     assert.equal(nativeOAuthCallbackFromWebBridge('https://bricksvault.app/#access_token=tok'), '');
+    assert.equal(
+      nativeOAuthCallbackFromWebBridge('https://bricksvault.app/?native_oauth=1&auth_state=abc#access_token=tok'),
+      'app.bricksvault://auth/callback?auth_state=abc#access_token=tok',
+    );
+    assert.equal(
+      oauthHashFromCallbackUrl('app.bricksvault://auth/callback?auth_state=abc#access_token=tok'),
+      '#access_token=tok&auth_state=abc',
+    );
   });
 });
 

@@ -393,3 +393,10 @@ Object.assign(nl.room, {
   rotateControls: 'Draaibediening voor de doos', rotateLeft: 'Doos naar links draaien', rotateRight: 'Doos naar rechts draaien', setNumber: 'Setnummer', owned: 'In bezit',
   listHint: 'Bekijk je sets in de lijst en open hun details.', retry3D: '3D opnieuw proberen', empty: 'Je showroom is klaar. Voeg sets toe aan je kluis om de planken te vullen.',
 });
+
+// Beoordeling in het reviewformulier (ontbrekende vormen vallen terug op Engels).
+Object.assign(nl.contributions, {
+  starRatingOne: 'Beoordeel met 1 van 5',
+  starRatingOther: 'Beoordeel met {n} van 5',
+  ratingRequired: 'Beoordeling (verplicht)',
+});
