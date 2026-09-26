@@ -21,8 +21,8 @@ const ROUTES = [
   // Price game shows real market values — like all pricing surfaces, it stays
   // out of Kids Mode (not in KIDS_ALLOWED).
   { match: (hash) => hash === "/game", key: "game", nav: "/", title: "Price It!", fab: false, navOff: true },
-  { match: (hash) => hash === "/leaderboard", key: "leaderboard", nav: "/me", title: "Leaderboard", fab: false },
-  { match: (hash) => hash.startsWith("/u/"), key: "public-profile", nav: "/me", title: "Public profile", fab: false, navOff: true },
+  { match: (hash) => hash === "/leaderboard", key: "leaderboard", nav: "/me", title: "Leaderboard", fab: true },
+  { match: (hash) => hash.startsWith("/u/"), key: "public-profile", nav: "/me", title: "Public profile", fab: true, navOff: true },
   // nav: null — a set can be reached from Vault, Catalog or Minifigs, so
   // highlighting any one tab (it used to light up Vault) is misleading.
   { match: (hash) => hash.startsWith("/set/"), key: "set-detail", nav: null, title: "Set detail", fab: false, navOff: true },

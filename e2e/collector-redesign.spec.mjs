@@ -89,7 +89,7 @@ test('the advisor button returns wherever no other floating action is shown', as
   await expect(page.locator('#bvFab')).toBeVisible();
   await expect(advisor).toBeHidden();
   // …and comes back on routes without one.
-  for (const route of ['#/leaderboard', '#/build']) {
+  for (const route of ['#/leaderboard', '#/build', '#/u/tester']) {
     await page.goto(`/${route}`);
     await expect(page.locator('#bvFab')).toBeHidden();
     await expect(advisor).toBeVisible();

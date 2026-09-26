@@ -1756,6 +1756,10 @@ body.collector-ui .bv-discover #catalogSortBtn { grid-column: auto; grid-row: au
   .bv-lbbar { left: var(--bv-rail-w); bottom: 0; padding-bottom: calc(12px + var(--safe-bottom, 0px)); }
   .bv-page.has-lbbar { --bv-bottom-clear: calc(var(--safe-bottom, 0px) + 104px); }
 }
+/* The advisor button floats above the join bar instead of over its button. */
+body:has(.bv-page.has-lbbar) .advisor-fab { bottom: calc(var(--bottom-nav-clear) + 88px); }
+/* Without the bottom nav (public profile) it sits at the screen's edge. */
+body.bv-nav-off .advisor-fab { bottom: calc(var(--safe-bottom, 0px) + 20px); }
 
 /* Public profile (canvas: PublicProfile). */
 .bv-pub > .bv-banner { margin: 0 var(--bv-gutter) 12px; }
