@@ -1,17 +1,17 @@
 import { discoverNavigation } from '../components/collector-shell.js';
-import { $, $$, haptic, escapeHtml, setHue, fmtMoney, trendBadgeHTML, THEME_COLORS, bvIDB, SEARCH_DEBOUNCE_MS, mount, toast, thumbImg } from '../utils.js';
+import { $, $$, haptic, escapeHtml, setHue, bvIDB, SEARCH_DEBOUNCE_MS, mount, toast, thumbImg, snackbar } from '../utils.js';
+import { icon as kitIcon, iconBtn as kitIconBtn, row as kitRow, sectionTitle as kitSectionTitle, thumb as kitThumb, pill as kitPill, topbar as kitTopbar, searchBar as kitSearchBar, sheetBody as kitSheetBody, emptyState as kitEmptyState, field as kitField } from '../ui/kit.js';
+import { setRow as kitSetRow, money0 } from '../ui/set-ui.js';
 import { t, tPlural, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 import { state, invalidatePortfolio } from '../state.js';
-import { api, getSessionUserId, photoScanNeedsSetup } from '../api.js';
+import { api, getSessionUserId, photoScanNeedsSetup, outboxEnqueue } from '../api.js';
 import { getModePref } from '../theme.js';
-import { I } from '../icons.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { openScan, lookupScanInput } from '../components/scanner-lazy.js';
 import { trustBadgeHTML } from '../components/trust.js';
 import { activeCatalogFilterCount, pricePerPiece, estMark, displayValueOf, cleanFacetList } from '../lib/pure.js';
 import { catalogFilterSummaryText } from '../lib/filter-summary.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
-import { wireHorizontalRail } from '../lib/horizontal-rail.js';
 
 let _catalogGen = 0;
 
@@ -94,7 +94,7 @@ export async function renderAdd() {
     api("/api/upcoming").then((r) => {
       state.catalog.upcoming = r.upcoming || [];
       state.catalog.upcomingLoaded = true;
-      if (location.hash === "#/add" && $("#catalogResults") && isCatalogDefault()) refreshCatalogGrid();
+      if (location.hash.startsWith("#/add") && $("#catalogResults") && isCatalogDefault()) refreshCatalogGrid();
     }).catch(() => { state.catalog.upcomingLoaded = true; });
   }
   if (!state.catalog.items.length) {
@@ -103,7 +103,7 @@ export async function renderAdd() {
   } else if (state.catalog._stale) {
     state.catalog._stale = false;
     loadCatalog({ reset: true }).then(() => {
-      if (location.hash === '#/add' && $('#catalogResults')) {
+      if (location.hash.startsWith('#/add') && $('#catalogResults')) {
         refreshCatalogGrid();
         if (isCatalogDefault()) bvIDB.set('catalog', { data: { items: state.catalog.items, total: state.catalog.total, hasMore: state.catalog.hasMore, offset: state.catalog.offset }, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
       }
@@ -117,7 +117,7 @@ export async function renderAdd() {
   if (!state.ownedSetNumsLoaded) {
     const before = state.ownedSetNums.size;
     ensureOwnedSetNums().then(() => {
-      if (state.ownedSetNums.size !== before && location.hash === "#/add" && $("#catalogResults")) refreshCatalogGrid();
+      if (state.ownedSetNums.size !== before && location.hash.startsWith("#/add") && $("#catalogResults")) refreshCatalogGrid();
     });
   }
 }
@@ -199,62 +199,207 @@ function catalogQuery() {
   return p.toString();
 }
 
-// "Coming Soon" discovery row (G2b) — upcoming LEGO releases, shown only on the
-// default catalog view (hidden during search/filter). Cards have a wishlist button
-// for logged-in users; the upcoming sets aren't in the trackable catalog yet.
+// "Retiring soon" preview for the default Discover view (LEGO.com stock data).
+async function loadRetiringPreview() {
+  if (state.catalog.retiringPreviewLoaded) return;
+  try {
+    const r = await api("/api/sets/search?retiring=1&sort=value_desc&limit=3");
+    state.catalog.retiringPreview = r.sets || [];
+  } catch { state.catalog.retiringPreview = []; }
+  state.catalog.retiringPreviewLoaded = true;
+}
+
+function wishFor(setNum) { return (state.wishlist || []).find((w) => w.set_num === setNum); }
+
+// Buy-window pill for a retiring set: on your wishlist → Buy window; owned →
+// Hold; a live buy signal → Buy window; else nothing (no fabricated advice).
+function retiringPill(s) {
+  if (isOwnedSet(s)) return kitPill(t("bvAdd.pillHold"));
+  if (wishFor(s.set_num) || s.deal_signal === "buy") return kitPill(t("bvAdd.pillBuyWindow"), "acc");
+  return "";
+}
+
+function retiringMeta(s) {
+  const bits = [s.theme];
+  if (isOwnedSet(s)) bits.push(t("bvAdd.youOwn"));
+  else if (wishFor(s.set_num)) bits.push(t("bvAdd.onYourWishlist"));
+  return bits.filter(Boolean).join(" · ");
+}
+
+function retiringSectionHTML() {
+  const list = state.catalog.retiringPreview || [];
+  if (!isCatalogDefault() || !list.length) return "";
+  return `<section class="bv-discover__section" aria-labelledby="retiringTitle">
+      ${kitSectionTitle(t("bvAdd.retiringSoon"), { id: "retiringTitle", trailHtml: `<a class="bv-card__link" href="#/retiring">${escapeHtml(t("common.seeAll"))}${kitIcon("chev", { size: 16 })}</a>` })}
+      <div class="bv-group__box">${list.slice(0, 3).map((s) => setRowHTML(s, {
+        meta: retiringMeta(s),
+        endHtml: `<span class="bv-setrow__end"><span class="bv-setrow__value">${escapeHtml(money0(displayValueOf(s)))}</span>${retiringPill(s)}</span>`,
+      })).join("")}</div>
+    </section>`;
+}
+
+// "Coming soon" (upcoming LEGO releases): rows with Notify me (= wishlist).
 function comingSoonSectionHTML() {
   const up = state.catalog.upcoming || [];
   if (!isCatalogDefault() || !up.length) return "";
   const isLoggedIn = !!getSessionUserId();
-  const wishlist = new Set((state.wishlist || []).map(w => w.set_num));
-  return `
-    <div class="coming-soon-wrap" style="margin-bottom:16px;">
-      <h2 class="section-title" style="margin-top:0;">Coming Soon</h2>
-      <div tabindex="0" role="region" aria-label="${escapeHtml(t('catalog.comingSoon'))}" style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;">
-        ${up.slice(0, 20).map((u) => {
-          const onWishlist = wishlist.has(u.set_num);
-          return `
-          <div class="cs-card" data-cs-open="${escapeHtml(String(u.set_num))}" style="cursor:pointer;flex:0 0 auto;width:144px;background:var(--surface-2);border:1px solid var(--line-soft);border-radius:var(--r-2);padding:10px;">
-            <div style="font-size:12px;font-weight:600;color:var(--ink);line-height:1.3;height:32px;overflow:hidden;">${escapeHtml(String(u.name || ""))}</div>
-            <div style="font-size:10px;font-family:var(--mono);color:var(--ink-mute);margin-top:4px;">#${escapeHtml(String(u.set_num || "").replace(/-\d+$/, ""))}</div>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:6px;">
-              <span class="price-cue" style="font-size:13px;font-weight:700;color:var(--ink);">${u.price_usd ? fmtMoney(u.price_usd, { cents: 0 }) : ""}</span>
-              <span style="font-size:9px;font-family:var(--mono);font-weight:800;text-transform:uppercase;color:var(--ink);border:1px solid var(--ink-mute);background:var(--surface);border-radius:6px;padding:1px 5px;white-space:nowrap;">${escapeHtml(String(u.availability || "Soon"))}</span>
-            </div>
-            ${isLoggedIn ? `
-            <button class="cs-wish-btn ${onWishlist ? 'cs-wish-btn--on' : ''}" data-cs-wish="${escapeHtml(String(u.set_num))}" data-cs-name="${escapeHtml(String(u.name || ''))}"
-              style="width:100%;margin-top:8px;padding:5px 0;font-size:11px;font-weight:600;border-radius:8px;border:1px solid ${onWishlist ? 'var(--accent)' : 'var(--line)'};background:${onWishlist ? 'var(--accent)' : 'transparent'};color:${onWishlist ? '#fff' : 'var(--ink-mute)'};cursor:pointer;">
-              ${onWishlist ? '✓ Wishlisted' : '+ Wishlist'}
-            </button>` : ''}
-          </div>`;
-        }).join("")}
+  const wish = new Set((state.wishlist || []).map((w) => w.set_num));
+  const row = (u) => {
+    const on = wish.has(u.set_num);
+    return `<div class="bv-setrow cs-card" data-cs-open="${escapeHtml(String(u.set_num))}" role="link" tabindex="0">
+        ${kitThumb({ color: `hsl(${setHue(u)} 45% 60%)`, size: 52 })}
+        <span class="bv-setrow__body"><span class="bv-setrow__name">${escapeHtml(String(u.name || u.set_num))}</span><span class="bv-setrow__meta">${escapeHtml([String(u.set_num || "").replace(/-\d+$/, ""), u.availability || t("bvCommon.comingSoon")].join(" · "))}</span></span>
+        <span class="bv-setrow__end">${u.price_usd ? `<span class="bv-setrow__value">${escapeHtml(money0(u.price_usd))}</span>` : ""}
+          ${isLoggedIn ? `<button type="button" class="bv-pill bv-pill--info bv-notify cs-wish-btn${on ? " cs-wish-btn--on" : ""}" data-cs-wish="${escapeHtml(String(u.set_num))}" data-cs-name="${escapeHtml(String(u.name || ""))}" aria-pressed="${on}">${escapeHtml(t(on ? "bvAdd.notifying" : "bvAdd.notifyMe"))}</button>` : ""}</span>
+      </div>`;
+  };
+  return `<section class="bv-discover__section coming-soon-wrap" aria-labelledby="comingSoonTitle">
+      ${kitSectionTitle(t("catalog.comingSoon"), { id: "comingSoonTitle", trailHtml: up.length > 3 ? `<button type="button" class="bv-card__link bv-linkbtn" id="comingSoonAll">${escapeHtml(t("common.seeAll"))}${kitIcon("chev", { size: 16 })}</button>` : "" })}
+      <div class="bv-group__box" id="comingSoonList">${up.slice(0, state.catalog.showAllUpcoming ? 40 : 3).map(row).join("")}</div>
+    </section>`;
+}
+
+function themeBrowseHTML() {
+  if (!isCatalogDefault() || !state.themes.length) return "";
+  return `<section class="bv-discover__section" aria-labelledby="browseThemesTitle">
+      ${kitSectionTitle(t("bvAdd.browseThemes"), { id: "browseThemesTitle" })}
+      <div class="bv-chips bv-chips--wrap bv-discover__themes">${popularThemes(state.themes, 8).map((th) => `<button type="button" class="bv-chip" data-cat-theme="${escapeHtml(th)}">${escapeHtml(th)}</button>`).join("")}
+        ${state.themes.length > 8 ? `<button type="button" class="bv-chip" id="moreThemesChip">${kitIcon("filter", { size: 18 })}<span>${escapeHtml(t("bvAdd.moreThemes"))}</span></button>` : ""}</div>
+    </section>`;
+}
+
+function toolbarHTML() {
+  const f = state.filter;
+  const n = activeCatalogFilterCount(f);
+  const retiredOn = f.catalogRetired === "retired";
+  return `<div class="bv-discover__toolbar catalog-primary-toolbar" aria-label="${escapeHtml(t("bvAdd.catalogControls"))}">
+      <div class="bv-chips bv-discover__chips">
+        <button type="button" class="bv-chip${n ? " is-on" : ""}" id="filterChip" aria-pressed="${n > 0}">${kitIcon("filter", { size: 18 })}<span>${escapeHtml(n ? tPlural('catalog.filtersWithCount', n) : t('catalog.filters'))}</span></button>
+        <button type="button" class="bv-chip" id="catalogSortBtn" aria-label="${escapeHtml(t("bvAdd.sortBy", { sort: activeCatalogSortLabel(f.catalogSort) }))}">${kitIcon("sort", { size: 18 })}<span>${escapeHtml(activeCatalogSortLabel(f.catalogSort))}</span>${kitIcon("down", { size: 16 })}</button>
+        <button type="button" class="bv-chip" id="retiredQuick" aria-pressed="${retiredOn}">${escapeHtml(t("bvCommon.retired"))}</button>
       </div>
+      <button type="button" class="bv-iconbtn" id="catalogLayoutToggle" aria-label="${escapeHtml(state.compactView ? "View as grid" : "View as list")}" aria-pressed="${state.compactView}">${kitIcon(state.compactView ? "grid" : "list")}</button>
     </div>`;
 }
 
 function catalogResultsHTML() {
   const c = state.catalog;
   const f = state.filter;
-  const listClass = state.compactView ? "compact-list" : "grid";
+  const def = isCatalogDefault();
   return `
+    ${retiringSectionHTML()}
     ${comingSoonSectionHTML()}
-    <div id="catalogCount" class="result-count">${tPlural('counts.results', c.total)}</div>
-    ${c.items.length === 0 ? `
-      <div class="empty card">
-        <div class="empty-icon">${I.search()}</div>
-        <h3>No sets found</h3>
-        <p>${escapeHtml(f.catalogQ
-          ? t('catalog.emptySearchResults', { query: f.catalogQ })
-          : t('catalog.emptyFilteredResults'))}</p>
-        ${!isCatalogDefault() ? `<button class="btn-secondary" id="catalogClearFilters" style="margin-top:12px;">Clear filters</button>` : ""}
-      </div>` : `
-      <div class="${listClass}" id="catalogGrid">
-        ${c.items.map(s => catalogCardHTML(s)).join("")}
+    ${themeBrowseHTML()}
+    ${def ? kitSectionTitle(t("bvAdd.allSets"), { id: "allSetsTitle" }) : ""}
+    ${toolbarHTML()}
+    <p id="catalogCount" class="bv-discover__count result-count">${escapeHtml(tPlural('counts.results', c.total))}${c._seed ? ` · ${escapeHtml(t("bvAdd.offlineCatalog"))}` : ""}</p>
+    ${c.items.length === 0 ? kitEmptyState({
+      icon: "search",
+      title: t("bvAdd.noSets"),
+      body: f.catalogQ ? t('catalog.emptySearchResults', { query: f.catalogQ }) : t('catalog.emptyFilteredResults'),
+      actionsHtml: !def ? `<button type="button" class="bv-btn bv-btn--outline bv-btn--full" id="catalogClearFilters">${escapeHtml(t("bvAdd.clearFilters"))}</button>` : "",
+    }) : `
+      <div class="${state.compactView ? "bv-group__box bv-discover__list" : "bv-grid bv-discover__grid"}" id="catalogGrid">
+        ${c.items.map((s) => catalogCardHTML(s)).join("")}
       </div>
       <div id="catalogSentinel" class="load-sentinel" style="${c.hasMore ? "" : "display:none;"}">
         <div class="spinner"></div>
       </div>`}`;
 }
+
+function refreshCatalogSummary() {
+  // The toolbar (Filters · N chip, sort label, Retired quick chip) is part of
+  // the results region, so a grid refresh repaints it; keep the live-region
+  // summary for screen readers.
+  const el = $("#catalogFilterSummary");
+  if (el) el.textContent = catalogFilterSummaryText(state.filter, t, tPlural);
+}
+
+function tileTagHTML(s) {
+  if (s.retired) return kitPill(t("bvCommon.retired"), "ink");
+  if (s.lego_retiring_soon || (s.retirement_risk_score || 0) >= 70) return kitPill(t("bvAdd.retiring"), "ink");
+  if (s.deal_signal === "buy") return kitPill(s.deal_strong ? t('card.strongBuy', { pct: "" }).trim() : t('card.deal', { pct: "" }).trim(), "gain");
+  return "";
+}
+
+function catalogCardHTML(s) {
+  const owned = isOwnedSet(s);
+  const value = displayValueOf(s);
+  if (state.compactView) {
+    const meta = [s.theme, s.set_num, s.year].filter(Boolean).join(" · ");
+    return setRowHTML(s, {
+      meta,
+      cls: `set-list-card compact${owned ? " is-owned" : ""}`,
+      attrs: { "data-set": s.set_num },
+      endHtml: `<span class="bv-setrow__end"><span class="bv-setrow__value">${escapeHtml(estMark(s))}${escapeHtml(money0(value))}</span>${owned ? kitPill(t("bvAdd.owned"), "gain", { icon: "check" }) : (dealTagHTML(s) || pppBadgeHTML(s) || sourceCueHTML(s) || `<span class="bv-setrow__hint">${escapeHtml(tPlural('card.pieces', s.pieces || 0))}</span>`)}</span>`,
+    });
+  }
+  const meta = [s.set_num, s.year].filter(Boolean).join(" · ");
+  const valueLine = `${estMark(s)}${money0(value)}`;
+  return `<div class="bv-tile${owned ? " is-owned" : ""}" data-set="${escapeHtml(s.set_num)}" data-set-num="${escapeHtml(s.set_num)}">
+      <a class="bv-tile__link" href="#/set/${encodeURIComponent(s.set_num)}" aria-label="${escapeHtml(s.name || s.set_num)}"></a>
+      <span class="bv-tile__media">${setImgTileHTML(s)}${tileTagHTML(s) ? `<span class="bv-tile__tag">${tileTagHTML(s)}</span>` : ""}</span>
+      <span class="bv-tile__body"><span class="bv-tile__name">${escapeHtml(s.name || s.set_num)}</span><span class="bv-tile__meta">${escapeHtml(meta)}</span>
+        <span class="bv-tile__foot"><span class="bv-tile__value">${escapeHtml(valueLine)}</span>${owned ? kitPill(t("bvAdd.owned"), "gain", { icon: "check" }) : ""}</span></span>
+      ${owned ? "" : `<button type="button" class="bv-tile__act" data-add-set="${escapeHtml(s.set_num)}" aria-label="${escapeHtml(t("bvAdd.addNamed", { name: s.name || s.set_num }))}">${kitIcon("plus", { size: 18, stroke: 2.6 })}</button>`}
+    </div>`;
+}
+
+function setImgTileHTML(s) {
+  const color = `hsl(${setHue(s)} 52% 56%)`;
+  const brick = `<svg class="bv-brick" viewBox="0 0 40 32" aria-hidden="true" style="width:56%;height:44%"><rect x="7" y="0" width="9" height="7" rx="2" fill="${color}"/><rect x="24" y="0" width="9" height="7" rx="2" fill="${color}"/><rect x="0" y="5" width="40" height="27" rx="4" fill="${color}"/></svg>`;
+  const hasImg = s.image_url && !String(s.image_url).startsWith("data:");
+  return brick + (hasImg ? `<img class="set-photo" src="${escapeHtml(thumbImg(s.image_url))}" alt="" loading="lazy" decoding="async">` : "");
+}
+
+function setRowHTML(s, opts) {
+  return kitSetRow(s, opts);
+}
+
+// Add from a tile: optimistic owned state, then a snackbar with Add price and
+// Undo — never leave the list.
+async function quickAddFromTile(setNum, btn) {
+  const s = (state.catalog.items || []).find((x) => x.set_num === setNum) || { set_num: setNum, name: setNum };
+  if (state.pendingRequests.has(setNum)) return;
+  state.pendingRequests.add(setNum);
+  haptic("medium");
+  // Re-query each time: the first repaint replaces the tile element, so a held
+  // reference would be detached by the time Undo runs.
+  const markOwned = (on) => {
+    if (on) state.ownedSetNums.add(setNum); else state.ownedSetNums.delete(setNum);
+    const tile = btn.isConnected ? btn.closest(".bv-tile") : document.querySelector(`#catalogGrid .bv-tile[data-set="${CSS.escape(setNum)}"]`);
+    if (tile) tile.outerHTML = catalogCardHTML(s);
+  };
+  markOwned(true);
+  try {
+    const res = await api("/api/collection", { method: "POST", body: { set_num: setNum, quantity: 1 } });
+    invalidatePortfolio();
+    const id = res?.item?.id;
+    snackbar(t("bvAdd.addedName", { name: s.name || setNum }), {
+      type: "success",
+      duration: 6000,
+      actions: [
+        { label: t("bvAdd.addPrice"), onClick: () => { location.hash = `#/set/${encodeURIComponent(setNum)}/edit`; } },
+        ...(id != null ? [{ label: t("common.undo"), kind: "undo", onClick: async () => {
+          try {
+            await api(`/api/collection/${encodeURIComponent(id)}`, { method: "DELETE" });
+            invalidatePortfolio();
+            markOwned(false);
+          } catch { toast(t("common.actionFailed"), "error"); }
+        } }] : []),
+      ],
+    });
+  } catch (err) {
+    if (!navigator.onLine) {
+      outboxEnqueue({ path: "/api/collection", method: "POST", body: { set_num: setNum, quantity: 1 } });
+      toast(t("bvAdd.savedOffline"), "info");
+    } else {
+      markOwned(false);
+      toast(t("common.errorWithDetails", { error: err.message || err }), "error");
+    }
+  } finally { state.pendingRequests.delete(setNum); }
+}
+
 
 function refreshCatalogGrid() {
   const results = $("#catalogResults");
@@ -266,72 +411,7 @@ function refreshCatalogGrid() {
   syncCatalogURL();
 }
 
-function refreshCatalogSummary() {
-  const el = $("#catalogFilterSummary");
-  if (el) el.textContent = catalogFilterSummaryText(state.filter, t, tPlural);
-  // Keep the Filters chip badge/active state in sync (it lives outside the grid
-  // that refreshCatalogGrid re-renders, so it otherwise goes stale after Apply/Clear).
-  const chip = $("#filterChip");
-  if (chip) {
-    const n = activeCatalogFilterCount(state.filter);
-    chip.classList.toggle("active", n > 0);
-    const sp = chip.querySelector("span");
-    if (sp) sp.textContent = n ? tPlural('catalog.filtersWithCount', n) : t('catalog.filters');
-  }
-}
 
-function wireCatalogCards() {
-  const grid = $("#catalogResults");
-  if (!grid || grid._cardsDelegated) return;
-  grid._cardsDelegated = true;
-  grid.addEventListener("click", async (e) => {
-    if (e.target.closest("#catalogClearFilters")) { clearCatalogFilters(); return; }
-    // Coming-soon wishlist button
-    const wishBtn = e.target.closest("[data-cs-wish]");
-    if (!wishBtn) {
-      // The rest of the coming-soon card opens the set detail like any result.
-      const csCard = e.target.closest("[data-cs-open]");
-      if (csCard) { location.hash = "#/set/" + encodeURIComponent(csCard.dataset.csOpen); return; }
-    }
-    if (wishBtn) {
-      e.stopPropagation();
-      const setNum = wishBtn.dataset.csWish;
-      const name = wishBtn.dataset.csName;
-      const isOn = wishBtn.classList.contains("cs-wish-btn--on");
-      haptic("light");
-      try {
-        if (isOn) {
-          await api(`/api/wishlist/by-set/${encodeURIComponent(setNum)}`, { method: "DELETE" });
-          wishBtn.classList.remove("cs-wish-btn--on");
-          wishBtn.style.cssText = "width:100%;margin-top:8px;padding:5px 0;font-size:11px;font-weight:600;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink-mute);cursor:pointer;";
-          wishBtn.textContent = "+ Wishlist";
-          if (state.wishlist) state.wishlist = state.wishlist.filter(w => w.set_num !== setNum);
-        } else {
-          await api("/api/wishlist", { method: "POST", body: { set_num: setNum, name } });
-          wishBtn.classList.add("cs-wish-btn--on");
-          wishBtn.style.cssText = "width:100%;margin-top:8px;padding:5px 0;font-size:11px;font-weight:600;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;";
-          wishBtn.textContent = "✓ Wishlisted";
-          if (state.wishlist) state.wishlist.push({ set_num: setNum, name });
-        }
-      } catch (err) {
-        toast(err.message || "Failed", "error");
-      }
-      return;
-    }
-    const card = e.target.closest(".set-card, .set-list-card.compact");
-    if (!card || !card.dataset.set) return;
-    // Kids mode: set detail is blocked, so a card tap opens a friendly confirm
-    // sheet (no instant add) and, on confirm, adds the set and awards XP.
-    if (getModePref() === "kids") {
-      e.stopPropagation();
-      haptic("light");
-      openKidsAddSheet(card.dataset.set, card);
-      return;
-    }
-    haptic("light");
-    location.hash = "#/set/" + encodeURIComponent(card.dataset.set);
-  });
-}
 
 // Seed the owned-set from whatever collection data we already have, then (once
 // per session) fetch the full list so the catalog can flag owned sets.
@@ -353,15 +433,6 @@ async function ensureOwnedSetNums() {
   } catch { /* non-fatal: owned badges just won't show until next load */ }
 }
 
-// Inject the OWNED overlay onto a catalog card without a full re-render.
-function markCardOwned(card) {
-  if (!card || card.classList.contains("is-owned")) return;
-  card.classList.add("is-owned");
-  const imgWrap = card.querySelector(".set-card-img, .sl-img");
-  if (imgWrap && !imgWrap.querySelector(".owned-tag")) {
-    imgWrap.insertAdjacentHTML("beforeend", `<span class="owned-tag">${I.check()}OWNED</span>`);
-  }
-}
 
 // Kid-friendly confirm-before-add sheet. Already-owned sets show a "you have
 // this" state instead of adding again.
@@ -436,169 +507,207 @@ function mountCatalogSentinel() {
 
 function paintAdd() {
   const f = state.filter;
-
   $("#root").innerHTML = `
-    <div class="page">
-      <div class="topbar">
-        <div class="topbar-heading">
-          <div class="topbar-eyebrow">Catalog</div>
-          <h1 class="topbar-title">${t('collector.discover')}</h1>
-        </div>
-        <div class="topbar-actions" style="margin-left:auto;">
-          <button class="icon-btn" id="catalogSearchToggle" aria-label="Search" aria-expanded="${f.catalogQ ? "true" : "false"}">${I.search()}</button>
-        </div>
-      </div>
-
+    <main class="bv-page has-fab bv-discover" id="discoverPage">
+      ${kitTopbar({ title: t('collector.discover'), actionsHtml: kitIconBtn({ icon: "more", label: t("bvAdd.moreOptions"), id: "discoverMoreBtn" }) })}
+      ${kitSearchBar({ id: "catalogSearch", name: "catalog_search", placeholder: t("bvAdd.searchPlaceholder"), label: t("bvAdd.searchLabel"), value: f.catalogQ, trailHtml: kitIconBtn({ icon: "scan", label: t("bvAdd.scanToSearch"), id: "catalogScanBtn" }) })}
       ${discoverNavigation()}
-      <div class="search-wrap open" style="margin-bottom:14px;">
-        <span class="s-icon">${I.search()}</span>
-        <input class="search-input" id="catalogSearch" name="catalog_search" type="search" aria-label="Search sets" placeholder="${t('collector.catalogSearch')}" autocomplete="off" value="${escapeHtml(f.catalogQ)}">
-      </div>
-
-      <div class="filter-row catalog-theme-row horizontal-rail" aria-label="Popular themes">
-        <button class="chip ${f.catalogTheme === "all" ? "active" : ""}" data-cat-theme="all">All themes</button>
-        ${state.themes.length > 8 && f.catalogTheme !== "all" && !popularThemes(state.themes, quickThemeCount()).includes(f.catalogTheme) ? `<button class="chip active" data-cat-theme="${escapeHtml(f.catalogTheme)}">${escapeHtml(f.catalogTheme)}</button>` : ""}
-        ${popularThemes(state.themes, quickThemeCount()).map(t => `<button class="chip ${f.catalogTheme === t ? "active" : ""}" data-cat-theme="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join("")}
-        ${state.themes.length > 8 ? `<button class="chip" id="moreThemesChip">${I.filter()}<span>More…</span></button>` : ""}
-      </div>
-
-      <div class="catalog-primary-toolbar" aria-label="Catalog controls">
-        <button class="catalog-toolbar-action ${activeCatalogFilterCount(f) ? "active" : ""}" id="filterChip" type="button">
-          ${I.filter()}<span>${escapeHtml(activeCatalogFilterCount(f) ? tPlural('catalog.filtersWithCount', activeCatalogFilterCount(f)) : t('catalog.filters'))}</span>
-        </button>
-        <button class="catalog-toolbar-action" id="catalogSortBtn" type="button">
-          <span>Sort</span><small>${escapeHtml(activeCatalogSortLabel(f.catalogSort))}</small>
-        </button>
-        <button class="catalog-toolbar-action" id="catalogLayoutToggle" type="button" aria-label="View as ${state.compactView ? 'grid' : 'list'}" aria-pressed="${state.compactView}">
-          ${state.compactView ? I.list() : I.grid()}<span>View</span>
-        </button>
-      </div>
-
-      <div class="filter-summary" id="catalogFilterSummary">${escapeHtml(catalogFilterSummaryText(f, t, tPlural))}</div>
-
-      <div id="catalogResults">${catalogResultsHTML()}</div>
-    </div>`;
-
-  // Search is collapsed by default under the header search icon; tapping it
-  // reveals the field and focuses it (tapping again with an empty query hides).
-  $("#catalogSearchToggle")?.addEventListener("click", (e) => {
-    const wrap = document.querySelector(".search-wrap");
-    if (!wrap) return;
-    const open = true; wrap.classList.add("open");
-    e.currentTarget.setAttribute("aria-expanded", String(open));
-    if (open) { $("#catalogSearch")?.focus(); }
-    else if (!state.filter.catalogQ) { /* stays closed */ }
-  });
+      <p class="bv-sr" id="catalogFilterSummary" aria-live="polite">${escapeHtml(catalogFilterSummaryText(f, t, tPlural))}</p>
+      <div id="catalogResults" class="bv-discover__results">${catalogResultsHTML()}</div>
+    </main>`;
 
   const catInput = $("#catalogSearch");
   let catalogSearchTimer = null;
   catInput?.addEventListener("input", (e) => {
     const q = e.target.value;
-    showSearchSpinner(".search-wrap", true);
     clearTimeout(catalogSearchTimer);
     catalogSearchTimer = setTimeout(async () => {
       state.filter.catalogQ = q;
+      $("#catalogResults")?.setAttribute("aria-busy", "true");
       try {
         await loadCatalog({ reset: true });
         refreshCatalogGrid();
       } catch (err) {
         console.error(err);
       } finally {
-        showSearchSpinner(".search-wrap", false);
+        $("#catalogResults")?.removeAttribute("aria-busy");
       }
     }, SEARCH_DEBOUNCE_MS);
   });
+  $("#catalogScanBtn")?.addEventListener("click", () => { haptic("light"); openScan("barcode"); });
+  $("#discoverMoreBtn")?.addEventListener("click", openDiscoverMore);
 
-  const reloadGrid = async () => { await loadCatalog({ reset: true }); refreshCatalogGrid(); };
+  wireCatalogCards();
+  mountCatalogSentinel();
+  if (!state.catalog.retiringPreviewLoaded) {
+    loadRetiringPreview().then(() => { if (location.hash.startsWith("#/add") && $("#catalogResults") && isCatalogDefault()) refreshCatalogGrid(); });
+  }
+}
 
-  $("#catalogLayoutToggle")?.addEventListener("click", () => {
-    state.compactView = !state.compactView;
-    localStorage.setItem("bv_compact_view", state.compactView);
-    haptic("light");
-    const toggleBtn = $("#catalogLayoutToggle");
-    if (toggleBtn) {
-      toggleBtn.innerHTML = `${state.compactView ? I.list() : I.grid()}<span>View</span>`;
-      toggleBtn.setAttribute("aria-label", state.compactView ? "View as grid" : "View as list");
-      toggleBtn.setAttribute("aria-pressed", String(state.compactView));
-    }
-    refreshCatalogGrid();
-  });
-
-  $$("[data-cat-theme]").forEach(b => b.addEventListener("click", () => {
-    state.filter.catalogTheme = b.dataset.catTheme; haptic("light");
-    $$("[data-cat-theme]").forEach(x => x.classList.toggle("active", x.dataset.catTheme === state.filter.catalogTheme));
-    refreshCatalogSummary();
-    reloadGrid();
+// ⋮ on Discover: everything that used to sit in the header and toolbar.
+function openDiscoverMore() {
+  showSheet(kitSheetBody({
+    title: t("bvAdd.moreOptions"),
+    inner: `<div class="bv-group__box">
+      ${kitRow({ icon: "scan", title: t("bvAdd.scanASet"), sub: t("bvAdd.scanASetSub"), id: "dmScan" })}
+      ${kitRow({ icon: "camera", title: t("bvAdd.identifyPhoto"), id: "dmPhoto" })}
+      ${kitRow({ icon: "grid", title: t("bvAdd.shelfSnap"), sub: t("bvAdd.shelfSnapSub"), id: "dmShelf" })}
+      ${kitRow({ icon: "clock", title: t("bvAdd.retiringSoon"), href: "#/retiring", id: "dmRetiring" })}
+      ${kitRow({ icon: "trash", title: t("bvAdd.clearFilters"), id: "dmClear" })}
+    </div>`,
   }));
-  wireHorizontalRail(document.querySelector('.catalog-theme-row'));
-  const wireSortButtons = (root = document) => root.querySelectorAll("[data-csort-base]").forEach(b => b.addEventListener("click", () => {
-    const o = CATALOG_SORTS.find(s => s.base === b.dataset.csortBase);
+  $("#dmScan")?.addEventListener("click", () => { hideSheet(); openScan("barcode"); });
+  $("#dmPhoto")?.addEventListener("click", () => { hideSheet(); openScan("image"); });
+  $("#dmShelf")?.addEventListener("click", () => { hideSheet(); openScan("image", { shelf: true }); });
+  $("#dmRetiring")?.addEventListener("click", () => hideSheet());
+  $("#dmClear")?.addEventListener("click", () => { hideSheet(); clearCatalogFilters(); });
+}
+
+const reloadGrid = async () => { await loadCatalog({ reset: true }); refreshCatalogGrid(); };
+
+function openSortSheet() {
+  const f = state.filter;
+  showSheet(kitSheetBody({
+    title: "Sort catalog",
+    inner: `<div class="bv-group__box sheet-option-list" role="list">
+      ${CATALOG_SORTS.map((o) => {
+        const active = f.catalogSort === o.asc || f.catalogSort === o.desc;
+        return `<button type="button" class="bv-row sheet-option${active ? " active" : ""}" data-csort-base="${o.base}" aria-pressed="${active}"><span class="bv-row__text"><span class="bv-row__title">${escapeHtml(o.tKey ? t(o.tKey) : o.label)}</span>${active ? `<span class="bv-row__sub">${f.catalogSort === o.asc ? "Ascending" : "Descending"}</span>` : ""}</span>${active ? kitIcon("check", { size: 20 }) : ""}</button>`;
+      }).join("")}
+    </div>`,
+  }));
+  $$("#sheet [data-csort-base]").forEach((b) => b.addEventListener("click", () => {
+    const o = CATALOG_SORTS.find((s) => s.base === b.dataset.csortBase);
     if (!o) return;
     const cur = state.filter.catalogSort;
     state.filter.catalogSort = cur === o.desc ? o.asc : cur === o.asc ? o.desc : o.def;
     haptic("light");
     hideSheet();
-    loadCatalog({ reset: true }).then(() => paintAdd());
+    reloadGrid();
   }));
-
-  $("#filterChip")?.addEventListener("click", () => showFilterSheet(reloadGrid));
-  $("#catalogSortBtn")?.addEventListener("click", () => {
-    showSheet(`
-      <div class="sheet-title-row"><h2 class="u-serif-h" style="margin:0;">Sort catalog</h2></div>
-      <div class="sheet-option-list" role="list">
-        ${CATALOG_SORTS.map(o => `<button class="sheet-option ${(f.catalogSort === o.asc || f.catalogSort === o.desc) ? "active" : ""}" type="button" data-csort-base="${o.base}"><span>${escapeHtml(o.tKey ? t(o.tKey) : o.label)}</span><small>${f.catalogSort === o.asc ? "Ascending" : f.catalogSort === o.desc ? "Descending" : ""}</small></button>`).join("")}
-      </div>`);
-    wireSortButtons(document.querySelector(".sheet"));
-  });
-
-  // Searchable picker for the full theme list (the row shows only 8 quick chips).
-  $("#moreThemesChip")?.addEventListener("click", () => {
-    showSheet(`
-      <h2 class="u-serif-h" style="margin:0 4px 12px;">Pick a theme</h2>
-      <div class="search-wrap" style="margin:0 4px 14px;">
-        <span class="s-icon">${I.search()}</span>
-        <input class="search-input" id="themePickerInput" placeholder="Search themes…" autocomplete="off">
-      </div>
-      <div id="themePickerResults" class="scrollable u-col u-gap-1" style="max-height:320px;overflow-y:auto;margin:4px;"></div>
-    `);
-    const results = $("#themePickerResults");
-    const inp = $("#themePickerInput");
-    const paintThemes = (q = "") => {
-      const query = q.toLowerCase().trim();
-      const matches = state.themes
-        .filter(t => !query || t.toLowerCase().includes(query))
-        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-      results.innerHTML = matches.length
-        ? matches.map(t => `<button class="chip u-wfull ${state.filter.catalogTheme === t ? "active" : ""}" data-pick-theme="${escapeHtml(t)}" style="justify-content:flex-start;">${escapeHtml(t)}</button>`).join("")
-        : `<div class="u-mute u-fs-base" style="text-align:center;padding:20px;">No themes match</div>`;
-      results.querySelectorAll("[data-pick-theme]").forEach(b => b.addEventListener("click", () => {
-        state.filter.catalogTheme = b.dataset.pickTheme;
-        haptic("light");
-        hideSheet();
-        // Full repaint so the quick-chip row reflects the picked (often
-        // non-popular) theme — refreshing only the grid left 'All themes' active.
-        loadCatalog({ reset: true }).then(() => paintAdd());
-      }));
-    };
-    paintThemes();
-    inp?.addEventListener("input", e => paintThemes(e.target.value));
-  });
-
-  wireCatalogCards();
-  mountCatalogSentinel();
 }
 
-const showSearchSpinner = (containerSel, active) => {
-  const wrap = document.querySelector(containerSel);
-  if (!wrap) return;
-  const icon = wrap.querySelector(".s-icon");
-  if (!icon) return;
-  if (active) {
-    icon.innerHTML = `<span class="spin" style="display:inline-flex;animation:spin 0.8s linear infinite;">${I.refresh({w: 14, h: 14})}</span>`;
-  } else {
-    icon.innerHTML = I.search();
-  }
-};
+// Searchable picker for the full theme list.
+// From the toolbar a pick applies at once. From the filter sheet, `onPick`
+// hands the theme back so the sheet reopens with the user's other unapplied
+// choices intact.
+function openThemePicker({ current = state.filter.catalogTheme, onPick = null } = {}) {
+  showSheet(kitSheetBody({
+    title: t("bvAdd.pickTheme"),
+    inner: `${kitSearchBar({ id: "themePickerInput", placeholder: t("bvAdd.searchThemes"), label: t("bvAdd.searchThemes") })}
+      <div id="themePickerResults" class="bv-group__box bv-themepicker"></div>`,
+  }));
+  const results = $("#themePickerResults");
+  const paintThemes = (q = "") => {
+    const query = q.toLowerCase().trim();
+    const matches = state.themes
+      .filter((th) => !query || th.toLowerCase().includes(query))
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+    results.innerHTML = matches.length
+      ? matches.map((th) => `<button type="button" class="bv-row" data-pick-theme="${escapeHtml(th)}" aria-pressed="${current === th}"><span class="bv-row__text"><span class="bv-row__title">${escapeHtml(th)}</span></span>${current === th ? kitIcon("check", { size: 20 }) : ""}</button>`).join("")
+      : `<p class="bv-foot">${escapeHtml(t("bvAdd.noThemes"))}</p>`;
+    results.querySelectorAll("[data-pick-theme]").forEach((b) => b.addEventListener("click", () => {
+      haptic("light");
+      if (onPick) { onPick(b.dataset.pickTheme); return; }
+      state.filter.catalogTheme = b.dataset.pickTheme;
+      hideSheet();
+      reloadGrid();
+    }));
+  };
+  paintThemes();
+  $("#themePickerInput")?.addEventListener("input", (e) => paintThemes(e.target.value));
+}
+
+function wireCatalogCards() {
+  const grid = $("#catalogResults");
+  if (!grid || grid._cardsDelegated) return;
+  grid._cardsDelegated = true;
+  grid.addEventListener("click", async (e) => {
+    if (e.target.closest("#catalogClearFilters")) { clearCatalogFilters(); return; }
+    if (e.target.closest("#filterChip")) { showFilterSheet(reloadGrid); return; }
+    if (e.target.closest("#catalogSortBtn")) { openSortSheet(); return; }
+    if (e.target.closest("#moreThemesChip")) { openThemePicker(); return; }
+    if (e.target.closest("#comingSoonAll")) { state.catalog.showAllUpcoming = !state.catalog.showAllUpcoming; refreshCatalogGrid(); return; }
+    if (e.target.closest("#retiredQuick")) {
+      state.filter.catalogRetired = state.filter.catalogRetired === "retired" ? "all" : "retired";
+      haptic("light");
+      reloadGrid();
+      return;
+    }
+    if (e.target.closest("#catalogLayoutToggle")) {
+      state.compactView = !state.compactView;
+      localStorage.setItem("bv_compact_view", state.compactView);
+      haptic("light");
+      refreshCatalogGrid();
+      $("#catalogLayoutToggle")?.focus();
+      return;
+    }
+    const themeChip = e.target.closest("[data-cat-theme]");
+    if (themeChip) {
+      state.filter.catalogTheme = themeChip.dataset.catTheme;
+      haptic("light");
+      reloadGrid();
+      return;
+    }
+    const addBtn = e.target.closest("[data-add-set]");
+    if (addBtn) {
+      e.preventDefault();
+      if (getModePref() === "kids") { openKidsAddSheet(addBtn.dataset.addSet, addBtn.closest(".bv-tile")); return; }
+      quickAddFromTile(addBtn.dataset.addSet, addBtn);
+      return;
+    }
+    // Coming-soon: Notify me = wishlist the upcoming set.
+    const wishBtn = e.target.closest("[data-cs-wish]");
+    if (wishBtn) {
+      e.stopPropagation();
+      const setNum = wishBtn.dataset.csWish;
+      const name = wishBtn.dataset.csName;
+      const isOn = wishBtn.getAttribute("aria-pressed") === "true";
+      haptic("light");
+      try {
+        if (isOn) {
+          await api(`/api/wishlist/by-set/${encodeURIComponent(setNum)}`, { method: "DELETE" });
+          if (state.wishlist) state.wishlist = state.wishlist.filter((w) => w.set_num !== setNum);
+        } else {
+          await api("/api/wishlist", { method: "POST", body: { set_num: setNum, name } });
+          if (state.wishlist) state.wishlist.push({ set_num: setNum, name });
+        }
+        wishBtn.setAttribute("aria-pressed", String(!isOn));
+        wishBtn.classList.toggle("cs-wish-btn--on", !isOn);
+        wishBtn.textContent = t(!isOn ? "bvAdd.notifying" : "bvAdd.notifyMe");
+      } catch (err) {
+        toast(err.message || t("common.actionFailed"), "error");
+      }
+      return;
+    }
+    const csCard = e.target.closest("[data-cs-open]");
+    if (csCard) { location.hash = "#/set/" + encodeURIComponent(csCard.dataset.csOpen); return; }
+    // Kids mode: set detail is blocked, so a card tap opens a friendly confirm
+    // sheet (no instant add) and, on confirm, adds the set and awards XP.
+    const card = e.target.closest(".bv-tile, .set-list-card");
+    if (card && getModePref() === "kids") {
+      e.preventDefault();
+      e.stopPropagation();
+      haptic("light");
+      openKidsAddSheet(card.dataset.set || card.dataset.setNum, card);
+      return;
+    }
+    if (card) haptic("light");
+  });
+  grid.addEventListener("keydown", (e) => {
+    const cs = e.target.closest?.("[data-cs-open]");
+    if (cs && (e.key === "Enter" || e.key === " ") && e.target === cs) { e.preventDefault(); location.hash = "#/set/" + encodeURIComponent(cs.dataset.csOpen); }
+  });
+}
+
+// Inject the owned state onto a catalog card without a full re-render.
+function markCardOwned(card) {
+  if (!card || card.classList.contains("is-owned")) return;
+  const s = (state.catalog.items || []).find((x) => x.set_num === (card.dataset.set || card.dataset.setNum));
+  if (s) card.outerHTML = catalogCardHTML(s);
+  else card.classList.add("is-owned");
+}
+
 
 function clearCatalogFilters() {
   const f = state.filter;
@@ -615,80 +724,126 @@ function clearCatalogFilters() {
   loadCatalog({ reset: true }).then(() => paintAdd());
 }
 
-function showFilterSheet(onApply) {
+// Filters sheet (canvas: Filters): status, theme, value, deal signal, then the
+// finer facets. "Show N sets" previews the result count before applying.
+// `initial` reopens the sheet with an unapplied draft (after "More themes").
+function showFilterSheet(onApply, initial = null) {
   const r = state.filter.catalogRanges;
-  const rangeField = (label, minKey, maxKey, ph1, ph2) => {
+  const f = initial || state.filter;
+  const shownRanges = initial ? initial.catalogRanges : r;
+  const rangeField = (label, minKey, maxKey, ph1, ph2, money = false) => {
     const accessibleLabel = t({ min_year: 'catalog.releaseYear', min_pieces: 'catalog.pieces', min_value: 'catalog.currentValue' }[minKey]);
-    return `
-    <div class="field" style="margin-bottom:14px;">
-      <div class="field-lbl">${label}</div>
-      <div class="range-inputs">
-        <input type="number" inputmode="numeric" id="f_${minKey}" value="${r[minKey]}" placeholder="${ph1}" aria-label="${escapeHtml(accessibleLabel)} — ${escapeHtml(t('catalog.minimum'))}" aria-describedby="f_${minKey}_error">
-        <span class="range-dash">–</span>
-        <input type="number" inputmode="numeric" id="f_${maxKey}" value="${r[maxKey]}" placeholder="${ph2}" aria-label="${escapeHtml(accessibleLabel)} — ${escapeHtml(t('catalog.maximum'))}" aria-describedby="f_${minKey}_error">
-      </div>
-      <p id="f_${minKey}_error" class="field-error" role="alert" hidden></p>
-    </div>`;
-  };
-  const f = state.filter;
-  const activeCount = activeCatalogFilterCount(f);
-  const facetGroup = (label, key, opts, cur) => {
-    if (!opts || !opts.length) return '';
-    return `
-      <section class="filter-sheet-section">
-        <div class="field-lbl">${label}</div>
-        <div class="sheet-chip-grid sheet-facet" data-facet="${key}">
-          <button class="chip ${(cur || 'all') === 'all' ? 'active' : ''}" data-fval="all">All</button>
-          ${opts.map(o => `<button class="chip ${cur === o ? 'active' : ''}" data-fval="${escapeHtml(o)}">${escapeHtml(o)}</button>`).join('')}
-        </div>
+    const box = (key, ph, which) => `<div class="bv-field"><label for="f_${key}">${escapeHtml(t(which === "min" ? "bvAdd.min" : "bvAdd.max"))}</label>
+      <div class="bv-field__box">${money ? `<span class="bv-field__prefix">$</span>` : ""}<input class="bv-mono-input" type="number" inputmode="numeric" id="f_${key}" value="${escapeHtml(String(shownRanges[key] ?? ""))}" placeholder="${escapeHtml(ph)}" aria-label="${escapeHtml(accessibleLabel)} — ${escapeHtml(t(which === "min" ? 'catalog.minimum' : 'catalog.maximum'))}" aria-describedby="f_${minKey}_error"></div></div>`;
+    return `<section class="bv-filter__section">
+        <h3>${escapeHtml(label)}</h3>
+        <div class="bv-form-grid">${box(minKey, ph1, "min")}${box(maxKey, ph2, "max")}</div>
+        <p id="f_${minKey}_error" class="bv-field__error field-error" role="alert" hidden></p>
       </section>`;
   };
-  showSheet(`
-    <div class="sheet-title-row">
-      <h2 class="u-serif-h" style="margin:0;">Advanced Filters</h2>
-      ${activeCount ? `<span class="trust-badge warn">${tPlural('catalog.activeFilters', activeCount)}</span>` : `<span class="trust-badge neutral">None active</span>`}
+  const chipGroup = (key, opts, cur, { allowNone = true } = {}) => `<div class="bv-chips bv-chips--wrap sheet-facet" data-facet="${key}" data-allow-none="${allowNone}">
+      ${opts.map(([v, l]) => `<button type="button" class="bv-chip" data-fval="${escapeHtml(v)}" aria-pressed="${cur === v}">${escapeHtml(l)}</button>`).join("")}
+    </div>`;
+  const facetGroup = (label, key, opts, cur) => (!opts || !opts.length) ? "" : `<section class="bv-filter__section">
+      <h3>${escapeHtml(label)}</h3>${chipGroup(key, opts.map((o) => [o, o]), cur || "all")}</section>`;
+  const themes = popularThemes(state.themes, 4);
+  if (f.catalogTheme && f.catalogTheme !== "all" && !themes.includes(f.catalogTheme)) themes.unshift(f.catalogTheme);
+  showSheet(kitSheetBody({
+    title: t("bvAdd.filters"),
+    id: "filterSheet",
+    inner: `<div class="bv-filter advanced-filter-sheet">
+      <section class="bv-filter__section">
+        <h3>${escapeHtml(t("bvAdd.status"))}</h3>
+        ${chipGroup("retired", [["active", t("bvAdd.available")], ["retiring", t("bvAdd.retiringSoon")], ["retired", t("bvCommon.retired")]], f.catalogRetired || "all")}
+      </section>
+      <section class="bv-filter__section">
+        <h3>${escapeHtml(t("bvAdd.theme"))}</h3>
+        ${chipGroup("theme", themes.map((th) => [th, th]), f.catalogTheme || "all")}
+        ${state.themes.length > 4 ? `<button type="button" class="bv-chip" id="filterMoreThemes">${escapeHtml(t("bvAdd.moreThemes"))}${kitIcon("down", { size: 16 })}</button>` : ""}
+      </section>
+      ${rangeField(t("bvAdd.value"), "min_value", "max_value", "0", t("bvAdd.any"), true)}
+      <section class="bv-filter__section">
+        <h3>${escapeHtml(t("bvAdd.dealSignal"))}</h3>
+        ${chipGroup("deal", [["on", t("bvAdd.dealBuy")]], f.catalogDeal ? "on" : "off")}
+      </section>
+      ${rangeField(t("catalog.releaseYear"), "min_year", "max_year", "1949", String(new Date().getFullYear()))}
+      ${rangeField(t("catalog.pieces"), "min_pieces", "max_pieces", "0", t("bvAdd.any"))}
+      ${facetGroup(t("bvAdd.themeGroup"), "theme_group", state.themeGroups, f.catalogThemeGroup)}
+      ${facetGroup(t("bvAdd.category"), "category", state.categories, f.catalogCategory)}
     </div>
-    <div class="filter-active-line">${escapeHtml(catalogFilterSummaryText(f, t, tPlural))}</div>
-    <div class="scrollable advanced-filter-sheet">
-      <section class="filter-sheet-section">
-        <div class="field-lbl">Availability</div>
-        <div class="sheet-chip-grid sheet-facet" data-facet="retired">
-          ${[["all","All"],["active","Active"],["retired","Retired"],["retiring","Retiring"]].map(([k,l]) => `<button class="chip ${(f.catalogRetired || "all") === k ? "active" : ""}" data-fval="${k}">${l}</button>`).join("")}
-        </div>
-      </section>
-      <section class="filter-sheet-section">
-        <div class="field-lbl">Deals</div>
-        <div class="sheet-chip-grid sheet-facet" data-facet="deal">
-          <button class="chip ${!f.catalogDeal ? "active" : ""}" data-fval="off">Any price</button>
-          <button class="chip ${f.catalogDeal ? "active" : ""}" data-fval="on">Deals only</button>
-        </div>
-      </section>
-      ${facetGroup("Theme group", "theme_group", state.themeGroups, f.catalogThemeGroup)}
-      ${facetGroup("Category", "category", state.categories, f.catalogCategory)}
-      <section class="filter-sheet-section">
-        <div class="filter-section-title">Ranges</div>
-        ${rangeField("Release Year", "min_year", "max_year", "Min year", "Max year")}
-        ${rangeField("Piece Count", "min_pieces", "max_pieces", "Min pieces", "Max pieces")}
-        ${rangeField("Current Value ($)", "min_value", "max_value", "Min value", "Max value")}
-      </section>
-    </div>
-    <div class="btn-row sheet-sticky-actions">
-      <button class="btn-secondary" id="filterClear">Clear all</button>
-      <button class="btn-primary" id="filterApply">Apply filters</button>
-    </div>`);
+    <div class="bv-btn-row bv-filter__actions sheet-sticky-actions">
+      <button type="button" class="bv-btn bv-btn--outline" id="filterClear">${escapeHtml(t("bvAdd.clear"))}</button>
+      <button type="button" class="bv-btn bv-btn--primary" id="filterApply">${escapeHtml(t("bvAdd.showResults"))}</button>
+    </div>`,
+  }));
 
-  $$(".sheet-facet").forEach(group => group.addEventListener("click", (e) => {
+  $$("#filterSheet .sheet-facet").forEach((group) => group.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-fval]");
     if (!btn) return;
-    group.querySelectorAll("[data-fval]").forEach(x => x.classList.toggle("active", x === btn));
+    const on = btn.getAttribute("aria-pressed") !== "true";
+    group.querySelectorAll("[data-fval]").forEach((x) => x.setAttribute("aria-pressed", String(x === btn && on)));
+    haptic("light");
+    previewCount();
   }));
-  const readFacet = (key) => document.querySelector(`.sheet-facet[data-facet="${key}"] .chip.active`)?.dataset.fval || "all";
+  $("#filterMoreThemes")?.addEventListener("click", () => {
+    const draft = readDraft();
+    openThemePicker({
+      current: draft.catalogTheme,
+      onPick: (theme) => showFilterSheet(onApply, { ...draft, catalogTheme: theme }),
+    });
+  });
+  const readFacet = (key) => document.querySelector(`#filterSheet .sheet-facet[data-facet="${key}"] [aria-pressed="true"]`)?.dataset.fval || "all";
+  const readDraft = () => {
+    const draft = { ...state.filter, catalogRanges: { ...r } };
+    Object.keys(draft.catalogRanges).forEach((k) => {
+      const el = document.getElementById("f_" + k);
+      if (el) draft.catalogRanges[k] = el.value !== "" ? parseFloat(el.value) : "";
+    });
+    draft.catalogThemeGroup = readFacet("theme_group");
+    draft.catalogCategory = readFacet("category");
+    draft.catalogRetired = readFacet("retired");
+    draft.catalogTheme = readFacet("theme");
+    draft.catalogDeal = readFacet("deal") === "on";
+    return draft;
+  };
+  // Live "Show N sets": a 1-row query with the draft filters.
+  let previewTimer = null;
+  let previewGen = 0;
+  const previewCount = () => {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(async () => {
+      const gen = ++previewGen;
+      const saved = state.filter;
+      const savedOffset = state.catalog.offset;
+      const savedSize = state.catalog.pageSize;
+      try {
+        state.filter = readDraft();
+        state.catalog.offset = 0;
+        state.catalog.pageSize = 1;
+        const qs = catalogQuery();
+        state.filter = saved;
+        state.catalog.offset = savedOffset;
+        state.catalog.pageSize = savedSize;
+        const res = await api("/api/sets/search?" + qs);
+        if (gen !== previewGen) return;
+        const btn = $("#filterApply");
+        if (btn) btn.textContent = tPlural("bvAdd.showSets", res.total ?? 0, { count: (res.total ?? 0).toLocaleString() });
+      } catch {
+        state.filter = saved;
+        state.catalog.offset = savedOffset;
+        state.catalog.pageSize = savedSize;
+      }
+    }, 250);
+  };
+  $$("#filterSheet input[type='number']").forEach((i) => i.addEventListener("input", previewCount));
+  previewCount();
 
   $("#filterClear").addEventListener("click", () => {
-    Object.keys(r).forEach(k => r[k] = "");
+    Object.keys(r).forEach((k) => { r[k] = ""; });
     state.filter.catalogThemeGroup = "all";
     state.filter.catalogCategory = "all";
     state.filter.catalogRetired = "all";
+    state.filter.catalogTheme = "all";
     state.filter.catalogDeal = false;
     hideSheet();
     onApply();
@@ -711,16 +866,57 @@ function showFilterSheet(onApply) {
       firstInvalid.focus();
       return;
     }
-    Object.keys(r).forEach(k => {
-      const el = document.getElementById("f_" + k);
-      if (el) r[k] = el.value !== "" ? parseFloat(el.value) : "";
-    });
-    state.filter.catalogThemeGroup = readFacet("theme_group");
-    state.filter.catalogCategory = readFacet("category");
-    state.filter.catalogRetired = readFacet("retired");
-    state.filter.catalogDeal = readFacet("deal") === "on";
+    const draft = readDraft();
+    Object.assign(r, draft.catalogRanges);
+    state.filter.catalogThemeGroup = draft.catalogThemeGroup;
+    state.filter.catalogCategory = draft.catalogCategory;
+    state.filter.catalogRetired = draft.catalogRetired;
+    state.filter.catalogTheme = draft.catalogTheme;
+    state.filter.catalogDeal = draft.catalogDeal;
     hideSheet();
     onApply();
+  });
+}
+
+export function renderPile() {
+  const photoNeedsSetup = photoScanNeedsSetup();
+  $("#root").innerHTML = `
+    <main class="bv-page no-nav scan-page bv-pile">
+      ${kitTopbar({ title: t("bvAdd.scanASet"), sub: t("bvAdd.pileSub"), back: "history" })}
+      <section class="bv-group scan-choice" aria-labelledby="scanChoiceTitle">
+        <h2 class="bv-h2" id="scanChoiceTitle">${escapeHtml(t("bvAdd.howIdentify"))}</h2>
+        <div class="bv-group__box scan-method-list" role="group" aria-label="${escapeHtml(t("bvAdd.scanMode"))}">
+          <button type="button" class="bv-row scan-method" id="pileScanBarcode">${kitIcon("scan", { size: 22 })}<span class="bv-row__text scan-method-copy"><span class="bv-row__title">${escapeHtml(t("bvAdd.scanBarcode"))}</span><span class="bv-row__sub">${escapeHtml(t("bvAdd.scanBarcodeSub"))}</span></span><span class="bv-row__trail scan-method-arrow" aria-hidden="true">${kitIcon("chev", { size: 20 })}</span></button>
+          <button type="button" class="bv-row scan-method${photoNeedsSetup ? " needs-setup" : ""}" id="pileScanPhoto"${photoNeedsSetup ? ' aria-describedby="photoScanAvailability"' : ""}>${kitIcon("camera", { size: 22 })}<span class="bv-row__text scan-method-copy"><span class="bv-row__title">${escapeHtml(t("bvAdd.identifyPhoto"))}</span><span class="bv-row__sub" id="photoScanAvailability">${escapeHtml(t(photoNeedsSetup ? "bvAdd.photoNeedsSetup" : "bvAdd.identifyPhotoSub"))}</span></span><span class="bv-row__trail scan-method-arrow" aria-hidden="true">${kitIcon("chev", { size: 20 })}</span></button>
+          <button type="button" class="bv-row scan-method" id="pileScanShelf"${photoNeedsSetup ? ' aria-describedby="photoScanAvailability"' : ""}>${kitIcon("grid", { size: 22 })}<span class="bv-row__text scan-method-copy"><span class="bv-row__title">${escapeHtml(t("bvAdd.shelfSnap"))}</span><span class="bv-row__sub">${escapeHtml(t("bvAdd.shelfSnapSub"))}</span></span><span class="bv-row__trail scan-method-arrow" aria-hidden="true">${kitIcon("chev", { size: 20 })}</span></button>
+        </div>
+      </section>
+      <form class="bv-card bv-form" id="pileManualForm" novalidate>
+        ${kitField({ id: "pileManualInput", name: "set_identifier", label: t("bvAdd.typeLabel"), placeholder: t("bvAdd.typePlaceholder"), mono: true, inputmode: "search", autocomplete: "off", attrs: { spellcheck: "false" } })}
+        <p class="bv-field__error scan-manual-error" id="pileManualError" role="status" aria-live="polite"></p>
+        <button id="pileManualSubmit" class="bv-btn bv-btn--primary bv-btn--full" type="submit" aria-label="${escapeHtml(t("bvAdd.lookUpSet"))}">${kitIcon("search", { size: 20 })}<span>${escapeHtml(t("bvAdd.lookUp"))}</span></button>
+      </form>
+      <p class="bv-foot scan-privacy-note">${escapeHtml(t(photoNeedsSetup ? "bvAdd.pilePrivacyGuest" : "bvAdd.pilePrivacy"))}</p>
+    </main>`;
+
+  $("#pileScanBarcode")?.addEventListener("click", () => openScan("barcode"));
+  $("#pileScanPhoto")?.addEventListener("click", () => openScan("image"));
+  $("#pileScanShelf")?.addEventListener("click", () => openScan("image", { shelf: true }));
+  $("#pileManualForm")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const input = $("#pileManualInput");
+    const submit = $("#pileManualSubmit");
+    const error = $("#pileManualError");
+    if (error) error.textContent = "";
+    if (submit) submit.disabled = true;
+    try {
+      await lookupScanInput(input?.value || "");
+    } catch (e) {
+      if (error) error.textContent = e.message || t("bvAdd.typeInvalid");
+      input?.focus();
+    } finally {
+      if (submit) submit.disabled = false;
+    }
   });
 }
 
@@ -741,10 +937,6 @@ function popularThemes(all, n = 8) {
   return picked.slice(0, n);
 }
 
-function quickThemeCount() {
-  try { return window.matchMedia?.("(max-width: 480px)")?.matches ? 3 : 8; }
-  catch { return 8; }
-}
 
 function sourceCueHTML(s) { return trustBadgeHTML(s, { compact: true }); }
 
@@ -775,133 +967,4 @@ function isOwnedSet(s) {
   return !!s.owned || state.ownedSetNums.has(s.set_num);
 }
 
-function catalogCardHTML(s) {
-  const owned = isOwnedSet(s);
-  const hasImg = s.image_url && !s.image_url.startsWith("data:");
-  const h = setHue(s);
-  // Prefer the blended market value (valuation v2) over the formula estimate.
-  const dispVal = displayValueOf(s);
-  const mvConf = Number(s.market_value) > 0 ? (s.market_value_confidence || null) : null;
-  const confDot = mvConf ? `<span class="price-cue" title="Market confidence: ${mvConf}" style="display:inline-block;width:6px;height:6px;border-radius:50%;vertical-align:middle;margin-right:4px;background:${mvConf === 'high' ? 'var(--up)' : mvConf === 'medium' ? 'var(--accent)' : 'var(--bv-yellow)'};"></span>` : '';
 
-  if (state.compactView) {
-    const borderStyle = ` style="border-left-color: ${THEME_COLORS[s.theme] || 'var(--line)'};"`;
-    return `
-      <button class="set-list-card compact" data-set="${escapeHtml(s.set_num)}"${borderStyle}>
-        <div class="sl-img${hasImg ? " has-photo" : ""}" style="width:42px;height:42px;">
-          <div class="brick-tile" style="--h:${h};width:100%;height:100%;border-radius:var(--r-1);"></div>
-          ${hasImg ? `<img class="set-photo" src="${escapeHtml(thumbImg(s.image_url))}" alt="${escapeHtml(s.name || '')}" loading="lazy" decoding="async">` : ""}
-        </div>
-        <div class="sl-body" style="flex: 1; min-width: 0;">
-          <div class="sl-name" style="text-align:left;">
-            ${((s.retirement_risk_score || 0) >= 70 || s.lego_retiring_soon) && !s.retired ? '🔥 ' : ''}${escapeHtml(s.name)}
-          </div>
-          <div class="sl-meta" style="text-align: left;">
-            <span class="sl-setnum">${escapeHtml(s.set_num)}</span>
-            <span class="dot"></span>
-            <span class="sl-theme">${escapeHtml(s.theme || "")}</span>
-            ${owned ? `<span class="badge badge--up" style="margin-left:4px;">OWNED · ${fmtMoney(dispVal)}</span>` : ""}
-            ${dealTagHTML(s)}
-            ${sourceCueHTML(s)}
-          </div>
-        </div>
-        <div class="sl-right-compact">
-          <div class="sl-value" style="display:flex;align-items:center;">
-            ${estMark(s)}${fmtMoney(dispVal)}
-            ${s.trend ? trendBadgeHTML(s.trend) : ""}
-          </div>
-          <div class="sl-delta" style="color:var(--ink-mute);">${tPlural('card.pieces', s.pieces || 0)} ${pppBadgeHTML(s)}</div>
-        </div>
-      </button>`;
-  }
-
-  return `
-    <button class="set-card" data-set="${escapeHtml(s.set_num)}">
-      <div class="set-card-img${hasImg ? " has-photo" : ""}">
-        <div class="brick-tile" style="--h:${h};width:64%;height:64%;"></div>
-        ${hasImg ? `<img class="set-photo" src="${escapeHtml(thumbImg(s.image_url))}" alt="${escapeHtml(s.name || '')}" loading="lazy" decoding="async">` : ""}
-        ${s.retired ? `<span class="retired-tag">RETIRED</span>` : ""}
-        ${((s.retirement_risk_score || 0) >= 70 || s.lego_retiring_soon) && !s.retired ? `<span class="retire-risk-badge">🔥</span>` : ""}
-        ${dealTagHTML(s, { overlay: true })}
-        ${owned ? `<span class="owned-tag">${I.check()}OWNED</span>` : ""}
-      </div>
-      <div class="set-card-body">
-        <div class="set-card-name">${escapeHtml(s.name)}</div>
-        <div class="set-card-meta">
-          ${THEME_COLORS[s.theme] ? `<span class="theme-dot" style="background:${THEME_COLORS[s.theme]};"></span>` : ""}
-          <span>${s.year || ""}</span>
-          <span>${tPlural('card.pieces', s.pieces || 0)}</span>
-          ${s.minifigs > 0 ? `<span>${tPlural('counts.figs', s.minifigs)}</span>` : ""}
-          ${s.subtheme ? `<span>${escapeHtml(s.subtheme)}</span>` : ""}
-        </div>
-        <div class="set-card-value">${confDot}${estMark(s)}${fmtMoney(dispVal)}</div>
-        ${(sourceCueHTML(s) || pppBadgeHTML(s) || s.bl_new_qty || s.trend) ? `<div class="set-card-submeta">${sourceCueHTML(s)}${pppBadgeHTML(s)}${s.bl_new_qty ? `<span>${tPlural('card.lots', s.bl_new_qty)}</span>` : ""}${s.trend ? trendBadgeHTML(s.trend) : ""}</div>` : ""}
-      </div>
-    </button>`;
-}
-
-export function renderPile() {
-  const photoNeedsSetup = photoScanNeedsSetup();
-  $("#root").innerHTML = `
-    <div class="page scan-page">
-      <div class="topbar">
-        <div class="topbar-heading">
-          <div class="topbar-eyebrow">Snap &amp; identify</div>
-          <h1 class="topbar-title">Scan a set</h1>
-        </div>
-      </div>
-
-      <section class="card scan-choice" aria-labelledby="scanChoiceTitle">
-        <div class="scan-choice-head">
-          <div class="scan-choice-mark">${I.sparkles()}</div>
-          <div>
-            <h2 id="scanChoiceTitle">How would you like to identify it?</h2>
-            <p>Use the box barcode, take a photo, or type the number.</p>
-          </div>
-        </div>
-
-        <div class="scan-method-list" role="group" aria-label="Scan method">
-          <button class="scan-method" id="pileScanBarcode" type="button">
-            <span class="scan-method-icon scan-method-icon--barcode">${I.scan()}</span>
-            <span class="scan-method-copy"><strong>Scan barcode</strong><small>Fastest and free for boxed sets</small></span>
-            <span class="scan-method-arrow" aria-hidden="true">${I.arrowR()}</span>
-          </button>
-          <button class="scan-method${photoNeedsSetup ? ' needs-setup' : ''}" id="pileScanPhoto" type="button"${photoNeedsSetup ? ' aria-describedby="photoScanAvailability"' : ''}>
-            <span class="scan-method-icon scan-method-icon--photo">${I.camera()}</span>
-            <span class="scan-method-copy"><strong>Identify from photo</strong><small id="photoScanAvailability">${photoNeedsSetup ? 'Sign in or add an AI key first' : 'For built, loose, or boxed sets'}</small></span>
-            <span class="scan-method-arrow" aria-hidden="true">${I.arrowR()}</span>
-          </button>
-        </div>
-
-        <form class="scan-manual-lookup" id="pileManualForm" novalidate>
-          <label for="pileManualInput">Set number or barcode</label>
-          <div class="scan-manual-lookup-row">
-            <input id="pileManualInput" name="set_identifier" type="text" inputmode="search" autocomplete="off" spellcheck="false" placeholder="71043-1 or UPC">
-            <button id="pileManualSubmit" type="submit" aria-label="Look up set">${I.search({ w: 19, h: 19 })}<span>Look up</span></button>
-          </div>
-          <p class="scan-manual-error" id="pileManualError" role="status" aria-live="polite"></p>
-        </form>
-      </section>
-
-      <p class="scan-privacy-note">${photoNeedsSetup ? 'Barcode and manual lookup work for guests. Photo identification needs an account or personal AI key.' : 'Photo identification uses your selected AI provider. Images are processed only to identify the set.'}</p>
-    </div>`;
-
-  $("#pileScanBarcode")?.addEventListener("click", () => openScan("barcode"));
-  $("#pileScanPhoto")?.addEventListener("click", () => openScan("image"));
-  $("#pileManualForm")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const input = $("#pileManualInput");
-    const submit = $("#pileManualSubmit");
-    const error = $("#pileManualError");
-    if (error) error.textContent = "";
-    if (submit) submit.disabled = true;
-    try {
-      await lookupScanInput(input?.value || "");
-    } catch (e) {
-      if (error) error.textContent = e.message || "Check the number and try again.";
-      input?.focus();
-    } finally {
-      if (submit) submit.disabled = false;
-    }
-  });
-}

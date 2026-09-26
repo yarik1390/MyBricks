@@ -24,12 +24,6 @@
     ]
   },
   {
-    "text": "+ Wishlist",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
     "text": "+ the Gemma model for vision) or when you're offline. Cloud AI stays the default and the automatic fallback, so scanning always works.",
     "files": [
       "views/me-integrations.js"
@@ -135,12 +129,6 @@
     "text": "5× scan and revaluation limits",
     "files": [
       "components/onboarding.js"
-    ]
-  },
-  {
-    "text": "71043-1 or UPC",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -357,12 +345,6 @@
     ]
   },
   {
-    "text": "Active",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
     "text": "Active - powers scans, advisor, and listing drafts with your key",
     "files": [
       "views/me-integrations.js"
@@ -546,12 +528,6 @@
     ]
   },
   {
-    "text": "Advanced Filters",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
     "text": "Advisor",
     "files": [
       "components/advisor.js",
@@ -601,15 +577,8 @@
     ]
   },
   {
-    "text": "Align barcode within the frame",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "All",
     "files": [
-      "views/catalog.js",
       "views/me-admin.js"
     ]
   },
@@ -635,12 +604,6 @@
     "text": "All six slots filled — flex earned.",
     "files": [
       "views/me.js"
-    ]
-  },
-  {
-    "text": "All themes",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -677,12 +640,6 @@
     "text": "Announced retail price",
     "files": [
       "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "Any price",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -752,12 +709,6 @@
     "text": "Appearance & view",
     "files": [
       "views/me.js"
-    ]
-  },
-  {
-    "text": "Apply filters",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -912,12 +863,6 @@
     ]
   },
   {
-    "text": "Availability",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
     "text": "Available",
     "files": [
       "views/me-admin.js"
@@ -1030,21 +975,9 @@
     ]
   },
   {
-    "text": "Barcode",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "Barcode / UPC (8–14 digits)",
     "files": [
       "components/contribute.js"
-    ]
-  },
-  {
-    "text": "Barcode and manual lookup work for guests. Photo identification needs an account or personal AI key.",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -1072,21 +1005,9 @@
     ]
   },
   {
-    "text": "Barcode or set number",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "Barcode pages plus asking-price refresh.",
     "files": [
       "views/me-admin-config.js"
-    ]
-  },
-  {
-    "text": "Barcodes are at least 8 digits — check the number under the bars",
-    "files": [
-      "components/scanner.js"
     ]
   },
   {
@@ -1425,12 +1346,6 @@
     ]
   },
   {
-    "text": "CONDITION",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "CSV of everything you've entered.",
     "files": [
       "runtime-exact"
@@ -1444,24 +1359,6 @@
   },
   {
     "text": "Camera is unavailable. Use Gallery or type a barcode.",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
-    "text": "Camera not available — check permissions or try a different browser.",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
-    "text": "Camera permission denied — grant access in browser/system settings, or pick a photo from your gallery instead.",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
-    "text": "Camera permission denied — grant access in browser/system settings, or type a set number below.",
     "files": [
       "components/scanner.js"
     ]
@@ -1514,30 +1411,11 @@
     ]
   },
   {
-    "text": "Capture",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
-    "text": "Captured photo",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "Catalog",
     "files": [
       "components/onboarding.js",
       "route-meta.js",
-      "views/catalog.js",
       "views/me-admin-config.js"
-    ]
-  },
-  {
-    "text": "Catalog controls",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -1585,7 +1463,6 @@
   {
     "text": "Category",
     "files": [
-      "views/catalog.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -1669,12 +1546,6 @@
     ]
   },
   {
-    "text": "Check the number and try again.",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
     "text": "Checking compatibility...",
     "files": [
       "views/me-integrations.js"
@@ -1723,12 +1594,6 @@
     ]
   },
   {
-    "text": "Choose photo instead",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "Choose the exported Minifigures file (tab format).",
     "files": [
       "views/me-admin.js"
@@ -1738,18 +1603,6 @@
     "text": "Clear",
     "files": [
       "views/me-integrations.js"
-    ]
-  },
-  {
-    "text": "Clear all",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
-    "text": "Clear filters",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -1855,12 +1708,6 @@
     "text": "Color style",
     "files": [
       "components/onboarding.js"
-    ]
-  },
-  {
-    "text": "Coming Soon",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -2224,12 +2071,6 @@
     ]
   },
   {
-    "text": "Couldn't identify the set. Try a clearer photo.",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "Couldn't load catalog",
     "files": [
       "views/catalog.js"
@@ -2400,12 +2241,6 @@
     ]
   },
   {
-    "text": "Current Value ($)",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
     "text": "Current retail acquisition price, never part of resale value.",
     "files": [
       "views/portfolio-detail-market.js"
@@ -2519,18 +2354,6 @@
     ]
   },
   {
-    "text": "Deals",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
-    "text": "Deals only",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
     "text": "Decent health, but room to improve on theme diversification or set completeness.",
     "files": [
       "components/advisor.js"
@@ -2606,7 +2429,6 @@
   {
     "text": "Details",
     "files": [
-      "components/scanner.js",
       "views/me-admin.js",
       "views/portfolio-detail.js"
     ]
@@ -2831,12 +2653,6 @@
     ]
   },
   {
-    "text": "Enable photo scanning",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "Enabled",
     "files": [
       "views/me-integrations.js"
@@ -2871,8 +2687,8 @@
     "text": "Enter",
     "files": [
       "components/advisor.js",
-      "components/scanner.js",
       "components/sheet.js",
+      "views/catalog.js",
       "views/game.js",
       "views/login.js",
       "views/me-admin.js",
@@ -3228,8 +3044,7 @@
   {
     "text": "Failed",
     "files": [
-      "lib/pure.js",
-      "views/catalog.js"
+      "lib/pure.js"
     ]
   },
   {
@@ -3324,12 +3139,6 @@
     ]
   },
   {
-    "text": "Fastest and free for boxed sets",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
     "text": "Feasibility probe — can Firecrawl reach StockX market data? Not a live valuation source yet.",
     "files": [
       "views/me-admin-config.js"
@@ -3369,12 +3178,6 @@
     "text": "Find a user",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Find set",
-    "files": [
-      "components/scanner.js"
     ]
   },
   {
@@ -3420,12 +3223,6 @@
     ]
   },
   {
-    "text": "Fit the whole shelf in frame — good light helps",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "Five numbers, five different jobs",
     "files": [
       "methodology.html"
@@ -3460,12 +3257,6 @@
     "text": "Foil pack",
     "files": [
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "For built, loose, or boxed sets",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -3515,12 +3306,6 @@
     "text": "Formula or local estimate until market data is available.",
     "files": [
       "lib/pure.js"
-    ]
-  },
-  {
-    "text": "Frame the set and tap to identify",
-    "files": [
-      "components/scanner.js"
     ]
   },
   {
@@ -3600,12 +3385,6 @@
     "text": "Gain",
     "files": [
       "views/me.js"
-    ]
-  },
-  {
-    "text": "Gallery",
-    "files": [
-      "components/scanner.js"
     ]
   },
   {
@@ -4042,12 +3821,6 @@
     ]
   },
   {
-    "text": "How would you like to identify it?",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
     "text": "Hugging Face token (hf_…) — needed for gated models",
     "files": [
       "views/me-integrations.js"
@@ -4069,18 +3842,6 @@
     "text": "Identified Set",
     "files": [
       "lib/local-ai.js"
-    ]
-  },
-  {
-    "text": "Identify from photo",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
-    "text": "Identifying...",
-    "files": [
-      "components/scanner.js"
     ]
   },
   {
@@ -4464,13 +4225,6 @@
     ]
   },
   {
-    "text": "LOOKUP",
-    "files": [
-      "components/scanner.js",
-      "runtime-exact"
-    ]
-  },
-  {
     "text": "LVL",
     "files": [
       "views/kids.js"
@@ -4656,9 +4410,9 @@
     ]
   },
   {
-    "text": "Live barcode scanning isn't supported on this browser — type the digits instead",
+    "text": "Live scanner is unavailable",
     "files": [
-      "components/scanner.js"
+      "lib/native-barcode.js"
     ]
   },
   {
@@ -4793,37 +4547,6 @@
     "text": "Lock in",
     "files": [
       "views/game.js"
-    ]
-  },
-  {
-    "text": "Look up",
-    "files": [
-      "components/scanner.js",
-      "views/catalog.js"
-    ]
-  },
-  {
-    "text": "Look up set",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
-    "text": "Looking up barcode...",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
-    "text": "Looking up barcode…",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
-    "text": "Looking up catalog...",
-    "files": [
-      "components/scanner.js"
     ]
   },
   {
@@ -5043,12 +4766,6 @@
     ]
   },
   {
-    "text": "Matches weren't found in the local catalog.",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "Matching the barcode against blind-box data.",
     "files": [
       "components/scanner.js"
@@ -5061,34 +4778,10 @@
     ]
   },
   {
-    "text": "Max pieces",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
-    "text": "Max value",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
-    "text": "Max year",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
     "text": "Me",
     "files": [
       "components/advisor.js",
       "route-meta.js"
-    ]
-  },
-  {
-    "text": "Me > Integrations",
-    "files": [
-      "components/scanner.js"
     ]
   },
   {
@@ -5140,24 +4833,6 @@
     ]
   },
   {
-    "text": "Min pieces",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
-    "text": "Min value",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
-    "text": "Min year",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
     "text": "Minifig",
     "files": [
       "views/portfolio-detail.js"
@@ -5186,12 +4861,6 @@
     "text": "Minifigs in this set",
     "files": [
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Minifigures",
-    "files": [
-      "components/scanner.js"
     ]
   },
   {
@@ -5266,12 +4935,6 @@
     "text": "More prices",
     "files": [
       "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "More…",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -5388,12 +5051,6 @@
     "text": "Network",
     "files": [
       "lib/native-net.js"
-    ]
-  },
-  {
-    "text": "New",
-    "files": [
-      "components/scanner.js"
     ]
   },
   {
@@ -5666,7 +5323,6 @@
   {
     "text": "No sets found",
     "files": [
-      "views/catalog.js",
       "views/me.js"
     ]
   },
@@ -5708,12 +5364,6 @@
     ]
   },
   {
-    "text": "No themes match",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
     "text": "No token found",
     "files": [
       "views/me-admin.js"
@@ -5745,15 +5395,8 @@
     ]
   },
   {
-    "text": "None active",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
     "text": "Not LEGO",
     "files": [
-      "components/scanner.js",
       "lib/pure.js"
     ]
   },
@@ -5850,21 +5493,9 @@
     ]
   },
   {
-    "text": "Nothing found",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "Nothing needs attention.",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Nothing selected",
-    "files": [
-      "components/scanner.js"
     ]
   },
   {
@@ -5915,12 +5546,6 @@
     "text": "Now",
     "files": [
       "views/portfolio-wishlist.js"
-    ]
-  },
-  {
-    "text": "OWNED",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -6056,12 +5681,6 @@
     ]
   },
   {
-    "text": "One set",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "One ~2MB download",
     "files": [
       "views/me-admin-config.js"
@@ -6149,12 +5768,6 @@
     "text": "Opened from your reset link. Choose a new password for your account.",
     "files": [
       "views/login.js"
-    ]
-  },
-  {
-    "text": "Opening scanner…",
-    "files": [
-      "components/scanner.js"
     ]
   },
   {
@@ -6414,7 +6027,6 @@
   {
     "text": "Photo",
     "files": [
-      "components/scanner.js",
       "views/me-contributions.js"
     ]
   },
@@ -6431,21 +6043,9 @@
     ]
   },
   {
-    "text": "Photo identification uses your selected AI provider. Images are processed only to identify the set.",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
     "text": "Photo removed",
     "files": [
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Photo scope",
-    "files": [
-      "components/scanner.js"
     ]
   },
   {
@@ -6480,12 +6080,6 @@
     ]
   },
   {
-    "text": "Pick a theme",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
     "text": "Pick a visual skin — free or supporter.",
     "files": [
       "views/me.js"
@@ -6507,12 +6101,6 @@
     "text": "Pick your look",
     "files": [
       "components/onboarding.js"
-    ]
-  },
-  {
-    "text": "Piece Count",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -6607,12 +6195,6 @@
     ]
   },
   {
-    "text": "Popular themes",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
     "text": "Populate & Batch",
     "files": [
       "views/me-admin.js"
@@ -6684,12 +6266,6 @@
     "text": "Prefer on-device (falls back to cloud)",
     "files": [
       "views/me-integrations.js"
-    ]
-  },
-  {
-    "text": "Prefer to type it in? Enter the UPC from the box or a set number such as 71043-1.",
-    "files": [
-      "components/scanner.js"
     ]
   },
   {
@@ -7145,7 +6721,6 @@
   {
     "text": "RETIRED",
     "files": [
-      "views/catalog.js",
       "views/portfolio-social.js"
     ]
   },
@@ -7159,12 +6734,6 @@
     "text": "Range pending",
     "files": [
       "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "Ranges",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -7365,12 +6934,6 @@
     "text": "Release",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "Release Year",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -7672,7 +7235,6 @@
   {
     "text": "Retired",
     "files": [
-      "views/catalog.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -7709,7 +7271,6 @@
   {
     "text": "Retiring",
     "files": [
-      "views/catalog.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -8072,44 +7633,12 @@
     "text": "Scan a set",
     "files": [
       "route-meta.js",
-      "views/catalog.js",
       "views/portfolio-detail.js",
       "views/portfolio-wishlist.js"
     ]
   },
   {
     "text": "Scan another",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
-    "text": "Scan barcode",
-    "files": [
-      "components/scanner.js",
-      "views/catalog.js"
-    ]
-  },
-  {
-    "text": "Scan method",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
-    "text": "Scan mode",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
-    "text": "Scan the blind bag or box barcode",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
-    "text": "Scanner couldn't start. Try again or enter the barcode or set number manually.",
     "files": [
       "components/scanner.js"
     ]
@@ -8167,7 +7696,6 @@
     "text": "Search",
     "files": [
       "components/scanner.js",
-      "views/catalog.js",
       "views/me-admin.js"
     ]
   },
@@ -8187,18 +7715,6 @@
     "text": "Search helps confirm the UUID before changing supporter status.",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Search sets",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
-    "text": "Search themes…",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -8407,12 +7923,6 @@
     ]
   },
   {
-    "text": "Set number or barcode",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
     "text": "Set photo",
     "files": [
       "components/lightbox.js",
@@ -8532,12 +8042,6 @@
     ]
   },
   {
-    "text": "Shared scan limit reached",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "Sharing isn't available on this device",
     "files": [
       "views/portfolio-detail.js"
@@ -8635,12 +8139,6 @@
     "text": "Sign in first — a parent PIN keeps kids from exiting.",
     "files": [
       "components/onboarding.js"
-    ]
-  },
-  {
-    "text": "Sign in or add an AI key first",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -8760,12 +8258,6 @@
     ]
   },
   {
-    "text": "Snap & identify",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
     "text": "Snapping together nicely!",
     "files": [
       "utils.js"
@@ -8866,12 +8358,6 @@
     "text": "Sorry, couldn't reach the advisor.",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "Sort",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -9360,12 +8846,6 @@
     ]
   },
   {
-    "text": "The daily limit resets at midnight UTC.",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "The expected price at launch. This is not a secondary-market valuation.",
     "files": [
       "views/portfolio-detail-market.js"
@@ -9454,14 +8934,7 @@
   {
     "text": "Theme group",
     "files": [
-      "views/catalog.js",
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "This can take up to 30 seconds.",
-    "files": [
-      "components/scanner.js"
     ]
   },
   {
@@ -9736,27 +9209,9 @@
     ]
   },
   {
-    "text": "Type a barcode or LEGO set number first",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "Type at least 2 characters.",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Type barcode digits…",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
-    "text": "Type the barcode or set number below",
-    "files": [
-      "components/scanner.js"
     ]
   },
   {
@@ -9957,12 +9412,6 @@
     ]
   },
   {
-    "text": "Use a set number like 71043-1, or a longer barcode",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "Use at least 6 characters.",
     "files": [
       "views/login.js"
@@ -9972,12 +9421,6 @@
     "text": "Use only when catalog import is incomplete.",
     "files": [
       "views/me-admin-config.js"
-    ]
-  },
-  {
-    "text": "Use the box barcode, take a photo, or type the number.",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -9996,7 +9439,6 @@
     "text": "Used",
     "files": [
       "components/contribute.js",
-      "components/scanner.js",
       "views/portfolio-detail-market.js"
     ]
   },
@@ -10198,12 +9640,6 @@
     "text": "Verify only when set number, title, UPC, and variant all describe the same product.",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "View",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -10430,12 +9866,6 @@
     ]
   },
   {
-    "text": "Whole shelf",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "Wide range",
     "files": [
       "views/portfolio-detail-market.js"
@@ -10645,12 +10075,6 @@
     ]
   },
   {
-    "text": "Your hourly window resets within the hour.",
-    "files": [
-      "components/scanner.js"
-    ]
-  },
-  {
     "text": "Your largest theme (",
     "files": [
       "components/advisor.js"
@@ -10802,6 +10226,12 @@
     ]
   },
   {
+    "text": "bv-btn-row bv-filter__actions sheet-sticky-actions",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
     "text": "bv-btn-row vault-facets__actions",
     "files": [
       "views/minifigs.js"
@@ -10826,9 +10256,51 @@
     ]
   },
   {
+    "text": "bv-card__link bv-linkbtn",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bv-chips bv-discover__chips",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bv-discover__count result-count",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bv-discover__section coming-soon-wrap",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bv-discover__toolbar catalog-primary-toolbar",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
     "text": "bv-field__box vault-stepper",
     "files": [
       "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "bv-field__error field-error",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bv-field__error scan-manual-error",
+    "files": [
+      "views/catalog.js"
     ]
   },
   {
@@ -10838,9 +10310,45 @@
     ]
   },
   {
+    "text": "bv-grid bv-discover__grid",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bv-group__box bv-discover__list",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bv-group__box bv-gap",
+    "files": [
+      "views/retiring.js"
+    ]
+  },
+  {
+    "text": "bv-group__box bv-themepicker",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
     "text": "bv-group__box collection-insights",
     "files": [
       "views/subcollections.js"
+    ]
+  },
+  {
+    "text": "bv-group__box scan-method-list",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bv-group__box sheet-option-list",
+    "files": [
+      "views/catalog.js"
     ]
   },
   {
@@ -10859,6 +10367,12 @@
     "text": "bv-hero vault-fig-hero",
     "files": [
       "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "bv-iconbtn bv-scanres__dismiss",
+    "files": [
+      "components/scanner.js"
     ]
   },
   {
@@ -10916,15 +10430,39 @@
     ]
   },
   {
+    "text": "bv-row__text scan-method-copy",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
     "text": "bv-row__trail bv-num",
     "files": [
       "views/minifigs.js"
     ]
   },
   {
+    "text": "bv-row__trail scan-method-arrow",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bv-scan__seg scan-mode-toggle",
+    "files": [
+      "components/scanner.js"
+    ]
+  },
+  {
     "text": "bv-setpage__body bv-enter",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "bv-setrow bv-scansession__row",
+    "files": [
+      "components/scanner.js"
     ]
   },
   {
@@ -10964,13 +10502,156 @@
     ]
   },
   {
+    "text": "bvAdd.capture",
+    "files": [
+      "components/scanner.js"
+    ]
+  },
+  {
+    "text": "bvAdd.captureShelf",
+    "files": [
+      "components/scanner.js"
+    ]
+  },
+  {
+    "text": "bvAdd.deniedBarcode",
+    "files": [
+      "components/scanner.js"
+    ]
+  },
+  {
+    "text": "bvAdd.deniedPhoto",
+    "files": [
+      "components/scanner.js"
+    ]
+  },
+  {
+    "text": "bvAdd.identifyPhotoSub",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bvAdd.max",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bvAdd.min",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bvAdd.noneRetiringAll",
+    "files": [
+      "views/retiring.js"
+    ]
+  },
+  {
+    "text": "bvAdd.noneRetiringWish",
+    "files": [
+      "views/retiring.js"
+    ]
+  },
+  {
+    "text": "bvAdd.noneRetiringYours",
+    "files": [
+      "views/retiring.js"
+    ]
+  },
+  {
+    "text": "bvAdd.notifyMe",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bvAdd.notifying",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bvAdd.nudgeKey",
+    "files": [
+      "components/scanner.js"
+    ]
+  },
+  {
+    "text": "bvAdd.nudgeSignIn",
+    "files": [
+      "components/scanner.js"
+    ]
+  },
+  {
+    "text": "bvAdd.onWishlistHeading",
+    "files": [
+      "views/retiring.js"
+    ]
+  },
+  {
+    "text": "bvAdd.photoNeedsSetup",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bvAdd.pilePrivacy",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bvAdd.pilePrivacyGuest",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bvAdd.resetDaily",
+    "files": [
+      "components/scanner.js"
+    ]
+  },
+  {
+    "text": "bvAdd.resetHourly",
+    "files": [
+      "components/scanner.js"
+    ]
+  },
+  {
+    "text": "bvAdd.tabWishlist",
+    "files": [
+      "views/retiring.js"
+    ]
+  },
+  {
+    "text": "bvAdd.tabYours",
+    "files": [
+      "views/retiring.js"
+    ]
+  },
+  {
+    "text": "bvAdd.tryAgain",
+    "files": [
+      "components/scanner.js"
+    ]
+  },
+  {
+    "text": "bvAdd.youOwnHeading",
+    "files": [
+      "views/retiring.js"
+    ]
+  },
+  {
     "text": "bvCommon.comingSoon",
     "files": [
       "views/advisor-page.js",
       "views/me-insurance.js",
       "views/me-notifications.js",
       "views/pro.js",
-      "views/retiring.js",
       "views/welcome.js",
       "views/wrapped.js"
     ]
@@ -11694,12 +11375,6 @@
     "text": "✓ Earned!",
     "files": [
       "views/kids.js"
-    ]
-  },
-  {
-    "text": "✓ Wishlisted",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
