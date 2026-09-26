@@ -1,7 +1,8 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { env } from 'cloudflare:test';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { pushRoute } from './routes/push';
+import { sendNativePushToUser } from './lib/firebase-push';
 import { applyTestTables } from './test-schema';
 
 const db = (env as any).DB as D1Database;
@@ -62,4 +63,84 @@ describe('native push subscription routes', () => {
     const row = await db.prepare('SELECT token FROM native_push_tokens').first();
     expect(row).toBeNull();
   });
+
+  it('remembers which Android devices draw their own notifications', async () => {
+    const register = (body: Record<string, unknown>) => pushRoute.request('/native', {
+      method: 'POST', headers: auth, body: JSON.stringify(body),
+    }, env as any);
+    const token = 'fcm-device-token-with-more-than-twenty-characters';
+    const flag = async () => (await db.prepare('SELECT supports_actions FROM native_push_tokens WHERE token=?').bind(token).first<{ supports_actions: number }>())!.supports_actions;
+
+    await register({ token, platform: 'android', actions: true });
+    expect(await flag()).toBe(1);
+    // An older build re-registering the same token has no buttons to draw.
+    await register({ token, platform: 'android' });
+    expect(await flag()).toBe(0);
+    // iOS has no native renderer for them.
+    await register({ token, platform: 'ios', actions: true });
+    expect(await flag()).toBe(0);
+  });
 });
+
+describe('native push delivery', () => {
+  const sent: any[] = [];
+
+  beforeEach(async () => {
+    sent.length = 0;
+    await applyTestTables(db, ['native_push_tokens', 'integration_health']);
+    const keys = await crypto.subtle.generateKey(
+      { name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
+      true, ['sign', 'verify'],
+    ) as CryptoKeyPair;
+    const pkcs8 = new Uint8Array(await crypto.subtle.exportKey('pkcs8', keys.privateKey) as ArrayBuffer);
+    const pem = `-----BEGIN PRIVATE KEY-----\n${btoa(String.fromCharCode(...pkcs8))}\n-----END PRIVATE KEY-----`;
+    (env as any).FIREBASE_SERVICE_ACCOUNT_JSON = JSON.stringify({
+      project_id: `bv-test-${crypto.randomUUID()}`, client_email: 'push@bv-test.iam.gserviceaccount.com', private_key: pem,
+    });
+    vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
+      if (String(url).startsWith('https://oauth2.googleapis.com/')) {
+        return new Response(JSON.stringify({ access_token: 'test-access-token', expires_in: 3600 }), { headers: { 'Content-Type': 'application/json' } });
+      }
+      sent.push(JSON.parse(String(init.body)).message);
+      return new Response('{}', { headers: { 'Content-Type': 'application/json' } });
+    });
+    await db.batch([
+      db.prepare("INSERT INTO native_push_tokens (user_id, token, platform, supports_actions) VALUES ('u1', 'new-build-token-with-enough-characters', 'android', 1)"),
+      db.prepare("INSERT INTO native_push_tokens (user_id, token, platform, supports_actions) VALUES ('u1', 'old-build-token-with-enough-characters', 'android', 0)"),
+    ]);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete (env as any).FIREBASE_SERVICE_ACCOUNT_JSON;
+  });
+
+  const payload = {
+    title: 'Falcon is up 12%', body: 'Now $950', url: '#/set/75192-1', tag: 'spike-75192-1',
+    actions: [
+      { action: 'sell', title: 'Sell options', url: '#/set/75192-1/sell' },
+      { action: 'target', title: 'Set sell target', url: '#/set/75192-1/target' },
+      { action: 'extra', title: 'Third', url: '#/x' },
+    ],
+  };
+
+  it('gives new builds a data message with the buttons and old builds the system notification', async () => {
+    await sendNativePushToUser(env as any, 'u1', JSON.stringify(payload));
+    const byToken = Object.fromEntries(sent.map(m => [m.token, m]));
+    const fresh = byToken['new-build-token-with-enough-characters'];
+    expect(fresh.notification).toBeUndefined();
+    expect(fresh.data).toMatchObject({ title: 'Falcon is up 12%', body: 'Now $950', url: '#/set/75192-1', tag: 'spike-75192-1' });
+    expect(JSON.parse(fresh.data.actions)).toEqual(payload.actions.slice(0, 2));
+    const legacy = byToken['old-build-token-with-enough-characters'];
+    expect(legacy.notification).toEqual({ title: 'Falcon is up 12%', body: 'Now $950' });
+    expect(legacy.data).toEqual({ url: '#/set/75192-1' });
+    expect(legacy.android.notification).toEqual({ tag: 'spike-75192-1' });
+  });
+
+  it('keeps the system notification when an alert has no buttons', async () => {
+    await sendNativePushToUser(env as any, 'u1', JSON.stringify({ ...payload, actions: undefined }));
+    expect(sent).toHaveLength(2);
+    expect(sent.every(m => m.notification?.title === 'Falcon is up 12%')).toBe(true);
+  });
+});
+

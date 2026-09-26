@@ -12,4 +12,7 @@
     <string name="shortcut_shelf_long">拍摄一整层货架</string>
     <string name="shortcut_wishlist_short">心愿单</string>
     <string name="shortcut_wishlist_long">打开心愿单</string>
+    <!-- Notification channel for price/sell/retiring alerts. -->
+    <string name="alerts_channel_name">提醒</string>
+    <string name="alerts_channel_description">降价、出售目标、大幅波动和即将停产的套装</string>
 </resources>

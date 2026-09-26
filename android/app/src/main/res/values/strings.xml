@@ -18,4 +18,7 @@
     <string name="shortcut_shelf_long">Photograph a whole shelf</string>
     <string name="shortcut_wishlist_short">Wishlist</string>
     <string name="shortcut_wishlist_long">Open your wishlist</string>
+    <!-- Notification channel for price/sell/retiring alerts. -->
+    <string name="alerts_channel_name">Alerts</string>
+    <string name="alerts_channel_description">Price drops, sell targets, big moves and retiring sets</string>
 </resources>

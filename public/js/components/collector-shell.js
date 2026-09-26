@@ -112,12 +112,24 @@ function fabEl() {
 function paintFab(cfg) {
   const el = fabEl();
   el._bvFab = cfg;
-  if (!cfg) { el.hidden = true; document.body.classList.remove('bv-fab-on'); return; }
+  if (!cfg) { el.hidden = true; document.body.classList.remove('bv-fab-on'); syncAdvisorFab(); return; }
   el.innerHTML = `${icon(cfg.icon || 'scan')}<span class="bv-fab__label">${escapeHtml(cfg.label)}</span>`;
   el.setAttribute('aria-label', cfg.label);
   el.classList.remove('is-compact');
   el.hidden = false;
   document.body.classList.add('bv-fab-on');
+  syncAdvisorFab();
+}
+
+// Only one floating action at a time: the advisor button steps aside while the
+// screen shows a primary FAB (Scan, Add, New list) and comes back when it
+// doesn't, on every route that offers the advisor (route meta `fab`).
+let advisorWanted = false;
+function syncAdvisorFab() {
+  const adv = document.getElementById('advisorFab');
+  if (!adv || getModePref() === 'kids') return;
+  const primaryShown = document.getElementById('bvFab')?.hidden === false;
+  adv.style.display = advisorWanted && advisorEnabled() && !primaryShown ? 'flex' : 'none';
 }
 /** Replace this screen's FAB ({ label, icon, href | onClick }), or hide it with null. */
 export function setPageFab(cfg) {
@@ -178,11 +190,10 @@ export function syncCollectorChrome(meta) {
   document.body.classList.toggle('bv-nav-off', !kids && (!!meta.fullscreen || !!meta.navOff));
   // The legacy "+ Add" nav button is superseded by the Scan FAB.
   $('#collectorAdd')?.remove();
+  advisorWanted = !!meta.fab;
   if (kids) paintFab(null);
   else if (pageFab) paintFab(pageFab.hidden ? null : pageFab);
   else paintFab(meta.scanFab && !meta.fullscreen ? defaultFab() : null);
-  // The advisor remains available contextually; only one floating primary action.
-  if (!kids && $('#advisorFab')) $('#advisorFab').style.display = 'none';
   document.querySelectorAll('#nav .nav-tab').forEach(link => {
     if (link.classList.contains('active')) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');

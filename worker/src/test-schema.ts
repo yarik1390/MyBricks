@@ -601,6 +601,7 @@ export const TABLE_DDL: Record<string, string> = {
   user_id TEXT NOT NULL,
   token TEXT NOT NULL,
   platform TEXT NOT NULL DEFAULT 'android',
+  supports_actions INTEGER NOT NULL DEFAULT 0,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(user_id, token)

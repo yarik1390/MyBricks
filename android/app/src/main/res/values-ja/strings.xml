@@ -12,4 +12,7 @@
     <string name="shortcut_shelf_long">棚全体を撮影</string>
     <string name="shortcut_wishlist_short">ほしい物</string>
     <string name="shortcut_wishlist_long">ほしい物を開く</string>
+    <!-- Notification channel for price/sell/retiring alerts. -->
+    <string name="alerts_channel_name">アラート</string>
+    <string name="alerts_channel_description">値下がり、売却目標、大きな値動き、販売終了予定のセット</string>
 </resources>
