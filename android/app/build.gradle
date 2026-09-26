@@ -54,6 +54,14 @@ android {
             }
         }
     }
+    testOptions {
+        // Robolectric tests read R.string / R.drawable (notification channel, icon).
+        unitTests.includeAndroidResources = true
+        // Robolectric instantiates every manifest receiver; RevenueCat's Amazon
+        // IAP receiver ships class files without stackmap frames, which the
+        // JDK 21 verifier refuses. Test JVM only.
+        unitTests.all { jvmArgs '-XX:+UnlockDiagnosticVMOptions', '-XX:-BytecodeVerificationRemote' }
+    }
     buildTypes {
         release {
             // R8 shrink + obfuscate (Play "app optimisation" advisory). The
@@ -106,6 +114,9 @@ dependencies {
     implementation "com.google.firebase:firebase-messaging:$firebaseMessagingVersion"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
+    // Local JVM tests for the native alert notifications (AlertMessagingServiceTest).
+    testImplementation "org.robolectric:robolectric:4.14.1"
+    testImplementation "androidx.test:core:1.6.1"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
