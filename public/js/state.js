@@ -60,6 +60,9 @@ export function invalidatePortfolio() {
   // The next catalog visit must reconcile it with the authoritative collection,
   // otherwise a deleted set can retain an Android-cached OWNED badge.
   state.ownedSetNumsLoaded = false;
+  // The "What changed" digest (movers, realized gains) describes the same
+  // collection: a sale or removal must not keep reading from the old one.
+  state.vaultChanges = null;
   state._revalToken = (state._revalToken || 0) + 1;
   bvIDB.del('portfolio').catch(() => {});
 }
