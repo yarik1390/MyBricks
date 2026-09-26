@@ -1,15 +1,18 @@
 import { Hono } from 'hono';
 import { requireMember } from '../auth';
 import type { Env, Variables } from '../types';
+import { holdingValueForRollout } from '../lib/market-sources';
 
 // GET /api/changes?days=N — the Vault's "What changed" digest.
 //
 // Market movement is measured per set from set_value_history, which snapshots
 // the displayed value (blended market value, else the formula value) once a
-// day. Comparing a holding's value today with its snapshot on or before the
-// `since` date gives the change the market made — adding or removing sets is
-// not "a change in value", so holdings added after `since` are left out of the
-// headline delta instead of inflating it.
+// day. Comparing that series today with its snapshot on or before the `since`
+// date gives the move the market made; it is applied to each holding's own
+// value — condition-aware and on the pricing rollout, exactly as /api/collection
+// values it — so a used copy moves from its used price, not the sealed one.
+// Adding or removing sets is not "a change in value", so holdings added after
+// `since` are left out of the headline delta instead of inflating it.
 //
 // Response:
 //   since        YYYY-MM-DD the comparison starts from
@@ -41,7 +44,10 @@ type Holding = {
   image_url: string | null;
   quantity: number | null;
   added_at: string | null;
-  value_now: number | null;
+  // The per-set series set_value_history snapshots (blended, else formula).
+  series_now: number | null;
+  // What the Vault shows for this copy (condition-aware, pricing rollout).
+  value_now: number;
 };
 
 type Mover = {
@@ -100,9 +106,11 @@ function compare(holdings: Holding[], then: Map<string, number>, since: string) 
   const rows: Mover[] = [];
   for (const h of holdings) {
     const now = Number(h.value_now);
-    const before = then.get(h.set_num);
-    if (!(now > 0) || before == null) continue;
+    const seriesNow = Number(h.series_now);
+    const seriesThen = then.get(h.set_num);
+    if (!(now > 0) || !(seriesNow > 0) || seriesThen == null) continue;
     if (h.added_at && String(h.added_at).slice(0, 10) > since) continue;
+    const before = now * (seriesThen / seriesNow);
     const qty = Math.max(1, Number(h.quantity) || 1);
     valueNow += now * qty;
     valueThen += before * qty;
@@ -130,12 +138,17 @@ app.get('/', async (c) => {
 
   const [holdingsRes, realizedRes, salesRes] = await Promise.all([
     c.env.DB.prepare(`
-      SELECT uc.set_num, s.name, s.theme, s.image_url, uc.quantity, uc.added_at,
-             COALESCE(NULLIF(s.blended_value, 0), s.current_value) AS value_now
+      SELECT uc.set_num, uc.condition, s.name, s.theme, s.image_url, uc.quantity, uc.added_at,
+             COALESCE(NULLIF(s.blended_value, 0), s.current_value) AS series_now,
+             s.current_value, s.blended_value, s.used_value,
+             s.ebay_used_value, s.pc_new_value, s.pc_complete_value,
+             svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair
       FROM user_collection uc
       JOIN lego_sets s ON s.set_num = uc.set_num
+      LEFT JOIN set_valuation_state svn ON svn.set_num = s.set_num AND svn.condition = 'new_sealed'
+      LEFT JOIN set_valuation_state svu ON svu.set_num = s.set_num AND svu.condition = 'used_complete'
       WHERE uc.user_id = ? AND uc.deleted_at IS NULL
-    `).bind(userId).all<Holding>(),
+    `).bind(userId).all<Record<string, unknown>>(),
     c.env.DB.prepare(`
       SELECT CAST(COUNT(*) AS INTEGER) AS sales,
              CAST(COALESCE(SUM(CASE WHEN purchase_price IS NOT NULL THEN 1 ELSE 0 END), 0) AS INTEGER) AS priced_sales,
@@ -154,7 +167,17 @@ app.get('/', async (c) => {
     `).bind(userId).all<{ set_num: string; name: string | null; sold_at: string; sold_price: number; purchase_price: number | null }>(),
   ]);
 
-  const holdings = holdingsRes.results || [];
+  const rolloutPercent = Number(c.env.PRICING_V3_READ_PERCENT || 0);
+  const holdings: Holding[] = (holdingsRes.results || []).map(row => ({
+    set_num: String(row.set_num),
+    name: row.name == null ? null : String(row.name),
+    theme: row.theme == null ? null : String(row.theme),
+    image_url: row.image_url == null ? null : String(row.image_url),
+    quantity: row.quantity == null ? null : Number(row.quantity),
+    added_at: row.added_at == null ? null : String(row.added_at),
+    series_now: row.series_now == null ? null : Number(row.series_now),
+    value_now: holdingValueForRollout(row, rolloutPercent),
+  }));
   const thenValues = await valuesAt(c.env.DB, userId, since);
   const moverValues = moverSince === since ? thenValues : await valuesAt(c.env.DB, userId, moverSince);
 

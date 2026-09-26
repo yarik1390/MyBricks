@@ -52,7 +52,7 @@ describe('GET /api/changes — What changed digest', () => {
     (env as any).SUPABASE_JWT_SECRET = secret;
     (env as any).SUPABASE_URL = 'https://supabase.mock.io';
     (env as any).SUPABASE_ANON_KEY = 'fixture-anon-key';
-    await applyTestTables(db, ['lego_sets', 'user_collection', 'set_value_history']);
+    await applyTestTables(db, ['lego_sets', 'user_collection', 'set_value_history', 'set_valuation_state']);
   });
 
   it('requires a member and is private, no-store', async () => {
@@ -101,6 +101,23 @@ describe('GET /api/changes — What changed digest', () => {
     expect(body.movers[0]).toMatchObject({ name: 'Titanic', value_then: 732, value_now: 760, delta: 28, quantity: 1 });
     expect(body.movers[0].pct).toBeCloseTo(3.83, 1);
     expect(body.movers[2]).toMatchObject({ delta: -8, quantity: 2 });
+  });
+
+  it('moves a used copy from its own used value, as the Vault prices it', async () => {
+    await seedSet('10294-1', 'Titanic', 760);
+    await db.prepare('UPDATE lego_sets SET ebay_used_value = 500 WHERE set_num = ?').bind('10294-1').run();
+    await db.prepare("INSERT INTO set_valuation_state (set_num, condition, fair_value) VALUES ('10294-1', 'used_complete', 500)").run();
+    await hold(OWNER, '10294-1');
+    await db.prepare("UPDATE user_collection SET condition = 'used_good' WHERE user_id = ?").bind(OWNER).run();
+    await history('10294-1', 7, 700);
+    const body = await (await request('?days=7')).json<any>();
+    // History tracks the sealed series (700 → 760); the used copy moves by the
+    // same ratio from its own 500, never from the sealed price.
+    expect(body.total_now).toBe(500);
+    expect(body.value_now).toBe(500);
+    expect(body.value_then).toBeCloseTo((500 * 700) / 760, 2);
+    expect(body.movers[0]).toMatchObject({ set_num: '10294-1', value_now: 500 });
+    expect(body.movers[0].pct).toBeCloseTo((760 / 700 - 1) * 100, 1);
   });
 
   it('never exposes another collector and reports no delta without history', async () => {
