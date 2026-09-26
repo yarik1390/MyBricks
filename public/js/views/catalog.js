@@ -588,7 +588,10 @@ function openSortSheet() {
 }
 
 // Searchable picker for the full theme list.
-function openThemePicker() {
+// From the toolbar a pick applies at once. From the filter sheet, `onPick`
+// hands the theme back so the sheet reopens with the user's other unapplied
+// choices intact.
+function openThemePicker({ current = state.filter.catalogTheme, onPick = null } = {}) {
   showSheet(kitSheetBody({
     title: t("bvAdd.pickTheme"),
     inner: `${kitSearchBar({ id: "themePickerInput", placeholder: t("bvAdd.searchThemes"), label: t("bvAdd.searchThemes") })}
@@ -601,11 +604,12 @@ function openThemePicker() {
       .filter((th) => !query || th.toLowerCase().includes(query))
       .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
     results.innerHTML = matches.length
-      ? matches.map((th) => `<button type="button" class="bv-row" data-pick-theme="${escapeHtml(th)}" aria-pressed="${state.filter.catalogTheme === th}"><span class="bv-row__text"><span class="bv-row__title">${escapeHtml(th)}</span></span>${state.filter.catalogTheme === th ? kitIcon("check", { size: 20 }) : ""}</button>`).join("")
+      ? matches.map((th) => `<button type="button" class="bv-row" data-pick-theme="${escapeHtml(th)}" aria-pressed="${current === th}"><span class="bv-row__text"><span class="bv-row__title">${escapeHtml(th)}</span></span>${current === th ? kitIcon("check", { size: 20 }) : ""}</button>`).join("")
       : `<p class="bv-foot">${escapeHtml(t("bvAdd.noThemes"))}</p>`;
     results.querySelectorAll("[data-pick-theme]").forEach((b) => b.addEventListener("click", () => {
-      state.filter.catalogTheme = b.dataset.pickTheme;
       haptic("light");
+      if (onPick) { onPick(b.dataset.pickTheme); return; }
+      state.filter.catalogTheme = b.dataset.pickTheme;
       hideSheet();
       reloadGrid();
     }));
@@ -722,13 +726,15 @@ function clearCatalogFilters() {
 
 // Filters sheet (canvas: Filters): status, theme, value, deal signal, then the
 // finer facets. "Show N sets" previews the result count before applying.
-function showFilterSheet(onApply) {
+// `initial` reopens the sheet with an unapplied draft (after "More themes").
+function showFilterSheet(onApply, initial = null) {
   const r = state.filter.catalogRanges;
-  const f = state.filter;
+  const f = initial || state.filter;
+  const shownRanges = initial ? initial.catalogRanges : r;
   const rangeField = (label, minKey, maxKey, ph1, ph2, money = false) => {
     const accessibleLabel = t({ min_year: 'catalog.releaseYear', min_pieces: 'catalog.pieces', min_value: 'catalog.currentValue' }[minKey]);
     const box = (key, ph, which) => `<div class="bv-field"><label for="f_${key}">${escapeHtml(t(which === "min" ? "bvAdd.min" : "bvAdd.max"))}</label>
-      <div class="bv-field__box">${money ? `<span class="bv-field__prefix">$</span>` : ""}<input class="bv-mono-input" type="number" inputmode="numeric" id="f_${key}" value="${escapeHtml(String(r[key] ?? ""))}" placeholder="${escapeHtml(ph)}" aria-label="${escapeHtml(accessibleLabel)} — ${escapeHtml(t(which === "min" ? 'catalog.minimum' : 'catalog.maximum'))}" aria-describedby="f_${minKey}_error"></div></div>`;
+      <div class="bv-field__box">${money ? `<span class="bv-field__prefix">$</span>` : ""}<input class="bv-mono-input" type="number" inputmode="numeric" id="f_${key}" value="${escapeHtml(String(shownRanges[key] ?? ""))}" placeholder="${escapeHtml(ph)}" aria-label="${escapeHtml(accessibleLabel)} — ${escapeHtml(t(which === "min" ? 'catalog.minimum' : 'catalog.maximum'))}" aria-describedby="f_${minKey}_error"></div></div>`;
     return `<section class="bv-filter__section">
         <h3>${escapeHtml(label)}</h3>
         <div class="bv-form-grid">${box(minKey, ph1, "min")}${box(maxKey, ph2, "max")}</div>
@@ -779,7 +785,13 @@ function showFilterSheet(onApply) {
     haptic("light");
     previewCount();
   }));
-  $("#filterMoreThemes")?.addEventListener("click", () => openThemePicker());
+  $("#filterMoreThemes")?.addEventListener("click", () => {
+    const draft = readDraft();
+    openThemePicker({
+      current: draft.catalogTheme,
+      onPick: (theme) => showFilterSheet(onApply, { ...draft, catalogTheme: theme }),
+    });
+  });
   const readFacet = (key) => document.querySelector(`#filterSheet .sheet-facet[data-facet="${key}"] [aria-pressed="true"]`)?.dataset.fval || "all";
   const readDraft = () => {
     const draft = { ...state.filter, catalogRanges: { ...r } };
