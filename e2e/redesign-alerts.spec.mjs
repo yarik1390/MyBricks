@@ -74,6 +74,42 @@ test('price alert sheet saves the target and per-set switches', async ({ page })
   await expect(page.locator('.bv-wlrow', { hasText: 'Colosseum' })).toContainText('Target $486');
 });
 
+test('Undo after Remove restores the per-set switches the user had', async ({ page }) => {
+  const calls = await stubWishlist(page, { alerts: [] });
+  await page.goto('/#/wishlist', { waitUntil: 'domcontentloaded' });
+  await page.locator('.bv-wlrow', { hasText: 'Colosseum' }).click();
+  await page.locator('#paRemove').click();
+  await expect.poll(() => calls.some((c) => c.method === 'DELETE' && c.path === '/api/wishlist/12')).toBe(true);
+  await page.locator('#toast').getByRole('button', { name: 'Undo' }).click();
+  // Colosseum had "Back in stock" off; recreating it must not switch it back on.
+  await expect.poll(() => calls.find((c) => c.method === 'POST' && c.path === '/api/wishlist')?.body).toMatchObject({
+    set_num: '10276-1', target_price: 480, notify_target: true, notify_retiring: true, notify_stock: false,
+  });
+});
+
+test('turning push off here unsubscribes only this browser, not the other devices', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(Notification, 'permission', { configurable: true, get: () => 'granted' });
+    const sub = { endpoint: 'https://push.example/this-browser', unsubscribe: async () => true, toJSON: () => ({ keys: {} }) };
+    const reg = { pushManager: { getSubscription: async () => sub } };
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: { ready: Promise.resolve(reg), controller: null, register: async () => reg, getRegistrations: async () => [], addEventListener() {}, removeEventListener() {} },
+    });
+  });
+  const deletes = [];
+  await page.route('**/api/push/subscribe', (route) => {
+    if (route.request().method() === 'DELETE') deletes.push(route.request().postData() ? JSON.parse(route.request().postData()) : null);
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+  });
+  await page.goto('/#/me/notifications', { waitUntil: 'domcontentloaded' });
+  const push = page.locator('#ntPush');
+  await expect(push).toHaveAttribute('aria-checked', 'true');
+  await push.click();
+  await expect.poll(() => deletes.length).toBe(1);
+  expect(deletes[0]).toEqual({ endpoint: 'https://push.example/this-browser' });
+});
+
 test('"I bought it" moves the set to the vault with an Undo', async ({ page }) => {
   const calls = await stubWishlist(page);
   await page.goto('/#/wishlist', { waitUntil: 'domcontentloaded' });

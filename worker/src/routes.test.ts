@@ -948,6 +948,36 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect((await db.prepare('SELECT target_price FROM user_wishlist WHERE id = 41').first<any>()).target_price).toBeNull();
     });
 
+    it('PATCH /:id with the same target keeps an acknowledged hit from firing again', async () => {
+      await db.prepare(`INSERT INTO user_wishlist (id, user_id, set_num, target_price, alerted_at, acknowledged_at)
+        VALUES (44, ?, '10300', 150, '2026-09-01 10:00:00', '2026-09-02 10:00:00')`).bind(userId).run();
+      // The sheet always re-sends the target; only a switch changed here (and a
+      // currency round-trip can land a fraction of a cent away).
+      for (const target of [150, 150.004]) {
+        await app.fetch(new Request('http://localhost/api/wishlist/44', {
+          method: 'PATCH', headers: auth(), body: JSON.stringify({ target_price: target, notify_stock: false }),
+        }), env);
+        const row = await db.prepare('SELECT * FROM user_wishlist WHERE id = 44').first<any>();
+        expect(row.alerted_at).toBe('2026-09-01 10:00:00');
+        expect(row.acknowledged_at).toBe('2026-09-02 10:00:00');
+        expect(row.notify_stock).toBe(0);
+      }
+    });
+
+    it('POST keeps per-set switches, so a migrated or restored item is recreated as it was', async () => {
+      const post = (body: Record<string, unknown>) => app.fetch(new Request('http://localhost/api/wishlist', {
+        method: 'POST', headers: auth(), body: JSON.stringify(body),
+      }), env);
+      expect((await post({ set_num: '10300', target_price: 120, notify_retiring: false, notify_stock: false })).status).toBe(201);
+      let row = await db.prepare('SELECT * FROM user_wishlist WHERE user_id = ? AND set_num = ?').bind(userId, '10300').first<any>();
+      expect([row.notify_target, row.notify_retiring, row.notify_stock]).toEqual([1, 0, 0]);
+      // A later add without switches leaves them as they are.
+      await post({ set_num: '10300' });
+      row = await db.prepare('SELECT * FROM user_wishlist WHERE user_id = ? AND set_num = ?').bind(userId, '10300').first<any>();
+      expect([row.notify_target, row.notify_retiring, row.notify_stock]).toEqual([1, 0, 0]);
+      expect((await post({ set_num: '10300', notify_stock: 'no' })).status).toBe(400);
+    });
+
     it('PATCH /:id validates and never touches another user\'s row', async () => {
       await db.prepare(`INSERT INTO user_wishlist (id, user_id, set_num, target_price) VALUES (42, ?, '10300', 150)`).bind(otherUserId).run();
       const other = await app.fetch(new Request('http://localhost/api/wishlist/42', {
@@ -1059,6 +1089,24 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         method: 'POST', headers: auth(), body: JSON.stringify({ set_nums: ['75192'] }),
       }), env);
       expect(res.status).toBe(403);
+    });
+
+    it('lets the owner read their own shelf while the profile is private, and no one else', async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO user_prefs (user_id, handle, is_public) VALUES (?, 'hush', 0)`).bind(userId),
+        db.prepare(`INSERT INTO user_collection (user_id, set_num, quantity, condition) VALUES (?, '75192', 1, 'new')`).bind(userId),
+        db.prepare(`INSERT INTO user_showcase (user_id, set_num) VALUES (?, '75192')`).bind(userId),
+      ]);
+      const mine = await app.fetch(new Request('http://localhost/api/users/hush/showcase', { headers: auth() }), env);
+      expect(mine.status).toBe(200);
+      expect((await mine.json<any>()).showcase.map((s: any) => s.set_num)).toEqual(['75192']);
+
+      const anon = await app.fetch(new Request('http://localhost/api/users/hush/showcase'), env);
+      expect(anon.status).toBe(401);
+
+      await db.prepare(`INSERT INTO user_prefs (user_id, handle, is_public) VALUES (?, 'someone', 1)`).bind(otherUserId).run();
+      const theirs = await app.fetch(new Request('http://localhost/api/users/someone/showcase', { headers: auth() }), env);
+      expect(theirs.status).toBe(403);
     });
 
     it('leaderboard ranks opted-in public collections by value, excluding private ones', async () => {
@@ -2119,6 +2167,17 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
   });
 
   describe('GET /api/me/wrapped', () => {
+    it('nets realized gain of fees and of every copy sold', async () => {
+      const year = new Date().getUTCFullYear();
+      await db.batch([
+        db.prepare(`INSERT INTO lego_sets (set_num, name, pieces, current_value) VALUES ('W3-1', 'Three Copies', 100, 150)`),
+        db.prepare(`INSERT INTO user_collection (user_id, set_num, quantity, purchase_price, sold_price, sold_fees, sold_at, deleted_at) VALUES (?, 'W3-1', 3, 100, 450, 20, ?, datetime('now'))`).bind(userId, `${year}-05-10`),
+      ]);
+      const w = await (await app.fetch(new Request('http://localhost/api/me/wrapped', { headers: auth() }), env)).json<Record<string, any>>();
+      // The sale sheet previews 450 − 20 − 3 × 100; Wrapped must agree.
+      expect(w.realized_gain).toBe(130);
+    });
+
     it('aggregates the collector year: adds, sales, snapshots, best performer', async () => {
       const year = new Date().getUTCFullYear();
       await db.batch([

@@ -562,23 +562,17 @@ export async function migrateGuestVault(snapshot = snapshotGuestVault()) {
     const setNum = String(item?.set_num || "").trim();
     if (!setNum) continue;
     try {
-      const created = await api("/api/wishlist", {
+      // The guest's per-set switches travel in the same POST, so they survive
+      // a queued (offline) create and can't be lost to a failed follow-up.
+      await api("/api/wishlist", {
         method: "POST",
         body: {
           set_num: setNum,
           target_price: numberOrNull(item.target_price),
           notes: item.notes || null,
+          ...Object.fromEntries(['notify_target', 'notify_retiring', 'notify_stock'].filter((key) => item[key] != null).map((key) => [key, item[key] !== 0])),
         },
       });
-      // Carry the guest's per-set switches over when any were turned off.
-      if (['notify_target', 'notify_retiring', 'notify_stock'].some((key) => item[key] === 0)) {
-        if (created?.item?.id != null) {
-          await api(`/api/wishlist/${created.item.id}`, {
-            method: "PATCH",
-            body: Object.fromEntries(['notify_target', 'notify_retiring', 'notify_stock'].filter((key) => item[key] != null).map((key) => [key, item[key] !== 0])),
-          }).catch(() => {});
-        }
-      }
       assertMigrationOwner();
       result.wishlist++;
       result.migrated++;
@@ -1060,7 +1054,11 @@ async function guestMinifigs(path) {
   const details = readGuestFigDetails();
   if (ownedFilter === 'yes') {
     const owned = [...state.ownedFigs].map(num => details[num]).filter(Boolean);
-    const page = owned.slice(offset, offset + limit).map(fig => ({ ...fig, owned_qty: normalizeMinifigHolding(fig.holding)?.quantity || 1 }));
+    // Same shape as the signed-in list: owned_qty + the holding's purchase_price.
+    const page = owned.slice(offset, offset + limit).map(fig => {
+      const holding = normalizeMinifigHolding(fig.holding);
+      return { ...fig, owned_qty: holding?.quantity || 1, purchase_price: holding?.purchase_price ?? null };
+    });
     return { minifigs: page, total: owned.length, hasMore: offset + page.length < owned.length };
   }
   const publicUrl = new URL(path, location.origin);

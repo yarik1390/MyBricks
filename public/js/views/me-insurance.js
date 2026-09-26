@@ -20,12 +20,15 @@ const onScreen = () => location.hash.split('?')[0] === '#/me/insurance';
 
 const COND = { sealed: 'bvSet.condSealed', new: 'bvSet.condOpened', used_good: 'bvSet.condBuilt', used_acceptable: 'bvSet.condParts' };
 
+// Any failed request rejects: a report with holdings silently missing is
+// worse than no report, so the caller shows a retry instead of the export.
 async function loadData() {
   const [coll, figs] = await Promise.all([
-    state.portfolio?.items ? Promise.resolve(state.portfolio) : api('/api/collection').catch(() => null),
+    state.portfolio?.items ? Promise.resolve(state.portfolio) : api('/api/collection'),
     loadOwnedFigs(),
   ]);
-  const items = (coll?.items || [])
+  if (!Array.isArray(coll?.items)) throw new Error('collection unavailable');
+  const items = coll.items
     .map((s) => {
       const qty = Number(s.quantity) || 1;
       const unit = Number(displayValueOf(s)) || 0;
@@ -37,11 +40,13 @@ async function loadData() {
 
 async function loadOwnedFigs() {
   const out = [];
-  for (let offset = 0; offset < 500; offset += 100) {
-    const r = await api(`/api/minifigs?owned=yes&limit=100&offset=${offset}&sort=value_desc`).catch(() => null);
-    const rows = r?.minifigs || [];
+  for (let offset = 0; ; offset += 100) {
+    const r = await api(`/api/minifigs?owned=yes&limit=100&offset=${offset}&sort=value_desc`);
+    const rows = r?.minifigs;
+    if (!Array.isArray(rows)) throw new Error('minifigures unavailable');
     out.push(...rows);
-    if (!r?.hasMore || !rows.length) break;
+    if (!r.hasMore) break;
+    if (!rows.length) throw new Error('minifigures stopped short');
   }
   return out.map((f) => {
     const qty = Number(f.owned_qty ?? f.quantity) || 1;
@@ -128,24 +133,49 @@ export async function renderMeInsurance() {
   if (!root) return;
   root.innerHTML = `<main class="bv-page no-nav bv-insurance" aria-busy="true">${topbar({ title: t('bvAccount.insurance'), sub: t('bvAccount.insSub'), back: '#/me' })}<div class="bv-group__box bv-gap">${skeletonRows(3)}</div></main>`;
   const me = await loadMe();
-  data = await loadData();
+  try {
+    data = await loadData();
+  } catch {
+    data = null;
+    paintFailed();
+    return;
+  }
   paint(me);
+}
+
+function paintFailed() {
+  const root = $('#root');
+  if (!root || !onScreen()) return;
+  root.innerHTML = `<main class="bv-page no-nav bv-insurance" id="insurancePage">
+      ${topbar({ title: t('bvAccount.insurance'), sub: t('bvAccount.insSub'), back: '#/me' })}
+      <section class="bv-insurance__stage"><p class="bv-insurance__empty" role="alert">${escapeHtml(t('bvAccount.insLoadFailed'))}</p></section>
+      <div class="bv-insurance__bar">${btn(t('common.retry'), { icon: 'refresh', id: 'insRetry', full: true })}</div>
+    </main>`;
+  $('#insRetry')?.addEventListener('click', () => { haptic('light'); renderMeInsurance(); });
 }
 
 // ------------------------------------------------------------------ PDF
 function reportLabels() {
-  // Only Latin-script translations can be drawn with the PDF's built-in
-  // fonts; insurance-report.js falls back to English otherwise.
+  // Every label the PDF draws, placeholders left for insurance-report.js to
+  // fill. Only Latin-script translations can be drawn with the PDF's
+  // built-in fonts; it falls back to all-English otherwise.
   return {
     kicker: t('bvAccount.insKicker'),
+    title: '{owner} · {date}',
+    counts: t('bvAccount.insPdfCounts'),
+    countsNoFigs: t('bvAccount.insPdfCountsNoFigs'),
     totalValue: t('bvAccount.insTotal'),
     totalPaid: t('bvAccount.insPaid'),
     colSet: t('bvAccount.insColSet'),
+    colNumber: t('bvAccount.insColNumber'),
     colQty: t('bvAccount.insColQty'),
     colPaid: t('bvAccount.insColPaid'),
     colValue: t('bvAccount.insColValue'),
     minifigures: t('bvAccount.insColFigs'),
     noteTitle: t('bvAccount.insNoteTitle'),
+    note: t('bvAccount.insPdfNote'),
+    page: t('bvAccount.insPdfPage'),
+    generated: t('bvAccount.insPdfGenerated'),
   };
 }
 
