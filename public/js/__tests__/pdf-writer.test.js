@@ -102,8 +102,25 @@ describe('insurance report', () => {
     assert.doesNotMatch(text, /\/Subtype \/Image/);
   });
 
-  it('uses translations only when every label can be drawn', () => {
-    assert.equal(reportLabels({ totalValue: 'Gesamtwert' }).totalValue, 'Gesamtwert');
-    assert.equal(reportLabels({ totalValue: 'Загальна вартість' }).totalValue, REPORT_LABELS_EN.totalValue);
+  it('uses translations only when every label is supplied and can be drawn', () => {
+    const german = Object.fromEntries(Object.keys(REPORT_LABELS_EN).map((k) => [k, `DE ${k}`]));
+    assert.deepEqual(reportLabels(german), german);
+    // A partial set would leave English page footers and notes in a German report.
+    assert.deepEqual(reportLabels({ totalValue: 'Gesamtwert' }), REPORT_LABELS_EN);
+    assert.deepEqual(reportLabels({ ...german, totalValue: 'Загальна вартість' }), REPORT_LABELS_EN);
+  });
+
+  it('ships a complete, drawable PDF label set for every Latin-script locale', async () => {
+    for (const code of ['en', 'de', 'fr', 'es', 'nl']) {
+      const { [code]: cat } = await import(`../locales/${code}.js`);
+      const a = cat.bvAccount;
+      const labels = {
+        kicker: a.insKicker, title: '{owner} · {date}', counts: a.insPdfCounts, countsNoFigs: a.insPdfCountsNoFigs,
+        totalValue: a.insTotal, totalPaid: a.insPaid, colSet: a.insColSet, colNumber: a.insColNumber,
+        colQty: a.insColQty, colPaid: a.insColPaid, colValue: a.insColValue, minifigures: a.insColFigs,
+        noteTitle: a.insNoteTitle, note: a.insPdfNote, page: a.insPdfPage, generated: a.insPdfGenerated,
+      };
+      assert.deepEqual(reportLabels(labels), labels, `${code} falls back to English`);
+    }
   });
 });

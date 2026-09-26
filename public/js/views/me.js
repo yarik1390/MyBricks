@@ -154,9 +154,10 @@ export async function renderMe() {
     me = me || await api("/api/me");
     state.me = me;
     if (me.handle && !isGuestMode()) {
-      publicProfile = await fetch((window.WORKER_BASE || '') + "/api/users/" + encodeURIComponent(me.handle) + "/profile")
-        .then(r => r.ok ? r.json() : null)
-        .catch(() => null);
+      // The owner's own shelf — readable even while the profile is private.
+      // Any failure leaves publicProfile null and the shelf editor stays closed
+      // rather than editing an empty copy.
+      publicProfile = await api("/api/users/" + encodeURIComponent(me.handle) + "/showcase").catch(() => null);
     }
   } catch (_e) {
     toast(t('bvAccount.loadFailed'), "error");
@@ -467,7 +468,9 @@ function openPublicProfileSheet(me, publicProfile) {
   }
   const url = `${publicOrigin()}/#/u/${encodeURIComponent(me.handle)}`;
   const showcase = publicProfile?.showcase || [];
-  const shelf = `<div class="bv-shelf">
+  // Adding a trophy replaces the whole stored shelf with this list, so the
+  // editor only opens when the real shelf loaded — never from an empty stand-in.
+  const shelf = !publicProfile ? '' : `<div class="bv-shelf">
       <div class="bv-shelf__head"><span class="bv-field__label">${escapeHtml(tPlural('me.trophyShelf', showcase.length))}</span></div>
       <div class="trophy-shelf">
         ${showcase.map(s => {

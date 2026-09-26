@@ -1054,7 +1054,11 @@ async function guestMinifigs(path) {
   const details = readGuestFigDetails();
   if (ownedFilter === 'yes') {
     const owned = [...state.ownedFigs].map(num => details[num]).filter(Boolean);
-    const page = owned.slice(offset, offset + limit).map(fig => ({ ...fig, owned_qty: normalizeMinifigHolding(fig.holding)?.quantity || 1 }));
+    // Same shape as the signed-in list: owned_qty + the holding's purchase_price.
+    const page = owned.slice(offset, offset + limit).map(fig => {
+      const holding = normalizeMinifigHolding(fig.holding);
+      return { ...fig, owned_qty: holding?.quantity || 1, purchase_price: holding?.purchase_price ?? null };
+    });
     return { minifigs: page, total: owned.length, hasMore: offset + page.length < owned.length };
   }
   const publicUrl = new URL(path, location.origin);

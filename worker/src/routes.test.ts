@@ -1091,6 +1091,24 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(res.status).toBe(403);
     });
 
+    it('lets the owner read their own shelf while the profile is private, and no one else', async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO user_prefs (user_id, handle, is_public) VALUES (?, 'hush', 0)`).bind(userId),
+        db.prepare(`INSERT INTO user_collection (user_id, set_num, quantity, condition) VALUES (?, '75192', 1, 'new')`).bind(userId),
+        db.prepare(`INSERT INTO user_showcase (user_id, set_num) VALUES (?, '75192')`).bind(userId),
+      ]);
+      const mine = await app.fetch(new Request('http://localhost/api/users/hush/showcase', { headers: auth() }), env);
+      expect(mine.status).toBe(200);
+      expect((await mine.json<any>()).showcase.map((s: any) => s.set_num)).toEqual(['75192']);
+
+      const anon = await app.fetch(new Request('http://localhost/api/users/hush/showcase'), env);
+      expect(anon.status).toBe(401);
+
+      await db.prepare(`INSERT INTO user_prefs (user_id, handle, is_public) VALUES (?, 'someone', 1)`).bind(otherUserId).run();
+      const theirs = await app.fetch(new Request('http://localhost/api/users/someone/showcase', { headers: auth() }), env);
+      expect(theirs.status).toBe(403);
+    });
+
     it('leaderboard ranks opted-in public collections by value, excluding private ones', async () => {
       await db.batch([
         db.prepare(`INSERT INTO user_prefs (user_id, handle, display_name, is_public, expose_public_value) VALUES (?, 'rich', 'Rich', 1, 1)`).bind(userId),
