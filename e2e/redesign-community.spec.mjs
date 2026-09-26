@@ -157,6 +157,17 @@ test('Brick Wrapped offers a retry instead of an empty story when the vault fail
   await expect(story.locator('.bv-wr__head')).toHaveText('You built a $850 vault.');
 });
 
+test('Brick Wrapped does not mistake a Vault that failed to load for an empty one', async ({ page }) => {
+  await page.route('**/api/collection', (route) => (route.request().method() === 'GET'
+    ? json(route, { error: 'unavailable' }, 503)
+    : route.fallback()));
+  await page.goto('/#/', { waitUntil: 'domcontentloaded' });
+  await expect.poll(() => page.evaluate(async () => (await import('/js/state.js')).state.portfolio?._loadFailed)).toBe(true);
+  await page.goto('/#/wrapped', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#wrappedStory').getByRole('alert')).toContainText('Couldn’t load this');
+  await expect(page.locator('#wrappedStory')).not.toContainText('getting started');
+});
+
 test('Brick Wrapped steps through the story and shares a real PNG', async ({ page }) => {
   await page.route('**/api/me/wrapped**', (route) => json(route, { year: 2026, sets_sold: 1, realized_gain: 48 }));
   await page.goto('/#/wrapped', { waitUntil: 'domcontentloaded' });
