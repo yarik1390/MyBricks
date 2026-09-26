@@ -737,6 +737,69 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
     });
   });
 
+  it('collection ETag tracks non-price fields and preserves unchanged 304s', async () => {
+    await db.prepare("INSERT INTO user_collection (user_id,set_num,quantity,condition) VALUES (?, '75192', 1, 'new')").bind(userId).run();
+    const first = await app.fetch(new Request('https://x/api/collection', { headers: auth() }), env);
+    expect(first.status).toBe(200);
+    expect(first.headers.get('Cache-Control')).toBe('private, no-cache, must-revalidate');
+    expect(first.headers.get('Vary')).toContain('Authorization');
+    const etag = first.headers.get('etag')!;
+    const headers = new Headers(auth());
+    headers.set('If-None-Match', etag);
+    const unchanged = await app.fetch(new Request('https://x/api/collection', { headers }), env);
+    expect(unchanged.status).toBe(304);
+    expect(unchanged.headers.get('Cache-Control')).toBe('private, no-cache, must-revalidate');
+    expect(unchanged.headers.get('Vary')).toContain('Authorization');
+    expect(unchanged.headers.get('etag')).toBe(etag);
+    await db.prepare("UPDATE lego_sets SET name='Renamed Falcon' WHERE set_num='75192'").run();
+    const changed = await app.fetch(new Request('https://x/api/collection', { headers }), env);
+    expect(changed.status).toBe(200);
+    expect(changed.headers.get('etag')).not.toBe(etag);
+    expect(changed.headers.get('Cache-Control')).toBe('private, no-cache, must-revalidate');
+    expect(changed.headers.get('Vary')).toContain('Authorization');
+  });
+
+  it('throttles guest game guesses without writing member analytics', async () => {
+    await db.prepare("UPDATE lego_sets SET valuation_method='market', image_url='https://example.com/set.png' WHERE set_num='75192'").run();
+    const daily = await app.fetch(new Request('https://x/api/game/daily'), env);
+    const game = await daily.json<any>();
+    expect(game.rounds.length).toBeGreaterThan(0);
+    const request = () => new Request('https://x/api/game/guess', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '192.0.2.1' },
+      body: JSON.stringify({ set_num: game.rounds[0].set_num, guess: 100 }),
+    });
+    for (let i = 0; i < 25; i++) expect((await app.fetch(request(), env)).status).toBe(200);
+    expect((await app.fetch(request(), env)).status).toBe(429);
+    expect((await db.prepare('SELECT COUNT(*) AS n FROM price_guesses').first<any>()).n).toBe(0);
+  });
+
+  it('serves a PNG replacement instead of a legacy JPEG and cleans up legacy R2 keys', async () => {
+    await db.prepare("INSERT INTO user_collection (user_id,set_num,quantity,condition) VALUES (?, '75192', 1, 'new')").bind(userId).run();
+    const row = await db.prepare('SELECT id FROM user_collection WHERE user_id=?').bind(userId).first<any>();
+    const objects = new Map<string, { bytes: ArrayBuffer; type: string }>();
+    objects.set(`${userId}/75192.jpg`, { bytes: new Uint8Array([1]).buffer, type: 'image/jpeg' });
+    const photoEnv = { ...env, PHOTO_BUCKET: {
+      put: async (key: string, bytes: ArrayBuffer, options: any) => { objects.set(key, { bytes, type: options.httpMetadata.contentType }); },
+      get: async (key: string) => {
+        const obj = objects.get(key);
+        return obj ? { body: obj.bytes, httpMetadata: { contentType: obj.type }, httpEtag: '"test"' } : null;
+      },
+      delete: async (key: string) => { objects.delete(key); },
+    } } as any;
+    const form = new FormData();
+    form.append('photo', new File([new Uint8Array([2, 3])], 'new.png', { type: 'image/png' }));
+    const upload = await app.fetch(new Request(`https://x/api/collection/${row.id}/photo`, {
+      method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form,
+    }), photoEnv);
+    expect(upload.status).toBe(200);
+    // Legacy key was cleaned up, while new .photo key is preserved
+    expect(objects.has(`${userId}/75192.jpg`)).toBe(false);
+    expect(objects.has(`${userId}/75192.photo`)).toBe(true);
+    const photo = await app.fetch(new Request(`https://x/api/collection/${row.id}/photo`, { headers: auth() }), photoEnv);
+    expect(photo.headers.get('content-type')).toBe('image/png');
+    expect(Array.from(new Uint8Array(await photo.arrayBuffer()))).toEqual([2, 3]);
+  });
+
   describe('PATCH /api/me', () => {
     it('rejects an invalid handle', async () => {
       const res = await app.fetch(new Request('http://localhost/api/me', {
@@ -1001,7 +1064,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
     it('leaderboard ranks opted-in public collections by value, excluding private ones', async () => {
       await db.batch([
         db.prepare(`INSERT INTO user_prefs (user_id, handle, display_name, is_public, expose_public_value) VALUES (?, 'rich', 'Rich', 1, 1)`).bind(userId),
-        db.prepare(`INSERT INTO user_prefs (user_id, handle, display_name, is_public, expose_public_value) VALUES (?, 'modest', 'Modest', 1, 1)`).bind(otherUserId),
+        db.prepare(`INSERT INTO user_prefs (user_id, handle, display_name, is_public, expose_public_value, is_supporter) VALUES (?, 'modest', 'Modest', 1, 1, 1)`).bind(otherUserId),
         db.prepare(`INSERT INTO user_prefs (user_id, handle, is_public, expose_public_value) VALUES ('lb-private', 'hidden', 0, 1)`),
         db.prepare(`INSERT INTO user_collection (user_id, set_num, quantity, condition) VALUES (?, '75192', 2, 'new')`).bind(userId),
         db.prepare(`INSERT INTO user_collection (user_id, set_num, quantity, condition) VALUES (?, '75192', 1, 'new')`).bind(otherUserId),
@@ -1014,6 +1077,10 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       // despite the highest value.
       expect(data.leaders.map((l: any) => l.handle)).toEqual(['rich', 'modest']);
       expect(data.leaders[0].rank).toBe(1);
+      // Bounded CTE scan preserves exact JS holdingValueForRollout valuations
+      expect(data.leaders[0].set_count).toBe(1);
+      expect(data.leaders[0].total_value).toBeGreaterThan(0);
+      expect(data.leaders[0].total_value).toBe(data.leaders[1].total_value * 2);
       expect(data.total).toBe(2);
     });
 
@@ -2137,15 +2204,21 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(n!.n).toBe(0);
     });
 
-    it("404s a set that isn't in today's game and 400s junk guesses", async () => {
+    it("404s a set that isn't in today's game and 400s junk guesses without burning rate limit", async () => {
+      const rlBefore = await db.prepare("SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint='game_guess'").bind(userId).first<{ hit_count: number }>();
       const notInGame = await app.fetch(new Request('http://localhost/api/game/guess', {
         method: 'POST', headers: auth(), body: JSON.stringify({ set_num: 'NOPE-1', guess: 100 }),
       }), env);
       expect(notInGame.status).toBe(404);
+      const rlAfter404 = await db.prepare("SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint='game_guess'").bind(userId).first<{ hit_count: number }>();
+      expect(rlAfter404?.hit_count ?? 0).toBe(rlBefore?.hit_count ?? 0);
+
       const junk = await app.fetch(new Request('http://localhost/api/game/guess', {
         method: 'POST', headers: auth(), body: JSON.stringify({ set_num: 'G1-1', guess: -5 }),
       }), env);
       expect(junk.status).toBe(400);
+      const rlAfter400 = await db.prepare("SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint='game_guess'").bind(userId).first<{ hit_count: number }>();
+      expect(rlAfter400?.hit_count ?? 0).toBe(rlBefore?.hit_count ?? 0);
     });
   });
 });

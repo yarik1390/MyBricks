@@ -35,49 +35,8 @@ app.use('*', requireMember);
 app.get('/', async (c) => {
   const userId = c.get('userId');
 
-  const [collStats, figStats, valFingerprint] = await Promise.all([
-    c.env.DB.prepare(`
-      SELECT SUM(CASE WHEN deleted_at IS NULL THEN 1 ELSE 0 END) as count,
-             MAX(COALESCE(deleted_at, last_modified)) as max_time
-      FROM user_collection
-      WHERE user_id = ?
-    `).bind(userId).first<{ count: number; max_time: string | null }>(),
-    c.env.DB.prepare(`
-      SELECT COUNT(*) as count,
-             MAX(added_at) as max_time
-      FROM user_minifigs
-      WHERE user_id = ?
-    `).bind(userId).first<{ count: number; max_time: string | null }>(),
-    // Value fingerprint: any cron price update busts the ETag so the browser
-    // doesn't serve a 304 with stale prices after a valuation run.
-    c.env.DB.prepare(`
-      SELECT ROUND(SUM(
-               COALESCE(s.current_value,0) + COALESCE(s.blended_value,0) +
-               COALESCE(s.used_value,0) +
-               COALESCE(s.ebay_new_value,0) + COALESCE(s.ebay_used_value,0) +
-               COALESCE(s.ebay_value,0) + COALESCE(s.forecast_2y,0) +
-               COALESCE(s.retirement_risk_score,0) + COALESCE(s.retired,0)
-             ), 2) as fp
-      FROM user_collection uc
-      JOIN lego_sets s ON s.set_num = uc.set_num
-      WHERE uc.user_id = ? AND uc.deleted_at IS NULL
-    `).bind(userId).first<{ fp: number | null }>()
-  ]);
-
-  const collCountEtag = collStats?.count ?? 0;
-  const collMaxTimeEtag = collStats?.max_time || '';
-  const figCountEtag = figStats?.count ?? 0;
-  const figMaxTimeEtag = figStats?.max_time || '';
-  const valEtag = valFingerprint?.fp ?? 0;
-
-  const etag = `W/"${collCountEtag}-${collMaxTimeEtag}-${figCountEtag}-${figMaxTimeEtag}-${valEtag}"`;
-
-  c.header('ETag', etag);
-  c.header('Cache-Control', 'no-cache');
-
-  if (c.req.header('if-none-match') === etag) {
-    return c.body(null, 304);
-  }
+  // Hash the final representation: metadata, confidence and minifig changes
+  // must invalidate the validator, not just a partial sum of prices.
 
   const { results } = await c.env.DB.prepare(`
     SELECT
@@ -95,7 +54,6 @@ app.get('/', async (c) => {
       s.bl_used_qty, s.bl_used_min, s.bl_used_max,
       s.ebay_new_last_sold, s.ebay_used_last_sold,
       s.ebay_ask_value, s.ebay_ask_qty, s.ebay_ask_cached_at,
-      s.bo_new_value, s.bo_used_value, s.bo_cached_at,
       s.pc_new_value, s.pc_complete_value, s.pc_cached_at,
       s.lego_in_stock, s.lego_retiring_soon,
       s.bl_cached_at, s.be_cached_at, s.blended_value,
@@ -188,7 +146,7 @@ app.get('/', async (c) => {
       || Number(r.market_value) || Number(r.blended_value) || Number(r.current_value) || 0;
     if (!String(r.condition || '').startsWith('used')) return base;
     const used = (v3Enabled ? Number(valuation?.used?.fair_value) : 0) || Number(r.ebay_used_value) || Number(r.used_value)
-      || Number(r.bo_used_value) || 0;
+      || 0;
     return used || base;
   };
 
@@ -280,7 +238,7 @@ app.get('/', async (c) => {
     quantity_weighted_pct: quantityDenom ? Math.round((quantityNumer / quantityDenom) * 100) : 0,
   };
 
-  return c.json({
+  const payload = {
     items,
     total_value: totalValue,
     total_paid: totalPaid,
@@ -290,7 +248,18 @@ app.get('/', async (c) => {
     fig_count: figCount,
     total_value_with_figs: totalValue + figValue,
     pricing_confidence: pricingConfidence
-  });
+  };
+  const serialized = JSON.stringify(payload);
+  // Read-time valuation as_of clocks are not semantic changes (weak validator).
+  const validatorBody = JSON.stringify(payload, (key, value) => key === 'as_of' ? undefined : value);
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(validatorBody));
+  const etag = `W/"${Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('')}"`;
+  c.header('ETag', etag);
+  c.header('Cache-Control', 'private, no-cache, must-revalidate');
+  c.header('Vary', 'Authorization');
+  if (c.req.header('if-none-match') === etag) return c.body(null, 304);
+  c.header('Content-Type', 'application/json');
+  return c.body(serialized);
 });
 
 // POST /api/collection — add/upsert a set

@@ -96,11 +96,8 @@ app.post('/guess', async (c) => {
   const round = rounds.find(r => r.set_num === setNum);
   if (!round) return c.json({ error: "That set isn't in today's game" }, 404);
 
-  const actual = Number(round.value);
-  const pctOff = Math.abs(guess - actual) / actual;
-  const correct = pctOff <= CORRECT_BAND;
-
-  if (userId) {
+  {
+    const throttleId = userId || `game-guest:${c.req.header('CF-Connecting-IP') || 'unknown'}`;
     const windowStart = new Date();
     windowStart.setUTCHours(0, 0, 0, 0);
     const rl = await c.env.DB.prepare(`
@@ -108,8 +105,18 @@ app.post('/guess', async (c) => {
       VALUES (?, 'game_guess', ?, 1)
       ON CONFLICT (user_id, endpoint, window_start) DO UPDATE SET hit_count = rate_limits.hit_count + 1
       RETURNING hit_count
-    `).bind(userId, windowStart.toISOString()).first<{ hit_count: number }>();
-    if ((rl?.hit_count || 0) <= GUESS_DAILY_LIMIT) {
+    `).bind(throttleId, windowStart.toISOString()).first<{ hit_count: number }>();
+    if (!rl || rl.hit_count > GUESS_DAILY_LIMIT) {
+      return c.json({ error: `Daily guess limit (${GUESS_DAILY_LIMIT}) reached. Come back tomorrow!` }, 429);
+    }
+  }
+
+  const actual = Number(round.value);
+  const pctOff = Math.abs(guess - actual) / actual;
+  const correct = pctOff <= CORRECT_BAND;
+
+  {
+    if (userId) {
       await c.env.DB.prepare(`
         INSERT INTO price_guesses (user_id, day, set_num, guessed_value, actual_value)
         VALUES (?,?,?,?,?)

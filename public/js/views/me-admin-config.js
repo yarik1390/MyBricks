@@ -54,7 +54,7 @@ export const ADMIN_JOB_TOOLS = {
     body: {},
     label: 'Backfill barcodes',
     desc: 'Fills in missing UPC barcodes so sets can be scanned.',
-    source: 'Brickset / BrickOwl',
+    source: 'Brickset',
     duration: '1 safe slice',
     quota: 'Daily provider quota controls how far this advances.',
     icon: I.barcode(),
@@ -177,7 +177,6 @@ export const SOURCE_META = {
   bricklink: ['BrickLink', 'Primary collector-market pricing. Strong signal for new and used values.'],
   ebay: ['eBay', 'Asking data plus sold comps only when approved and reachable. No weak sold fallback.'],
   brickeconomy: ['BrickEconomy', 'Useful historical and forecast signal when reachable.'],
-  brickowl: ['BrickOwl', 'Optional marketplace signal and cross-check.'],
   pricecharting: ['PriceCharting', 'eBay closed-auction sold comps (Marketplace Insights replacement). Verified mappings only — unique UPC or cross-source price agreement; the rest stay quarantined.'],
   amazon: ['Amazon Creators API', 'Live Amazon offers for the buy slot. KV-only (24h) per Associates terms; never a valuation input — weight stays 0.'],
   firecrawl: ['Firecrawl', 'Scraping runtime for structured market enrichment.'],
@@ -187,7 +186,7 @@ export const SOURCE_META = {
 export const PROVIDER_GROUPS = [
   ['Core', ['d1', 'supabase', 'worker', 'pages']],
   ['Catalog', ['rebrickable', 'brickset', 'upc']],
-  ['Pricing', ['bricklink', 'brickeconomy', 'ebay', 'brickowl', 'pricecharting', 'brickinsights', 'amazon']],
+  ['Pricing', ['bricklink', 'brickeconomy', 'ebay', 'pricecharting', 'brickinsights', 'amazon']],
   ['Scraping', ['firecrawl', 'brightdata', 'stockx']],
   ['AI', ['gemini', 'openai', 'openrouter', 'merge', 'byok']],
   ['Notifications', ['resend', 'push', 'vapid', 'discord']],
@@ -199,7 +198,6 @@ export const PROVIDER_GROUPS = [
 // the console with no redeploy). Kept in sync with worker FEATURE_FLAGS.
 export const SERVICE_FLAG = {
   ebay: 'ebay_sold_comps',
-  brickowl: 'brickowl',
   brickinsights: 'brickinsights',
   firecrawl: 'firecrawl',
   stockx: 'stockx',
@@ -207,7 +205,6 @@ export const SERVICE_FLAG = {
 
 export const FLAG_LABEL = {
   ebay_sold_comps: 'eBay sold comps',
-  brickowl: 'BrickOwl source',
   brickinsights: 'BrickInsights ratings',
   firecrawl: 'Firecrawl scraping',
   stockx: 'StockX lowest ask',
@@ -220,14 +217,14 @@ export const FLAG_LABEL = {
 // unreachable — turnstile and merge both sat in this set for a while with no row
 // to click. A test in pure.test.js now enforces the pairing.
 export const TESTABLE = new Set([
-  'd1', 'supabase', 'rebrickable', 'brickset', 'brickinsights', 'brickowl', 'bricklink', 'ebay',
+  'd1', 'supabase', 'rebrickable', 'brickset', 'brickinsights', 'bricklink', 'ebay',
   'firecrawl', 'brickeconomy', 'pricecharting', 'brightdata',
   'openrouter', 'gemini', 'openai', 'merge', 'resend', 'turnstile', 'patreon', 'push', 'stockx',
 ]);
 
 // Pricing sources with weight/cap/refresh tuning (worker DEFAULT_SOURCE_CONFIG).
 export const TUNABLE_SOURCES = new Set([
-  'bricklink', 'ebay', 'brickeconomy', 'brickowl', 'pricecharting', 'firecrawl', 'brightdata',
+  'bricklink', 'ebay', 'brickeconomy', 'pricecharting', 'firecrawl', 'brightdata',
 ]);
 
 // Short "what it does" copy for services not already described in SOURCE_META.

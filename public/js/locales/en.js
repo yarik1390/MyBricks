@@ -959,7 +959,7 @@ export const en = {
     themeLight: 'Light',
     theme: 'Theme',
     trademark: 'LEGO® is a trademark of the LEGO Group, which does not sponsor or endorse this app.',
-    credits: 'Catalog data and images from Rebrickable. Market data partner: PriceCharting. Sources: BrickLink, eBay, BrickOwl, BrickEconomy & Brickset.',
+    credits: 'Catalog data and images from Rebrickable. Market data partner: PriceCharting. Sources: BrickLink, eBay, BrickEconomy & Brickset.',
     terms: 'Terms',
     privacy: 'Privacy',
     dataSources: 'Data sources',
@@ -1667,6 +1667,9 @@ export const en = {
     approvedMany: '{n} approved contributions',
     approvedOther: '{n} approved contributions',
     contributorBadge: ' · ⭐ Contributor',
+    starRatingOne: 'Rate 1 out of 5',
+    starRatingOther: 'Rate {n} out of 5',
+    ratingRequired: 'Rating (required)',
   },
   admin: {
     uploadingFile: 'Uploading {file}…',

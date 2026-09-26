@@ -950,7 +950,7 @@ export const zh = {
     themeLight: '浅色',
     theme: '主题',
     trademark: 'LEGO® 是乐高集团的商标，乐高集团不赞助也不认可本应用。',
-    credits: '目录数据和图片来自 Rebrickable。市场数据合作伙伴：PriceCharting。数据来源：BrickLink、eBay、BrickOwl、BrickEconomy 和 Brickset。',
+    credits: '目录数据和图片来自 Rebrickable。市场数据合作伙伴：PriceCharting。数据来源：BrickLink、eBay、BrickEconomy 和 Brickset。',
     terms: '条款',
     privacy: '隐私',
     dataSources: '数据来源',
@@ -1722,4 +1722,11 @@ Object.assign(zh.room, {
   inspecting: '查看套装盒', inspectLabel: '{name} 的可旋转套装盒模型', rotateHint: '拖动套装盒、使用方向键或旋转按钮即可转动。由于只有目录图片，侧面采用纯色显示。',
   rotateControls: '套装盒旋转控制', rotateLeft: '向左旋转套装盒', rotateRight: '向右旋转套装盒', setNumber: '套装编号', owned: '已收藏',
   listHint: '在列表中浏览套装并打开详情。', retry3D: '重试 3D', empty: '你的展厅已准备就绪。将套装添加到收藏库以摆满陈列架。',
+});
+
+// 评价表单中的评分（缺失形式回退到英文）。
+Object.assign(zh.contributions, {
+  starRatingOne: '评 1 分（满分 5 分）',
+  starRatingOther: '评 {n} 分（满分 5 分）',
+  ratingRequired: '评分（必填）',
 });

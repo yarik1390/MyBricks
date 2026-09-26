@@ -49,7 +49,7 @@ export const PROCESS_REGISTRY: Record<string, ProcessInfo> = {
   'brickset-enrich': { label: 'Brickset metadata', description: 'Adds Brickset details — MSRP, launch/exit dates, ratings, barcodes.', schedule: 'Daily 09:00 UTC', group: 'Enrichment' },
   'brickinsights-ratings': { label: 'Review ratings', description: 'Fetches aggregated community review scores (BrickInsights).', schedule: 'Daily 06:00 UTC', group: 'Enrichment' },
   'lego-stock-refresh': { label: 'LEGO.com stock & retail price', description: 'Scrapes LEGO.com availability, retiring-soon status and current retail price — the authoritative retail/stock-truth lane since pricesAPI was removed. Owned/wishlisted sets first, then the active catalog.', schedule: 'Daily 10:00 UTC', group: 'Enrichment' },
-  // (Barcode coverage: Brickset bulk barcodes primary + BrickOwl fallback; the
+  // (Barcode coverage: Brickset bulk barcodes; the
   // UPCitemdb trickle lane was removed 2026-08 — provider quota-dead since July.)
   'part-price-backfill': { label: 'Part prices', description: 'Caches individual part prices used to compute part-out values.', schedule: 'Daily 12:00 UTC', group: 'Enrichment' },
   'part-out-compute': { label: 'Part-out value', description: 'Computes each set’s sum-of-parts (part-out) floor value.', schedule: 'Daily 13:00 UTC', group: 'Enrichment' },

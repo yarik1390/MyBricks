@@ -21,7 +21,6 @@ function genericSourceLabel(s) {
   if (id.includes('sold') || id.includes('ebay')) return cond === 'used' ? 'eBay sold used' : 'eBay sold new';
   if (id.includes('bricklink') || id === 'market' || /bricklink/i.test(name)) return cond === 'used' ? 'BrickLink used' : 'BrickLink new';
   if (id.includes('brickeconomy') || /brickeconomy/i.test(name)) return 'Market guide';
-  if (id.includes('brickowl') || /brickowl/i.test(name)) return cond === 'used' ? 'BrickOwl used' : 'BrickOwl new';
   if (id.includes('formula')) return 'Formula fallback';
   if (id.includes('ai')) return 'AI estimate';
   if (id === 'retail') return 'MSRP';
@@ -378,8 +377,6 @@ export function marketConfidenceHTML(set) {
     const ebay = ebaySoldSummary(set);
     if (ebay.newValue) out.push({ id: ebay.legacy ? 'ebay_legacy' : 'ebay_sold_new', name: ebay.legacy ? 'Legacy eBay' : 'eBay sold new', value: ebay.newValue, condition: 'new', sample_count: ebay.newSampleCount });
     if (ebay.usedValue) out.push({ id: 'ebay_sold_used', name: 'eBay sold used', value: ebay.usedValue, condition: 'used', sample_count: ebay.usedSampleCount });
-    if (set.bo_new_value) out.push({ id: 'brickowl_new', name: 'BrickOwl', value: set.bo_new_value, condition: 'new', sample_count: set.bo_new_qty });
-    if (set.bo_used_value) out.push({ id: 'brickowl_used', name: 'BrickOwl used', value: set.bo_used_value, condition: 'used', sample_count: set.bo_used_qty });
     return out;
   };
   const v3State = set.valuation?.read_enabled ? set.valuation?.new : null;
@@ -419,7 +416,7 @@ export function marketConfidenceHTML(set) {
     const id = String(s.id || '');
     if (id.includes('ask')) return tPlural('market.slashListings', count);
     if (id.includes('sold') || id.includes('ebay')) return tPlural('market.slashComps', count);
-    if (id.includes('bricklink') || id.includes('brickowl')) return ` / ${tPlural('card.lots', count)}`;
+    if (id.includes('bricklink')) return ` / ${tPlural('card.lots', count)}`;
     return tPlural('market.slashSamples', count);
   };
   const sourceRows = sources.slice(0, 6).map(s => {

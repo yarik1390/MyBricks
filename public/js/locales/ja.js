@@ -950,7 +950,7 @@ export const ja = {
     themeLight: 'ライト',
     theme: 'テーマ',
     trademark: 'LEGO®はLEGOグループの商標であり、同グループは本アプリを後援・推奨していません。',
-    credits: 'カタログデータと画像はRebrickableより。市場データパートナー: PriceCharting。データソース: BrickLink、eBay、BrickOwl、BrickEconomy、Brickset。',
+    credits: 'カタログデータと画像はRebrickableより。市場データパートナー: PriceCharting。データソース: BrickLink、eBay、BrickEconomy、Brickset。',
     terms: '利用規約',
     privacy: 'プライバシー',
     dataSources: 'データソース',
@@ -1727,4 +1727,11 @@ Object.assign(ja.room, {
   inspecting: '箱を確認', inspectLabel: '{name}の回転可能な箱の表示', rotateHint: '箱をドラッグするか、矢印キーまたは回転ボタンを使って回転できます。カタログ画像しかないため、側面は無地です。',
   rotateControls: '箱の回転操作', rotateLeft: '箱を左に回転', rotateRight: '箱を右に回転', setNumber: 'セット番号', owned: '所有数',
   listHint: 'リストからセットを探し、詳細を開けます。', retry3D: '3Dを再試行', empty: 'ショールームの準備ができました。保管庫にセットを追加して棚をいっぱいにしましょう。',
+});
+
+// レビューシートの評価（欠けている形は英語にフォールバック）。
+Object.assign(ja.contributions, {
+  starRatingOne: '5 段階中 1 で評価',
+  starRatingOther: '5 段階中 {n} で評価',
+  ratingRequired: '評価（必須）',
 });

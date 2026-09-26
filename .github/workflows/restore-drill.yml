@@ -16,7 +16,7 @@ on:
   workflow_dispatch: {}
 
 concurrency:
-  group: brickvault-restore-drill
+  group: brickvault-d1-recovery
   cancel-in-progress: false
 
 jobs:
@@ -27,7 +27,7 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       BACKUP_BUCKET: brickvault-backups
-      DRILL_DB: brickvault-restore-drill
+      # Name is set per run after validating the generated suffix.
     steps:
       - uses: actions/setup-node@v4
         with:
@@ -36,29 +36,39 @@ jobs:
       - name: Safety guard — the drill must never target production
         run: |
           set -euo pipefail
-          if [ "${DRILL_DB}" = "brickvault" ]; then
-            echo "::error::DRILL_DB must not be the production database name"; exit 1
-          fi
+          [[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ && "$GITHUB_RUN_ATTEMPT" =~ ^[0-9]+$ ]] || {
+            echo '::error::Invalid run identity for scratch DB'; exit 1;
+          }
 
       - name: Find the newest dump in R2
         run: |
           set -euo pipefail
-          # Timestamped keys (brickvault-YYYY-MM-DD_HHMMSSZ.sql.gz) sort
-          # lexicographically = chronologically, so the last key is the newest.
-          KEY="$(curl -sf \
-            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/r2/buckets/${BACKUP_BUCKET}/objects?prefix=d1/&per_page=1000" \
-            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
-            | jq -r '[.result[].key] | sort | last // empty')"
-          if [ -z "${KEY}" ]; then
-            echo "::error::No dumps found under d1/ in ${BACKUP_BUCKET} — is the nightly backup running?"; exit 1
-          fi
-          echo "Newest dump: ${KEY}"
-          echo "DUMP_KEY=${KEY}" >> "$GITHUB_ENV"
+          # Follow every page; the newest key can be beyond the first 1000.
+          cursor=''
+          newest=''
+          while :; do
+            url="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/r2/buckets/${BACKUP_BUCKET}/objects?prefix=d1%2F&per_page=1000"
+            if [ -n "$cursor" ]; then
+              encoded=$(node -p 'encodeURIComponent(process.argv[1])' "$cursor")
+              url="${url}&cursor=${encoded}"
+            fi
+            page=$(curl -fsS --retry 2 --max-time 30 "$url" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+            jq -e '.success == true and (.result | type == "array")' <<< "$page" >/dev/null
+            candidate=$(jq -r '[.result[].key | select(test("^d1/brickvault-[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{6}Z\\.sql\\.gz$"))] | sort | last // empty' <<< "$page")
+            if [[ "$candidate" > "$newest" ]]; then newest="$candidate"; fi
+            truncated=$(jq -r '.result_info.is_truncated // false' <<< "$page")
+            if [ "$truncated" != true ]; then break; fi
+            next=$(jq -r '.result_info.cursor // empty' <<< "$page")
+            [ -n "$next" ] && [ "$next" != "$cursor" ] || { echo '::error::R2 pagination stalled'; exit 1; }
+            cursor="$next"
+          done
+          [ -n "$newest" ] || { echo '::error::No valid backup dumps found'; exit 1; }
+          echo "DUMP_KEY=${newest}" >> "$GITHUB_ENV"
 
       - name: Download and unpack the dump
         run: |
           set -euo pipefail
-          npx wrangler@3 r2 object get "${BACKUP_BUCKET}/${DUMP_KEY}" --file dump.sql.gz
+          npx wrangler@3 r2 object get "${BACKUP_BUCKET}/${DUMP_KEY}" --remote --file dump.sql.gz
           gunzip dump.sql.gz
           ls -lh dump.sql
           # An empty or tiny dump means the backup itself is broken.
@@ -67,9 +77,12 @@ jobs:
       - name: Create the scratch database
         run: |
           set -euo pipefail
-          # Drop any leftover from a previously failed drill, then start clean.
-          npx wrangler@3 d1 delete "${DRILL_DB}" -y 2>/dev/null || true
+          # Unique name: never delete another live drill's DB. Cleanup is
+          # limited to this run's own DB, even if creation/import fails.
+          DRILL_DB="brickvault-restore-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          [[ "$DRILL_DB" =~ ^brickvault-restore-[0-9]+-[0-9]+$ ]] || exit 1
           npx wrangler@3 d1 create "${DRILL_DB}"
+          echo "DRILL_DB=${DRILL_DB}" >> "$GITHUB_ENV"
 
       - name: Restore the dump into the scratch database
         run: |
@@ -98,4 +111,10 @@ jobs:
 
       - name: Delete the scratch database
         if: always()
-        run: npx wrangler@3 d1 delete "${DRILL_DB}" -y || true
+        run: |
+          set -euo pipefail
+          expected="brickvault-restore-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          if [[ "$expected" =~ ^brickvault-restore-[0-9]+-[0-9]+$ ]]; then
+            npx wrangler@3 d1 delete "$expected" -y
+          fi
+          rm -f -- dump.sql dump.sql.gz

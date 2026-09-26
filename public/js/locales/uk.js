@@ -1052,7 +1052,7 @@ export const uk = {
     themeLight: 'Світла',
     theme: 'Тема',
     trademark: 'LEGO® — торговельна марка LEGO Group, яка не спонсорує й не схвалює цей застосунок.',
-    credits: 'Дані каталогу й зображення — Rebrickable. Партнер із ринкових даних — PriceCharting. Джерела: BrickLink, eBay, BrickOwl, BrickEconomy і Brickset.',
+    credits: 'Дані каталогу й зображення — Rebrickable. Партнер із ринкових даних — PriceCharting. Джерела: BrickLink, eBay, BrickEconomy і Brickset.',
     terms: 'Умови',
     privacy: 'Конфіденційність',
     dataSources: 'Джерела даних',
@@ -1858,4 +1858,13 @@ Object.assign(uk.room, {
   inspecting: 'Огляд коробки', inspectLabel: 'Зображення коробки {name}, яке можна обертати', rotateHint: 'Перетягуйте коробку, використовуйте клавіші зі стрілками або кнопки обертання. Бічні сторони нейтральні, оскільки відоме лише зображення з каталогу.',
   rotateControls: 'Керування обертанням коробки', rotateLeft: 'Обертати коробку ліворуч', rotateRight: 'Обертати коробку праворуч', setNumber: 'Номер набору', owned: 'У колекції',
   listHint: 'Переглядайте набори у списку та відкривайте їхні подробиці.', retry3D: 'Повторити 3D', empty: 'Ваша виставкова кімната готова. Додайте набори до сховища, щоб заповнити полиці.',
+});
+
+// Оцінка у формі відгуку. uk потребує всіх форм множини (перевіряє CI).
+Object.assign(uk.contributions, {
+  starRatingOne: 'Оцініть 1 з 5',
+  starRatingFew: 'Оцініть {n} з 5',
+  starRatingMany: 'Оцініть {n} з 5',
+  starRatingOther: 'Оцініть {n} з 5',
+  ratingRequired: 'Оцінка (обов’язково)',
 });

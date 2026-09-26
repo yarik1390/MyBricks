@@ -5,14 +5,16 @@ import { $, escapeHtml, toast, haptic } from '../utils.js';
 import { I } from '../icons.js';
 import { api, _authSession } from '../api.js';
 import { showSheet, hideSheet } from './sheet.js';
+import { t, tPlural } from '../lib/i18n.js';
 
 // ── Write a review ────────────────────────────────────────────────
 export function openReviewSheet(setNum, onDone) {
   showSheet(`
     <h2 class="u-serif-h" style="margin:0 4px 12px;">Write a review</h2>
-    <div id="starPick" style="display:flex;gap:6px;justify-content:center;margin:0 0 14px;font-size:30px;cursor:pointer;">
-      ${[1,2,3,4,5].map(n => `<span data-star="${n}" style="opacity:.3;">★</span>`).join("")}
-    </div>
+    <fieldset id="starPick" style="display:flex;gap:6px;justify-content:center;margin:0 0 14px;font-size:30px;border:0;padding:0;">
+      <legend style="font-size:14px;">${escapeHtml(t('contributions.ratingRequired'))}</legend>
+      ${[1,2,3,4,5].map(n => `<label class="star-opt"><input class="u-sr-only" type="radio" name="review-rating" value="${n}" aria-label="${escapeHtml(tPlural('contributions.starRating', n))}"><span aria-hidden="true" data-star="${n}" style="opacity:.3;">★</span></label>`).join("")}
+    </fieldset>
     <input class="field-input" id="rvTitle" placeholder="Title (optional)" maxlength="120" autocomplete="off">
     <textarea class="field-input" id="rvBody" placeholder="Your thoughts on this set (optional)" rows="4" maxlength="4000" style="margin-top:10px;resize:vertical;"></textarea>
     <button class="btn-primary" id="rvSave" style="margin-top:14px;">Submit for review</button>
@@ -20,12 +22,12 @@ export function openReviewSheet(setNum, onDone) {
     <p class="u-mute" style="font-size:11px;text-align:center;margin-top:10px;">Reviews appear once approved by a moderator.</p>`);
 
   let rating = 0;
-  const paint = () => $("#starPick").querySelectorAll("span").forEach(s => {
+  const paint = () => $("#starPick").querySelectorAll("[data-star]").forEach(s => {
     s.style.opacity = Number(s.dataset.star) <= rating ? "1" : ".3";
   });
-  $("#starPick").addEventListener("click", (e) => {
-    const s = e.target.closest("[data-star]"); if (!s) return;
-    rating = Number(s.dataset.star); haptic("light"); paint();
+  $("#starPick").addEventListener("change", (e) => {
+    if (!e.target.matches('input[name="review-rating"]')) return;
+    rating = Number(e.target.value); haptic("light"); paint();
   });
   $("#rvCancel").addEventListener("click", hideSheet);
   $("#rvSave").addEventListener("click", async () => {
