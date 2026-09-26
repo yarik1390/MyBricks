@@ -71,7 +71,8 @@ export function buildStory(items, summary, year = new Date().getFullYear()) {
 // without it the sold slide is skipped.
 async function loadStory() {
   const [coll, summary] = await Promise.all([
-    state.portfolio?.items ? Promise.resolve(state.portfolio) : api('/api/collection'),
+    // The Vault's _loadFailed placeholder is not a collection — fetch instead.
+    state.portfolio?.items && !state.portfolio._loadFailed ? Promise.resolve(state.portfolio) : api('/api/collection'),
     isGuestMode() || state.me?.is_guest ? Promise.resolve(null) : api('/api/me/wrapped').catch(() => null),
   ]);
   if (!Array.isArray(coll?.items)) throw new Error('collection unavailable');
