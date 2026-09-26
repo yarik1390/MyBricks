@@ -89,15 +89,16 @@ test('the advisor button returns wherever no other floating action is shown', as
   await expect(page.locator('#bvFab')).toBeVisible();
   await expect(advisor).toBeHidden();
   // …and comes back on routes without one.
-  for (const route of ['#/leaderboard', '#/build', '#/set/75192-1']) {
+  for (const route of ['#/leaderboard', '#/build']) {
     await page.goto(`/${route}`);
     await expect(page.locator('#bvFab')).toBeHidden();
     await expect(advisor).toBeVisible();
   }
   await page.goto('/#/');
   await expect(advisor).toBeHidden();
-  // Settings, the scanner and sign-in still never show it.
-  for (const route of ['#/me', '#/pile']) {
+  // Settings, the scanner and the set page (its own action bar holds the
+  // primary actions) still never show it.
+  for (const route of ['#/me', '#/pile', '#/set/75192-1']) {
     await page.goto(`/${route}`);
     await expect(advisor).toBeHidden();
   }
