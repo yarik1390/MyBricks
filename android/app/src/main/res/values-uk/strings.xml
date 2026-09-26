@@ -12,4 +12,7 @@
     <string name="shortcut_shelf_long">Сфотографувати всю полицю</string>
     <string name="shortcut_wishlist_short">Бажане</string>
     <string name="shortcut_wishlist_long">Відкрити список бажаного</string>
+    <!-- Notification channel for price/sell/retiring alerts. -->
+    <string name="alerts_channel_name">Сповіщення</string>
+    <string name="alerts_channel_description">Зниження цін, цілі продажу, великі зміни й набори, що знімаються з виробництва</string>
 </resources>

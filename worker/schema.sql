@@ -854,6 +854,9 @@ CREATE TABLE IF NOT EXISTS native_push_tokens (
   user_id TEXT NOT NULL,
   token TEXT NOT NULL,
   platform TEXT NOT NULL DEFAULT 'android',
+  -- 1 when the installed app draws its own notifications (action buttons);
+  -- older builds rely on FCM's system-drawn notification instead.
+  supports_actions INTEGER NOT NULL DEFAULT 0,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(user_id, token)
