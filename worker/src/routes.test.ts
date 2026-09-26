@@ -2051,6 +2051,17 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
   });
 
   describe('GET /api/me/wrapped', () => {
+    it('nets realized gain of fees and of every copy sold', async () => {
+      const year = new Date().getUTCFullYear();
+      await db.batch([
+        db.prepare(`INSERT INTO lego_sets (set_num, name, pieces, current_value) VALUES ('W3-1', 'Three Copies', 100, 150)`),
+        db.prepare(`INSERT INTO user_collection (user_id, set_num, quantity, purchase_price, sold_price, sold_fees, sold_at, deleted_at) VALUES (?, 'W3-1', 3, 100, 450, 20, ?, datetime('now'))`).bind(userId, `${year}-05-10`),
+      ]);
+      const w = await (await app.fetch(new Request('http://localhost/api/me/wrapped', { headers: auth() }), env)).json<Record<string, any>>();
+      // The sale sheet previews 450 − 20 − 3 × 100; Wrapped must agree.
+      expect(w.realized_gain).toBe(130);
+    });
+
     it('aggregates the collector year: adds, sales, snapshots, best performer', async () => {
       const year = new Date().getUTCFullYear();
       await db.batch([
