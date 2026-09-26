@@ -215,7 +215,7 @@ jobs:
             "SELECT set_num, part_num, color_id, quantity FROM set_parts LIMIT 0"
             "SELECT user_id, set_num, part_num, missing_qty FROM user_missing_parts LIMIT 0"
             "SELECT user_id, id, name, set_nums, revision, updated_at FROM user_subcollections LIMIT 0"
-            "SELECT deleted_at, last_modified, storage_location, acquisition_source, is_complete, missing_pieces, spike_alerted_at, custom_image_url, sold_price, sold_at FROM user_collection LIMIT 0"
+            "SELECT deleted_at, last_modified, storage_location, acquisition_source, is_complete, missing_pieces, spike_alerted_at, custom_image_url, sold_price, sold_at, sell_target, sell_target_alerted_at, sold_fees FROM user_collection LIMIT 0"
             "SELECT set_num, condition, median, p25, p75, sample_count, contributor_count, window_days FROM community_comps LIMIT 0"
             "SELECT fig_num, bl_id, status, evidence_json, checked_at, decided_at FROM minifig_bl_candidates LIMIT 0"
             "SELECT day, event, detail, count FROM client_metrics_daily LIMIT 0"
