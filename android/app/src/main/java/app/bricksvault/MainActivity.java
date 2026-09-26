@@ -1,5 +1,6 @@
 package app.bricksvault;
 
+import android.content.Intent;
 import android.content.res.Configuration;
 import android.os.Bundle;
 import android.os.SystemClock;
@@ -49,5 +50,13 @@ public class MainActivity extends BridgeActivity {
                 || getBridge().getWebView().getProgress() < 100;
             return elapsed < 900 || (elapsed < 5000 && webViewLoading);
         });
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        // Alert buttons don't auto-cancel their notification (only a tap on the
+        // body does), so clear it once the app has opened on the button's route.
+        AlertMessagingService.dismissFrom(this, intent);
     }
 }

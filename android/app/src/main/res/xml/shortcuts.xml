@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press the launcher icon (canvas: HomeScreen). Each shortcut opens a
+     bricksvault.app link on MainActivity; the web layer maps it to its route
+     (public/js/lib/deep-links.js) and #/pile?scan=... opens the scanner. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="scan"
+        android:enabled="true"
+        android:icon="@drawable/shortcut_scan"
+        android:shortcutShortLabel="@string/shortcut_scan_short"
+        android:shortcutLongLabel="@string/shortcut_scan_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="app.bricksvault"
+            android:targetClass="app.bricksvault.MainActivity"
+            android:data="https://bricksvault.app/#/pile?scan=barcode" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="shelf"
+        android:enabled="true"
+        android:icon="@drawable/shortcut_shelf"
+        android:shortcutShortLabel="@string/shortcut_shelf_short"
+        android:shortcutLongLabel="@string/shortcut_shelf_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="app.bricksvault"
+            android:targetClass="app.bricksvault.MainActivity"
+            android:data="https://bricksvault.app/#/pile?scan=shelf" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="wishlist"
+        android:enabled="true"
+        android:icon="@drawable/shortcut_wishlist"
+        android:shortcutShortLabel="@string/shortcut_wishlist_short"
+        android:shortcutLongLabel="@string/shortcut_wishlist_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="app.bricksvault"
+            android:targetClass="app.bricksvault.MainActivity"
+            android:data="https://bricksvault.app/#/wishlist" />
+    </shortcut>
+</shortcuts>

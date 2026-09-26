@@ -1432,7 +1432,91 @@ body.collector-ui .bv-discover #catalogSortBtn { grid-column: auto; grid-row: au
 /* ---- end area: add ---- */
 
 /* ---- area: alerts — Wishlist, alerts, notifications ---- */
+/* Wishlist (canvas: Wishlist, DarkWishlist). */
+.bv-wishlist .bv-topbar__actions { gap: 0; }
+.bv-wlalert {
+  margin: 0 var(--bv-gutter) 12px; padding: 14px 16px 10px; border-radius: 20px;
+  background: var(--bv-acc); color: var(--bv-on-acc); display: flex; flex-direction: column; gap: 8px;
+}
+.bv-wlalert__head { display: flex; gap: 12px; align-items: flex-start; }
+.bv-wlalert__head > svg { flex-shrink: 0; margin-top: 1px; }
+.bv-wlalert__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bv-wlalert__title { font: 600 16px/22px var(--bv-sans); overflow-wrap: anywhere; }
+.bv-wlalert__sub { font-size: 14px; line-height: 19px; }
+.bv-wlalert__acts { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.bv-wlalert__btn {
+  height: 48px; padding: 0 14px; border: 0; border-radius: 24px; cursor: pointer; box-sizing: border-box;
+  display: inline-flex; align-items: center; gap: 6px; background: transparent; color: var(--bv-on-acc);
+  font: 600 14px/1 var(--bv-sans); text-decoration: none; white-space: nowrap;
+}
+.bv-wlalert__btn--soft { background: rgba(255, 255, 255, .6); }
+.bv-wlalert a.bv-wlalert__btn--ink { background: #252820; color: #f7f5ee; padding: 0 16px; }
+.bv-wlalert__btn svg { flex-shrink: 0; }
+.bv-wlmore {
+  margin: -4px var(--bv-gutter) 12px; min-height: 48px; padding: 0 14px; border-radius: 16px; box-sizing: border-box;
+  display: flex; align-items: center; gap: 10px; background: var(--bv-s2); color: var(--bv-ink); text-decoration: none;
+  font-size: 14px; font-weight: 500;
+}
+.bv-wlmore span { flex: 1 1 auto; min-width: 0; }
+.bv-wllist { padding: 0 var(--bv-gutter); display: flex; flex-direction: column; gap: 10px; }
+.bv-wlrow {
+  width: 100%; display: flex; gap: 14px; align-items: center; padding: 12px 16px; box-sizing: border-box;
+  border-radius: 20px; background: var(--bv-s); border: 1px solid var(--bv-line); color: var(--bv-ink);
+  text-align: left; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.bv-wlrow:active { background: var(--bv-s2); }
+.bv-wlrow > .bv-thumb { flex-shrink: 0; }
+.bv-wlrow__body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.bv-wlrow__top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.bv-wlrow__name { font: 600 16px/22px var(--bv-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.bv-wlrow__value { font: 600 16px/22px var(--bv-mono); flex-shrink: 0; letter-spacing: -.01em; }
+.bv-wlrow .bv-bar { height: 8px; border-radius: 4px; }
+.bv-wlrow.is-hit .bv-bar > span { background: var(--bv-gain); }
+.bv-wlrow__foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 8px; font-size: 13px; line-height: 18px; }
+.bv-wlrow__lbl { color: var(--bv-mute); }
+.bv-wlrow__hit { color: var(--bv-gain); font-weight: 600; }
+.bv-wlrow__set { color: var(--bv-acct); font-weight: 600; }
+.bv-wlrow__tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.bv-wlrow__hint { font-size: 13px; line-height: 18px; color: var(--bv-mute); }
+.bv-wishlist .bv-empty { margin-top: 24px; }
+.bv-sortrow[aria-pressed="true"] .bv-row__title { font-weight: 600; }
 
+/* Price alert sheet (canvas: PriceAlert). */
+.bv-pricealert { display: flex; flex-direction: column; gap: 12px; }
+.bv-pricealert__set { display: flex; align-items: center; gap: 12px; color: var(--bv-ink); text-decoration: none; min-height: 56px; }
+.bv-pricealert__set > svg { margin-left: auto; color: var(--bv-mute); flex-shrink: 0; }
+.bv-pricealert__text { display: flex; flex-direction: column; min-width: 0; }
+.bv-pricealert__name { font: 600 16px/22px var(--bv-sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bv-pricealert__meta { font-size: 13px; line-height: 18px; color: var(--bv-mute); }
+.bv-alertsws { display: flex; flex-direction: column; }
+.bv-alertsw { display: flex; align-items: center; gap: 12px; min-height: 56px; }
+.bv-alertsw + .bv-alertsw { border-top: 1px solid var(--bv-line); }
+.bv-alertsw__label { flex: 1 1 auto; font-size: 15px; line-height: 20px; }
+.bv-pricealert__buy { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bv-pricealert__buy .bv-btn { margin: 0; gap: 6px; }
+.bv-pricealert .bv-btn--danger { margin-top: -4px; }
+
+/* Notifications (canvas: Notifications). */
+.bv-notifs__banner .bv-banner { margin-top: 4px; }
+.bv-notgroup { margin: 0 var(--bv-gutter) 16px; }
+.bv-notgroup .bv-h2 { margin: 0 4px 8px; }
+.bv-notrow { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 4px 16px; box-sizing: border-box; }
+.bv-notgroup .bv-group__box > * + * { border-top: 1px solid var(--bv-line); }
+.bv-notrow__text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.bv-notrow__title { font: 500 16px/22px var(--bv-sans); }
+.bv-notrow__sub { font-size: 13px; line-height: 18px; color: var(--bv-mute); }
+.bv-quiet { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 4px 16px 14px; }
+.bv-notgroup .bv-group__box > .bv-quiet { border-top: 0; }
+.bv-quiet__field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--bv-mute); }
+.bv-quiet__select {
+  height: 48px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--bv-line); background: var(--bv-s2);
+  color: var(--bv-ink); font: 500 15px/1 var(--bv-mono);
+}
+.bv-quiet__note { grid-column: 1 / -1; margin: 0; font-size: 13px; line-height: 18px; color: var(--bv-mute); }
+/* The kit switch is 52×32 inside a 48dp row; the legacy 48px button floor
+   stretched it into a tall square here. */
+.bv-notifs .bv-toggle, .bv-pricealert .bv-toggle { min-height: 32px; height: 32px; }
+.bv-permcopy { margin: 0 0 16px; font-size: 15px; line-height: 22px; color: var(--bv-ink); }
 /* ---- end area: alerts ---- */
 
 /* ---- area: account — Profile and account ---- */

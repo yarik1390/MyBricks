@@ -1,44 +1,176 @@
-import { $, $$, haptic, escapeHtml, toast, fmtMoney, daysAgo, setHue, bricklinkBuyURL, bvIDB, celebrate } from '../utils.js';
-import { state } from '../state.js';
-import { api, getSessionUserId } from '../api.js';
-import { I } from '../icons.js';
-import { skelPage, skelCardList } from '../components/skeleton.js';
+// Wishlist (#/wishlist) — 2026 redesign. Sets you want, how far each is from
+// the price you'd pay, and an alert card when one gets there. Tapping a row
+// opens its price alert sheet (target, quick chips, per-set switches); the
+// alert card offers Dismiss / I bought it / Offers. Every action stays on this
+// screen with a snackbar + Undo.
+import { $, $$, haptic, escapeHtml, toast, snackbar, bricklinkBuyURL, bvIDB, celebrate, mount, capturedMoneyContext, CURRENCY_SYMBOLS } from '../utils.js';
+import { state, invalidatePortfolio } from '../state.js';
+import { api, getSessionUserId, outboxEnqueue } from '../api.js';
 import { buyWindow, withDisplayValue } from '../lib/pure.js';
 import { amazonSlotHTML, hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
-// spikeAlertCardHTML + refreshNavBadge are shared with the vault view, so they
-// stay in portfolio.js (this is the only back-import; portfolio.js never imports
-// this module, so there is no cycle — the router lazy-loads each view).
-import { spikeAlertCardHTML, refreshNavBadge } from './portfolio.js';
+import { localMoneyToUsd, usdMoneyInputValue } from '../lib/money-input.js';
+// refreshNavBadge is shared with the vault view, so it stays in portfolio.js
+// (the only back-import; portfolio.js never imports this module).
+import { refreshNavBadge } from './portfolio.js';
 import { t, tPlural } from '../lib/i18n.js';
+import { topbar, iconBtn, icon, btn, pill, bar, toggle, field, row, emptyState, sheetBody, skeletonRows } from '../ui/kit.js';
+import { setThumb, money0 } from '../ui/set-ui.js';
+import { setPageFab } from '../components/collector-shell.js';
+import { showSheet, hideSheet } from '../components/sheet.js';
 
-/* ============================================================
-   Wishlist screen
-   ============================================================ */
-const SEEN_DROPS_KEY = "bv_seen_drop_alerts";
+const SEEN_DROPS_KEY = 'bv_seen_drop_alerts';
+const SORT_KEY = 'bv_wl_sort';
+const SORTS = [['recent', 'bvAlerts.sortRecent'], ['gap', 'bvAlerts.sortGap'], ['value', 'bvAlerts.sortValue'], ['name', 'bvAlerts.sortName']];
+// Alert kinds that belong to wishlisted sets; the rest (spikes, sell targets)
+// live in the Vault's What changed feed.
+const WISH_ALERTS = new Set(['drop', 'deal', 'preorder', 'retiring']);
+const onWishlist = () => location.hash.split('?')[0] === '#/wishlist';
 
-// Fire the celebration popup once per never-before-seen price-drop alert. Seen
-// ids persist in localStorage (capped) so revisiting the wishlist — or seeing
-// the same alert again before marking it read — doesn't re-celebrate.
+// Fire the celebration once per never-before-seen price-drop alert. Seen ids
+// persist (capped) so revisiting doesn't re-celebrate.
 function celebrateNewDropAlerts(dropAlerts) {
   if (!dropAlerts?.length) return;
   let seen;
-  try { seen = new Set(JSON.parse(localStorage.getItem(SEEN_DROPS_KEY) || "[]")); }
+  try { seen = new Set(JSON.parse(localStorage.getItem(SEEN_DROPS_KEY) || '[]')); }
   catch { seen = new Set(); }
   const fresh = dropAlerts.filter(a => a.id != null && !seen.has(String(a.id)));
   if (fresh.length) {
     const n = fresh.length;
-    const msg = n > 1 ? `${n} price targets hit! 🎯` : "Price target hit! 🎯";
-    const quip = n > 1 ? "Your wishlist is paying off." : `${fresh[0].set_name} dropped to your target.`;
+    const msg = tPlural('bvAlerts.targetsHit', n, { count: n });
+    const quip = n > 1 ? t('bvAlerts.targetsHitQuip') : t('bvAlerts.targetHitQuip', { name: fresh[0].set_name || fresh[0].set_num });
     setTimeout(() => celebrate(msg, { quip, hue: 150 }), 400);
   }
   for (const a of dropAlerts) if (a.id != null) seen.add(String(a.id));
   try { localStorage.setItem(SEEN_DROPS_KEY, JSON.stringify([...seen].slice(-200))); } catch {}
 }
 
+const alertKind = (a) => a.alert_type || 'drop';
+const itemFor = (setNum) => (state.wishlist || []).find(w => w.set_num === setNum);
+const sortPref = () => { try { return localStorage.getItem(SORT_KEY) || 'recent'; } catch { return 'recent'; } };
+
+function sortedItems() {
+  const sort = sortPref();
+  const items = (state.wishlist || []).map(withDisplayValue);
+  const gapOf = w => (Number(w.target_price) > 0 && Number(w.current_value) > 0) ? (w.current_value - w.target_price) / w.target_price : Infinity;
+  if (sort === 'gap') items.sort((a, b) => gapOf(a) - gapOf(b));
+  else if (sort === 'value') items.sort((a, b) => (b.current_value || 0) - (a.current_value || 0));
+  else if (sort === 'name') items.sort((a, b) => String(a.name || a.set_num).localeCompare(String(b.name || b.set_num)));
+  return items; // "recent" keeps API order (added_at desc)
+}
+
+// ---------------------------------------------------------------- alert card
+function alertCopy(a) {
+  const name = a.set_name || itemFor(a.set_num)?.name || a.set_num;
+  const kind = alertKind(a);
+  const now = Number(itemFor(a.set_num) ? withDisplayValue(itemFor(a.set_num)).current_value : a.current_value) || Number(a.current_value) || 0;
+  if (kind === 'deal') return { title: t('bvAlerts.alertDealTitle', { name }), sub: t('bvAlerts.alertDealSub') };
+  if (kind === 'preorder') return { title: t('bvAlerts.alertStockTitle', { name }), sub: t('bvAlerts.alertStockSub') };
+  if (kind === 'retiring') return { title: t('bvAlerts.alertRetiringTitle', { name }), sub: t('bvAlerts.alertRetiringSub') };
+  const target = Number(a.target_price) || 0;
+  const price = Number(a.current_value) || now;
+  return {
+    title: t('bvAlerts.alertDropTitle', { name, price: money0(price) }),
+    sub: t(price < target ? 'bvAlerts.alertDropBelow' : 'bvAlerts.alertDropAt', { target: money0(target) }),
+  };
+}
+
+function alertCardHTML(a) {
+  const { title, sub } = alertCopy(a);
+  const owned = state.ownedSetNums?.has?.(a.set_num);
+  return `<section class="bv-wlalert" aria-label="${escapeHtml(t('bvAlerts.alertLabel'))}" data-alert-id="${escapeHtml(String(a.id ?? ''))}" data-set="${escapeHtml(a.set_num)}">
+      <div class="bv-wlalert__head">${icon('bell', { size: 22 })}<div class="bv-wlalert__text"><span class="bv-wlalert__title">${escapeHtml(title)}</span><span class="bv-wlalert__sub">${escapeHtml(sub)}</span></div></div>
+      <div class="bv-wlalert__acts">
+        <button type="button" class="bv-wlalert__btn" data-wl-dismiss="${escapeHtml(String(a.id ?? ''))}">${escapeHtml(t('bvAlerts.dismiss'))}</button>
+        ${owned ? '' : `<button type="button" class="bv-wlalert__btn bv-wlalert__btn--soft" data-wl-bought="${escapeHtml(a.set_num)}">${icon('check', { size: 16, stroke: 2.4 })}<span>${escapeHtml(t('bvAlerts.boughtIt'))}</span></button>`}
+        <a class="bv-wlalert__btn bv-wlalert__btn--ink" href="${escapeHtml(bricklinkBuyURL(a.set_num))}" target="_blank" rel="noopener" aria-label="${escapeHtml(t('bvAlerts.offersFor', { name: a.set_name || a.set_num }))}"><span>${escapeHtml(t('bvAlerts.offers'))}</span>${icon('ext', { size: 16 })}</a>
+      </div>
+    </section>`;
+}
+
+// -------------------------------------------------------------------- rows
+function bwLabel(w) {
+  const bw = buyWindow(w);
+  if (!bw || Number(w.current_value) <= Number(w.target_price)) return '';
+  if (bw.state === 'near') return t('bvAlerts.bwNear');
+  if (bw.state === 'approaching') return tPlural('bvAlerts.bwWeeks', bw.weeks, { count: bw.weeks });
+  return t('bvAlerts.bwAway');
+}
+
+function rowTagsHTML(w) {
+  const tags = [];
+  if (w.lego_availability === 'pre_order') tags.push(pill(t('bvAlerts.tagPreorder'), 'info'));
+  else if (w.lego_availability === 'coming_soon') tags.push(pill(t('bvAlerts.tagComingSoon'), 'info'));
+  else if (w.lego_availability === 'back_order') tags.push(pill(t('bvAlerts.tagBackOrder')));
+  if (!w.retired && (Number(w.lego_retiring_soon) === 1 || w.lego_retiring_soon === true || Number(w.retirement_risk_score) >= 70)) tags.push(pill(t('bvAlerts.tagRetiring'), 'loss', { icon: 'clock' }));
+  const bw = bwLabel(w);
+  if (bw) tags.push(`<span class="bv-wlrow__hint">${escapeHtml(bw)}</span>`);
+  return tags.length ? `<span class="bv-wlrow__tags">${tags.join('')}</span>` : '';
+}
+
+function wishRowHTML(w) {
+  const now = Number(w.current_value) || 0;
+  const target = Number(w.target_price) || 0;
+  const hit = target > 0 && now > 0 && now <= target;
+  const pct = hit ? 100 : (target > 0 && now > 0 ? Math.max(8, Math.min(100, (target / now) * 100)) : 0);
+  const name = w.name || w.set_num;
+  const status = !target
+    ? `<span class="bv-wlrow__lbl">${escapeHtml(t('bvAlerts.noTarget'))}</span><span class="bv-wlrow__set">${escapeHtml(t('bvAlerts.setTarget'))}</span>`
+    : `${hit ? `<span class="bv-wlrow__hit">${escapeHtml(t('bvAlerts.atTarget'))}</span>` : `<span class="bv-wlrow__lbl">${escapeHtml(t('bvAlerts.toGo', { amount: money0(now - target) }))}</span>`}<span class="bv-wlrow__lbl">${escapeHtml(t('bvAlerts.target', { price: money0(target) }))}</span>`;
+  return `<button type="button" class="bv-wlrow${hit ? ' is-hit' : ''}" data-wl-set="${escapeHtml(w.set_num)}" aria-label="${escapeHtml(t('bvAlerts.rowLabel', { name }))}">
+      ${setThumb(w, { size: 52 })}
+      <span class="bv-wlrow__body">
+        <span class="bv-wlrow__top"><span class="bv-wlrow__name">${escapeHtml(name)}</span><span class="bv-wlrow__value">${escapeHtml(now > 0 ? money0(now) : '—')}</span></span>
+        ${target ? bar(pct, { label: t('bvAlerts.progressLabel', { price: money0(target) }) }) : ''}
+        <span class="bv-wlrow__foot">${status}</span>
+        ${rowTagsHTML(w)}
+      </span>
+    </button>`;
+}
+
+// ------------------------------------------------------------------ screen
+function pageHTML({ loading = false } = {}) {
+  const items = sortedItems();
+  const alerts = (state.wishlistAlerts || []).filter(a => WISH_ALERTS.has(alertKind(a)));
+  const others = (state.wishlistAlerts || []).length - alerts.length;
+  const cards = alerts.slice(0, 2).map(alertCardHTML).join('');
+  const more = Math.max(0, alerts.length - 2) + others;
+  const actions = iconBtn({ icon: 'sort', label: t('bvAlerts.sortBy', { sort: t(SORTS.find(([k]) => k === sortPref())?.[1] || 'bvAlerts.sortRecent') }), id: 'wlSortBtn' })
+    + iconBtn({ icon: 'more', label: t('bvAlerts.moreOptions'), id: 'wlMoreBtn' });
+  const sub = items.length ? tPlural('bvAlerts.setsSub', items.length, { count: items.length }) : t('bvAlerts.emptySub');
+  let body;
+  if (loading) body = `<div class="bv-wllist" aria-busy="true">${skeletonRows(3)}</div>`;
+  else if (!items.length) {
+    body = emptyState({
+      icon: 'heart',
+      title: t('bvAlerts.emptyTitle'),
+      body: t('bvAlerts.emptyBody'),
+      actionsHtml: btn(t('bvAlerts.browse'), { href: '#/add', icon: 'search', full: true }) + btn(t('bvAlerts.scan'), { href: '#/pile', icon: 'scan', kind: 'tonal', full: true }),
+    });
+  } else {
+    body = `<div class="bv-wllist">${items.map(wishRowHTML).join('')}</div>`;
+  }
+  return `<main class="bv-page has-fab bv-wishlist" id="wishlistPage">
+      ${topbar({ title: t('bvAlerts.wishlist'), sub, actionsHtml: actions })}
+      ${cards}
+      ${more > 0 ? `<a class="bv-wlmore" href="#/changes">${icon('bell', { size: 18 })}<span>${escapeHtml(tPlural('bvAlerts.moreUpdates', more, { count: more }))}</span>${icon('chev', { size: 18 })}</a>` : ''}
+      ${body}
+    </main>`;
+}
+
+function paint(opts) {
+  const root = $('#root');
+  if (!root || !onWishlist()) return;
+  mount(root, pageHTML(opts));
+  const page = $('#wishlistPage');
+  if (page && !page._wlWired) { page._wlWired = true; page.addEventListener('click', onPageClick); }
+}
+
 export async function renderWishlist() {
-  if (!state.wishlist?.length) $("#root").innerHTML = skelPage(skelCardList(4));
+  setPageFab({ label: t('bvAlerts.add'), icon: 'plus', href: '#/add' });
+  const cached = Array.isArray(state.wishlist) && state.wishlist.length;
+  paint({ loading: !cached });
   try {
-    const wl = await api("/api/wishlist");
+    const wl = await api('/api/wishlist');
     const cutoff = Date.now() - 15000;
     for (const [setNum, ts] of Object.entries(state.recentWishlistDeletes || {})) {
       if (ts < cutoff) delete state.recentWishlistDeletes[setNum];
@@ -48,211 +180,268 @@ export async function renderWishlist() {
     bvIDB.set('wishlist', { data: { wishlist: state.wishlist, alerts: state.wishlistAlerts }, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
   } catch (_e) {
     // Offline: render whatever hydrateFromIDB restored rather than erroring out.
-    if (!navigator.onLine) toast(state.wishlist?.length ? "You're offline — showing cached wishlist" : "You're offline — wishlist isn't cached yet", "info");
-    else toast("Couldn't load wishlist", "error");
+    if (!navigator.onLine) toast(state.wishlist?.length ? t('bvAlerts.offlineCached') : t('bvAlerts.offlineEmpty'), 'info');
+    else toast(t('bvAlerts.loadFailed'), 'error');
   }
+  if (!onWishlist()) return;
+  refreshNavBadge();
+  paint();
+  // A wishlisted set reaching its target is a real win — celebrate the first
+  // time each drop alert is seen.
+  celebrateNewDropAlerts((state.wishlistAlerts || []).filter(a => alertKind(a) === 'drop'));
+  // Deep link from a push notification: #/wishlist?alert=<set_num>.
+  const deep = new URLSearchParams(location.hash.split('?')[1] || '').get('alert');
+  if (deep && itemFor(deep)) openPriceAlert(deep);
+}
 
-  const alerts = [...(state.wishlistAlerts || [])];
-  const spikeAlerts = alerts.filter(a => a.alert_type === "spike");
-  // Treat legacy null/undefined as drops; exclude spike and any future types.
-  const dropAlerts = alerts.filter(a => a.alert_type === "drop" || !a.alert_type);
-  const totalAlerts = alerts.length;
+function onPageClick(e) {
+  const el = e.target.closest('[data-wl-set], [data-wl-dismiss], [data-wl-bought], #wlSortBtn, #wlMoreBtn');
+  if (!el) return;
+  if (el.id === 'wlSortBtn') return openSortSheet();
+  if (el.id === 'wlMoreBtn') return openMoreSheet();
+  if (el.dataset.wlSet) { haptic('light'); return openPriceAlert(el.dataset.wlSet); }
+  if (el.dataset.wlDismiss !== undefined) return dismissAlert(el.closest('.bv-wlalert'));
+  if (el.dataset.wlBought) return boughtIt(el.dataset.wlBought, el.closest('.bv-wlalert'));
+}
 
-  // Sort the list: closest-to-target first, by value, or most recent.
-  const wlSort = localStorage.getItem("bv_wl_sort") || "recent";
-  // Normalize once so target gaps, sorting, cards and buy-window math all use
-  // the same fair-value chain as Catalog and Set Detail.
-  const sorted = state.wishlist.map(withDisplayValue);
-  if (wlSort === "gap") {
-    const gapOf = w => w.target_price ? (w.current_value - w.target_price) / w.target_price : Infinity;
-    sorted.sort((a, b) => gapOf(a) - gapOf(b));
-  } else if (wlSort === "value") {
-    sorted.sort((a, b) => (b.current_value || 0) - (a.current_value || 0));
-  } // "recent" keeps API order (added_at desc)
+// ---------------------------------------------------------------- actions
+async function markAlertsRead(ids) {
+  const set = new Set(ids.map(String));
+  state.wishlistAlerts = (state.wishlistAlerts || []).filter(a => !set.has(String(a.id)));
+  refreshNavBadge();
+  await Promise.all(ids.map(id => api(`/api/wishlist/${encodeURIComponent(id)}`, { method: 'POST' }).catch(() => {})));
+}
 
-  $("#root").innerHTML = `
-    <div class="page">
-      <div class="topbar">
-        <a href="#/" class="icon-btn" aria-label="Back" style="margin-top:2px;margin-right:8px;">${I.chevL()}</a>
-        <div class="topbar-heading">
-          <div class="topbar-eyebrow">${tPlural('wishlist.setsCount', state.wishlist.length)} · ${tPlural('wishlist.alertsCount', totalAlerts)}</div>
-          <h1 class="topbar-title">Wishlist</h1>
-        </div>
-      </div>
+async function dismissAlert(card) {
+  if (!card) return;
+  if (!navigator.onLine) { toast(t('bvAlerts.offlineMarkRead'), 'info'); return; }
+  haptic('light');
+  const id = card.dataset.alertId;
+  const item = itemFor(card.dataset.set);
+  if (id) await markAlertsRead([id]);
+  // Dismissing a target hit also acknowledges the row, as the old ✓ did.
+  if (item?.id != null && Number(item.target_price) > 0 && Number(withDisplayValue(item).current_value) <= Number(item.target_price) && !item.acknowledged_at) {
+    item.acknowledged_at = new Date().toISOString();
+    api(`/api/wishlist/${encodeURIComponent(item.id)}/acknowledge-alert`, { method: 'POST' }).catch(() => {});
+  }
+  paint();
+}
 
-      ${totalAlerts > 0 ? `
-        <div class="u-between u-mb-2">
-          <span class="u-mono-label">${tPlural('wishlist.unreadAlerts', totalAlerts)}</span>
-          <button class="btn-secondary" id="wlMarkAllRead" style="padding:6px 12px;font-size:12px;width:auto;">Mark all read</button>
-        </div>` : ""}
+// "I bought it": move the set into the vault at the alert price, off the
+// wishlist, in one step — Undo puts both back.
+async function boughtIt(setNum, card) {
+  const item = itemFor(setNum);
+  if (!item) return;
+  const alertRow = (state.wishlistAlerts || []).find(a => a.set_num === setNum);
+  const price = Number(alertRow?.current_value) || Number(withDisplayValue(item).current_value) || 0;
+  const name = item.name || setNum;
+  haptic('medium');
+  state.wishlist = state.wishlist.filter(w => w.set_num !== setNum);
+  state.recentWishlistDeletes[setNum] = Date.now();
+  if (card?.dataset.alertId) markAlertsRead([card.dataset.alertId]);
+  paint();
+  const body = { set_num: setNum, quantity: 1, ...(price > 0 ? { purchase_price: Math.round(price * 100) / 100 } : {}) };
+  let collectionId = null;
+  try {
+    const res = await api('/api/collection', { method: 'POST', body });
+    collectionId = res?.item?.id ?? null;
+    if (item.id != null) await api(`/api/wishlist/${encodeURIComponent(item.id)}`, { method: 'DELETE' });
+  } catch (err) {
+    if (!navigator.onLine) {
+      outboxEnqueue({ path: '/api/collection', method: 'POST', body });
+      if (item.id != null) outboxEnqueue({ path: `/api/wishlist/${encodeURIComponent(item.id)}`, method: 'DELETE' });
+    } else {
+      state.wishlist = [item, ...state.wishlist];
+      delete state.recentWishlistDeletes[setNum];
+      paint();
+      toast(t('common.errorWithDetails', { error: err.message || err }), 'error');
+      return;
+    }
+  }
+  state.ownedSetNums?.add?.(setNum);
+  invalidatePortfolio();
+  snackbar(t('bvAlerts.movedToVault', { name }), {
+    type: 'success',
+    duration: 7000,
+    actions: [
+      { label: t('bvAlerts.editPrice'), onClick: () => { location.hash = `#/set/${encodeURIComponent(setNum)}/edit`; } },
+      ...(collectionId != null ? [{ label: t('common.undo'), kind: 'undo', onClick: async () => {
+        try {
+          await api(`/api/collection/${encodeURIComponent(collectionId)}`, { method: 'DELETE' });
+          await api('/api/wishlist', { method: 'POST', body: { set_num: setNum, target_price: Number(item.target_price) > 0 ? Number(item.target_price) : null } });
+          state.ownedSetNums?.delete?.(setNum);
+          delete state.recentWishlistDeletes[setNum];
+          invalidatePortfolio();
+          if (onWishlist()) renderWishlist();
+        } catch { toast(t('common.actionFailed'), 'error'); }
+      } }] : []),
+    ],
+  });
+}
 
-      ${spikeAlerts.length > 0 ? `
-        <h2 class="section-title"><span aria-hidden="true">💰</span> Sell Opportunities</h2>
-        <div style="margin-bottom:14px;">
-          ${spikeAlerts.map(a => spikeAlertCardHTML(a, { dismiss: true })).join("")}
-        </div>` : ""}
+function openSortSheet() {
+  const current = sortPref();
+  showSheet(sheetBody({
+    title: t('bvAlerts.sortTitle'),
+    inner: `<div class="bv-group__box">${SORTS.map(([key, label]) => `<button type="button" class="bv-row bv-sortrow" data-wl-sort="${key}" aria-pressed="${current === key}"><span class="bv-row__text"><span class="bv-row__title">${escapeHtml(t(label))}</span></span><span class="bv-row__trail">${current === key ? icon('check', { size: 20 }) : ''}</span></button>`).join('')}</div>`,
+  }));
+  $$('#sheet [data-wl-sort]').forEach(b => b.addEventListener('click', () => {
+    try { localStorage.setItem(SORT_KEY, b.dataset.wlSort); } catch {}
+    haptic('light');
+    hideSheet();
+    paint();
+  }));
+}
 
-      ${dropAlerts.length > 0 ? `
-        <h2 class="section-title u-row u-gap-1">Price Drops ${I.trendDown({w:12,h:12})}</h2>
-        <div style="margin-bottom:14px;">
-          ${dropAlerts.map(a => `
-            <div class="alert-card">
-              ${a.id ? `<button class="alert-dismiss" data-alert-id="${escapeHtml(String(a.id))}" aria-label="Mark this alert read" title="Mark read">✓</button>` : ""}
-              <div class="ah">${I.bell()}${tPlural('alerts.priceDrop', daysAgo(a.triggered_at))}</div>
-              <div style="font-weight:600;">${escapeHtml(a.set_name)}</div>
-              <div style="font-size:13px;margin-top:4px;">Now <strong>${fmtMoney(withDisplayValue(state.wishlist.find(w => w.set_num === a.set_num) || a).current_value)}</strong> ${t("alerts.targetWas", { price: fmtMoney(a.target_price) })}</div>
-            </div>`).join("")}
-        </div>` : ""}
-
-      ${state.wishlist.length > 1 ? `
-        <div class="filter-row" style="margin-bottom:10px;">
-          ${[["recent","Recent"],["gap","Closest to target"],["value","By value"]]
-            .map(([k,l]) => `<button class="chip ${wlSort === k ? "active" : ""}" data-wl-sort="${k}">${l}</button>`).join("")}
-        </div>` : ""}
-
-      ${state.wishlist.length === 0 ? `
-        <div class="empty card">
-          <div class="empty-icon">${I.heart()}</div>
-          <h3>Nothing wishlisted yet</h3>
-          <p>Tap the heart on any set to watch it. We'll alert you when the price hits your target.</p>
-          <div class="empty-actions">
-            <a class="btn-primary" href="#/add">${I.search()}<span>Browse catalog</span></a>
-            <a class="btn-secondary" href="#/pile">${I.scan()}<span>Scan a set</span></a>
-          </div>
-        </div>` : `
-        <div>${sorted.map(wishlistCardHTML).join("")}</div>`}
-    </div>`;
-
-  // A wishlisted set reaching its target price is a real win — celebrate the
-  // first time we see each drop alert (tracked by id so it never re-fires on a
-  // later visit, independent of the mark-as-read flow).
-  celebrateNewDropAlerts(dropAlerts);
-
-  $("#wlMarkAllRead")?.addEventListener("click", async () => {
-    haptic("medium");
+function openMoreSheet() {
+  const totalAlerts = (state.wishlistAlerts || []).length;
+  showSheet(sheetBody({
+    title: t('bvAlerts.wishlist'),
+    inner: `<div class="bv-group__box">
+        ${totalAlerts ? row({ icon: 'check', title: t('bvAlerts.markAllRead'), sub: tPlural('wishlist.unreadAlerts', totalAlerts), id: 'wlMarkAllRead', chevron: false }) : ''}
+        ${row({ icon: 'bell', title: t('bvAlerts.notificationSettings'), href: '#/me/notifications', id: 'wlNotifSettings' })}
+        ${row({ icon: 'clock', title: t('bvAlerts.retiringSoon'), href: '#/retiring' })}
+        ${row({ icon: 'search', title: t('bvAlerts.browse'), href: '#/add' })}
+      </div>`,
+  }));
+  $$('#sheet a.bv-row').forEach(a => a.addEventListener('click', () => hideSheet()));
+  $('#wlMarkAllRead')?.addEventListener('click', async () => {
+    haptic('medium');
     // Offline the POSTs can't land — clearing the list would just "un-clear"
     // on the next load with no explanation. Be honest instead of optimistic.
-    if (!navigator.onLine) {
-      toast("You're offline — try marking alerts read when connected.", "info");
-      return;
-    }
-    state.wishlistAlerts = [];
-    refreshNavBadge();
-    await Promise.all(alerts.map(a =>
-      api(`/api/wishlist/${a.id}`, { method: "POST" }).catch(err => console.error("Failed to mark alert as read:", err))
-    ));
-    renderWishlist();
+    if (!navigator.onLine) { toast(t('bvAlerts.offlineMarkRead'), 'info'); return; }
+    hideSheet();
+    await markAlertsRead((state.wishlistAlerts || []).map(a => a.id).filter(id => id != null));
+    paint();
   });
+}
 
-  // Per-row target-alert dismiss (the ✓ next to AT TARGET) — persists via acknowledged_at.
-  $$(".wish-ack").forEach(btn => btn.addEventListener("click", async (e) => {
-    e.stopPropagation();
-    haptic("light");
-    const id = btn.dataset.ackId;
-    if (!id) return;
-    try {
-      await api(`/api/wishlist/${id}/acknowledge-alert`, { method: "POST" });
-      toast(t("wishlist.alertAcked"));
-      renderWishlist();
-    } catch (err) {
-      console.error("Failed to acknowledge wishlist alert", err);
-      toast("Couldn't dismiss the alert — try again when online.");
-    }
+// --------------------------------------------------------- price alert sheet
+export function openPriceAlert(setNum) {
+  const raw = itemFor(setNum);
+  if (!raw) return;
+  const w = withDisplayValue(raw);
+  const ctx = capturedMoneyContext();
+  const symbol = CURRENCY_SYMBOLS[ctx.currency] || '$';
+  const now = Number(w.current_value) || 0;
+  const low = Number(w.blended_low || w.market_value_low) || 0;
+  const high = Number(w.blended_high || w.market_value_high) || 0;
+  const rrp = Number(w.retail_price) || 0;
+  const name = w.name || w.set_num;
+  const chips = [
+    now > 0 ? { usd: Math.round(now * 0.95), label: t('bvAlerts.chipPct', { pct: 5, price: money0(now * 0.95) }) } : null,
+    now > 0 ? { usd: Math.round(now * 0.9), label: t('bvAlerts.chipPct', { pct: 10, price: money0(now * 0.9) }) } : null,
+    low > 0 && low < now ? { usd: Math.round(low), label: t('bvAlerts.chipLow', { price: money0(low) }) } : null,
+    rrp > 0 ? { usd: rrp, label: t('bvAlerts.chipRrp', { price: money0(rrp) }) } : null,
+  ].filter(Boolean).slice(0, 3);
+  const meta = now > 0
+    ? (low > 0 && high > low ? t('bvAlerts.nowRange', { price: money0(now), low: money0(low), high: money0(high) }) : t('bvAlerts.nowOnly', { price: money0(now) }))
+    : t('bvAlerts.noPrice');
+  const sw = (id, key, label) => `<div class="bv-alertsw"><span class="bv-alertsw__label" id="${id}-l">${escapeHtml(t(label))}</span>${toggle({ id, on: raw[key] !== 0 && raw[key] !== false, label: t(label) })}</div>`;
+  showSheet(sheetBody({
+    title: t('bvAlerts.priceAlert'),
+    id: 'priceAlertSheet',
+    inner: `<form class="bv-form bv-pricealert" id="priceAlertForm" novalidate>
+        <a class="bv-pricealert__set" href="#/set/${encodeURIComponent(w.set_num)}" id="paOpenSet">${setThumb(w, { size: 48 })}<span class="bv-pricealert__text"><span class="bv-pricealert__name">${escapeHtml(name)}</span><span class="bv-pricealert__meta">${escapeHtml(meta)}</span></span>${icon('chev', { size: 20 })}</a>
+        ${field({ id: 'paTarget', label: t('bvAlerts.targetPrice'), value: Number(w.target_price) > 0 ? usdMoneyInputValue(w.target_price, ctx) : '', placeholder: chips[1] ? usdMoneyInputValue(chips[1].usd, ctx) : '', mono: true, prefix: symbol, inputmode: 'decimal', autocomplete: 'off' })}
+        ${chips.length ? `<div class="bv-chips bv-chips--wrap">${chips.map(c => `<button type="button" class="bv-chip" data-pa-price="${escapeHtml(usdMoneyInputValue(c.usd, ctx))}">${escapeHtml(c.label)}</button>`).join('')}</div>` : ''}
+        <div class="bv-alertsws">
+          ${sw('paNotifyTarget', 'notify_target', 'bvAlerts.tgTarget')}
+          ${sw('paNotifyRetiring', 'notify_retiring', 'bvAlerts.tgRetiring')}
+          ${sw('paNotifyStock', 'notify_stock', 'bvAlerts.tgStock')}
+        </div>
+        <div class="bv-pricealert__buy"><a class="bv-btn bv-btn--outline bv-btn--sm" href="${escapeHtml(bricklinkBuyURL(w.set_num))}" target="_blank" rel="noopener">${escapeHtml(t('bvAlerts.bricklink'))}${icon('ext', { size: 16 })}</a>${amazonSlotHTML(w.set_num, { compact: true })}</div>
+        <button type="submit" class="bv-btn bv-btn--primary bv-btn--full bv-btn--lg" id="paSave">${escapeHtml(t('common.save'))}</button>
+        <button type="button" class="bv-btn bv-btn--danger bv-btn--full" id="paRemove">${escapeHtml(t('bvAlerts.removeFromWishlist'))}</button>
+      </form>`,
   }));
+  hydrateAmazonSlots($('#sheet'), state.me?.retail_market || 'FR');
+  $('#paOpenSet')?.addEventListener('click', () => hideSheet());
+  $$('#sheet [data-pa-price]').forEach(b => b.addEventListener('click', () => {
+    $('#paTarget').value = b.dataset.paPrice;
+    $$('#sheet [data-pa-price]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    haptic('light');
+  }));
+  $$('#sheet .bv-toggle').forEach(tg => tg.addEventListener('click', () => {
+    tg.setAttribute('aria-checked', String(tg.getAttribute('aria-checked') !== 'true'));
+    haptic('light');
+  }));
+  $('#paRemove')?.addEventListener('click', () => { hideSheet(); removeFromWishlist(raw); });
+  $('#priceAlertForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const parsed = localMoneyToUsd($('#paTarget').value, ctx, { positive: true });
+    if (!parsed.valid) { toast(t('bvAlerts.targetInvalid'), 'error'); $('#paTarget').focus(); return; }
+    const on = (id) => $(`#${id}`)?.getAttribute('aria-checked') === 'true';
+    const patch = {
+      target_price: parsed.blank ? null : Math.round(parsed.usd * 100) / 100,
+      notify_target: on('paNotifyTarget'),
+      notify_retiring: on('paNotifyRetiring'),
+      notify_stock: on('paNotifyStock'),
+    };
+    await savePriceAlert(raw, patch);
+  });
+}
 
-  // Per-alert dismiss (the ✓ on each alert card) — mark just that one read.
-  $$(".alert-dismiss").forEach(btn => btn.addEventListener("click", async (e) => {
-    e.stopPropagation();
-    haptic("light");
+async function savePriceAlert(item, patch) {
+  const before = { target_price: item.target_price, notify_target: item.notify_target, notify_retiring: item.notify_retiring, notify_stock: item.notify_stock, acknowledged_at: item.acknowledged_at };
+  // Optimistic: the row updates as the sheet closes.
+  Object.assign(item, {
+    target_price: patch.target_price,
+    notify_target: patch.notify_target ? 1 : 0,
+    notify_retiring: patch.notify_retiring ? 1 : 0,
+    notify_stock: patch.notify_stock ? 1 : 0,
+    ...(patch.target_price !== before.target_price ? { acknowledged_at: null } : {}),
+  });
+  hideSheet();
+  paint();
+  haptic('medium');
+  const path = `/api/wishlist/${encodeURIComponent(item.id)}`;
+  try {
+    await api(path, { method: 'PATCH', body: patch });
+    toast(t('bvAlerts.alertSaved'), 'success');
+  } catch (err) {
     if (!navigator.onLine) {
-      toast("You're offline — try marking alerts read when connected.", "info");
+      outboxEnqueue({ path, method: 'PATCH', body: patch });
+      toast(t('bvAlerts.savedOffline'), 'info');
       return;
     }
-    const id = btn.dataset.alertId;
-    state.wishlistAlerts = (state.wishlistAlerts || []).filter(a => String(a.id) !== String(id));
-    refreshNavBadge();
-    await api(`/api/wishlist/${id}`, { method: "POST" }).catch(err => console.error("Failed to mark alert as read:", err));
-    renderWishlist();
-  }));
-
-  $$("[data-wl-sort]").forEach(b => b.addEventListener("click", () => {
-    localStorage.setItem("bv_wl_sort", b.dataset.wlSort);
-    haptic("light");
-    renderWishlist();
-  }));
-
-  hydrateAmazonSlots(document, state.me?.retail_market || 'FR');
-
-  $$(".wishlist-card").forEach(c => c.addEventListener("click", (event) => {
-    if (event.target.closest('a, button')) return;
-    location.hash = "#/set/" + encodeURIComponent(c.dataset.set);
-  }));
-  $$(".wishlist-card .bl-badge").forEach(a => a.addEventListener("click", e => {
-    e.stopPropagation();
-  }));
-  $$(".spike-alert[data-set]").forEach(c => c.addEventListener("click", (e) => {
-    if (e.target.tagName === "A") return;
-    location.hash = "#/set/" + encodeURIComponent(c.dataset.set);
-  }));
+    Object.assign(item, before);
+    paint();
+    toast(t('common.errorWithDetails', { error: err.message || err }), 'error');
+  }
 }
 
-function wishlistCardHTML(w) {
-  const gap = w.target_price ? ((w.current_value - w.target_price) / w.target_price) : null;
-  const hit = gap != null && gap <= 0;
-  const progress = gap == null ? 100 : Math.min(100, Math.max(0, 100 - gap * 100));
-  const h = setHue(w);
-  const hasImg = w.image_url && !w.image_url.startsWith("data:");
-  return `
-    <div class="wishlist-card" data-set="${escapeHtml(w.set_num)}" style="cursor:pointer;position:relative;">
-      <div class="sl-img has-tile${hasImg ? " has-photo" : ""}" style="width:72px;height:76px;">
-        <div class="brick-tile" style="--h:${h};width:100%;height:76%;margin-top:auto;"></div>
-        ${hasImg ? `<img class="set-photo" src="${escapeHtml(w.image_url)}" alt="${escapeHtml(w.name || '')}" loading="lazy">` : ""}
-      </div>
-      <div class="sl-body" style="flex:1;text-align:left;padding-right:56px;">
-        <div class="sl-name">${escapeHtml(w.name || w.set_num)}</div>
-        <div class="sl-meta">
-          <span>${escapeHtml(w.theme || "")}</span>
-          <span class="dot"></span>
-          <span>${escapeHtml(w.set_num)}</span>
-        </div>
-        <div class="gap-row">
-          <span style="color:var(--ink-mute);">${t("wishlist.nowPrice", { price: fmtMoney(w.current_value, { cents: 0 }) })}</span>
-          <span style="color:${hit ? "var(--up)" : "var(--ink)"};font-weight:700;">${gap == null ? "No target" : hit ? "AT TARGET" : "Target " + fmtMoney(w.target_price, { cents: 0 })}</span>${hit && !w.acknowledged_at ? `<button type="button" class="wish-ack" data-ack-id="${w.id}" aria-label="${t("wishlist.ackAlert")}" title="${t("wishlist.ackAlert")}">✓</button>` : ""}
-        </div>
-        <div class="progress${hit ? " over" : ""}"><div style="width:${progress}%;"></div></div>
-        ${buyWindowHTML(w)}
-        ${amazonSlotHTML(w.set_num, { compact: true })}
-        ${preorderCueHTML(w)}
-        ${(w.retirement_risk_score || 0) >= 70 && !w.retired ? `<div class="u-row u-gap-1" style="font-size:11px;color:var(--down);margin-top:4px;font-family:var(--mono);">${I.alert({w:12,h:12})} Retirement risk: High</div>` : ""}
-      </div>
-      <a href="${bricklinkBuyURL(w.set_num)}" target="_blank" rel="noopener" class="bl-badge" aria-label="Open on BrickLink" style="position:absolute;bottom:4px;right:4px;z-index:5;font-size:10px;font-family:var(--mono);font-weight:700;min-width:44px;min-height:40px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;">
-        <span style="padding:2px 5px;background:var(--bv-yellow);color:#000;border:1.5px solid var(--line);border-radius:var(--r-1);">BL ↗</span>
-      </a>
-    </div>`;
-}
-
-// Pre-order / coming-soon cue for a wishlisted set (G2). Source-anonymized —
-// surfaces the availability event without naming where it's sold.
-function preorderCueHTML(w) {
-  const map = {
-    pre_order: ['Available to pre-order', 'var(--accent)'],
-    coming_soon: ['Coming soon', 'var(--accent)'],
-    back_order: ['On back-order', 'var(--bv-yellow)'],
-  };
-  const m = w.lego_availability ? map[w.lego_availability] : null;
-  if (!m) return '';
-  return `<div style="font-size:11px;color:${m[1]};margin-top:4px;font-family:var(--mono);font-weight:700;">${m[0]}</div>`;
-}
-
-// 30-day trend → actionable hint under the wishlist target progress bar.
-function buyWindowHTML(w) {
-  const bw = buyWindow(w);
-  if (!bw) return "";
-  const style = bw.state === "near"
-    ? "color:var(--up);font-weight:700;"
-    : bw.state === "approaching"
-      ? "color:var(--up);"
-      : "color:var(--ink-mute);";
-  const icon = bw.state === "near" ? "🎯" : bw.state === "approaching" ? "↘" : "↗";
-  return `<div style="font-size:11px;margin-top:4px;font-family:var(--mono);${style}">${icon} ${escapeHtml(bw.label)}</div>`;
+async function removeFromWishlist(item) {
+  const name = item.name || item.set_num;
+  state.wishlist = state.wishlist.filter(w => w !== item);
+  state.recentWishlistDeletes[item.set_num] = Date.now();
+  paint();
+  haptic('medium');
+  let removed = false;
+  try {
+    await api(`/api/wishlist/${encodeURIComponent(item.id)}`, { method: 'DELETE' });
+    removed = true;
+  } catch (err) {
+    if (!navigator.onLine) {
+      outboxEnqueue({ path: `/api/wishlist/${encodeURIComponent(item.id)}`, method: 'DELETE' });
+      removed = true;
+    } else {
+      state.wishlist = [item, ...state.wishlist];
+      delete state.recentWishlistDeletes[item.set_num];
+      paint();
+      toast(t('common.errorWithDetails', { error: err.message || err }), 'error');
+    }
+  }
+  if (!removed) return;
+  snackbar(t('bvAlerts.removed', { name }), {
+    actions: [{ label: t('common.undo'), kind: 'undo', onClick: async () => {
+      try {
+        // Recreate it as it was, per-set alert switches included.
+        const switches = Object.fromEntries(['notify_target', 'notify_retiring', 'notify_stock'].filter((key) => item[key] != null).map((key) => [key, Number(item[key]) !== 0]));
+        await api('/api/wishlist', { method: 'POST', body: { set_num: item.set_num, target_price: Number(item.target_price) > 0 ? Number(item.target_price) : null, notes: item.notes || null, ...switches } });
+        delete state.recentWishlistDeletes[item.set_num];
+        if (onWishlist()) renderWishlist();
+      } catch { toast(t('common.actionFailed'), 'error'); }
+    } }],
+  });
 }

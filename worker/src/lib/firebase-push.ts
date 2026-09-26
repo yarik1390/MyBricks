@@ -7,10 +7,18 @@ interface FirebaseServiceAccount {
   private_key: string;
 }
 
+export interface NativePushAction {
+  action: string;
+  title: string;
+  url: string;
+}
+
 export interface NativePushPayload {
   title: string;
   body: string;
   url?: string;
+  tag?: string;
+  actions?: NativePushAction[];
 }
 
 interface CachedAccessToken {
@@ -109,18 +117,55 @@ async function getAccessToken(account: FirebaseServiceAccount): Promise<string> 
   return result.access_token;
 }
 
-function decodePayload(payload: string): NativePushPayload | null {
+export function decodePayload(payload: string): NativePushPayload | null {
   try {
     const parsed = JSON.parse(payload) as Partial<NativePushPayload>;
     if (!parsed.title || !parsed.body) return null;
+    // Up to two buttons, each opening an in-app route (the same set the web
+    // push notification shows).
+    const actions = (Array.isArray(parsed.actions) ? parsed.actions : [])
+      .filter(a => a && a.action && a.title && typeof a.url === 'string' && a.url.startsWith('#/'))
+      .slice(0, 2)
+      .map(a => ({ action: String(a.action).slice(0, 32), title: String(a.title).slice(0, 40), url: String(a.url).slice(0, 500) }));
     return {
       title: String(parsed.title).slice(0, 120),
       body: String(parsed.body).slice(0, 500),
       url: parsed.url ? String(parsed.url).slice(0, 500) : '#/',
+      // Same tag replaces the previous notification for that set instead of stacking.
+      ...(parsed.tag ? { tag: String(parsed.tag).slice(0, 64) } : {}),
+      ...(actions.length ? { actions } : {}),
     };
   } catch {
     return null;
   }
+}
+
+/**
+ * The FCM v1 message for one device. Android builds that draw their own
+ * notifications (supports_actions) get a data-only message carrying the
+ * buttons — a `notification` block would be drawn by the system without them.
+ * Every other device keeps the system-drawn notification.
+ */
+export function fcmMessage(token: string, payload: NativePushPayload, supportsActions: boolean) {
+  if (supportsActions && payload.actions?.length) {
+    return {
+      token,
+      data: {
+        title: payload.title,
+        body: payload.body,
+        url: payload.url || '#/',
+        ...(payload.tag ? { tag: payload.tag } : {}),
+        actions: JSON.stringify(payload.actions),
+      },
+      android: { priority: 'high' },
+    };
+  }
+  return {
+    token,
+    notification: { title: payload.title, body: payload.body },
+    data: { url: payload.url || '#/' },
+    android: { priority: 'high', ...(payload.tag ? { notification: { tag: payload.tag } } : {}) },
+  };
 }
 
 function isDeadToken(status: number, responseText: string): boolean {
@@ -133,8 +178,8 @@ export async function sendNativePushToUser(env: Env, userId: string, payloadJson
   if (!account || !payload) return;
 
   const { results } = await env.DB.prepare(
-    'SELECT token FROM native_push_tokens WHERE user_id=?',
-  ).bind(userId).all<{ token: string }>();
+    'SELECT token, supports_actions FROM native_push_tokens WHERE user_id=?',
+  ).bind(userId).all<{ token: string; supports_actions: number | null }>();
   if (!results.length) return;
 
   let accessToken: string;
@@ -161,14 +206,7 @@ export async function sendNativePushToUser(env: Env, userId: string, payloadJson
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            message: {
-              token: row.token,
-              notification: { title: payload.title, body: payload.body },
-              data: { url: payload.url || '#/' },
-              android: { priority: 'high' },
-            },
-          }),
+          body: JSON.stringify({ message: fcmMessage(row.token, payload, row.supports_actions === 1) }),
           // Bounded per-message send; a stalled FCM call must not hang the batch.
           signal: AbortSignal.timeout(8000),
         },

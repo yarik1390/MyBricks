@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:allowBackup="false"
@@ -45,6 +46,11 @@
                     android:host="bricksvault.app" />
             </intent-filter>
 
+            <!-- Launcher shortcuts: Scan a set, Photograph a shelf, Wishlist. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+
         </activity>
 
         <!-- Home-screen vault-value widget. Static except when the app pushes
@@ -60,6 +66,20 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_vault_info" />
         </receiver>
+
+        <!-- Push: this service replaces the push plugin's own FCM service (it
+             still forwards every message to the plugin) so alerts can be drawn
+             with their action buttons. See AlertMessagingService. -->
+        <service
+            android:name=".AlertMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <service
+            android:name="com.capacitorjs.plugins.pushnotifications.MessagingService"
+            tools:node="remove" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

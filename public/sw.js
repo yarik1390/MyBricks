@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = "v538";
+const VERSION = "v539";
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 // Cross-origin product images live in their own UNVERSIONED, bounded cache:
@@ -72,6 +72,8 @@ const STATIC_ASSETS = [
   '/js/lib/pure.js',
   '/js/lib/money-input.js',
   '/js/lib/scan-geometry.js',
+  '/js/lib/push-delivery.js',
+  '/js/lib/deep-links.js',
   '/js/lib/minifig-holding.js',
   '/js/lib/subcollections.js',
   '/js/lib/subcollection-storage.js',
@@ -301,19 +303,29 @@ self.addEventListener('message', e => {
 self.addEventListener('push', e => {
   let data = { title: 'BricksVault', body: 'New alert', url: '/' };
   try { if (e.data) data = { ...data, ...e.data.json() }; } catch {}
+  // Up to two action buttons, each deep-linking to its own route
+  // ("Sell options" → #/set/…/sell). The tag makes a newer alert for the same
+  // set replace the older one instead of stacking.
+  const actions = Array.isArray(data.actions)
+    ? data.actions.filter(a => a && a.action && a.title && typeof a.url === 'string').slice(0, 2)
+    : [];
+  const actionUrls = Object.fromEntries(actions.map(a => [a.action, a.url]));
   e.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
       icon: '/icon-192.png',
       badge: '/icon-192.png',
-      data: { url: data.url },
+      ...(data.tag ? { tag: String(data.tag), renotify: true } : {}),
+      actions: actions.map(a => ({ action: a.action, title: a.title })),
+      data: { url: data.url, actions: actionUrls },
     })
   );
 });
 
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  const url = e.notification.data?.url || '/';
+  const byAction = e.action && e.notification.data?.actions?.[e.action];
+  const url = byAction || e.notification.data?.url || '/';
   // Payload urls are hash routes ("#/catalog/123-1") or app paths ("/").
   const target = self.location.origin + (url.startsWith('#') ? '/' + url : url.startsWith('/') ? url : '/' + url);
   e.waitUntil(
