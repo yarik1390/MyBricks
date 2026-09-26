@@ -1282,6 +1282,7 @@ export const zh = {
     reviewLaterOther: '{count} 套 · 稍后查看',
     reviewLaterOne: '{count} 套 · 稍后查看',
     notInCatalog: '不在我们的目录中',
+    alreadyInVault: '已在你的收藏库中',
     valueSoFar: '目前价值',
     importDoneSub: '完成——以下是导入的内容',
     importOf: '共 {total} 套',

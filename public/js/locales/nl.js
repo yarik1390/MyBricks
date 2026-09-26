@@ -1282,6 +1282,7 @@ export const nl = {
     reviewLaterOther: '{count} · later bekijken',
     reviewLaterOne: '{count} · later bekijken',
     notInCatalog: 'Niet in onze catalogus',
+    alreadyInVault: 'Al in je kluis',
     valueSoFar: 'Waarde tot nu toe',
     importDoneSub: 'Klaar — dit is er binnengekomen',
     importOf: 'van {total} sets',

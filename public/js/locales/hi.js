@@ -1282,6 +1282,7 @@ export const hi = {
     reviewLaterOther: '{count} · बाद में देखें',
     reviewLaterOne: '{count} · बाद में देखें',
     notInCatalog: 'हमारे कैटलॉग में नहीं',
+    alreadyInVault: 'पहले से आपके वॉल्ट में',
     valueSoFar: 'अब तक का मूल्य',
     importDoneSub: 'हो गया — ये सेट आए हैं',
     importOf: '{total} सेट में से',

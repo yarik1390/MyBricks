@@ -1291,6 +1291,7 @@ export const en = {
     reviewLaterOther: '{count} · review later',
     reviewLaterOne: '{count} · review later',
     notInCatalog: 'Not in our catalog',
+    alreadyInVault: 'Already in your vault',
     valueSoFar: 'Value so far',
     importDoneSub: 'Done — here’s what came across',
     importOf: 'of {total} sets',

@@ -67,7 +67,7 @@ test('Brickset import connects, shows what arrived and ends on Vault ready', asy
     calls.push(path);
     if (path.endsWith('/login')) return json(route, { ok: true });
     await new Promise((r) => setTimeout(r, 200));
-    return json(route, { ok: true, added: 1, skipped: 2, total: 3 });
+    return json(route, { ok: true, added: 1, skipped: 2, unknown: 1, already: 1, added_set_nums: ['75192-1'], total: 3 });
   });
   await page.goto('/#/welcome/import', { waitUntil: 'domcontentloaded' });
   await page.locator('#welBsUser').fill('sam');
@@ -75,7 +75,8 @@ test('Brickset import connects, shows what arrived and ends on Vault ready', asy
   await page.locator('#welBsConnect').click();
   await expect(page.locator('.bv-ring')).toContainText('of 3 sets');
   await expect(page.locator('.bv-importsum')).toContainText('$850');
-  await expect(page.locator('.bv-importsum')).toContainText('2 · review later');
+  await expect(page.locator('.bv-importsum')).toContainText('Already in your vault1');
+  await expect(page.locator('.bv-importsum')).toContainText('Not in our catalog1 · review later');
   await expect(page.locator('.bv-justadded__row')).toHaveCount(1);
   expect(calls).toEqual(['/api/brickset/login', '/api/brickset/sync']);
 
@@ -86,6 +87,45 @@ test('Brickset import connects, shows what arrived and ends on Vault ready', asy
   await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/');
   expect(await page.evaluate(() => localStorage.getItem('bv_setup_v1'))).toBe('1');
 });
+
+test('a repeat Brickset sync says the sets are already in the vault, not missing, and lists nothing as just added', async ({ page }) => {
+  await page.addInitScript(() => { localStorage.removeItem('bv_setup_v1'); localStorage.setItem('bv_first_detected', '1'); });
+  await page.route('**/api/brickset/**', (route) => (new URL(route.request().url()).pathname.endsWith('/login')
+    ? json(route, { ok: true })
+    : json(route, { ok: true, added: 0, skipped: 3, unknown: 0, already: 3, added_set_nums: [], total: 3 })));
+  await page.goto('/#/welcome/import', { waitUntil: 'domcontentloaded' });
+  await page.locator('#welBsUser').fill('sam');
+  await page.locator('#welBsPass').fill('secret');
+  await page.locator('#welBsConnect').click();
+  const summary = page.locator('.bv-importsum');
+  await expect(summary).toContainText('Already in your vault3');
+  await expect(summary).not.toContainText('Not in our catalog');
+  // The vault's own Millennium Falcon wasn't added by this run.
+  await expect(page.locator('.bv-justadded__row')).toHaveCount(0);
+});
+
+for (const [who, setCount, expected] of [
+  ['a returning collector keeps their synced currency and market on a new phone', 3, []],
+  ['a brand-new account takes its currency and market from the phone region', 0, [{ currency: 'EUR', retail_market: 'DE' }]],
+]) {
+  test(who, async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.removeItem('bv_setup_v1');
+      localStorage.removeItem('bv_first_detected');
+      localStorage.removeItem('bv_currency');
+      Object.defineProperty(navigator, 'language', { get: () => 'de-DE' });
+    });
+    const patches = [];
+    await page.route('**/api/me', (route) => {
+      if (route.request().method() === 'PATCH') { patches.push(JSON.parse(route.request().postData() || '{}')); return json(route, { ok: true }); }
+      return json(route, { display_name: 'Sam Rivera', handle: 'sam', currency: 'USD', retail_market: 'FR', is_guest: false, notify_price_drops: true, portfolio_stats: { set_count: setCount } });
+    });
+    await page.goto('/#/welcome', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#welTitle')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('bv_first_detected'))).toBe('1');
+    await expect.poll(() => patches).toEqual(expected);
+  });
+}
 
 test('offline says when values are from and what will sync; an unreachable server offers Retry', async ({ page }) => {
   await page.addInitScript(() => {
@@ -98,6 +138,9 @@ test('offline says when values are from and what will sync; an unreachable serve
   const bannerText = page.locator('#offlineBanner .offline-banner__text');
   await expect(page.locator('#offlineBanner')).toBeVisible({ timeout: 8000 });
   await expect(bannerText).toContainText(/^Offline · values from .+\. 2 changes will sync when you’re back$/);
+  // An edit made while already offline updates the count in place.
+  await page.evaluate(async () => { (await import('/js/api.js')).outboxEnqueue({ path: '/api/collection', method: 'POST' }); });
+  await expect(bannerText).toContainText(/3 changes will sync when you’re back$/);
   // (Drop the queued changes so reconnecting doesn't replay them and reload the vault.)
   await page.evaluate(() => localStorage.removeItem('bv_outbox'));
   await page.context().setOffline(false);

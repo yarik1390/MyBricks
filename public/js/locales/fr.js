@@ -1282,6 +1282,7 @@ export const fr = {
     reviewLaterOther: '{count} · à revoir plus tard',
     reviewLaterOne: '{count} · à revoir plus tard',
     notInCatalog: 'Absent de notre catalogue',
+    alreadyInVault: 'Déjà dans votre coffre',
     valueSoFar: 'Valeur jusqu’ici',
     importDoneSub: 'Terminé — voici ce qui est arrivé',
     importOf: 'sur {total} sets',

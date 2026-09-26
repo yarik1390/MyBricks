@@ -1416,6 +1416,7 @@ export const uk = {
     reviewLaterFew: '{count} · переглянути пізніше',
     reviewLaterOne: '{count} · переглянути пізніше',
     notInCatalog: 'Немає в нашому каталозі',
+    alreadyInVault: 'Уже у вашому сховищі',
     valueSoFar: 'Вартість на зараз',
     importDoneSub: 'Готово — ось що перенесено',
     importOf: 'з {total} наборів',

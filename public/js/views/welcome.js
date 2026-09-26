@@ -63,12 +63,18 @@ async function savePrefs(body) {
   }
 }
 
-// Once per device: set currency and retail market from the phone's region
-// unless the collector already chose them.
+// Once per device: a new vault (guest, or an account with no sets yet) takes
+// its currency and retail market from the phone's region unless the collector
+// already chose them. A returning collector's synced choices are theirs —
+// signing in on a phone set to another region never rewrites them.
 async function applyDetectedDefaults() {
-  try { if (localStorage.getItem(DETECT_FLAG)) return; localStorage.setItem(DETECT_FLAG, '1'); } catch { return; }
+  try { if (localStorage.getItem(DETECT_FLAG)) return; } catch { return; }
+  const me = state.me || await api('/api/me').catch(() => null);
+  if (!me) return;   // unknown account: try again next time rather than guess
+  try { localStorage.setItem(DETECT_FLAG, '1'); } catch { return; }
+  const guest = isGuestMode() || me.is_guest;
+  if (!guest && Number(me.portfolio_stats?.set_count) > 0) return;
   const d = detectRegionDefaults(navigator.language);
-  const me = state.me || {};
   const chose = (() => { try { return !!localStorage.getItem('bv_currency'); } catch { return false; } })();
   const body = {};
   if (d.currency && !chose && (me.currency || 'USD') === 'USD' && d.currency !== 'USD') body.currency = d.currency;
@@ -350,16 +356,22 @@ async function importHTML() {
   const res = run.result || {};
   let coll = null;
   try { coll = await api('/api/collection'); state.portfolio = coll; } catch { /* the counts above still stand */ }
-  const items = (coll?.items || []).slice().sort((a, b) => String(b.added_at || '').localeCompare(String(a.added_at || ''))).slice(0, 4);
+  // Only what this run added — not the newest rows of an existing vault.
+  const addedNums = new Set(Array.isArray(res.added_set_nums) ? res.added_set_nums : []);
+  const items = (coll?.items || []).filter((s) => addedNums.has(s.set_num))
+    .sort((a, b) => String(b.added_at || '').localeCompare(String(a.added_at || ''))).slice(0, 4);
   const added = Number(res.added) || 0;
-  const skipped = Number(res.skipped) || 0;
-  const total = Number(res.total) || added + skipped;
+  // Duplicates of sets already in the vault aren't catalog misses.
+  const unknown = Number(res.unknown) || 0;
+  const already = Number(res.already) || 0;
+  const total = Number(res.total) || added + unknown + already;
   return `<main class="bv-wel bv-wel--import" aria-labelledby="importTitle">${head(t('bvFirst.importDoneSub'))}
     <div class="bv-wel__body">
       <div class="bv-wel__center">${ringHTML({ value: added, total })}</div>
       <section class="bv-card bv-importsum">
         <div class="bv-importsum__row"><span>${escapeHtml(t('bvFirst.valueSoFar'))}</span><span class="bv-num">${escapeHtml(money0(coll?.total_value ?? 0))}</span></div>
-        ${skipped ? `<div class="bv-importsum__row"><span>${escapeHtml(t('bvFirst.notInCatalog'))}</span><span>${escapeHtml(tPlural('bvFirst.reviewLater', skipped, { count: skipped }))}</span></div>` : ''}
+        ${already ? `<div class="bv-importsum__row"><span>${escapeHtml(t('bvFirst.alreadyInVault'))}</span><span class="bv-num">${escapeHtml(already.toLocaleString(intlLocale()))}</span></div>` : ''}
+        ${unknown ? `<div class="bv-importsum__row"><span>${escapeHtml(t('bvFirst.notInCatalog'))}</span><span>${escapeHtml(tPlural('bvFirst.reviewLater', unknown, { count: unknown }))}</span></div>` : ''}
       </section>
       ${items.length ? `<h2 class="bv-h2">${escapeHtml(t('bvFirst.justAdded'))}</h2><section class="bv-card bv-card--flush bv-justadded">${items.map((s) => `<a class="bv-justadded__row" href="#/set/${encodeURIComponent(s.set_num)}">${setThumb(s, { size: 40, radius: 10 })}<span class="bv-justadded__name">${escapeHtml(s.name || s.set_num)}</span><span class="bv-num">${escapeHtml(money0(displayValueOf(s)))}</span>${icon('check', { size: 18 })}</a>`).join('')}</section>` : ''}
     </div>

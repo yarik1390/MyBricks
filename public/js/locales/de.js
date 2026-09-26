@@ -1282,6 +1282,7 @@ export const de = {
     reviewLaterOther: '{count} · später prüfen',
     reviewLaterOne: '{count} · später prüfen',
     notInCatalog: 'Nicht in unserem Katalog',
+    alreadyInVault: 'Schon in deinem Tresor',
     valueSoFar: 'Wert bisher',
     importDoneSub: 'Fertig – das ist angekommen',
     importOf: 'von {total} Sets',

@@ -1282,6 +1282,7 @@ export const ja = {
     reviewLaterOther: '{count}件・後で確認',
     reviewLaterOne: '{count}件・後で確認',
     notInCatalog: 'カタログにないもの',
+    alreadyInVault: 'すでにコレクションにあります',
     valueSoFar: '現時点の評価額',
     importDoneSub: '完了 — 取り込まれたセット',
     importOf: '{total}セット中',

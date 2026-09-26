@@ -636,6 +636,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   // banner directly, so a single failed request can't flash it on its own.
   window.addEventListener("bv:api-ok", () => { if (offlineUiState !== "online") applyOfflineState(false); });
   window.addEventListener("bv:api-fail", () => { refreshOfflineState(); });
+  // Edits made while already offline land in the outbox — keep the banner's
+  // "N changes will sync" count current.
+  window.addEventListener("bv:outbox", () => {
+    if (offlineUiState === "offline") import('./ui/first-ui.js').then(m => m.paintOfflineBanner()).catch(() => {});
+  });
 
   setupGestures();
   setupFabScrollAwareness();

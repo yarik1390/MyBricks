@@ -59,12 +59,18 @@ function outboxReplayHeaders(headers = {}) {
   return Object.fromEntries(Object.entries(headers).filter(([name]) => OUTBOX_REPLAY_HEADERS.has(name.toLowerCase())));
 }
 
+// Tells the offline banner its "N changes will sync" count moved.
+function outboxChanged() {
+  try { globalThis.dispatchEvent?.(new Event('bv:outbox')); } catch {}
+}
+
 export function outboxEnqueue(item) {
   try {
     const q = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]');
     q.push({ ...item, id: outboxItemId() });
     localStorage.setItem(OUTBOX_KEY, JSON.stringify(q));
   } catch {}
+  outboxChanged();
 }
 
 export function outboxDequeue(id) {
@@ -72,6 +78,7 @@ export function outboxDequeue(id) {
     const q = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]');
     localStorage.setItem(OUTBOX_KEY, JSON.stringify(q.filter(x => x.id !== id)));
   } catch {}
+  outboxChanged();
 }
 
 const OUTBOX_MAX_TRIES = 5;
