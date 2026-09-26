@@ -126,6 +126,32 @@ describe('User contributions: submit / read / moderate', () => {
     expect(set.upc).toBe('0123456789012');
   });
 
+  it('refuses to reverse a completed moderation decision', async () => {
+    await db.prepare("INSERT INTO set_contributions (user_id,set_num,kind,payload,status) VALUES ('u','111-1','barcode','{}','approved')").run();
+    const row = await db.prepare('SELECT id FROM set_contributions').first<any>();
+    const res = await app.fetch(new Request(`https://x/api/admin/contributions/data/${row.id}`, {
+      method: 'PATCH', headers: auth(adminToken), body: JSON.stringify({ action: 'reject' }),
+    }), env);
+    expect(res.status).toBe(409);
+    expect((await db.prepare('SELECT status FROM set_contributions WHERE id=?').bind(row.id).first<any>()).status).toBe('approved');
+  });
+
+  it('rolls back barcode application when moderation transition fails', async () => {
+    await db.prepare(`INSERT INTO set_contributions (user_id,set_num,kind,payload) VALUES ('u','111-1','barcode','{"upc":"0123456789012"}')`).run();
+    const row = await db.prepare('SELECT id FROM set_contributions').first<any>();
+    await db.prepare("CREATE TRIGGER fail_moderation BEFORE UPDATE ON set_contributions BEGIN SELECT RAISE(ABORT, 'injected failure'); END").run();
+    try {
+      const res = await app.fetch(new Request(`https://x/api/admin/contributions/data/${row.id}`, {
+        method: 'PATCH', headers: auth(adminToken), body: JSON.stringify({ action: 'approve' }),
+      }), env);
+      expect(res.status).toBe(500);
+      expect((await db.prepare("SELECT upc FROM lego_sets WHERE set_num='111-1'").first<any>()).upc).toBeNull();
+      expect((await db.prepare('SELECT status FROM set_contributions WHERE id=?').bind(row.id).first<any>()).status).toBe('pending');
+    } finally {
+      await db.prepare('DROP TRIGGER fail_moderation').run();
+    }
+  });
+
   it('non-admin cannot reach the moderation queue', async () => {
     const res = await app.fetch(new Request('https://x/api/admin/contributions?status=pending', {
       headers: auth(),

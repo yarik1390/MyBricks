@@ -688,6 +688,9 @@ export const en = {
     approvedMany: '{n} approved contributions',
     approvedOther: '{n} approved contributions',
     contributorBadge: ' · ⭐ Contributor',
+    starRatingOne: 'Rate 1 out of 5',
+    starRatingOther: 'Rate {n} out of 5',
+    ratingRequired: 'Rating (required)',
   },
   admin: {
     uploadingFile: 'Uploading {file}…',

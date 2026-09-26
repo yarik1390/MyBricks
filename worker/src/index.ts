@@ -60,7 +60,7 @@ import { runBricksetEnrich } from './jobs/brickset-enrich';
 import { runBrickEconomyEnrich } from './jobs/brickeconomy-enrich';
 import { runBlendRecomputeBackfill } from './jobs/recompute-blends';
 import { applySourceConfig } from './lib/source-config';
-import { recordCronStart, recordCronFinish, summarizeResult, isCronRunning } from './lib/cron-runs';
+import { recordCronFinish, summarizeResult } from './lib/cron-runs';
 import { amazonReadiness } from './lib/amazon';
 import { CLIENT_EVENTS, logClientEvent, mirrorClientMetric } from './lib/analytics';
 import { setPricingV3ReadPercent } from './lib/market-sources';
@@ -188,7 +188,6 @@ app.get('/api/config', (c) => {
     bricklink: !!(c.env.BRICKLINK_CONSUMER_KEY && c.env.BRICKLINK_TOKEN),
     brickeconomy: !!c.env.BRICKECONOMY_API_KEY,
     brickset: !!c.env.BRICKSET_API_KEY,
-    brickowl: !!c.env.BRICKOWL_API_KEY,
     rebrickable: !!c.env.REBRICKABLE_API_KEY,
     firecrawl: !!c.env.FIRECRAWL_API_KEY,
     turnstile: !!c.env.TURNSTILE_SITE_KEY,
@@ -327,23 +326,29 @@ export default {
   async scheduled(event: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
     // High-frequency temporary jobs may pass a shorter stale-lease window.
     const run = async (name: string, fn: () => Promise<unknown>, maxAgeMinutes = 30) => {
-      // Track every cron run (running -> ok|failed + summary) for the admin
-      // Activity view. Tracking is fail-open and never affects the job.
       const startedMs = Date.now();
-      // Overlap guard: if a prior invocation of this cron is still running (and
-      // not stale-swept), skip this tick instead of double-running a job that
-      // overran its interval. Fails open (proceeds) on any bookkeeping error.
-      if (await isCronRunning(env, name, maxAgeMinutes).catch(() => false)) {
+      // A single SQLite statement serializes the lease check and acquisition.
+      // Storage failures must reject the invocation, not run an unguarded job.
+      const lease = await env.DB.prepare(`
+        INSERT INTO cron_runs (name, started_at, status)
+        SELECT ?1, datetime('now'), 'running'
+        WHERE NOT EXISTS (
+          SELECT 1 FROM cron_runs WHERE name=?1 AND status='running'
+          AND started_at >= datetime('now', ?2)
+        ) RETURNING id
+      `).bind(name, `-${maxAgeMinutes} minutes`).first<{ id: number }>();
+      if (!lease) {
         console.warn(`[cron] ${name} skipped: previous run still active`);
         return;
       }
-      const runId = await recordCronStart(env, name).catch(() => null);
+      const runId = lease.id;
       try {
         const res = await fn();
         await recordCronFinish(env, runId, name, { ok: true, summary: summarizeResult(res), durationMs: Date.now() - startedMs }).catch(() => {});
       } catch (e) {
-        console.error(`[cron] ${name} failed:`, (e as Error).message);
+        console.error(`[cron] ${name} failed:`, e);
         await recordCronFinish(env, runId, name, { ok: false, error: (e as Error).message, durationMs: Date.now() - startedMs }).catch(() => {});
+        throw e;
       }
     };
     // Apply admin source-tuning (blend weights + daily-cap overrides) for this
@@ -361,7 +366,7 @@ export default {
       // AI) to maximize sets/run; those run in daily maintenance + on-demand.
       case '0 * * * *': {
         // Pass 1 — user-visible slice. Fan out every working source
-        // (BrickLink, BrickEconomy, BrickOwl, eBay *ask*, AI fallback) over
+        // (BrickLink, BrickEconomy, eBay *ask*, AI fallback) over
         // owned/wishlisted sets still on a formula/stale value so the sets
         // users actually see get real-market coverage within the hour.
         // eBay sold-comps stays OFF (includeEbaySold:false — needs Marketplace
@@ -494,7 +499,7 @@ export default {
       // mostly-static metadata (trimmed 50->30); LEGO stock is scoped to active
       // owned/wishlisted on a 14-day cycle inside the job (trimmed 100->40, it
       // self-tapers); brickeconomy refreshes/new-sets stay at 40. Ongoing value
-      // freshness rides on the free APIs (BrickLink/eBay/BrickOwl), not Firecrawl.
+      // freshness rides on the free APIs (BrickLink/eBay), not Firecrawl.
       case '0 9 * * *': await run('brickset-enrich', () => runBricksetEnrich(env, { limit: 30 })); break;
       case '0 10 * * *': await run('lego-stock-refresh', () => runLegoStockRefresh(env, { limit: 200 })); break;
       case '0 11 * * *': await run('brickeconomy-enrich', () => runBrickEconomyEnrich(env, { limit: 60 })); break;

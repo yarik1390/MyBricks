@@ -90,7 +90,9 @@ export async function renderSetDetail(setNum) {
           state.detail.cache[setNum] = { set, entry, ts: Date.now() };
           cacheSetDetail(setNum, set, entry, getSessionUserId());
           if (location.hash.includes(setNum)) paintSetDetail(set, entry);
-        }).catch(() => {});
+        }).catch(() => {
+          if (location.hash.includes(setNum)) toast("Showing cached data — live prices are unavailable", "info");
+        });
       return;
     }
   }
@@ -110,7 +112,7 @@ export async function renderSetDetail(setNum) {
     if (cached?.set) {
       try {
         paintSetDetail(cached.set, cached.entry);
-        if (!navigator.onLine) toast("You're offline — showing cached data", "info");
+        toast("Showing cached data — live prices are unavailable", "info");
         return;
       } catch {}
     }
@@ -121,7 +123,7 @@ export async function renderSetDetail(setNum) {
       const seed = await getSeedSetDetail(setNum);
       if (seed?.set) {
         paintSetDetail(seed.set, seed.entry);
-        if (!navigator.onLine) toast("You're offline — showing bundled data", "info");
+        toast(navigator.onLine ? "Showing bundled data — live prices are unavailable" : "You're offline — showing bundled data", "info");
         return;
       }
     } catch { /* seed unavailable — fall through to not-found */ }

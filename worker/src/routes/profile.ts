@@ -7,21 +7,30 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 const HOLDING_VALUE_COLUMNS = `uc.set_num, uc.condition, uc.quantity,
   ls.current_value, ls.blended_value, ls.used_value,
-  ls.ebay_used_value, ls.bo_used_value, ls.pc_new_value, ls.pc_complete_value,
+  ls.ebay_used_value, ls.pc_new_value, ls.pc_complete_value,
   svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair`;
 
 // GET /api/users/leaderboard — public ranking of opted-in collections by value.
 // Opt-in = a public profile that also exposes its value and has a handle.
 app.get('/leaderboard', async (c) => {
+  // Bound the joined scan to at most 2000 public users via CTE to prevent unbounded row expansion.
+  // JS aggregation via holdingValueForRollout remains the single source of truth so totals stay exact for included users.
+  // ORDER BY makes the bound deterministic (a stable prefix) rather than an arbitrary subset.
   const res = await c.env.DB.prepare(`
+    WITH public_users AS (
+      SELECT user_id, handle, display_name, is_supporter
+      FROM user_prefs
+      WHERE is_public = 1 AND expose_public_value = 1 AND handle IS NOT NULL
+      ORDER BY user_id
+      LIMIT 2000
+    )
     SELECT p.user_id, p.handle, p.display_name, p.is_supporter,
            ${HOLDING_VALUE_COLUMNS}
-    FROM user_prefs p
+    FROM public_users p
     JOIN user_collection uc ON uc.user_id = p.user_id AND uc.deleted_at IS NULL
     JOIN lego_sets ls ON ls.set_num = uc.set_num
     LEFT JOIN set_valuation_state svn ON svn.set_num=ls.set_num AND svn.condition='new_sealed'
     LEFT JOIN set_valuation_state svu ON svu.set_num=ls.set_num AND svu.condition='used_complete'
-    WHERE p.is_public = 1 AND p.expose_public_value = 1 AND p.handle IS NOT NULL
   `).all<Record<string, unknown>>();
   const rolloutPercent = Number(c.env.PRICING_V3_READ_PERCENT || 0);
   const grouped = new Map<string, Record<string, unknown>>();

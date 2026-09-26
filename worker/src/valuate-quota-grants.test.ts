@@ -9,7 +9,6 @@ import { clearSourceConfigCache } from './lib/source-config';
 const mocks = vi.hoisted(() => ({
   fetchSetPricing: vi.fn(),
   fetchUsedPricing: vi.fn(),
-  fetchBrickOwlPricing: vi.fn(),
   fetchEbaySoldPrices: vi.fn(),
   fetchEbayActiveListings: vi.fn(),
   callGeminiValuation: vi.fn(),
@@ -19,10 +18,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('./lib/bricklink', () => ({
   fetchSetPricing: mocks.fetchSetPricing,
   fetchUsedPricing: mocks.fetchUsedPricing,
-}));
-
-vi.mock('./lib/brickowl-pricing', () => ({
-  fetchBrickOwlPricing: mocks.fetchBrickOwlPricing,
 }));
 
 vi.mock('./lib/gemini', () => ({
@@ -47,7 +42,7 @@ vi.mock('openai', () => ({
 import { runValuateSets } from './jobs/valuate-sets';
 
 const db = (env as any).DB as D1Database;
-const APPLIED_CAPS = ['bricklink', 'brickowl', 'ebay', 'gemini', 'openrouter', 'openai'] as const;
+const APPLIED_CAPS = ['bricklink', 'ebay', 'gemini', 'openrouter', 'openai'] as const;
 const BASE_OPTIONS = {
   scope: 'all' as const,
   includeMinifigs: false,
@@ -106,7 +101,6 @@ beforeEach(async () => {
   ]);
   mocks.fetchSetPricing.mockResolvedValue(null);
   mocks.fetchUsedPricing.mockResolvedValue(null);
-  mocks.fetchBrickOwlPricing.mockResolvedValue(null);
   mocks.fetchEbaySoldPrices.mockResolvedValue({
     source: 'marketplace_insights',
     status: 'no_data',
@@ -130,8 +124,8 @@ afterEach(() => {
 
 describe('runValuateSets quota grant enforcement', () => {
   it('does no provider work at zero grant while still applying stored and local pricing', async () => {
-    setQuotaCapOverrides({ bricklink: 1, brickowl: 1, ebay: 1, gemini: 1, openrouter: 1, openai: 1 });
-    await Promise.all(['bricklink', 'brickowl', 'ebay', 'gemini', 'openrouter', 'openai'].map((service) => exhaust(service)));
+    setQuotaCapOverrides({ bricklink: 1, ebay: 1, gemini: 1, openrouter: 1, openai: 1 });
+    await Promise.all(['bricklink', 'ebay', 'gemini', 'openrouter', 'openai'].map((service) => exhaust(service)));
     await seedSet('QZERO-BE', { be_value_new: 180 });
     await seedSet('QZERO-LOCAL', { pieces: 100, retail_price: 6, be_value_new: 10_000 });
 
@@ -139,8 +133,6 @@ describe('runValuateSets quota grant enforcement', () => {
       ...env,
       CACHE_KV: undefined,
       ...BL_CREDS,
-      BRICKOWL_ENABLED: '1',
-      BRICKOWL_API_KEY: 'bo',
       ENVIRONMENT: 'test',
       EBAY_SOURCE_AUTHORIZED_FOR_TESTS: '1',
       EBAY_SOLD_COMPS_ENABLED: '1',
@@ -158,11 +150,10 @@ describe('runValuateSets quota grant enforcement', () => {
     });
 
     const quotaRows = await db.prepare(
-      `SELECT service, used FROM api_quota WHERE service IN ('bricklink','brickowl','ebay','gemini','openrouter','openai')`,
+      `SELECT service, used FROM api_quota WHERE service IN ('bricklink','ebay','gemini','openrouter','openai')`,
     ).all<{ service: string; used: number }>();
     expect(Object.fromEntries(quotaRows.results.map((row) => [row.service, row.used]))).toEqual({
       bricklink: 1,
-      brickowl: 1,
       ebay: 1,
       gemini: 1,
       openrouter: 1,
@@ -171,7 +162,6 @@ describe('runValuateSets quota grant enforcement', () => {
     expect(result.processed).toBe(2);
     expect(mocks.fetchSetPricing).not.toHaveBeenCalled();
     expect(mocks.fetchUsedPricing).not.toHaveBeenCalled();
-    expect(mocks.fetchBrickOwlPricing).not.toHaveBeenCalled();
     expect(mocks.fetchEbaySoldPrices).not.toHaveBeenCalled();
     expect(mocks.fetchEbayActiveListings).not.toHaveBeenCalled();
     expect(mocks.callGeminiValuation).not.toHaveBeenCalled();
@@ -202,34 +192,6 @@ describe('runValuateSets quota grant enforcement', () => {
     expect(mocks.fetchSetPricing).toHaveBeenCalledTimes(1);
     expect(mocks.fetchUsedPricing).not.toHaveBeenCalled();
     const quota = await db.prepare("SELECT used FROM api_quota WHERE service='bricklink' AND day=?")
-      .bind(quotaDay()).first<{ used: number }>();
-    expect(quota?.used).toBe(1);
-  });
-
-  it('does not start BrickOwl unless its two-call lookup/price grant is complete', async () => {
-    setQuotaCapOverrides({ bricklink: 1, brickowl: 1 });
-    await exhaust('bricklink');
-    await seedSet('QBO-1', { be_value_new: 180 });
-
-    await runValuateSets({
-      ...env,
-      CACHE_KV: undefined,
-      ...BL_CREDS,
-      BRICKOWL_ENABLED: '1',
-      BRICKOWL_API_KEY: 'bo',
-      GEMINI_API_KEY: '',
-      OPENAI_API_KEY: '',
-      OPENROUTER_API_KEY: '',
-    } as any, {
-      ...BASE_OPTIONS,
-      includeSupplemental: true,
-      includeEbay: false,
-      includeEbaySold: false,
-      includeAiFallback: false,
-    });
-
-    expect(mocks.fetchBrickOwlPricing).not.toHaveBeenCalled();
-    const quota = await db.prepare("SELECT used FROM api_quota WHERE service='brickowl' AND day=?")
       .bind(quotaDay()).first<{ used: number }>();
     expect(quota?.used).toBe(1);
   });

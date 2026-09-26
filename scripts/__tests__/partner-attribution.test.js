@@ -39,7 +39,7 @@ describe('PriceCharting partner release (worker payload)', () => {
 describe('PriceCharting partner registry (public JS)', () => {
   it('names PriceCharting as the only partner', () => {
     assert.match(partnerModule, /id: 'pricecharting',[\s\S]*?isPartner: true/);
-    for (const other of ['bricklink', 'ebay_market', 'brickowl', 'brickeconomy', 'brickset', 'rebrickable', 'stockx']) {
+    for (const other of ['bricklink', 'ebay_market', 'brickeconomy', 'brickset', 'rebrickable', 'stockx']) {
       const block = partnerModule.split(`${other}: {`)[1]?.split('},')[0] ?? '';
       assert.ok(block && !block.includes('isPartner: true'), `${other} must not be a partner`);
     }
@@ -83,7 +83,7 @@ describe('Partner page + footer credits', () => {
 
   it('links the page from the Me footer and methodology, with only PriceCharting as partner', () => {
     assert.match(meView, /data-legal-sheet="partners"/);
-    assert.match(meView, /Market data partner: PriceCharting\. Sources: BrickLink, eBay, BrickOwl, BrickEconomy &amp; Brickset/);
+    assert.match(meView, /Market data partner: PriceCharting\. Sources: BrickLink, eBay, BrickEconomy &amp; Brickset/);
     assert.doesNotMatch(meView, /Pricing from BrickLink, eBay, PriceCharting/);
     assert.match(methodology, /\/data-partners\.html/);
     assert.match(methodology, /Sources, roles and freshness/);

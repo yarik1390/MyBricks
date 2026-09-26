@@ -744,3 +744,10 @@ Object.assign(hi.room, {
   rotateControls: 'बॉक्स घुमाने के कंट्रोल', rotateLeft: 'बॉक्स को बाएँ घुमाएँ', rotateRight: 'बॉक्स को दाएँ घुमाएँ', setNumber: 'सेट नंबर', owned: 'आपके पास',
   listHint: 'सूची में अपने सेट देखें और उनका विवरण खोलें।', retry3D: '3D फिर आज़माएँ', empty: 'आपका शोरूम तैयार है। शेल्फ़ भरने के लिए अपने वॉल्ट में सेट जोड़ें।',
 });
+
+// समीक्षा शीट में रेटिंग (छूटी हुई रूपें अंग्रेज़ी पर जाती हैं)।
+Object.assign(hi.contributions, {
+  starRatingOne: '5 में से 1 रेट करें',
+  starRatingOther: '5 में से {n} रेट करें',
+  ratingRequired: 'रेटिंग (आवश्यक)',
+});

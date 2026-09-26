@@ -3,14 +3,13 @@ const DEFAULT_STALE_AFTER_MS = 48 * 60 * 60 * 1000;
 
 const SERVICE_FLAGS = {
   ebay: 'ebay_sold_comps',
-  brickowl: 'brickowl',
   brickinsights: 'brickinsights',
   firecrawl: 'firecrawl',
   stockx: 'stockx',
 };
 
 const PRICING_SERVICES = new Set([
-  'bricklink', 'brickeconomy', 'ebay', 'brickowl', 'pricecharting',
+  'bricklink', 'brickeconomy', 'ebay', 'pricecharting',
   'brickinsights', 'amazon', 'firecrawl', 'brightdata', 'stockx',
 ]);
 const CATALOG_SERVICES = new Set(['rebrickable', 'brickset', 'upc']);
