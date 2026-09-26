@@ -24,7 +24,9 @@ const COND = { sealed: 'bvSet.condSealed', new: 'bvSet.condOpened', used_good: '
 // worse than no report, so the caller shows a retry instead of the export.
 async function loadData() {
   const [coll, figs] = await Promise.all([
-    state.portfolio?.items ? Promise.resolve(state.portfolio) : api('/api/collection'),
+    // A Vault that failed to load leaves an empty _loadFailed placeholder —
+    // not a collection to report on.
+    state.portfolio?.items && !state.portfolio._loadFailed ? Promise.resolve(state.portfolio) : api('/api/collection'),
     loadOwnedFigs(),
   ]);
   if (!Array.isArray(coll?.items)) throw new Error('collection unavailable');

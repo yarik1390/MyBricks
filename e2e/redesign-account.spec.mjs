@@ -184,3 +184,16 @@ test('insurance report refuses to export a partial collection', async ({ page })
   await expect(page.locator('.bv-insprev')).toContainText('105 minifigures');
   await expect(page.locator('#insSave')).toBeEnabled();
 });
+
+test('insurance report does not mistake a Vault that failed to load for an empty one', async ({ page }) => {
+  await stubMe(page, { is_supporter: true });
+  await stubOwnedFigs(page, 0);
+  await page.route('**/api/collection', (route) => (route.request().method() === 'GET'
+    ? route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"unavailable"}' })
+    : route.fallback()));
+  await page.goto('/#/', { waitUntil: 'domcontentloaded' });
+  await expect.poll(() => page.evaluate(async () => (await import('/js/state.js')).state.portfolio?._loadFailed)).toBe(true);
+  await page.goto('/#/me/insurance', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.bv-insurance__empty[role=alert]')).toContainText('Couldn\'t load all your holdings');
+  await expect(page.locator('#insSave')).toHaveCount(0);
+});

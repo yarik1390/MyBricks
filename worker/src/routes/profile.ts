@@ -140,18 +140,6 @@ app.get('/:handle/profile', async (c) => {
   });
 });
 
-// GET /api/users/:handle/showcase — auth required, own handle only. The shelf
-// editor reads from here: the public profile 404s while private, and editing
-// an empty stand-in would overwrite the stored shelf.
-app.get('/:handle/showcase', requireMember, async (c) => {
-  const userId = c.get('userId');
-  const prefs = await c.env.DB.prepare(
-    'SELECT user_id FROM user_prefs WHERE handle=? AND user_id=?'
-  ).bind(c.req.param('handle'), userId).first();
-  if (!prefs) return c.json({ error: 'Not your profile' }, 403);
-  return c.json({ showcase: await loadShowcase(c.env, userId) });
-});
-
 // POST /api/users/:handle/showcase — auth required, own handle only
 app.post('/:handle/showcase', requireMember, async (c) => {
   const userId = c.get('userId');
@@ -191,6 +179,19 @@ app.get('/check-handle/:handle', requireMember, async (c) => {
   ).bind(handle, userId).first();
   
   return c.json({ available: !existing });
+});
+
+// GET /api/users/:handle/showcase — auth required, own handle only. The shelf
+// editor reads from here: the public profile 404s while private, and editing
+// an empty stand-in would overwrite the stored shelf. Registered after
+// /check-handle/:handle so checking the handle "showcase" still works.
+app.get('/:handle/showcase', requireMember, async (c) => {
+  const userId = c.get('userId');
+  const prefs = await c.env.DB.prepare(
+    'SELECT user_id FROM user_prefs WHERE handle=? AND user_id=?'
+  ).bind(c.req.param('handle'), userId).first();
+  if (!prefs) return c.json({ error: 'Not your profile' }, 403);
+  return c.json({ showcase: await loadShowcase(c.env, userId) });
 });
 
 export { app as profileRoute };

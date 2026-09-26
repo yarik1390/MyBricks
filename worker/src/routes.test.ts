@@ -1079,6 +1079,11 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
 
       const free = await app.fetch(new Request('http://localhost/api/users/check-handle/wide-open', { headers: auth() }), env);
       expect((await free.json<any>()).available).toBe(true);
+
+      // Handles that collide with profile sub-routes still get an answer.
+      const sub = await app.fetch(new Request('http://localhost/api/users/check-handle/showcase', { headers: auth() }), env);
+      expect(sub.status).toBe(200);
+      expect((await sub.json<any>()).available).toBe(true);
     });
 
     it('blocks editing a showcase that is not yours', async () => {
