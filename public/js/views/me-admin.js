@@ -1045,7 +1045,7 @@ async function updateIntegrationsHealth() {
 }
 
 // Runtime capability flags (eBay sold comps, BrickInsights,
-// Firecrawl, BrickOwl). Feeds the per-service toggles in Services.
+// Firecrawl). Feeds the per-service toggles in Services.
 async function loadFeatureFlags() {
   try {
     featureFlags = await api('/api/admin/feature-flags');
@@ -2390,7 +2390,6 @@ function providerLabel(service) {
     supabase: 'Supabase',
     bricklink: 'BrickLink',
     brickeconomy: 'BrickEconomy',
-    brickowl: 'BrickOwl',
     pricecharting: 'PriceCharting',
     firecrawl: 'Firecrawl',
     ebay: 'eBay',

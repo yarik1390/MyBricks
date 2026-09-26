@@ -24,7 +24,7 @@ export interface SourceTuning {
 }
 
 export type SourceName =
-  | 'bricklink' | 'ebay' | 'brickeconomy' | 'brickowl'
+  | 'bricklink' | 'ebay' | 'brickeconomy'
   | 'pricecharting' | 'firecrawl' | 'scrapingant' | 'brightdata' | 'apify' | 'amazon' | 'stockx';
 
 export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
@@ -35,7 +35,6 @@ export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
   // ebaySoldLaneAuthorized below — so enabling eBay here never reopens scraping.
   ebay:          { enabled: true,  weight: 1.0,  dailyCap: 4000, refreshDays: 14 },
   brickeconomy:  { enabled: true,  weight: 1.0,  dailyCap: 80,   refreshDays: 14 },
-  brickowl:      { enabled: true,  weight: 1.0,  dailyCap: 1500, refreshDays: 14 },
   // Verified-mappings-only: signals flow solely through pricing_source_map rows
   // proven by unique UPC (bulk import) or cross-source price agreement
   // (pricecharting-verify). Unverified mappings stay quarantined. PriceCharting

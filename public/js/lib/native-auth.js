@@ -50,7 +50,9 @@ export function nativeOAuthCallbackFromWebBridge(url) {
 
   const hash = parsed.hash || '';
   if (!/(?:^#|&)access_token=|(?:^#|&)error=/.test(hash)) return '';
-  return `${NATIVE_AUTH_CALLBACK_URL}${hash}`;
+  const state = parsed.searchParams.get('auth_state');
+  if (!state) return '';
+  return `${NATIVE_AUTH_CALLBACK_URL}?auth_state=${encodeURIComponent(state)}${hash}`;
 }
 
 export function buildSupabaseProviderAuthUrl(sbUrl, provider, redirectTo) {
@@ -80,7 +82,10 @@ export function oauthHashFromCallbackUrl(url) {
   if (!isCustomSchemeCallback && !isVerifiedAppLinkCallback) return '';
 
   const hash = parsed.hash || (raw.includes('#') ? raw.slice(raw.indexOf('#')) : '');
-  if (hash && /(?:^#|&)access_token=|(?:^#|&)error=/.test(hash)) return hash;
+  if (hash && /(?:^#|&)access_token=|(?:^#|&)error=/.test(hash)) {
+    const state = parsed.searchParams.get('auth_state');
+    return state ? `${hash}&auth_state=${encodeURIComponent(state)}` : hash;
+  }
 
   const queryAsHash = parsed.search ? `#${parsed.search.slice(1)}` : '';
   if (/(?:^#|&)access_token=|(?:^#|&)error=/.test(queryAsHash)) return queryAsHash;

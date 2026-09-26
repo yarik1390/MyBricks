@@ -6,12 +6,16 @@ on:
   workflow_dispatch: {}
 
 concurrency:
-  group: brickvault-d1-backup
+  group: brickvault-d1-recovery
   cancel-in-progress: false
 
 jobs:
   backup:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
+    # External prerequisite: restrict backup bucket access to dedicated principals,
+    # enable R2 encryption/lifecycle retention and audit Cloudflare token grants.
+    # D1 SQL contains OAuth/session, push and user records; never publish as artifact.
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -49,6 +53,13 @@ jobs:
       - name: Upload the dump to R2 (private)
         run: |
           set -euo pipefail
-          npx wrangler@3 r2 object put "${BACKUP_BUCKET}/${OBJECT_KEY}" \
+          npx wrangler@3 r2 object put "${BACKUP_BUCKET}/${OBJECT_KEY}" --remote \
             --file "${LOCAL_FILE}" --content-type "application/gzip"
-          echo "✅ Uploaded r2://${BACKUP_BUCKET}/${OBJECT_KEY}"
+          # Fail closed if R2 is missing/unauthorized or upload did not persist.
+          npx wrangler@3 r2 object get "${BACKUP_BUCKET}/${OBJECT_KEY}" --remote --file verify.sql.gz >/dev/null
+          cmp --silent "${LOCAL_FILE}" verify.sql.gz || { echo '::error::Backup R2 bytes differ from exported dump'; exit 1; }
+          echo "Verified r2://${BACKUP_BUCKET}/${OBJECT_KEY}"
+
+      - name: Remove local dump
+        if: always()
+        run: rm -f -- brickvault-*.sql brickvault-*.sql.gz verify.sql.gz

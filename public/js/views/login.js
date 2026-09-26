@@ -1,8 +1,8 @@
 import { toast, setBtnLoading } from '../utils.js';
-import { _sbUrl, sbSignIn, sbSignUp, sbRecover, saveSession, snapshotGuestVault, migrateGuestVault } from '../api.js';
+import { _sbUrl, sbSignIn, sbSignUp, sbRecover, sbSetPassword, saveSession, snapshotGuestVault, migrateGuestVault, readRecoveryGrant, clearRecoveryGrant, installRecoverySession } from '../api.js';
 import { state } from '../state.js';
 import { go } from '../router.js';
-import { promptSheet } from '../components/sheet.js';
+import { promptSheet, showSheet, hideSheet } from '../components/sheet.js';
 import { authRedirectUrlForPlatform, buildSupabaseProviderAuthUrl, isNativeCapacitor, openNativeAuthUrl } from '../lib/native-auth.js';
 import { tPlural } from '../lib/i18n.js';
 
@@ -27,6 +27,51 @@ function ensureTurnstileScript() {
     document.head.appendChild(s);
   });
   return _tsScriptReady;
+}
+
+// Password recovery. The grant is parked by consumeOAuthHash (app.js) because a
+// recovery link is not a sign-in transaction this tab started; nothing is
+// installed and no guest vault is migrated until the user actually sets a
+// password here. Returns silently when no valid grant is parked.
+async function openRecoverySheet() {
+  const grant = readRecoveryGrant();
+  if (!grant) return;
+  showSheet(`
+    <h2 class="u-serif-h" style="margin:0 4px 10px;">Set a new password</h2>
+    <p style="color:var(--ink-mute);font-size:13px;margin:0 4px 12px;">Opened from your reset link. Choose a new password for your account.</p>
+    <label class="field-lbl" for="recPass">New password</label>
+    <input class="field-input" id="recPass" type="password" autocomplete="new-password">
+    <label class="field-lbl" for="recPass2" style="margin-top:10px;">Confirm password</label>
+    <input class="field-input" id="recPass2" type="password" autocomplete="new-password">
+    <div id="recErr" style="color:var(--ink-mute);font-size:13px;min-height:18px;margin-top:8px;"></div>
+    <button class="btn-primary" id="recSave" style="margin-top:6px;">Save new password</button>
+    <button class="btn-secondary" id="recCancel" style="margin-top:8px;">Cancel</button>`);
+  const errEl = () => document.getElementById("recErr");
+  const save = async () => {
+    const p1 = document.getElementById("recPass")?.value || "";
+    const p2 = document.getElementById("recPass2")?.value || "";
+    const btn = document.getElementById("recSave");
+    if (p1.length < 6) { if (errEl()) errEl().textContent = "Use at least 6 characters."; return; }
+    if (p1 !== p2) { if (errEl()) errEl().textContent = "Those passwords don't match."; return; }
+    setBtnLoading(btn, true);
+    try {
+      await sbSetPassword(grant.access_token, p1);
+      clearRecoveryGrant();
+      installRecoverySession(grant);
+      hideSheet();
+      toast("Password updated — you're signed in", "success");
+      const nav = document.getElementById("nav");
+      if (nav) nav.style.display = "";
+      document.body.classList.remove("nav-hidden");
+      go("#/");
+    } catch (e) {
+      setBtnLoading(btn, false);
+      if (errEl()) errEl().textContent = e?.message || "Couldn't set the new password";
+    }
+  };
+  document.getElementById("recSave")?.addEventListener("click", save);
+  document.getElementById("recPass2")?.addEventListener("keydown", e => { if (e.key === "Enter") save(); });
+  document.getElementById("recCancel")?.addEventListener("click", hideSheet);
 }
 
 export function renderLogin() {
@@ -170,8 +215,20 @@ export function renderLogin() {
       if (guestSnapshot.collection?.length || guestSnapshot.wishlist?.length || guestSnapshot.ownedFigs?.length) {
         try { sessionStorage.setItem("bv_pending_guest_migration", JSON.stringify(guestSnapshot)); } catch {}
       }
-      const redirectTo = authRedirectUrlForPlatform();
-      const authUrl = buildSupabaseProviderAuthUrl(_sbUrl, provider, redirectTo);
+      // Bind the returned credentials to this specific authorization request.
+      // A timestamp alone does not stop an attacker from substituting a token
+      // while a legitimate provider sign-in is pending.
+      let nonce;
+      try {
+        nonce = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
+        sessionStorage.setItem("bv_pending_signin", JSON.stringify({ provider, startedAt: Date.now(), nonce }));
+      } catch {
+        toast("Secure sign-in is unavailable in this browser", "error");
+        return;
+      }
+      const redirect = new URL(authRedirectUrlForPlatform());
+      redirect.searchParams.set('auth_state', nonce);
+      const authUrl = buildSupabaseProviderAuthUrl(_sbUrl, provider, redirect.toString());
       if (isNativeCapacitor()) {
         try {
           if (await openNativeAuthUrl(authUrl)) return;
@@ -251,4 +308,8 @@ export function renderLogin() {
   };
 
   paint();
+
+  // A password-recovery link parked a grant (consumeOAuthHash in app.js) — offer
+  // to set a new password instead of leaving the user on a bare sign-in form.
+  if (readRecoveryGrant()) setTimeout(() => { openRecoverySheet(); }, 0);
 }

@@ -54,13 +54,22 @@ app.post('/:id/photo', async (c) => {
   const bytes = await file.arrayBuffer();
   if (bytes.byteLength > 4_000_000) return c.json({ error: 'Image too large (max 4 MB)' }, 413);
 
-  const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
-  const key = `${userId}/${row.set_num}.${ext}`;
+  // One stable key prevents old JPEGs shadowing replacements in other formats.
+  const key = `${userId}/${row.set_num}.photo`;
 
   await c.env.PHOTO_BUCKET.put(key, bytes, {
     httpMetadata: { contentType: file.type },
     customMetadata: { userId, setNum: row.set_num, uploadedAt: new Date().toISOString() },
   });
+
+  // Best-effort cleanup of legacy-format objects (jpg, png, webp) so replacements
+  // don't leave orphaned bytes in R2. Never touches the newly written .photo key.
+  if (typeof c.env.PHOTO_BUCKET.delete === 'function') {
+    const legacyExts = ['jpg', 'png', 'webp'];
+    await Promise.all(
+      legacyExts.map(ext => c.env.PHOTO_BUCKET!.delete(`${userId}/${row.set_num}.${ext}`).catch(() => {}))
+    ).catch(() => {});
+  }
 
   // Store the R2 key as a path reference in user_collection
   const photoUrl = `/api/collection/${id}/photo`;
@@ -85,7 +94,7 @@ app.get('/:id/photo', async (c) => {
   if (!c.env.PHOTO_BUCKET) return c.json({ error: 'Photo storage not configured' }, 503);
 
   // Try all supported extensions
-  for (const ext of ['jpg', 'png', 'webp']) {
+  for (const ext of ['photo', 'jpg', 'png', 'webp']) {
     const key = `${userId}/${row.set_num}.${ext}`;
     const obj = await c.env.PHOTO_BUCKET.get(key);
     if (obj) {
@@ -111,8 +120,8 @@ app.delete('/:id/photo', async (c) => {
 
   if (!c.env.PHOTO_BUCKET) return c.json({ error: 'Photo storage not configured' }, 503);
 
-  for (const ext of ['jpg', 'png', 'webp']) {
-    await c.env.PHOTO_BUCKET.delete(`${userId}/${row.set_num}.${ext}`).catch(() => {});
+  for (const ext of ['photo', 'jpg', 'png', 'webp']) {
+    await c.env.PHOTO_BUCKET.delete(`${userId}/${row.set_num}.${ext}`);
   }
 
   await c.env.DB.prepare(

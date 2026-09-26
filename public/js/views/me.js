@@ -273,7 +273,7 @@ export async function renderMe() {
       </div>
       <div class="app-credits" style="text-align:center;margin-top:10px;font-size:11px;line-height:1.5;color:var(--ink-mute);">
         Catalog data &amp; images from <a href="https://rebrickable.com/" target="_blank" rel="noopener noreferrer" style="color:var(--ink-soft);text-decoration:underline;">Rebrickable</a>.
-        Market data partner: PriceCharting. Sources: BrickLink, eBay, BrickOwl, BrickEconomy &amp; Brickset. LEGO® is a trademark of the LEGO Group, which does not sponsor or endorse this app.
+        Market data partner: PriceCharting. Sources: BrickLink, eBay, BrickEconomy &amp; Brickset. LEGO® is a trademark of the LEGO Group, which does not sponsor or endorse this app.
       </div>
     </div>`;
 

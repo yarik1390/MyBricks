@@ -263,7 +263,7 @@ const DO_NOT_TRANSLATE = new Set([
   // console and the source list. Translating a vendor's name is wrong in
   // every language.
   'Bright Data', 'Google Sheets', 'StockX', 'Firecrawl', 'OpenAI', 'OpenRouter',
-  'BrickOwl', 'BrickInsights', 'Cloudflare', 'Hugging Face', 'UPCitemdb',
+  'BrickInsights', 'Cloudflare', 'Hugging Face', 'UPCitemdb',
   // A LEGO theme name, not UI copy.
   'Modular Buildings',
   // Vendor, and an HTTP auth scheme that appears verbatim in a header.

@@ -957,3 +957,12 @@ Object.assign(uk.room, {
   rotateControls: 'Керування обертанням коробки', rotateLeft: 'Обертати коробку ліворуч', rotateRight: 'Обертати коробку праворуч', setNumber: 'Номер набору', owned: 'У колекції',
   listHint: 'Переглядайте набори у списку та відкривайте їхні подробиці.', retry3D: 'Повторити 3D', empty: 'Ваша виставкова кімната готова. Додайте набори до сховища, щоб заповнити полиці.',
 });
+
+// Оцінка у формі відгуку. uk потребує всіх форм множини (перевіряє CI).
+Object.assign(uk.contributions, {
+  starRatingOne: 'Оцініть 1 з 5',
+  starRatingFew: 'Оцініть {n} з 5',
+  starRatingMany: 'Оцініть {n} з 5',
+  starRatingOther: 'Оцініть {n} з 5',
+  ratingRequired: 'Оцінка (обов’язково)',
+});

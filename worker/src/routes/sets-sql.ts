@@ -50,7 +50,7 @@ export const CATALOG_COLS =
   's.be_value_new, s.be_value_used, s.be_retail, ' +
   's.ebay_ask_value, s.ebay_ask_qty, s.ebay_ask_cached_at, s.retirement_risk_score, s.subtheme, s.be_growth_12m, ' +
   's.bl_new_min, s.bl_new_max, s.bl_used_min, s.bl_used_max, s.lego_in_stock, s.lego_retiring_soon, ' +
-  's.bo_new_value, s.bo_new_qty, s.bo_used_value, s.bo_used_qty, s.bo_cached_at, s.blended_value, ' +
+  's.blended_value, ' +
   's.deal_signal, s.deal_strong, s.deal_discount_pct, ' +
   // PriceCharting sealed/complete sold comps — blendMarketValue() reads these
   // (pc_new weight 0.95, pc_complete 0.75). Omitting them made the grid blend

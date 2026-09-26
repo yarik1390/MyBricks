@@ -48,6 +48,11 @@ export function photoScanNeedsSetup() {
 
 /* ---------- Offline outbox (queue mutations for replay when back online) ---------- */
 export const OUTBOX_KEY = 'bv_outbox';
+let outboxDrainActive = false;
+let outboxSequence = 0;
+function outboxItemId() {
+  return `${Date.now()}-${++outboxSequence}-${crypto.randomUUID()}`;
+}
 
 const OUTBOX_REPLAY_HEADERS = new Set(['idempotency-key', 'x-request-id']);
 function outboxReplayHeaders(headers = {}) {
@@ -57,7 +62,7 @@ function outboxReplayHeaders(headers = {}) {
 export function outboxEnqueue(item) {
   try {
     const q = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]');
-    q.push({ id: Date.now(), ...item });
+    q.push({ ...item, id: outboxItemId() });
     localStorage.setItem(OUTBOX_KEY, JSON.stringify(q));
   } catch {}
 }
@@ -71,7 +76,31 @@ export function outboxDequeue(id) {
 
 const OUTBOX_MAX_TRIES = 5;
 
+// Failed writes are parked here instead of being deleted silently, so the user's
+// action stays inspectable (bounded FIFO).
+export const OUTBOX_FAILED_KEY = 'bv_outbox_failed';
+const OUTBOX_FAILED_MAX = 50;
+// Deterministic client errors — retrying the same request can never succeed.
+const PERMANENT_OUTBOX_STATUS = new Set([400, 401, 403, 404, 409, 413, 415, 422]);
+function isPermanentOutboxError(error) {
+  return PERMANENT_OUTBOX_STATUS.has(Number(error?.status || 0));
+}
+function quarantineOutboxItem(item, error) {
+  try {
+    const q = JSON.parse(localStorage.getItem(OUTBOX_FAILED_KEY) || '[]');
+    q.push({
+      ...item,
+      failedAt: Date.now(),
+      status: Number(error?.status || 0) || null,
+      message: String(error?.message || '').slice(0, 300),
+    });
+    localStorage.setItem(OUTBOX_FAILED_KEY, JSON.stringify(q.slice(-OUTBOX_FAILED_MAX)));
+  } catch {}
+}
+
 export async function drainOutbox() {
+  if (outboxDrainActive) return;
+  outboxDrainActive = true;
   const drainOwner = getSessionOwnerSnapshot();
   const assertDrainOwner = () => {
     const current = getSessionOwnerSnapshot();
@@ -83,10 +112,10 @@ export async function drainOutbox() {
     assertDrainOwner();
     const q = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]');
     if (!q.length) return;
-    let synced = 0, dropped = 0;
-    const keep = [];
+    let synced = 0, dropped = 0, lastOutboxError = '';
     for (const item of q) {
       assertDrainOwner();
+      let tries = null;
       try {
         await api(item.path, {
           method: item.method,
@@ -99,20 +128,43 @@ export async function drainOutbox() {
       } catch (error) {
         if (error?.code === 'OUTBOX_OWNER_CHANGED') throw error;
         assertDrainOwner();
-        // Cap retries so a permanently-failing item (e.g. server-side validation
-        // drift) is dropped + surfaced instead of retried forever every reconnect.
-        const tries = (item.tries || 0) + 1;
-        if (tries >= OUTBOX_MAX_TRIES) dropped++;
-        else keep.push({ ...item, tries });
+        // A permanent client error (bad payload, deleted row, expired session)
+        // will never succeed on retry: burning the budget only delays the loss.
+        // Park it in the quarantine queue with the server's own message, and keep
+        // the retry-budget path for genuinely transient failures.
+        if (isPermanentOutboxError(error) || (item.tries || 0) + 1 >= OUTBOX_MAX_TRIES) {
+          quarantineOutboxItem(item, error);
+          if (!lastOutboxError) lastOutboxError = String(error?.message || '');
+          dropped++;
+          tries = OUTBOX_MAX_TRIES;
+        } else {
+          tries = (item.tries || 0) + 1;
+        }
       }
+      // Acknowledge only this snapshot item. Re-read storage after the await so
+      // actions queued during replay remain untouched (including same-tab ones).
+      assertDrainOwner();
+      try {
+        const current = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]');
+        const index = current.findIndex(entry => entry.id === item.id);
+        if (index >= 0) {
+          if (tries != null && tries < OUTBOX_MAX_TRIES) current[index] = { ...current[index], tries };
+          else current.splice(index, 1);
+          localStorage.setItem(OUTBOX_KEY, JSON.stringify(current));
+        }
+      } catch { /* Keep an unacknowledged action rather than discard the queue. */ }
     }
-    // Persist only the items still worth retrying (synced dropped by omission).
-    assertDrainOwner();
-    try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(keep)); } catch {}
     assertDrainOwner();
     if (synced) { invalidatePortfolio(); toast(tPlural('common.offlineActionsSynced', synced), 'success'); }
-    if (dropped) toast(tPlural('common.offlineActionsDiscarded', dropped), 'error');
-  } catch {}
+    if (dropped) {
+      const detail = lastOutboxError ? ` — ${lastOutboxError}` : '';
+      toast(tPlural('common.offlineActionsDiscarded', dropped) + detail, 'error');
+    }
+  } catch {
+    // Account changes stop the replay; pending entries remain in storage.
+  } finally {
+    outboxDrainActive = false;
+  }
 }
 
 export function loadSession() {
@@ -125,6 +177,7 @@ export function loadSession() {
 }
 
 export function saveSession(s, opts = {}) {
+  const prevOwner = getSessionOwnerSnapshot();
   try {
     if (s) localStorage.setItem("bv_session", JSON.stringify(s));
     else localStorage.removeItem("bv_session");
@@ -139,6 +192,8 @@ export function saveSession(s, opts = {}) {
     state.wishlist = [];
     state.portfolioHistory = null;
     state.ownedFigs = new Set();
+    state.ownedSetNums = new Set();
+    state.ownedSetNumsLoaded = false;
     state.detail.cache = {};
     
     // Clear user specific local DB
@@ -149,7 +204,17 @@ export function saveSession(s, opts = {}) {
     // Clear user specific localStorage
     if (!opts.preserveGuestFigs) localStorage.removeItem("bv_figs");
     localStorage.removeItem("bv_chat");
-    localStorage.removeItem(OUTBOX_KEY);
+    // Outbox: writes a GUEST queued offline belong to the account their vault is
+    // migrated into, so they are kept for replay. Switching between two signed-in
+    // accounts must still drop the previous owner's queue — account A's writes
+    // must never be replayed under account B.
+    // `dropOutbox` forces the discard even on a guest→account transition: an
+    // account installed from an emailed link (recovery) is not a sign-in the
+    // holder of this device chose, so this device's pending writes must not be
+    // replayed into it.
+    const nextOwner = getSessionOwnerSnapshot();
+    const migratedFromGuest = !prevOwner.userId && !!nextOwner.userId;
+    if (opts.dropOutbox || !migratedFromGuest) localStorage.removeItem(OUTBOX_KEY);
   }
 }
 
@@ -200,6 +265,76 @@ export async function sbRecover(email, captchaToken) {
     const msg = d.msg || d.error_description || d.message || "Couldn't send the reset email";
     throw new Error(msg);
   }
+}
+
+/* ---------- Password recovery (Supabase email link) ---------- */
+// A recovery email links back with a short-lived `access_token` and `type=recovery`
+// in the fragment. That grant is NOT a sign-in transaction the tab started, so it
+// is parked here (10-minute TTL, sessionStorage) and only used after the user
+// explicitly sets a new password — see consumeOAuthHash in app.js for why
+// installing it straight away would re-open the login-CSRF hole.
+export const RECOVERY_GRANT_KEY = "bv_recovery_grant";
+export const RECOVERY_GRANT_TTL_MS = 10 * 60 * 1000;
+
+export function stashRecoveryGrant(grant) {
+  try {
+    sessionStorage.setItem(RECOVERY_GRANT_KEY, JSON.stringify({ ...grant, startedAt: Date.now() }));
+  } catch {}
+}
+
+export function readRecoveryGrant() {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(RECOVERY_GRANT_KEY) || "null");
+    if (!parsed || typeof parsed.access_token !== "string") return null;
+    const age = Date.now() - Number(parsed.startedAt);
+    if (!Number.isFinite(age) || age < 0 || age >= RECOVERY_GRANT_TTL_MS) {
+      clearRecoveryGrant();
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function clearRecoveryGrant() {
+  try { sessionStorage.removeItem(RECOVERY_GRANT_KEY); } catch {}
+}
+
+// Installs the session produced by a completed password-recovery flow. It lives
+// here, not in the sign-in view, because that view must never assemble OAuth
+// credentials itself (enforced by public/js/__tests__/oauth-callback-guard.test.js).
+export function installRecoverySession(grant) {
+  const session = {
+    access_token: grant.access_token,
+    refresh_token: grant.refresh_token,
+    expires_at: grant.expires_at,
+  };
+  // dropOutbox: this account came from an emailed link, not a sign-in the device
+  // holder chose, so pending guest writes are discarded rather than replayed into
+  // it (a crafted recovery link must not be able to collect them).
+  saveSession(session, { preserveGuestFigs: true, dropOutbox: true });
+}
+
+// Sets a new password using the recovery grant as the bearer credential.
+export async function sbSetPassword(recoveryAccessToken, password) {
+  const r = await fetch(`${_sbUrl}/auth/v1/user`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${recoveryAccessToken}`,
+      apikey: _sbAnonKey,
+    },
+    body: JSON.stringify({ password }),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.error) {
+    const msg = d.msg || d.error_description
+      || (typeof d.error === 'string' ? d.error : (d.error && d.error.message))
+      || d.message || "Couldn't set the new password";
+    throw new Error(msg);
+  }
+  return d;
 }
 
 export async function sbRefresh(refreshToken) {
@@ -1216,7 +1351,7 @@ export async function api(path, opts = {}) {
     // Feature-level access/setup responses must not erase a valid login. Only
     // an explicit JWT/token failure is allowed to refresh or clear the session.
     if (token && !credentialFailure) {
-      throw new Error(unauthorizedMessage || 'This feature needs additional setup');
+      throw Object.assign(new Error(unauthorizedMessage || 'This feature needs additional setup'), { status: 401 });
     }
 
     if (credentialFailure && requestRefreshToken) {
@@ -1242,7 +1377,7 @@ export async function api(path, opts = {}) {
         saveSession(null);
         location.hash = "#/login";
       }
-      throw new Error(unauthorizedMessage || "Please sign in to sync this feature");
+      throw Object.assign(new Error(unauthorizedMessage || "Please sign in to sync this feature"), { status: 401 });
     }
   }
   if (!r.ok) {

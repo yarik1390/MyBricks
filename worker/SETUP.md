@@ -207,7 +207,6 @@ curl -X POST https://<worker-url>/api/admin/repair-search-index \
 | `EBAY_APP_ID` | Worker secret / GitHub secret | Production eBay App ID / Client ID. Required with `EBAY_CLIENT_SECRET` for eBay US/USD sold comps |
 | `EBAY_CLIENT_SECRET` | Worker secret / GitHub secret | Matching production Cert ID / Client Secret. The keyset must also be approved for limited-release Marketplace Insights sold-comps access |
 | `BRICKECONOMY_API_KEY` | Worker secret / GitHub secret | Optional primary valuation source |
-| `BRICKOWL_API_KEY` | Worker secret / GitHub secret | Optional UPC fallback |
 | `PRICING_V3_READ_PERCENT` | Worker var | Deterministic v3 read rollout: `0`, `10`, `50`, or `100` |
 | `PRICECHARTING_VERIFIED_ENABLED` | Worker var | Hard gate; leave `0` while mappings are quarantined |
 | `AMAZON_PARTNER_TAG_FR_WEB` | Worker var/dashboard | Amazon France Web tracking ID for direct Special Links; public in generated URLs |
