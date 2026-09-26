@@ -66,12 +66,16 @@ export function buildStory(items, summary, year = new Date().getFullYear()) {
   return { year, empty: sets === 0, headline: t('bvCommunity.wrBuilt', { value: money0(value) }), stats };
 }
 
+// A failed collection read rejects: only a vault that really loaded empty
+// gets the "just getting started" story. The sales summary stays optional —
+// without it the sold slide is skipped.
 async function loadStory() {
   const [coll, summary] = await Promise.all([
-    state.portfolio?.items ? Promise.resolve(state.portfolio) : api('/api/collection').catch(() => null),
+    state.portfolio?.items ? Promise.resolve(state.portfolio) : api('/api/collection'),
     isGuestMode() || state.me?.is_guest ? Promise.resolve(null) : api('/api/me/wrapped').catch(() => null),
   ]);
-  return buildStory(coll?.items || [], summary);
+  if (!Array.isArray(coll?.items)) throw new Error('collection unavailable');
+  return buildStory(coll.items, summary);
 }
 
 const slideCount = () => (story?.empty ? 1 : 1 + story.stats.length);
@@ -135,7 +139,21 @@ export async function renderWrapped() {
   index = 0;
   story = null;
   root.innerHTML = `<main class="bv-wr is-loading" aria-busy="true"><header class="bv-wr__top"><a class="bv-wr__icon" href="#/me" aria-label="${escapeHtml(t('bvCommunity.wrClose'))}">${icon('x')}</a></header></main>`;
-  story = await loadStory();
+  try {
+    story = await loadStory();
+  } catch {
+    if (!onScreen()) return;
+    root.innerHTML = `<main class="bv-wr" id="wrappedStory">
+      <header class="bv-wr__top"><a class="bv-wr__icon" href="#/me" aria-label="${escapeHtml(t('bvCommunity.wrClose'))}">${icon('x')}</a></header>
+      <section class="bv-wr__stage" role="alert">
+        <h1 class="bv-wr__head">${escapeHtml(t('bvCommunity.loadFailedTitle'))}</h1>
+        <p class="bv-wr__small">${escapeHtml(t('bvCommunity.loadFailedBody'))}</p>
+      </section>
+      <footer class="bv-wr__foot"><button type="button" class="bv-wr__cta" id="wrRetry">${icon('refresh', { size: 20 })}<span>${escapeHtml(t('bvCommunity.retry'))}</span></button></footer>
+    </main>`;
+    $('#wrRetry')?.addEventListener('click', () => { haptic('light'); renderWrapped(); });
+    return;
+  }
   if (!onScreen()) return;
   root.innerHTML = pageHTML();
   $('#wrClose')?.addEventListener('click', (e) => { e.preventDefault(); close(); });

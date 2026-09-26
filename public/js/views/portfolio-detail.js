@@ -222,7 +222,13 @@ const CONDITION_SEG = [["sealed", "bvSet.segSealed"], ["new", "bvSet.segOpened"]
 const CONDITION_WORD = { sealed: "bvSet.condSealed", new: "bvSet.condOpened", used_good: "bvSet.condBuilt", used_acceptable: "bvSet.condParts" };
 const conditionWord = (c) => t(CONDITION_WORD[c] || CONDITION_WORD.sealed);
 
-function valueRange(set) {
+function valueRange(set, entry = null) {
+  // A used copy's range is the used market's; there is no legacy used range.
+  if (isUsedCopy(entry)) {
+    const used = set.valuation?.read_enabled ? set.valuation?.used : null;
+    const l = Number(used?.low), h = Number(used?.high);
+    return l > 0 && h > l ? { low: l, high: h } : null;
+  }
   const v3 = set.valuation?.read_enabled ? set.valuation?.new : null;
   for (const [lo, hi] of [[v3?.low, v3?.high], [set.market_value_low, set.market_value_high], [set.blended_low, set.blended_high]]) {
     const l = Number(lo), h = Number(hi);
@@ -279,10 +285,10 @@ function titleBlockHTML(set) {
 }
 
 function valueCardHTML(set, entry) {
-  const v = setDisplayValue(set);
+  const v = copyValue(set, entry);
   const est = !(set.valuation?.read_enabled && Number(set.valuation?.new?.fair_value) > 0) && !!estMark(set);
   const conf = valuationConfidencePresentation(set);
-  const range = set.coming_soon ? null : valueRange(set);
+  const range = set.coming_soon ? null : valueRange(set, entry);
   const forecast = set.coming_soon ? 0 : realForecast(set);
   const label = set.coming_soon ? t("bvSet.announcedRetail")
     : est ? t("bvSet.estimatedValue")
@@ -308,7 +314,9 @@ function valueCardHTML(set, entry) {
   }
   const facts = [];
   if (forecast) facts.push(`<div class="bv-valuecard__fact"><span class="bv-label">${escapeHtml(t("bvSet.forecast2y"))}</span><span class="bv-num">${escapeHtml(money0(forecast))}</span></div>`);
-  if (entry && !isKidsMode()) {
+  // Sell-target alerts run on the server for account holdings; a guest's
+  // local copy could never be notified, so the control is account-only.
+  if (entry && !isKidsMode() && !isGuestMode()) {
     const target = Number(entry.sell_target) > 0 ? Number(entry.sell_target) : null;
     facts.push(`<button type="button" class="bv-valuecard__fact bv-valuecard__fact--btn" data-set-sheet="target" id="sellTargetBtn"><span class="bv-label">${escapeHtml(t("bvSet.sellTarget"))}</span>
       <span class="bv-valuecard__factval">${target ? `<span class="bv-num">${escapeHtml(money0(target))}</span>` : `<span class="bv-valuecard__hint">${escapeHtml(t("bvSet.setTarget"))}</span>`}${kitIcon("edit", { size: 16 })}</span></button>`);
@@ -351,7 +359,7 @@ function setBarHTML(set, entry, tab) {
   }
   const qty = Number(entry.quantity) || 1;
   const paid = paidOf(entry);
-  const value = setDisplayValue(set) * qty;
+  const value = copyValue(set, entry) * qty;
   const cost = paid != null ? paid * qty : null;
   const gain = cost != null && value > 0 ? value - cost : null;
   const pct = gain != null && cost > 0 ? (gain / cost) * 100 : null;
@@ -433,7 +441,7 @@ function openSetSheet(kind, set, entry) {
   if (!entry) return;
   if (kind === "edit") return openEditSheet(set, entry);
   if (kind === "sell") return openSellOptionsSheet(set, entry);
-  if (kind === "target") return openSellTargetSheet(set, entry);
+  if (kind === "target") return isGuestMode() ? undefined : openSellTargetSheet(set, entry);
   if (kind === "sold") return openRecordSaleSheet(set, entry);
 }
 
@@ -519,7 +527,7 @@ function openEditSheet(set, entry) {
 // job latches it, and re-arms once the value drops back below).
 function openSellTargetSheet(set, entry) {
   const ctx = capturedMoneyContext();
-  const v = setDisplayValue(set);
+  const v = copyValue(set, entry);
   const forecast = realForecast(set);
   const current = Number(entry.sell_target) > 0 ? Number(entry.sell_target) : null;
   const options = [
@@ -683,7 +691,7 @@ function openRecordSaleSheet(set, entry) {
 // Why this price: the plain-language confidence read, provenance and the full
 // market evidence that used to sit behind "Pricing details".
 function openWhySheet(set, entry) {
-  const v = setDisplayValue(set);
+  const v = copyValue(set, entry);
   const conf = valuationConfidencePresentation(set);
   showSheet(kitSheetBody({
     title: t("bvSet.whyPrice", { price: money0(v) }),
@@ -872,6 +880,18 @@ async function shareSet(set) {
       toast("Sharing isn't available on this device", "error");
     }
   }
+}
+
+const isUsedCopy = (entry) => String(entry?.condition || "").startsWith("used");
+
+// The value of YOUR copy, as the Vault row and /api/collection value it: a
+// built or parts copy is worth the used market (the v3 used fair value when
+// the v3 read is on, else the legacy used chain); sealed and opened copies —
+// and sets you don't own — use the page's sealed value.
+function copyValue(set, entry) {
+  if (!isUsedCopy(entry) || set.coming_soon) return setDisplayValue(set);
+  if (set.valuation?.read_enabled) return Number(set.valuation?.used?.fair_value) || setDisplayValue(set);
+  return Number(marketValueForCondition(set, entry.condition)) || setDisplayValue(set);
 }
 
 // The value the page actually displays: the shared displayValueOf chain

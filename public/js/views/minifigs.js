@@ -441,9 +441,19 @@ function showFigFilterSheet() {
       state.filter.figOwnedRarity = readFacet('rarity');
       state.filter.figOwnedSeries = readFacet('series');
       state.filter.figOwnedSort = readFacet('sort');
+    } else if (readFacet('owned') === 'owned') {
+      // "Owned" is the Vault's own Minifigs view, not a catalogue filter: carry
+      // the other choices across and open it instead of dropping the choice.
+      state.filter.figOwnedRarity = readFacet('rarity');
+      state.filter.figOwnedSeries = readFacet('series');
+      state.filter.figOwnedSort = readFacet('sort');
+      hideSheet();
+      haptic("light");
+      location.hash = '#/minifigs?owned=1';
+      return;
     } else {
       state.filter.figRarity = readFacet('rarity');
-      state.filter.figOwned = readFacet('owned') === 'owned' ? 'all' : readFacet('owned');
+      state.filter.figOwned = readFacet('owned');
       state.filter.figSeries = readFacet('series');
       state.filter.figSort = readFacet('sort');
     }

@@ -31,14 +31,18 @@ function fill(tpl, vars) {
 }
 
 /**
- * Use the translated labels only if every one of them can be drawn;
- * otherwise the whole report stays in English (no half-translated pages).
+ * Use the translated labels only if the set is complete and every one of
+ * them can be drawn; otherwise the whole report stays in English (no
+ * half-translated pages).
  * @param {Partial<typeof REPORT_LABELS_EN>} [labels]
  */
 export function reportLabels(labels) {
   if (!labels) return { ...REPORT_LABELS_EN };
-  const merged = { ...REPORT_LABELS_EN, ...labels };
-  return Object.values(merged).every((v) => winAnsiSupported(v)) ? merged : { ...REPORT_LABELS_EN };
+  /** @type {Record<string, unknown>} */
+  const given = labels;
+  const keys = Object.keys(REPORT_LABELS_EN);
+  const usable = keys.every((k) => typeof given[k] === 'string' && given[k] !== '' && winAnsiSupported(String(given[k])));
+  return usable ? /** @type {typeof REPORT_LABELS_EN} */ (Object.fromEntries(keys.map((k) => [k, given[k]]))) : { ...REPORT_LABELS_EN };
 }
 
 /**

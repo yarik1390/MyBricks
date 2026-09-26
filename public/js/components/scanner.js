@@ -301,20 +301,35 @@ function finishSession() {
       <a class="bv-btn bv-btn--primary bv-btn--full" href="#/" id="scanSessionVault">${escapeHtml(t("bvAdd.seeVault"))}</a>`,
   }));
   $("#scanSessionVault")?.addEventListener("click", () => hideSheet());
+  // Each Undo takes back exactly one copy. A set scanned twice has two rows,
+  // so undo counts down from the holding's current quantity (restoring a
+  // remembered absolute quantity would also drop the other row's copy); the
+  // holding is deleted only when its last copy goes.
+  const qtyNow = new Map();
+  for (const s of added) {
+    if (s.id == null) continue;
+    const after = s.kind === "qty" ? s.prevQty + 1 : 1;
+    qtyNow.set(String(s.id), Math.max(qtyNow.get(String(s.id)) || 0, after));
+  }
   $$("#sheet [data-undo]").forEach((btn) => btn.addEventListener("click", async () => {
     const s = added[Number(btn.dataset.undo)];
+    const key = String(s.id);
+    const current = qtyNow.get(key) || 1;
     btn.disabled = true;
     try {
-      if (s.kind === "qty") await api(`/api/collection/${encodeURIComponent(s.id)}`, { method: "PATCH", body: { quantity: s.prevQty } });
-      else if (s.id != null) await api(`/api/collection/${encodeURIComponent(s.id)}`, { method: "DELETE" });
-      else throw new Error(t("bvAdd.undoUnavailable"));
+      if (s.id == null) throw new Error(t("bvAdd.undoUnavailable"));
+      // Count down before the request so a second Undo tapped meanwhile sees it.
+      qtyNow.set(key, current - 1);
+      if (current > 1) await api(`/api/collection/${encodeURIComponent(s.id)}`, { method: "PATCH", body: { quantity: current - 1 } });
+      else await api(`/api/collection/${encodeURIComponent(s.id)}`, { method: "DELETE" });
       invalidatePortfolio();
       state.catalog.items = [];
-      if (s.kind === "post") state.ownedSetNums?.delete?.(s.set_num);
+      if (current <= 1) state.ownedSetNums?.delete?.(s.set_num);
       btn.closest(".bv-scansession__row")?.classList.add("is-undone");
       btn.replaceWith(Object.assign(document.createElement("span"), { className: "bv-label", textContent: t("bvAdd.undone") }));
       haptic("light");
     } catch (e) {
+      if (s.id != null) qtyNow.set(key, (qtyNow.get(key) ?? current - 1) + 1);
       btn.disabled = false;
       toast(t("common.errorWithDetails", { error: e.message || e }), "error");
     }

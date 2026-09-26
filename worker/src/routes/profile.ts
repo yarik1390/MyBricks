@@ -10,6 +10,29 @@ const HOLDING_VALUE_COLUMNS = `uc.set_num, uc.condition, uc.quantity,
   ls.ebay_used_value, ls.pc_new_value, ls.pc_complete_value,
   svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair`;
 
+// Up to six trophy sets in shelf order, each valued like the rest of the vault.
+async function loadShowcase(env: Env, userId: string) {
+  const res = await env.DB.prepare(`
+    SELECT ${HOLDING_VALUE_COLUMNS}, ls.name, ls.theme, ls.year, ls.pieces,
+           ls.minifigs, ls.image_url, ls.retired, ls.valuation_method
+    FROM user_showcase us
+    JOIN user_collection uc ON uc.user_id = us.user_id
+      AND uc.set_num = us.set_num AND uc.deleted_at IS NULL
+    JOIN lego_sets ls ON ls.set_num = us.set_num
+    LEFT JOIN set_valuation_state svn ON svn.set_num=ls.set_num AND svn.condition='new_sealed'
+    LEFT JOIN set_valuation_state svu ON svu.set_num=ls.set_num AND svu.condition='used_complete'
+    WHERE us.user_id=?
+    ORDER BY us.display_order ASC
+    LIMIT 6
+  `).bind(userId).all<Record<string, unknown>>();
+  const rolloutPercent = Number(env.PRICING_V3_READ_PERCENT || 0);
+  return (res.results || []).map(s => ({
+    ...s,
+    retired: !!s.retired,
+    market_value: holdingValueForRollout(s, rolloutPercent),
+  }));
+}
+
 // GET /api/users/leaderboard — public ranking of opted-in collections by value.
 // Opt-in = a public profile that also exposes its value and has a handle.
 app.get('/leaderboard', async (c) => {
@@ -41,7 +64,7 @@ app.get('/leaderboard', async (c) => {
     current.total_value = Number(current.total_value) + holdingValueForRollout(row, rolloutPercent) * Number(row.quantity || 1);
     grouped.set(userId, current);
   }
-  const everyone = [...grouped.values()].filter(row => Number(row.total_value) > 0);
+  const everyone = [...grouped.values()];
 
   // "Rising": change against each collector's own snapshot from ~30 days ago
   // (the newest one at least 30 days old). Null when there's no history.
@@ -63,9 +86,12 @@ app.get('/leaderboard', async (c) => {
 
   // ?sort=value (default) | sets | rising. Rising only ranks collectors with
   // a month of history.
+  // Only the value-based rankings need a valuation; a collection whose sets
+  // aren't priced yet still has a real set count.
   const sort = c.req.query('sort') === 'sets' ? 'sets' : c.req.query('sort') === 'rising' ? 'rising' : 'value';
   const byValue = (a: Record<string, unknown>, b: Record<string, unknown>) => Number(b.total_value) - Number(a.total_value);
-  const pool = sort === 'rising' ? everyone.filter(r => change(r) !== null) : everyone;
+  const valued = everyone.filter(r => Number(r.total_value) > 0);
+  const pool = sort === 'sets' ? everyone : sort === 'rising' ? valued.filter(r => change(r) !== null) : valued;
   const allRanked = [...pool].sort(
     sort === 'sets' ? (a, b) => (Number(b.set_count) - Number(a.set_count)) || byValue(a, b)
       : sort === 'rising' ? (a, b) => (Number(change(b)) - Number(change(a))) || byValue(a, b)
@@ -115,19 +141,7 @@ app.get('/:handle/profile', optionalMember, async (c) => {
       WHERE uc.user_id=? AND uc.deleted_at IS NULL
     `).bind(userId).all<Record<string, unknown>>(),
 
-    c.env.DB.prepare(`
-      SELECT ${HOLDING_VALUE_COLUMNS}, ls.name, ls.theme, ls.year, ls.pieces,
-             ls.minifigs, ls.image_url, ls.retired, ls.valuation_method
-      FROM user_showcase us
-      JOIN user_collection uc ON uc.user_id = us.user_id
-        AND uc.set_num = us.set_num AND uc.deleted_at IS NULL
-      JOIN lego_sets ls ON ls.set_num = us.set_num
-      LEFT JOIN set_valuation_state svn ON svn.set_num=ls.set_num AND svn.condition='new_sealed'
-      LEFT JOIN set_valuation_state svu ON svu.set_num=ls.set_num AND svu.condition='used_complete'
-      WHERE us.user_id=?
-      ORDER BY us.display_order ASC
-      LIMIT 6
-    `).bind(userId).all<Record<string, unknown>>(),
+    loadShowcase(c.env, userId),
 
     c.env.DB.prepare(`
       SELECT (
@@ -171,12 +185,20 @@ app.get('/:handle/profile', optionalMember, async (c) => {
     collecting_since: firstAdded ? Number(firstAdded.slice(0, 4)) || null : null,
     total_value: exposeValue ? totalValue : null,
     top_themes: themes,
-    showcase: showcase.results.map(s => ({
-      ...s,
-      retired: !!s.retired,
-      market_value: holdingValueForRollout(s, rolloutPercent),
-    })),
+    showcase,
   });
+});
+
+// GET /api/users/:handle/showcase — auth required, own handle only. The shelf
+// editor reads from here: the public profile 404s while private, and editing
+// an empty stand-in would overwrite the stored shelf.
+app.get('/:handle/showcase', requireMember, async (c) => {
+  const userId = c.get('userId');
+  const prefs = await c.env.DB.prepare(
+    'SELECT user_id FROM user_prefs WHERE handle=? AND user_id=?'
+  ).bind(c.req.param('handle'), userId).first();
+  if (!prefs) return c.json({ error: 'Not your profile' }, 403);
+  return c.json({ showcase: await loadShowcase(c.env, userId) });
 });
 
 // POST /api/users/:handle/showcase — auth required, own handle only

@@ -46,6 +46,34 @@ test('leaderboard ranks by value, sets or 30-day rise and tells a private collec
   await expect(page.locator('#publicToggle')).toHaveAttribute('aria-checked', 'false');
 });
 
+test('a slow answer for the previous leaderboard tab never paints under the new one', async ({ page }) => {
+  await stubMe(page);
+  let releaseRising;
+  const risingHeld = new Promise((resolve) => { releaseRising = resolve; });
+  await page.route('**/api/users/leaderboard**', async (route) => {
+    const sort = new URL(route.request().url()).searchParams.get('sort') || 'value';
+    if (sort === 'rising') await risingHeld;
+    const by = { sets: (a, b) => b.set_count - a.set_count, rising: (a, b) => b.change_30d_pct - a.change_30d_pct };
+    const leaders = by[sort] ? [...LEADERS].sort(by[sort]).map((l, i) => ({ ...l, rank: i + 1 })) : LEADERS;
+    return json(route, { leaders, total: 3, sort, would_rank: null });
+  });
+  await page.goto('/#/leaderboard', { waitUntil: 'domcontentloaded' });
+  const rows = page.locator('.bv-lbrow');
+  await expect(rows).toHaveCount(3);
+  // Rising is still loading when the collector moves on to By sets.
+  await page.locator('[data-lb-sort="rising"]').click();
+  await page.locator('[data-lb-sort="sets"]').click();
+  await expect(rows.nth(1)).toContainText('@mocmaster');
+  await expect(rows.first()).toContainText('@brickbaron');
+
+  releaseRising();
+  // The rising answer lands in its own cache...
+  await expect.poll(() => page.evaluate(() => Object.keys(sessionStorage).some((k) => k.endsWith(':rising')))).toBe(true);
+  // ...while By sets keeps its own ranking (rising would put @mocmaster first).
+  await expect(page.locator('[data-lb-sort="sets"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(rows.first()).toContainText('@brickbaron');
+});
+
 test('public profile shows what the owner exposes; the owner previews a private one', async ({ page }) => {
   const profile = {
     handle: 'brickbaron', display_name: 'Brick Baron', is_public: true, is_owner: false, is_supporter: true, approved_contributions: 3,
@@ -110,6 +138,23 @@ test('contributions list status, filter pending and withdraw', async ({ page }) 
   await rows.first().getByRole('button', { name: 'Withdraw' }).click();
   await expect.poll(() => deleted).toEqual(['/api/contributions/data/7']);
   await expect(page.getByText('Nothing waiting for review.')).toBeVisible();
+});
+
+test('Brick Wrapped offers a retry instead of an empty story when the vault fails to load', async ({ page }) => {
+  let fail = true;
+  await page.route('**/api/collection', (route) => (fail && route.request().method() === 'GET'
+    ? json(route, { error: 'unavailable' }, 503)
+    : route.fallback()));
+  await page.route('**/api/me/wrapped**', (route) => json(route, { year: 2026, sets_sold: 0, realized_gain: 0 }));
+  await page.goto('/#/wrapped', { waitUntil: 'domcontentloaded' });
+  const story = page.locator('#wrappedStory');
+  await expect(story.getByRole('alert')).toContainText('Couldn’t load this');
+  await expect(story).not.toContainText('getting started');
+  await expect(page.locator('#wrShareStory')).toHaveCount(0);
+
+  fail = false;
+  await page.locator('#wrRetry').click();
+  await expect(story.locator('.bv-wr__head')).toHaveText('You built a $850 vault.');
 });
 
 test('Brick Wrapped steps through the story and shares a real PNG', async ({ page }) => {

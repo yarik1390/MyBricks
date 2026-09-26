@@ -163,3 +163,18 @@ test('mobile populated holding form screenshot', async ({ page }) => {
   await page.locator('#figNotes').scrollIntoViewIfNeeded();
   await page.locator('#sheet').screenshot({ path: 'audit/minifigure-holdings-mobile-actions.png' });
 });
+
+test('Discover minifig filters: choosing Owned opens your figures with the other choices', async ({ page }) => {
+  await stubMinifigCatalog(page);
+  await page.goto('/#/minifigs?owned=0', { waitUntil: 'domcontentloaded' });
+  await page.locator('#figMoreBtn').click();
+  await page.locator('#figMoreFilters').click();
+  const sheet = page.locator('#sheet');
+  await sheet.locator('[data-fig-facet="rarity"] [data-fval="rare"]').click();
+  await sheet.locator('[data-fig-facet="owned"] [data-fval="owned"]').click();
+  await page.locator('#figFilterApply').click();
+  // Owned is the Vault's own view: the choice is honoured by opening it,
+  // carrying the rarity across, instead of silently showing the whole catalogue.
+  await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/minifigs?owned=1');
+  expect(await page.evaluate(async () => (await import('/js/state.js')).state.filter.figOwnedRarity)).toBe('rare');
+});

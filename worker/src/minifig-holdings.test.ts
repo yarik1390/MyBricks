@@ -55,6 +55,17 @@ describe('loose minifigure holdings', () => {
     ]);
   });
 
+  it('lists the caller\'s own purchase price with owned figures, never someone else\'s', async () => {
+    await request('/fig-a', { method: 'PUT', body: JSON.stringify({ quantity: 2, purchase_price: 12.5 }) });
+    const mine = await (await request('/?owned=yes&sort=value_desc')).json<any>();
+    expect(mine.minifigs.map((f: any) => [f.fig_num, f.owned_qty, f.purchase_price])).toEqual([['fig-a', 2, 12.5]]);
+
+    const other = await (await request('/', {}, otherToken)).json<any>();
+    expect(other.minifigs.every((f: any) => f.purchase_price === null)).toBe(true);
+    const anon = await (await request('/', {}, '')).json<any>();
+    expect(anon.minifigs.every((f: any) => f.purchase_price === null)).toBe(true);
+  });
+
   it('creates defaults, partially updates atomically, and preserves rich fields for old callers', async () => {
     const created = await request('/fig-a', { method: 'PUT', body: '{}' });
     expect(await created.json()).toEqual({

@@ -13,7 +13,7 @@ describe('runWishlistAlerts', () => {
   beforeEach(async () => {
     await applyTestTables(db, [
       'lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist',
-      'wishlist_alerts', 'user_prefs', 'push_subscriptions',
+      'wishlist_alerts', 'user_prefs', 'push_subscriptions', 'set_valuation_state',
     ]);
   });
 
@@ -83,7 +83,7 @@ describe('runWishlistAlerts — blended value + confidence gate', () => {
   beforeEach(async () => {
     await applyTestTables(db, [
       'lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist',
-      'wishlist_alerts', 'user_prefs', 'push_subscriptions',
+      'wishlist_alerts', 'user_prefs', 'push_subscriptions', 'set_valuation_state',
     ]);
   });
 
@@ -180,6 +180,22 @@ describe('runWishlistAlerts — blended value + confidence gate', () => {
     expect(count!.n).toBe(2);
   });
 
+  it('crosses a used copy on its used value, not the sealed one', async () => {
+    await db.batch([
+      // Sealed 800 is past the 600 target, but a built copy is worth 500: silent.
+      db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, ebay_used_value, valuation_method) VALUES ('U-1','Built Copy', 800, 500, 'market')`),
+      db.prepare(`INSERT INTO set_valuation_state (set_num, condition, fair_value) VALUES ('U-1', 'used_complete', 500)`),
+      db.prepare(`INSERT INTO user_collection (user_id, set_num, condition, sell_target) VALUES ('u1','U-1', 'used_good', 600)`),
+      // Its used value (650) is past the target: fires at 650.
+      db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, ebay_used_value, valuation_method) VALUES ('U-2','Parts Copy', 900, 650, 'market')`),
+      db.prepare(`INSERT INTO set_valuation_state (set_num, condition, fair_value) VALUES ('U-2', 'used_complete', 650)`),
+      db.prepare(`INSERT INTO user_collection (user_id, set_num, condition, sell_target) VALUES ('u1','U-2', 'used_acceptable', 600)`),
+    ]);
+    expect((await runWishlistAlerts(e)).sellTargets).toBe(1);
+    const alert = await db.prepare(`SELECT set_num, current_value FROM wishlist_alerts WHERE alert_type='sell_target'`).first<{ set_num: string; current_value: number }>();
+    expect(alert).toEqual({ set_num: 'U-2', current_value: 650 });
+  });
+
   it('ignores formula-only values for sell targets', async () => {
     await db.batch([
       db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, valuation_method) VALUES ('F-1','Formula', 900, 'formula_bulk')`),
@@ -216,6 +232,26 @@ describe('runWishlistAlerts — per-set switches', () => {
     const r = await runWishlistAlerts(e);
     expect(r.retiring).toBe(0);
     expect(r.preorders).toBe(0);
+  });
+
+  it('a switched-off category records nothing: no in-app alert, no cooldown stamp', async () => {
+    await db.batch([
+      db.prepare(`INSERT INTO user_prefs (user_id, notify_price_drops, notify_big_moves, notify_retiring) VALUES ('u1', 1, 0, 0)`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, valuation_method) VALUES ('S-9','Spiker', 200, 'market')`),
+      db.prepare(`INSERT INTO user_collection (user_id, set_num, purchase_price) VALUES ('u1','S-9', 100)`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, retired, lego_retiring_soon) VALUES ('R-9','Retiring', 30, 0, 1)`),
+      db.prepare(`INSERT INTO user_wishlist (user_id, set_num) VALUES ('u1','R-9')`),
+      // A collector who wants both still gets both.
+      db.prepare(`INSERT INTO user_collection (user_id, set_num, purchase_price) VALUES ('u2','S-9', 100)`),
+      db.prepare(`INSERT INTO user_wishlist (user_id, set_num) VALUES ('u2','R-9')`),
+    ]);
+    const r = await runWishlistAlerts(e);
+    expect(r.spikes).toBe(1);
+    expect(r.retiring).toBe(1);
+    const mine = await db.prepare(`SELECT COUNT(*) AS n FROM wishlist_alerts WHERE user_id='u1'`).first<{ n: number }>();
+    expect(mine!.n).toBe(0);
+    const stamp = await db.prepare(`SELECT spike_alerted_at FROM user_collection WHERE user_id='u1'`).first<{ spike_alerted_at: string | null }>();
+    expect(stamp!.spike_alerted_at).toBeNull();
   });
 });
 

@@ -26,6 +26,7 @@ const STATIC_ASSETS = [
   '/js/lib/list-detail.js',
   '/js/ui/set-ui.js',
   '/js/ui/vault-ui.js',
+  '/js/lib/vault-insights.js',
   '/js/views/changes.js',
   '/js/views/insights.js',
   '/js/views/retiring.js',
