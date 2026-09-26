@@ -1175,6 +1175,24 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(noProbe.would_rank).toBeNull();
     });
 
+    it('leaderboard keeps a collection without valuations in the sets ranking only', async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year) VALUES ('99001', 'Unpriced A', 'Other', 2026)`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year) VALUES ('99002', 'Unpriced B', 'Other', 2026)`),
+        db.prepare(`INSERT INTO user_prefs (user_id, handle, is_public, expose_public_value) VALUES (?, 'priced', 1, 1)`).bind(userId),
+        db.prepare(`INSERT INTO user_prefs (user_id, handle, is_public, expose_public_value) VALUES (?, 'unpriced', 1, 1)`).bind(otherUserId),
+        db.prepare(`INSERT INTO user_collection (user_id, set_num, quantity, condition) VALUES (?, '75192', 1, 'new')`).bind(userId),
+        db.prepare(`INSERT INTO user_collection (user_id, set_num, quantity, condition) VALUES (?, '99001', 1, 'new')`).bind(otherUserId),
+        db.prepare(`INSERT INTO user_collection (user_id, set_num, quantity, condition) VALUES (?, '99002', 1, 'new')`).bind(otherUserId),
+      ]);
+      const bySets = await (await app.fetch(new Request('http://localhost/api/users/leaderboard?sort=sets&sets=1'), env)).json<any>();
+      expect(bySets.leaders.map((l: any) => [l.handle, l.set_count])).toEqual([['unpriced', 2], ['priced', 1]]);
+      expect(bySets.total).toBe(2);
+      expect(bySets.would_rank).toBe(2);
+      const byValue = await (await app.fetch(new Request('http://localhost/api/users/leaderboard'), env)).json<any>();
+      expect(byValue.leaders.map((l: any) => l.handle)).toEqual(['priced']);
+    });
+
     it('a private profile is visible to its owner as a preview and to nobody else', async () => {
       await db.prepare(`INSERT INTO user_prefs (user_id, handle, is_public) VALUES (?, 'quiet', 0)`).bind(userId).run();
       const anon = await app.fetch(new Request('http://localhost/api/users/quiet/profile'), env);

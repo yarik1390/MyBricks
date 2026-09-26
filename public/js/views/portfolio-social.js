@@ -136,17 +136,20 @@ export async function renderLeaderboard() {
   };
 
   const load = async () => {
-    const cached = readCache(sort);
+    // A tab switch mid-fetch changes `sort`; a late answer for the old tab
+    // still fills its own cache but never paints under the new tab.
+    const want = sort;
+    const cached = readCache(want);
     paint(cached, !cached);
     try {
-      const url = (window.WORKER_BASE || '') + leaderboardURL(sort, who);
+      const url = (window.WORKER_BASE || '') + leaderboardURL(want, who);
       const r = await fetch(url);
       if (!r.ok) throw new Error(String(r.status));
       const data = await r.json();
-      writeCache(sort, data);
-      paint(data);
+      writeCache(want, data);
+      if (want === sort) paint(data);
     } catch {
-      if (cached) return;
+      if (cached || want !== sort) return;
       const body = $('#lbBody');
       if (!body || !onLeaderboard()) return;
       body.setAttribute('aria-busy', 'false');

@@ -64,7 +64,7 @@ app.get('/leaderboard', async (c) => {
     current.total_value = Number(current.total_value) + holdingValueForRollout(row, rolloutPercent) * Number(row.quantity || 1);
     grouped.set(userId, current);
   }
-  const everyone = [...grouped.values()].filter(row => Number(row.total_value) > 0);
+  const everyone = [...grouped.values()];
 
   // "Rising": change against each collector's own snapshot from ~30 days ago
   // (the newest one at least 30 days old). Null when there's no history.
@@ -86,9 +86,12 @@ app.get('/leaderboard', async (c) => {
 
   // ?sort=value (default) | sets | rising. Rising only ranks collectors with
   // a month of history.
+  // Only the value-based rankings need a valuation; a collection whose sets
+  // aren't priced yet still has a real set count.
   const sort = c.req.query('sort') === 'sets' ? 'sets' : c.req.query('sort') === 'rising' ? 'rising' : 'value';
   const byValue = (a: Record<string, unknown>, b: Record<string, unknown>) => Number(b.total_value) - Number(a.total_value);
-  const pool = sort === 'rising' ? everyone.filter(r => change(r) !== null) : everyone;
+  const valued = everyone.filter(r => Number(r.total_value) > 0);
+  const pool = sort === 'sets' ? everyone : sort === 'rising' ? valued.filter(r => change(r) !== null) : valued;
   const allRanked = [...pool].sort(
     sort === 'sets' ? (a, b) => (Number(b.set_count) - Number(a.set_count)) || byValue(a, b)
       : sort === 'rising' ? (a, b) => (Number(change(b)) - Number(change(a))) || byValue(a, b)
