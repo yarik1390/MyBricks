@@ -950,7 +950,7 @@ export const de = {
     themeLight: 'Hell',
     theme: 'Design',
     trademark: 'LEGO® ist eine Marke der LEGO Gruppe, die diese App weder sponsert noch unterstützt.',
-    credits: 'Katalogdaten und Bilder von Rebrickable. Marktdatenpartner: PriceCharting. Quellen: BrickLink, eBay, BrickOwl, BrickEconomy & Brickset.',
+    credits: 'Katalogdaten und Bilder von Rebrickable. Marktdatenpartner: PriceCharting. Quellen: BrickLink, eBay, BrickEconomy & Brickset.',
     terms: 'AGB',
     privacy: 'Datenschutz',
     dataSources: 'Datenquellen',
@@ -1433,4 +1433,11 @@ Object.assign(de.room, {
   inspecting: 'Box-Inspektion', inspectLabel: 'Drehbare Darstellung der Box von {name}', rotateHint: 'Ziehe die Box, verwende die Pfeiltasten oder die Drehtasten. Die Seiten sind neutral, da nur das Katalogbild bekannt ist.',
   rotateControls: 'Steuerung zum Drehen der Box', rotateLeft: 'Box nach links drehen', rotateRight: 'Box nach rechts drehen', setNumber: 'Setnummer', owned: 'Im Besitz',
   listHint: 'Durchsuche deine Sets in der Liste und öffne ihre Details.', retry3D: '3D erneut versuchen', empty: 'Dein Ausstellungsraum ist bereit. Füge deinem Tresor Sets hinzu, um die Regale zu füllen.',
+});
+
+// Bewertung im Rezensions-Sheet (fehlende Formen fallen auf Englisch zurück).
+Object.assign(de.contributions, {
+  starRatingOne: 'Bewerte mit 1 von 5',
+  starRatingOther: 'Bewerte mit {n} von 5',
+  ratingRequired: 'Bewertung (erforderlich)',
 });

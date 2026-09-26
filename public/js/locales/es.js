@@ -950,7 +950,7 @@ export const es = {
     themeLight: 'Claro',
     theme: 'Tema',
     trademark: 'LEGO® es una marca del Grupo LEGO, que no patrocina ni respalda esta app.',
-    credits: 'Datos e imágenes del catálogo de Rebrickable. Socio de datos de mercado: PriceCharting. Fuentes: BrickLink, eBay, BrickOwl, BrickEconomy y Brickset.',
+    credits: 'Datos e imágenes del catálogo de Rebrickable. Socio de datos de mercado: PriceCharting. Fuentes: BrickLink, eBay, BrickEconomy y Brickset.',
     terms: 'Términos',
     privacy: 'Privacidad',
     dataSources: 'Fuentes de datos',
@@ -1415,4 +1415,11 @@ Object.assign(es.room, {
   inspecting: 'Inspección de la caja', inspectLabel: 'Representación giratoria de la caja de {name}', rotateHint: 'Arrastra la caja, usa las teclas de flecha o los botones de giro. Los lados son neutros porque solo se conoce la imagen del catálogo.',
   rotateControls: 'Controles de giro de la caja', rotateLeft: 'Girar la caja a la izquierda', rotateRight: 'Girar la caja a la derecha', setNumber: 'Número del set', owned: 'En propiedad',
   listHint: 'Explora tus sets en la lista y abre sus detalles.', retry3D: 'Reintentar 3D', empty: 'Tu sala de exposición está lista. Añade sets a tu bóveda para llenar los estantes.',
+});
+
+// Valoración en el formulario de reseña (las formas ausentes usan el inglés).
+Object.assign(es.contributions, {
+  starRatingOne: 'Valora 1 de 5',
+  starRatingOther: 'Valora {n} de 5',
+  ratingRequired: 'Valoración (obligatoria)',
 });

@@ -95,7 +95,9 @@ export async function renderSetDetail(setNum) {
           cacheSetDetail(setNum, set, entry, getSessionUserId());
           // Don't repaint over an open sheet (the user is mid-edit).
           if (location.hash.includes(setNum) && !document.body.classList.contains("sheet-open")) paintSetDetail(set, entry, { background: true });
-        }).catch(() => {});
+        }).catch(() => {
+          if (location.hash.includes(setNum)) toast("Showing cached data — live prices are unavailable", "info");
+        });
       return;
     }
   }
@@ -115,7 +117,7 @@ export async function renderSetDetail(setNum) {
     if (cached?.set) {
       try {
         paintSetDetail(cached.set, cached.entry);
-        if (!navigator.onLine) toast("You're offline — showing cached data", "info");
+        toast("Showing cached data — live prices are unavailable", "info");
         return;
       } catch {}
     }
@@ -126,7 +128,7 @@ export async function renderSetDetail(setNum) {
       const seed = await getSeedSetDetail(setNum);
       if (seed?.set) {
         paintSetDetail(seed.set, seed.entry);
-        if (!navigator.onLine) toast("You're offline — showing bundled data", "info");
+        toast(navigator.onLine ? "Showing bundled data — live prices are unavailable" : "You're offline — showing bundled data", "info");
         return;
       }
     } catch { /* seed unavailable — fall through to not-found */ }

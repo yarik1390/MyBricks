@@ -950,7 +950,7 @@ export const hi = {
     themeLight: 'हल्की',
     theme: 'थीम',
     trademark: 'LEGO® LEGO Group का ट्रेडमार्क है, जो इस ऐप को प्रायोजित या समर्थित नहीं करता।',
-    credits: 'कैटलॉग डेटा और चित्र Rebrickable से। बाज़ार डेटा साझेदार: PriceCharting। स्रोत: BrickLink, eBay, BrickOwl, BrickEconomy और Brickset।',
+    credits: 'कैटलॉग डेटा और चित्र Rebrickable से। बाज़ार डेटा साझेदार: PriceCharting। स्रोत: BrickLink, eBay, BrickEconomy और Brickset।',
     terms: 'शर्तें',
     privacy: 'गोपनीयता',
     dataSources: 'डेटा स्रोत',
@@ -1415,4 +1415,11 @@ Object.assign(hi.room, {
   inspecting: 'बॉक्स का निरीक्षण', inspectLabel: '{name} के बॉक्स का घुमाया जा सकने वाला रूप', rotateHint: 'बॉक्स को ड्रैग करें, ऐरो कुंजियों का इस्तेमाल करें या घुमाने वाले बटन दबाएँ। किनारे सादे हैं क्योंकि केवल कैटलॉग की तस्वीर उपलब्ध है।',
   rotateControls: 'बॉक्स घुमाने के कंट्रोल', rotateLeft: 'बॉक्स को बाएँ घुमाएँ', rotateRight: 'बॉक्स को दाएँ घुमाएँ', setNumber: 'सेट नंबर', owned: 'आपके पास',
   listHint: 'सूची में अपने सेट देखें और उनका विवरण खोलें।', retry3D: '3D फिर आज़माएँ', empty: 'आपका शोरूम तैयार है। शेल्फ़ भरने के लिए अपने वॉल्ट में सेट जोड़ें।',
+});
+
+// समीक्षा शीट में रेटिंग (छूटी हुई रूपें अंग्रेज़ी पर जाती हैं)।
+Object.assign(hi.contributions, {
+  starRatingOne: '5 में से 1 रेट करें',
+  starRatingOther: '5 में से {n} रेट करें',
+  ratingRequired: 'रेटिंग (आवश्यक)',
 });

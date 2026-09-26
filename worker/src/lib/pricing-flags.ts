@@ -27,11 +27,6 @@ export function ebaySoldCompsEnabled(env: Env): boolean {
   return resolve('ebay_sold_comps', flagOn(env.EBAY_SOLD_COMPS_ENABLED));
 }
 
-export function brickOwlEnabled(env: Env): boolean {
-  // OFF by default; on after a valid BRICKOWL_API_KEY (env "1" or override).
-  return resolve('brickowl', flagOn(env.BRICKOWL_ENABLED));
-}
-
 // BrickInsights review ratings use a sanctioned, documented public API, so this
 // source is ON by default; disable via a falsy BRICKINSIGHTS_ENABLED or override.
 export function brickInsightsEnabled(env: Env): boolean {

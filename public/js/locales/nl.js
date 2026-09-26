@@ -950,7 +950,7 @@ export const nl = {
     themeLight: 'Licht',
     theme: 'Thema',
     trademark: 'LEGO® is een handelsmerk van de LEGO Groep, die deze app niet sponsort of onderschrijft.',
-    credits: 'Catalogusgegevens en afbeeldingen van Rebrickable. Marktdatapartner: PriceCharting. Bronnen: BrickLink, eBay, BrickOwl, BrickEconomy en Brickset.',
+    credits: 'Catalogusgegevens en afbeeldingen van Rebrickable. Marktdatapartner: PriceCharting. Bronnen: BrickLink, eBay, BrickEconomy en Brickset.',
     terms: 'Voorwaarden',
     privacy: 'Privacy',
     dataSources: 'Gegevensbronnen',
@@ -1415,4 +1415,11 @@ Object.assign(nl.room, {
   inspecting: 'Doos bekijken', inspectLabel: 'Draaibare weergave van de doos van {name}', rotateHint: 'Sleep de doos, gebruik de pijltjestoetsen of de draaiknoppen. De zijkanten zijn neutraal omdat alleen de catalogusafbeelding bekend is.',
   rotateControls: 'Draaibediening voor de doos', rotateLeft: 'Doos naar links draaien', rotateRight: 'Doos naar rechts draaien', setNumber: 'Setnummer', owned: 'In bezit',
   listHint: 'Bekijk je sets in de lijst en open hun details.', retry3D: '3D opnieuw proberen', empty: 'Je showroom is klaar. Voeg sets toe aan je kluis om de planken te vullen.',
+});
+
+// Beoordeling in het reviewformulier (ontbrekende vormen vallen terug op Engels).
+Object.assign(nl.contributions, {
+  starRatingOne: 'Beoordeel met 1 van 5',
+  starRatingOther: 'Beoordeel met {n} van 5',
+  ratingRequired: 'Beoordeling (verplicht)',
 });
