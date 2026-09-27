@@ -239,9 +239,12 @@ function retiringSectionHTML() {
     </section>`;
 }
 
-// "Coming soon" (upcoming LEGO releases): rows with Notify me (= wishlist).
+// "Coming soon" (upcoming LEGO releases): two compact rows with a bell that
+// wishlists the set (= notify me); See all expands the rest in place.
 // Class names avoid app.css's legacy .coming-soon-wrap / .cs-card rules, which
 // forced these rows into a narrow horizontal rail and hid the set names.
+const COMING_SOON_PREVIEW = 2;
+function notifyLabel(on) { return t(on ? "bvAdd.notifying" : "bvAdd.notifyMe"); }
 function comingSoonSectionHTML() {
   const up = state.catalog.upcoming || [];
   if (!isCatalogDefault() || !up.length || getModePref() === "kids") return "";
@@ -252,13 +255,13 @@ function comingSoonSectionHTML() {
     return `<div class="bv-setrow bv-comingsoon__row" data-cs-open="${escapeHtml(String(u.set_num))}" role="link" tabindex="0">
         ${setThumb(u)}
         <span class="bv-setrow__body"><span class="bv-setrow__name">${escapeHtml(String(u.name || u.set_num))}</span><span class="bv-setrow__meta">${escapeHtml([String(u.set_num || "").replace(/-\d+$/, ""), u.availability || t("bvCommon.comingSoon")].join(" · "))}</span></span>
-        <span class="bv-setrow__end">${u.price_usd ? `<span class="bv-setrow__value">${escapeHtml(money0(u.price_usd))}</span>` : ""}
-          ${isLoggedIn ? `<button type="button" class="bv-pill bv-pill--info bv-notify" data-cs-wish="${escapeHtml(String(u.set_num))}" data-cs-name="${escapeHtml(String(u.name || ""))}" aria-pressed="${on}">${escapeHtml(t(on ? "bvAdd.notifying" : "bvAdd.notifyMe"))}</button>` : ""}</span>
+        <span class="bv-setrow__end bv-comingsoon__end">${u.price_usd ? `<span class="bv-setrow__value">${escapeHtml(money0(u.price_usd))}</span>` : ""}
+          ${isLoggedIn ? `<button type="button" class="bv-iconbtn bv-notify" data-cs-wish="${escapeHtml(String(u.set_num))}" data-cs-name="${escapeHtml(String(u.name || ""))}" aria-pressed="${on}" aria-label="${escapeHtml(notifyLabel(on))}" title="${escapeHtml(notifyLabel(on))}">${kitIcon("bell", { size: 20 })}</button>` : ""}</span>
       </div>`;
   };
   return `<section class="bv-discover__section bv-comingsoon" aria-labelledby="comingSoonTitle">
-      ${kitSectionTitle(t("bvCommon.comingSoon"), { id: "comingSoonTitle", trailHtml: up.length > 3 ? `<button type="button" class="bv-card__link bv-linkbtn" id="comingSoonAll">${escapeHtml(t("common.seeAll"))}${kitIcon("chev", { size: 16 })}</button>` : "" })}
-      <div class="bv-group__box" id="comingSoonList">${up.slice(0, state.catalog.showAllUpcoming ? 40 : 3).map(row).join("")}</div>
+      ${kitSectionTitle(t("bvCommon.comingSoon"), { id: "comingSoonTitle", trailHtml: up.length > COMING_SOON_PREVIEW ? `<button type="button" class="bv-card__link bv-linkbtn" id="comingSoonAll">${escapeHtml(t("common.seeAll"))}${kitIcon("chev", { size: 16 })}</button>` : "" })}
+      <div class="bv-group__box" id="comingSoonList">${up.slice(0, state.catalog.showAllUpcoming ? 40 : COMING_SOON_PREVIEW).map(row).join("")}</div>
     </section>`;
 }
 
@@ -266,7 +269,7 @@ function themeBrowseHTML() {
   if (!isCatalogDefault() || !state.themes.length) return "";
   return `<section class="bv-discover__section" aria-labelledby="browseThemesTitle">
       ${kitSectionTitle(t("bvAdd.browseThemes"), { id: "browseThemesTitle" })}
-      <div class="bv-chips bv-chips--wrap bv-discover__themes">${popularThemes(state.themes, 8).map((th) => `<button type="button" class="bv-chip" data-cat-theme="${escapeHtml(th)}">${escapeHtml(th)}</button>`).join("")}
+      <div class="bv-chips bv-discover__themes">${popularThemes(state.themes, 8).map((th) => `<button type="button" class="bv-chip" data-cat-theme="${escapeHtml(th)}">${escapeHtml(th)}</button>`).join("")}
         ${state.themes.length > 8 ? `<button type="button" class="bv-chip" id="moreThemesChip">${kitIcon("filter", { size: 18 })}<span>${escapeHtml(t("bvAdd.moreThemes"))}</span></button>` : ""}</div>
     </section>`;
 }
@@ -676,7 +679,8 @@ function wireCatalogCards() {
           if (state.wishlist) state.wishlist.push({ set_num: setNum, name });
         }
         wishBtn.setAttribute("aria-pressed", String(!isOn));
-        wishBtn.textContent = t(!isOn ? "bvAdd.notifying" : "bvAdd.notifyMe");
+        wishBtn.setAttribute("aria-label", notifyLabel(!isOn));
+        wishBtn.title = notifyLabel(!isOn);
       } catch (err) {
         toast(err.message || t("common.actionFailed"), "error");
       }

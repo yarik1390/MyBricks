@@ -1414,8 +1414,12 @@ html.bv-scan-native-live .bv-scan__video { display: none; }
 .bv-discover__section { margin: 0 var(--bv-gutter) 4px; }
 .bv-discover__section > .bv-h2 { margin: 20px 4px 8px; }
 .bv-discover__section .bv-card__link svg { width: 16px; height: 16px; }
+/* Coming soon's See all is a button (it expands in place); match the link. */
+.bv-discover__section .bv-h2--row .bv-linkbtn { display: inline-flex; align-items: center; gap: 2px; font: 600 13px/18px var(--bv-sans); color: inherit; }
 .bv-discover__section .bv-setrow__end .bv-pill { margin-top: 2px; }
-.bv-discover__themes { margin-top: 4px; }
+/* One swipeable row of themes (it wrapped to three rows before), bleeding to
+   the screen edges like the other chip rows. */
+.bv-discover__themes { margin: 4px calc(-1 * var(--bv-gutter)) 0; }
 .bv-discover__toolbar, body.collector-ui .bv-discover .catalog-primary-toolbar { display: flex; align-items: center; gap: 4px; margin: 12px 8px 0 0; width: auto; }
 body.collector-ui .bv-discover #catalogSortBtn { grid-column: auto; grid-row: auto; }
 .bv-field__box :is(input, select, textarea):focus-visible { outline: none; }
@@ -1435,10 +1439,12 @@ body.collector-ui .bv-discover #catalogSortBtn { grid-column: auto; grid-row: au
 .bv-discover__grid .bv-tile__value { flex-shrink: 0; }
 .bv-discover__grid .bv-tile__foot .bv-pill { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .bv-discover__grid .bv-tile:not(.is-owned) .bv-tile__body { padding-right: 46px; }
-.bv-notify { border: 0; cursor: pointer; min-height: 32px; margin: -4px 0; }
-.bv-notify::after { content: ""; position: absolute; inset: -8px 0; }
-.bv-notify { position: relative; }
-.bv-notify[aria-pressed="true"] { background: var(--bv-ink); color: var(--bv-bg); }
+/* Coming soon: price and a bell side by side, so a row is no taller than a
+   Retiring soon row (the stacked "Notify me" pill doubled its height). */
+.bv-comingsoon__end { flex-direction: row; align-items: center; gap: 4px; }
+.bv-notify { width: 40px; height: 40px; min-width: 40px; margin: -4px -6px -4px 0; color: var(--bv-mute); background: transparent; }
+.bv-notify[aria-pressed="true"] { color: var(--bv-ink); }
+.bv-notify[aria-pressed="true"] svg path:first-child { fill: currentColor; }
 .bv-comingsoon__row { cursor: pointer; }
 .bv-themepicker { max-height: 52dvh; overflow-y: auto; margin-top: 8px; }
 .bv-filter { display: flex; flex-direction: column; gap: 4px; }
