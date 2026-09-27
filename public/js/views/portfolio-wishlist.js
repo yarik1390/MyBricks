@@ -199,7 +199,12 @@ function onPageClick(e) {
   if (!el) return;
   if (el.id === 'wlSortBtn') return openSortSheet();
   if (el.id === 'wlMoreBtn') return openMoreSheet();
-  if (el.dataset.wlSet) { haptic('light'); return openPriceAlert(el.dataset.wlSet); }
+  if (el.dataset.wlSet) {
+    haptic('light');
+    // The photo is the set: open it. The rest of the row edits the price alert.
+    if (e.target.closest('.bv-thumb')) { location.hash = `#/set/${encodeURIComponent(el.dataset.wlSet)}`; return; }
+    return openPriceAlert(el.dataset.wlSet);
+  }
   if (el.dataset.wlDismiss !== undefined) return dismissAlert(el.closest('.bv-wlalert'));
   if (el.dataset.wlBought) return boughtIt(el.dataset.wlBought, el.closest('.bv-wlalert'));
 }

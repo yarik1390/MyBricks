@@ -308,8 +308,10 @@ a.bv-card, button.bv-card { text-decoration: none; text-align: left; font: inher
 }
 .bv-tile__act[aria-pressed="true"] { background: var(--bv-s2); color: var(--bv-ink); }
 .bv-tile__act svg { width: 18px; height: 18px; }
-/* The whole tile is the link; the add button sits above it (44px hit area incl. inset). */
-.bv-tile > a.bv-tile__link::after { content: ""; position: absolute; inset: 0; }
+/* The whole tile is the link — above the photo (a positioned layer that would
+   otherwise take the tap); the add button sits above it (44px hit area incl. inset). */
+.bv-tile > a.bv-tile__link::after { content: ""; position: absolute; inset: 0; z-index: 1; }
+.bv-tile__act { z-index: 2; }
 
 /* ------------------------------------------------------------- forms */
 .bv-field { display: flex; flex-direction: column; gap: 6px; }
@@ -794,12 +796,12 @@ body.collector-ui.selection-mode #nav { display: none; }
 .vault-fig-grid { margin-top: 4px; }
 .vault-figs .vault-toolbar .bv-chip { margin: 4px 0; }
 .bv-tile > button.bv-tile__link { position: static; margin: 0; padding: 0; border: 0; background: none; min-height: 0; cursor: pointer; }
-.bv-tile > button.bv-tile__link::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.bv-tile > button.bv-tile__link::after { content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: 1; }
 .bv-tile:has(> .bv-tile__link:focus-visible) { outline: 3px solid var(--bv-acct); outline-offset: 2px; }
 .bv-tile > .bv-tile__link:focus-visible { outline: none; }
 .vault-fig .bv-tile__media { align-items: flex-end; padding-bottom: 4px; box-sizing: border-box; }
 .vault-fig .bv-tile__media img { object-fit: contain; }
-.vault-fig .bv-tile__tag, .vault-fig .bv-tile__qty, .vault-fig .bv-tile__act { z-index: 1; }
+.vault-fig .bv-tile__act { z-index: 2; }
 .vault-fig .bv-tile__act { position: absolute; }
 .vault-figs.is-discover .vault-fig .bv-tile__meta { padding-right: 40px; }
 .vault-fig__fact { margin-top: 2px; }
