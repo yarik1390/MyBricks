@@ -62,6 +62,7 @@ function scanOverlayHTML(mode, shelf = false) {
   // Installed app, barcode / blind-box: ML Kit's own Activity owns the camera
   // unless the opt-in live scanner runs behind a transparent WebView.
   const nativeHandoff = mode !== "image" && isNativeCapacitor() && !_liveNativeWanted;
+  const picking = nativeHandoff && _nativeHold;
   const segMode = mode === "image" ? (shelf ? "shelf" : "image") : mode;
   const modes = [["barcode", "bvAdd.modeBarcode"], ["image", "bvAdd.modePhoto"], ["shelf", "bvAdd.modeShelf"]];
   const corner = (c) => `<span class="bv-scan__corner" data-c="${c}"></span>`;
@@ -79,8 +80,8 @@ function scanOverlayHTML(mode, shelf = false) {
       </div>
       <div class="bv-scan__chip" id="scanChip" hidden></div>
       <div class="bv-scan__frame" id="scanFrame" aria-hidden="true">${["tl", "tr", "bl", "br"].map(corner).join("")}<span class="bv-scan__sweep"></span></div>
-      ${nativeHandoff ? `<div class="bv-scan__native" aria-hidden="true"><span class="bv-scan__spinner"></span></div>` : ""}
-      <div class="bv-scan__hint" id="scanHint" role="status" aria-live="polite">${escapeHtml(nativeHandoff ? t("bvAdd.opening") : scanHintText(mode, shelf))}</div>
+      ${nativeHandoff && !picking ? `<div class="bv-scan__native" aria-hidden="true"><span class="bv-scan__spinner"></span></div>` : ""}
+      <div class="bv-scan__hint" id="scanHint" role="status" aria-live="polite">${escapeHtml(picking ? t("bvAdd.howIdentify") : nativeHandoff ? t("bvAdd.opening") : scanHintText(mode, shelf))}</div>
       <div class="bv-scan__bottom">
         ${mode === "image" ? `
           <button type="button" class="bv-scan__round" id="scanGalleryBtn" aria-label="${escapeHtml(t("bvAdd.gallery"))}">${kitIcon("photo")}</button>
@@ -410,8 +411,14 @@ function setScanPending(on) {
 
 
 let _liveNativeWanted = false;
+// Installed app, opened from a generic "Scan" entry (FAB, search icon): show the
+// method switcher (Barcode · Photo · Shelf · type) instead of handing straight
+// to ML Kit's full-screen Activity, which hides every other way to add a set.
+// Backing out of the Activity then returns to the switcher, not the page.
+let _nativePicker = false; // this scanner session started from a generic entry
+let _nativeHold = false;   // this open shows the switcher instead of launching ML Kit
 
-export function openScan(mode = "barcode", { deferStart = false, shelf = false } = {}) {
+export function openScan(mode = "barcode", { deferStart = false, shelf = false, pick = false } = {}) {
   // Check access before mounting the full-screen camera. Guests without a BYOK
   // key get a small setup sheet while barcode/manual lookup remain available.
   if (mode === "image" && photoScanNeedsSetup()) {
@@ -429,6 +436,8 @@ export function openScan(mode = "barcode", { deferStart = false, shelf = false }
   // Shelf Snap: photo mode variant — one wide photo, every set on the shelf.
   state.camera.shelf = mode === "image" && !!shelf;
   _liveNativeWanted = mode !== "image" && isNativeCapacitor() && liveScanOptIn();
+  if (fresh) _nativePicker = pick && isNativeCapacitor();
+  _nativeHold = pick && mode === "barcode" && isNativeCapacitor() && !_liveNativeWanted;
   ov.classList.remove("native-handoff");
   ov.innerHTML = scanOverlayHTML(mode, state.camera.shelf);
   ov.classList.add("open");
@@ -451,7 +460,8 @@ export function openScan(mode = "barcode", { deferStart = false, shelf = false }
 
   $$(".bv-scan__seg [data-mode]").forEach((b) => b.addEventListener("click", () => {
     const m = b.dataset.mode;
-    if (b.getAttribute("aria-pressed") === "true") return;
+    // On the method switcher, tapping the selected Barcode tab starts it.
+    if (b.getAttribute("aria-pressed") === "true") { if (m === "barcode") $("#nativeRescanBtn")?.click(); return; }
     haptic("light");
     openScan(m === "shelf" ? "image" : m, { shelf: m === "shelf" });
   }));
@@ -531,13 +541,20 @@ export async function startCamera() {
   // scanner — NEVER the getUserMedia path. By default ML Kit's own Activity
   // owns the preview; the opt-in live scanner keeps our chrome on screen.
   if (state.camera.mode !== "image" && isNativeCapacitor()) {
+    // Switching mode or closing while these checks run reopens the scanner
+    // (new generation): this start must not launch ML Kit over that screen.
+    const generation = _scanGeneration;
+    const stale = () => generation !== _scanGeneration;
     if (_liveNativeWanted && await startLiveNativeScan()) return;
+    if (stale()) return;
     document.querySelector(".bv-scan")?.classList.add("is-native");
     let supported = false;
     try {
       const { nativeBarcodeSupported } = await import("../lib/native-barcode.js");
       supported = await nativeBarcodeSupported(window);
     } catch { /* import/plugin failure → manual entry below */ }
+    if (stale()) return;
+    if (supported && _nativeHold) { ensureNativeRescanButton(); return; }
     if (supported) { runNativeBarcodeScan(); return; }
     const hint = $("#scanHint");
     if (hint) hint.textContent = t("bvAdd.typeInstead");
@@ -661,6 +678,16 @@ async function runNativeBarcodeScan() {
   // Back out of the Activity: with sets added this session show what was
   // added; otherwise return to where the scan started.
   if (_session.length) { finishSession(); return; }
+  if (_nativePicker && state.camera.mode === "barcode") {
+    // Opened from a generic Scan entry: back to the method switcher.
+    _nativeHold = true;
+    overlay.classList.remove("native-handoff");
+    overlay.querySelector(".bv-scan__native")?.remove();
+    _scanTrapRelease = activateFocusTrap(overlay, closeScan);
+    if (hint) hint.textContent = t("bvAdd.howIdentify");
+    ensureNativeRescanButton();
+    return;
+  }
   closeScan({ restoreFocus: false });
   $("#pileScanBarcode")?.focus();
 }
@@ -676,6 +703,7 @@ function ensureNativeRescanButton() {
   btn.innerHTML = `${kitIcon("scan", { size: 20 })}<span>${escapeHtml(t("bvAdd.scanBarcode"))}</span>`;
   btn.addEventListener("click", () => {
     $("#nativeRescanBtn")?.remove();
+    _nativeHold = false; // chosen: later restarts in this session relaunch ML Kit
     clearScanResult();
     runNativeBarcodeScan();
   });

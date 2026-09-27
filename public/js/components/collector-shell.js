@@ -89,7 +89,7 @@ export function installCollectorShell() {
 // every navigation, before the next view renders.
 let pageFab = null;
 function defaultFab() {
-  return { label: t('shell.scanToAdd'), icon: 'scan', onClick: () => { haptic('light'); openScan('barcode'); } };
+  return { label: t('shell.scanToAdd'), icon: 'scan', onClick: () => { haptic('light'); openScan('barcode', { pick: true }); } };
 }
 function fabEl() {
   let el = document.getElementById('bvFab');

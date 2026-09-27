@@ -74,6 +74,13 @@
 
 /* ------------------------------------------------------------- base */
 body.collector-ui { background: var(--bv-bg); color: var(--bv-ink); font-family: var(--bv-sans); }
+/* Redesigned screens pad for the status bar themselves (.bv-page, set hero bar,
+   sticky top bars, kids/login/welcome), so app.css's body pad for legacy views
+   doubled the gap on Android. Legacy .page screens (and skeletons) keep it. */
+body.collector-ui:not(:has(#root > .page)),
+:root[data-mode="kids"] body:not(:has(#root > .page)) { padding-top: 0; }
+/* Solid status-bar strip: content scrolling under it stayed readable at .94. */
+body.collector-ui .status-bar-scrim { background: var(--bv-bg); opacity: 1; }
 .bv-page {
   --bv-bottom-clear: calc(var(--bv-nav-h) + var(--safe-bottom, 0px) + 24px);
   padding: calc(var(--safe-top, 0px)) 0 var(--bv-bottom-clear);
@@ -1411,7 +1418,7 @@ body.collector-ui .bv-discover #catalogSortBtn { grid-column: auto; grid-row: au
 .bv-notify::after { content: ""; position: absolute; inset: -8px 0; }
 .bv-notify { position: relative; }
 .bv-notify[aria-pressed="true"] { background: var(--bv-ink); color: var(--bv-bg); }
-.cs-card { cursor: pointer; }
+.bv-comingsoon__row { cursor: pointer; }
 .bv-themepicker { max-height: 52dvh; overflow-y: auto; margin-top: 8px; }
 .bv-filter { display: flex; flex-direction: column; gap: 4px; }
 .bv-filter__section { display: flex; flex-direction: column; gap: 6px; padding: 6px 0; }
@@ -2128,8 +2135,4 @@ body.collector-ui.offline #app { padding-top: 56px; }
   .bv-listpane .bv-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* Card → detail morph (canvas: CardMotion). */
-::view-transition-group(bv-morph) { animation-duration: .3s; animation-timing-function: cubic-bezier(.2, 0, 0, 1); }
-::view-transition-old(root), ::view-transition-new(root) { animation-duration: .2s; }
-@media (prefers-reduced-motion: reduce) { ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
 /* ---- end area: first ---- */
