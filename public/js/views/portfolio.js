@@ -78,6 +78,7 @@ export async function loadPortfolioData() {
   if (wl) {
     state.wishlist = wl.wishlist || [];
     state.wishlistAlerts = wl.unread_alerts || [];
+    state.wishlistLoadedAt = Date.now();
   }
   // Persist the supplementary data too, so a cold offline launch shows the
   // full vault (chart + wishlist), not just the holdings list. Hydrated by

@@ -44,6 +44,20 @@ export function goBackOr(fallback = '#/') {
   window.dispatchEvent(new HashChangeEvent('hashchange', { oldURL: from, newURL: location.href }));
 }
 
+// Android back with nothing open. Roots leave the app. The other bottom-bar
+// tabs (Kids Mode has its own bar) return to the home tab — Android's
+// bottom-navigation rule — instead of retracing every tab and page visited
+// before them, which is where back used to land "on the wrong page".
+const ROOTS = new Set(['', '/', '/kids']);
+const TABS = new Set(['/add', '/wishlist', '/me']);
+const KIDS_TABS = new Set(['/add', '/pile', '/kids/badges']);
+
+/** Where back goes from `hash`: 'exit', 'home' or 'history'. */
+export function backTarget(hash, { kids = false } = {}) {
+  if (ROOTS.has(hash)) return 'exit';
+  return (kids ? KIDS_TABS : TABS).has(hash) ? 'home' : 'history';
+}
+
 let installed = false;
 export function installNavHistory(win = window) {
   if (installed) return;

@@ -126,3 +126,16 @@ test('a set seen before opens from the device cache at once, then refreshes quie
   await page.reload();
   await expect(page.locator('.bv-setpage h1, #root h1').first()).toHaveText('Millennium Falcon', { timeout: 800 });
 });
+
+test('an empty wishlist the Vault already loaded opens without a skeleton', async ({ page }) => {
+  await page.route('**/api/wishlist', (route) => (route.request().method() === 'GET'
+    ? route.fulfill({ json: { wishlist: [], unread_alerts: [] } })
+    : route.fallback()));
+  await page.goto('/#/');
+  await expect(page.locator('#vaultPage')).toBeVisible();
+  await page.waitForTimeout(300); // the Vault's supplementary wishlist fetch
+  await page.route('**/api/**', async (route) => { await new Promise((r) => setTimeout(r, 1500)); await route.fallback(); });
+  await page.locator('#nav [data-route="/wishlist"]').click();
+  await expect(page.locator('#wishlistPage')).toBeVisible({ timeout: 400 });
+  expect(await page.locator('#root .skel, #root .bv-skel').count()).toBe(0);
+});

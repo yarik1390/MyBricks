@@ -46,3 +46,13 @@ test('entries count screens behind them; URL rewrites keep the count', async () 
   win.history.pushState({ lightbox: true }, '', '#/');
   assert.deepEqual(win.history.state, { lightbox: true, bvDepth: 1 });
 });
+
+test('Android back: tabs go home, other screens step back, roots leave', async () => {
+  const { backTarget } = await import('../lib/nav-history.js');
+  for (const tab of ['/add', '/wishlist', '/me']) assert.equal(backTarget(tab), 'home', tab);
+  for (const page of ['/set/75192-1', '/insights', '/pile', '/kids/badges']) assert.equal(backTarget(page), 'history', page);
+  // Kids Mode's own bar: Discover, Scan and Badges.
+  for (const tab of ['/add', '/pile', '/kids/badges']) assert.equal(backTarget(tab, { kids: true }), 'home', tab);
+  assert.equal(backTarget('/', {}), 'exit');
+  assert.equal(backTarget('/kids', { kids: true }), 'exit');
+});

@@ -10,23 +10,13 @@ import { getCapacitorPlugin, isNativeCapacitor } from './native-auth.js';
 import { hideSheet } from '../components/sheet.js';
 import { closeScan } from '../components/scanner-lazy.js';
 import { cancelActiveStream } from '../components/advisor-lazy.js';
-import { goBackOr } from './nav-history.js';
+import { goBackOr, backTarget } from './nav-history.js';
 import { getModePref } from '../theme.js';
 
 let wired = false;
 
 // Route hashes that are "home": back from here leaves the app.
 const ROOTS = new Set(['', '/', '/kids']);
-// The other bottom-bar tabs. Android's bottom-navigation rule: back from one
-// of them returns to the home tab, instead of retracing every tab and page
-// visited before it (which is where back used to land "on the wrong page").
-const TABS = new Set(['/add', '/wishlist', '/me']);
-
-/** Where back goes from `hash` with nothing open: 'exit', 'home' or 'history'. */
-export function backTarget(hash) {
-  if (ROOTS.has(hash)) return 'exit';
-  return TABS.has(hash) ? 'home' : 'history';
-}
 
 function currentHash() {
   return (location.hash.replace('#', '') || '/').split('?')[0];
@@ -82,8 +72,9 @@ export function initNativeBack(win) {
 
     // 6. Another tab → the home tab. Any other screen → one step back (or
     // home when the app was opened straight onto it).
-    const home = getModePref() === 'kids' ? '#/kids' : '#/';
-    const target = backTarget(currentHash());
+    const kids = getModePref() === 'kids';
+    const home = kids ? '#/kids' : '#/';
+    const target = backTarget(currentHash(), { kids });
     if (target === 'home') {
       const from = location.href;
       history.replaceState(null, '', home);

@@ -155,6 +155,7 @@ async function hydrateFromIDB() {
     if (w?.ts && now - w.ts < MAX_AGE && w.userId === currentUid && w.data) {
       state.wishlist = w.data.wishlist || [];
       state.wishlistAlerts = w.data.alerts || [];
+      state.wishlistLoadedAt = w.ts; // a known (possibly empty) list: no skeleton
     }
   } catch {}
 }
