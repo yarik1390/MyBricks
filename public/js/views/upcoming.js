@@ -13,6 +13,7 @@ let _gen = 0;
 // Bells toggled on this screen, set_num → on. A wishlist load that was already
 // in flight when the bell was tapped must not undo the tap.
 const _toggled = new Map();
+window.addEventListener('bv:owner-changed', () => _toggled.clear());
 
 /**
  * Upcoming releases, fetched once per session (Discover's tile shares it).
