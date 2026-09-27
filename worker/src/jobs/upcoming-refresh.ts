@@ -9,12 +9,13 @@ import { firecrawlEnabled } from '../lib/pricing-flags';
  * those have either released (now in the normal catalog) or been pulled.
  */
 export async function runUpcomingRefresh(env: Env) {
-  if (!firecrawlEnabled(env)) return { upserted: 0, removed: 0, skipped: 'firecrawl disabled' };
+  const cleared = await clearRetiringOnUpcoming(env);
+  if (!firecrawlEnabled(env)) return { upserted: 0, removed: 0, cleared, skipped: 'firecrawl disabled' };
 
   const items = await fetchUpcomingSets(env);
   // Don't prune on an empty/failed scrape — that would wipe a good feed on a
   // transient miss. Only reconcile when we actually got products.
-  if (!items.length) return { upserted: 0, removed: 0, skipped: 'no items scraped' };
+  if (!items.length) return { upserted: 0, removed: 0, cleared, skipped: 'no items scraped' };
 
   const stamp = new Date().toISOString();
   const stmts = items.map((it) => env.DB.prepare(`
@@ -29,5 +30,24 @@ export async function runUpcomingRefresh(env: Env) {
     `DELETE FROM upcoming_sets WHERE scraped_at IS NULL OR scraped_at < ?`,
   ).bind(stamp).run();
 
-  return { upserted: items.length, removed: (del.meta.changes as number | undefined) ?? 0 };
+  return { upserted: items.length, removed: (del.meta.changes as number | undefined) ?? 0, cleared: cleared + await clearRetiringOnUpcoming(env) };
+}
+
+/**
+ * A set LEGO lists as coming soon isn't retiring. Clear the flag a stock scrape
+ * stored anyway (its parsers can match "Retiring soon" in LEGO.com's site
+ * navigation). Runs even when the scrape is off or fails, so bad flags heal.
+ */
+export async function clearRetiringOnUpcoming(env: Env): Promise<number> {
+  try {
+    const res = await env.DB.prepare(
+      `UPDATE lego_sets SET lego_retiring_soon = 0
+       WHERE lego_retiring_soon = 1
+         AND (set_num IN (SELECT set_num FROM upcoming_sets)
+              OR COALESCE(lego_availability, '') IN ('coming_soon', 'pre_order'))`,
+    ).run();
+    return (res.meta.changes as number | undefined) ?? 0;
+  } catch {
+    return 0; // upcoming_sets may not exist yet on a fresh DB
+  }
 }

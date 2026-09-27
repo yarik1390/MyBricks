@@ -122,6 +122,20 @@ async function checkLegoStockFallback(setNum: string): Promise<LegoStockResult |
  * leave the set unchecked.
  */
 export async function checkLegoStock(setNum: string, env?: Env): Promise<LegoStockResult | null> {
+  return notRetiringIfUnreleased(await checkLegoStockRaw(setNum, env));
+}
+
+// LEGO.com product pages carry "Retiring soon" in site navigation and
+// merchandising, so the HTML parsers can flag a set that hasn't even launched.
+// A coming-soon / pre-order product cannot be retiring.
+export function notRetiringIfUnreleased(stock: LegoStockResult | null): LegoStockResult | null {
+  if (!stock) return stock;
+  const avail = (stock.availability ?? '').toLowerCase();
+  if (avail !== 'coming_soon' && avail !== 'pre_order') return stock;
+  return { ...stock, retiring_soon: false };
+}
+
+async function checkLegoStockRaw(setNum: string, env?: Env): Promise<LegoStockResult | null> {
   // Both lanes honor the admin source-tuning kill switches: disabling a
   // provider in the console stops its use here (not just in the job selector).
   const num = setNum.replace(/-\d+$/, '');

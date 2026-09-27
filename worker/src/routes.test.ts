@@ -435,6 +435,23 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(nums).not.toContain('TR-NOSNAP');
     });
 
+    it('retiring=1 never lists a set that has not released yet', async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired, lego_retiring_soon) VALUES ('RT-OLD-1','Real Retiring',2020,0,1)`),
+        // LEGO.com coming-soon feed row, wrongly flagged by a stock scrape.
+        db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired, lego_retiring_soon) VALUES ('RT-NEW-1','Coming Soon Set',2026,0,1)`),
+        db.prepare(`INSERT INTO upcoming_sets (set_num, name, price_usd, availability) VALUES ('RT-NEW-1','Coming Soon Set',799.99,'Coming Soon')`),
+        // Pre-order status from the product page.
+        db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired, lego_retiring_soon, lego_availability) VALUES ('RT-PRE-1','Pre-order Set',2026,0,1,'pre_order')`),
+      ]);
+      const res = await app.fetch(new Request('http://localhost/api/sets/search?retiring=1&limit=50'), env);
+      expect(res.status).toBe(200);
+      const nums = (await res.json<any>()).sets.map((x: any) => x.set_num);
+      expect(nums).toContain('RT-OLD-1');
+      expect(nums).not.toContain('RT-NEW-1');
+      expect(nums).not.toContain('RT-PRE-1');
+    });
+
     it('handles exact set numbers with dashes as plain search text', async () => {
       await db.prepare(
         `INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price, retired)
@@ -1958,6 +1975,22 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(data.upcoming[0].price_usd).toBe(349.99);
       expect(data.upcoming[0].availability).toBe('Coming Soon');
       expect(data.upcoming[1].set_num).toBe('99001-1');
+    });
+
+    it('carries the catalog photo and skips sets the catalog marks retired', async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, image_url, retired) VALUES ('99101-1', 'Announced', 'Icons', 'https://cdn.rebrickable.com/media/sets/99101-1.jpg', 0)`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, retired) VALUES ('99102-1', 'Already Out', 1)`),
+        db.prepare(`INSERT INTO upcoming_sets (set_num, name, price_usd, availability) VALUES ('99101-1', 'Announced', 99.99, 'Coming Soon')`),
+        db.prepare(`INSERT INTO upcoming_sets (set_num, name, price_usd, availability) VALUES ('99102-1', 'Already Out', 59.99, 'Coming Soon')`),
+        db.prepare(`INSERT INTO upcoming_sets (set_num, name, price_usd, availability) VALUES ('99103-1', 'Not In Catalog', 19.99, 'Coming Soon')`),
+      ]);
+      const data = await (await app.fetch(new Request('http://localhost/api/upcoming'), env)).json<any>();
+      const byNum = Object.fromEntries(data.upcoming.map((u: any) => [u.set_num, u]));
+      expect(byNum['99101-1'].image_url).toContain('99101-1.jpg');
+      expect(byNum['99101-1'].theme).toBe('Icons');
+      expect(byNum['99102-1']).toBeUndefined();
+      expect(byNum['99103-1'].image_url).toBeNull();
     });
   });
 

@@ -14,7 +14,20 @@ const withKey = { ...env, FIRECRAWL_API_KEY: 'fc' } as any;
 describe('runUpcomingRefresh', () => {
   beforeEach(async () => {
     mockUpcoming.mockReset();
-    await applyTestTables(db, ['upcoming_sets']);
+    await applyTestTables(db, ['lego_sets', 'upcoming_sets']);
+  });
+
+  it('clears a retiring flag on coming-soon sets even when the scrape is off', async () => {
+    await db.batch([
+      db.prepare(`INSERT INTO lego_sets (set_num, name, lego_retiring_soon) VALUES ('UP-1','Listed Upcoming',1)`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, lego_retiring_soon, lego_availability) VALUES ('PRE-1','Pre-order',1,'pre_order')`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, lego_retiring_soon) VALUES ('RET-1','Really Retiring',1)`),
+      db.prepare(`INSERT INTO upcoming_sets (set_num, name) VALUES ('UP-1','Listed Upcoming')`),
+    ]);
+    const r = await runUpcomingRefresh({ ...env, FIRECRAWL_API_KEY: '', FIRECRAWL_API_KEYS: '' } as any);
+    expect(r.cleared).toBe(2);
+    const rows = await db.prepare(`SELECT set_num, lego_retiring_soon AS f FROM lego_sets ORDER BY set_num`).all<{ set_num: string; f: number }>();
+    expect(rows.results).toEqual([{ set_num: 'PRE-1', f: 0 }, { set_num: 'RET-1', f: 1 }, { set_num: 'UP-1', f: 0 }]);
   });
 
   it('skips when Firecrawl is disabled', async () => {

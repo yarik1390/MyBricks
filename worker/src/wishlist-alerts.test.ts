@@ -13,7 +13,7 @@ describe('runWishlistAlerts', () => {
   beforeEach(async () => {
     await applyTestTables(db, [
       'lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist',
-      'wishlist_alerts', 'user_prefs', 'push_subscriptions', 'set_valuation_state',
+      'wishlist_alerts', 'user_prefs', 'push_subscriptions', 'set_valuation_state', 'upcoming_sets',
     ]);
   });
 
@@ -77,13 +77,24 @@ describe('runWishlistAlerts', () => {
     const types = await db.prepare(`SELECT alert_type FROM wishlist_alerts ORDER BY alert_type`).all<{ alert_type: string }>();
     expect(types.results.map(t => t.alert_type)).toEqual(['deal', 'preorder', 'retiring']);
   });
+
+  it('never sends a retiring alert for a set that has not released yet', async () => {
+    await db.batch([
+      // Flagged retiring by a stock scrape, but LEGO lists it as coming soon.
+      db.prepare(`INSERT INTO lego_sets (set_num, name, retired, lego_retiring_soon) VALUES ('CS-1','Coming Soon', 0, 1)`),
+      db.prepare(`INSERT INTO upcoming_sets (set_num, name) VALUES ('CS-1','Coming Soon')`),
+      db.prepare(`INSERT INTO user_wishlist (user_id, set_num) VALUES ('u1','CS-1')`),
+    ]);
+    const r = await runWishlistAlerts(e);
+    expect(r.retiring).toBe(0);
+  });
 });
 
 describe('runWishlistAlerts — blended value + confidence gate', () => {
   beforeEach(async () => {
     await applyTestTables(db, [
       'lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist',
-      'wishlist_alerts', 'user_prefs', 'push_subscriptions', 'set_valuation_state',
+      'wishlist_alerts', 'user_prefs', 'push_subscriptions', 'set_valuation_state', 'upcoming_sets',
     ]);
   });
 
@@ -209,7 +220,7 @@ describe('runWishlistAlerts — per-set switches', () => {
   beforeEach(async () => {
     await applyTestTables(db, [
       'lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist',
-      'wishlist_alerts', 'user_prefs', 'push_subscriptions',
+      'wishlist_alerts', 'user_prefs', 'push_subscriptions', 'upcoming_sets',
     ]);
   });
 
