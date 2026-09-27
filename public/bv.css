@@ -74,6 +74,13 @@
 
 /* ------------------------------------------------------------- base */
 body.collector-ui { background: var(--bv-bg); color: var(--bv-ink); font-family: var(--bv-sans); }
+/* Redesigned screens pad for the status bar themselves (.bv-page, set hero bar,
+   sticky top bars, kids/login/welcome), so app.css's body pad for legacy views
+   doubled the gap on Android. Legacy .page screens (and skeletons) keep it. */
+body.collector-ui:not(:has(#root > .page)),
+:root[data-mode="kids"] body:not(:has(#root > .page)) { padding-top: 0; }
+/* Solid status-bar strip: content scrolling under it stayed readable at .94. */
+body.collector-ui .status-bar-scrim { background: var(--bv-bg); opacity: 1; }
 .bv-page {
   --bv-bottom-clear: calc(var(--bv-nav-h) + var(--safe-bottom, 0px) + 24px);
   padding: calc(var(--safe-top, 0px)) 0 var(--bv-bottom-clear);
