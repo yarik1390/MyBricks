@@ -636,6 +636,11 @@ export const nl = {
     identifyPhotoSub: 'Gebouwde, losse of verpakte sets',
     identifyPhoto: 'Herkennen via foto',
     howIdentify: 'Hoe wil je hem herkennen?',
+    shortcuts: 'Releaseradar',
+    retiringShortcutSub: 'Laatste kans bij LEGO.com',
+    upcomingShortcutSub: 'Nieuwe sets op komst',
+    upcomingSub: 'Aangekondigd door LEGO · tik op de bel voor een melding',
+    noUpcoming: 'Er zijn nu geen nieuwe sets aangekondigd',
     systemScanner: 'Zie je de camera niet? Gebruik de systeemscanner',
     hintShelf: 'Zet de hele plank in beeld — goed licht helpt',
     hintPhoto: 'Zet de set in beeld en maak een foto',
@@ -1645,6 +1650,7 @@ Object.assign(nl.data, {"csvImportMoreOne":" en nog {n}","csvImportMoreOther":" 
 Object.assign(nl.me, {"trophyShelfOne":"Trofeeplank ({n}/6)","trophyShelfOther":"Trofeeplank ({n}/6)"});
 Object.assign(nl.build, {"ofOwnedSetsOne":"van {n} sets in bezit","ofOwnedSetsOther":"van {n} sets in bezit","indexingOne":"{n} extra set(s) worden op de achtergrond geïndexeerd…","indexingOther":"{n} extra set(s) worden op de achtergrond geïndexeerd…"});
 Object.assign(nl.counts, {"collectedOne":"{owned}/{total} verzameld","collectedOther":"{owned}/{total} verzameld","ownedOne":"{n} in bezit","ownedOther":"{n} in bezit","ofFigsOne":"van {total} figuren","ofFigsOther":"van {total} figuren","resultsOne":"{n} resultaten","resultsOther":"{n} resultaten","figsOne":"{n} figuren","figsOther":"{n} figuren"});
+Object.assign(nl.counts, { setsOne: '{n} set', setsOther: '{n} sets' });
 Object.assign(nl.minifigs, {"ownedCountOne":"{n} in bezit","ownedCountOther":"{n} in bezit"});
 Object.assign(nl.catalog, {"filtersWithCountOne":"Filters · {n}","filtersWithCountOther":"Filters · {n}"});
 Object.assign(nl.scanner, {"bulkMatchedOne":"{matched} van {total} gevonden","bulkMatchedOther":"{matched} van {total} gevonden"});

@@ -47,19 +47,17 @@ test('tapping a set opens it even when View Transitions never run their callback
   expect(await page.evaluate(() => window.__vtCalls)).toBe(0);
 });
 
-test('Coming soon renders full-width rows with names under a translated title', async ({ page }) => {
+test('Coming soon lives on its own page: full-width rows with names under a translated title', async ({ page }) => {
   await page.route('**/api/upcoming', (route) => route.fulfill({ json: { upcoming: [
     { set_num: '10355-1', name: 'Barad-dûr Tower', price_usd: 459.99, availability: 'Nov 2026' },
     { set_num: '75419-1', name: 'Death Star', price_usd: 999.99 },
   ] } }));
-  await page.goto('/#/add');
-  const section = page.locator('section[aria-labelledby="comingSoonTitle"]');
-  await expect(section).toBeVisible();
-  await expect(page.locator('#comingSoonTitle')).toHaveText('Coming soon');
-  const rows = section.locator('[data-cs-open]');
+  await page.goto('/#/upcoming');
+  await expect(page.locator('#upcomingPage .bv-topbar h1')).toHaveText('Coming soon');
+  const rows = page.locator('#comingSoonList [data-cs-open]');
   await expect(rows).toHaveCount(2);
   await expect(rows.first()).toContainText('Barad-dûr Tower');
-  const list = await section.locator('#comingSoonList').boundingBox();
+  const list = await page.locator('#comingSoonList').boundingBox();
   const first = await rows.first().boundingBox();
   const second = await rows.nth(1).boundingBox();
   // Stacked rows spanning the card, not a squeezed horizontal rail.
@@ -169,7 +167,7 @@ test('Coming soon rows show the catalog photo', async ({ page }) => {
   await page.route('**/api/upcoming', (route) => route.fulfill({ json: { upcoming: [
     { set_num: '21065-1', name: 'Sagrada Família', price_usd: 799.99, availability: 'Coming Soon', image_url: '/icon-512.png' },
   ] } }));
-  await page.goto('/#/add');
+  await page.goto('/#/upcoming');
   await expect(page.locator('#comingSoonList [data-cs-open] img.set-photo')).toHaveCount(1);
 });
 

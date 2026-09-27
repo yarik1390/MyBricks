@@ -1427,6 +1427,7 @@
     "text": "Coming soon",
     "files": [
       "lib/pure.js",
+      "route-meta.js",
       "views/portfolio-detail-market.js"
     ]
   },
@@ -2246,7 +2247,8 @@
       "views/game.js",
       "views/login.js",
       "views/me-admin.js",
-      "views/me.js"
+      "views/me.js",
+      "views/upcoming.js"
     ]
   },
   {
@@ -8843,12 +8845,6 @@
     ]
   },
   {
-    "text": "bv-card__link bv-linkbtn",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
     "text": "bv-chip bv-adv__prompt",
     "files": [
       "components/advisor.js"
@@ -8868,12 +8864,6 @@
   },
   {
     "text": "bv-discover__count result-count",
-    "files": [
-      "views/catalog.js"
-    ]
-  },
-  {
-    "text": "bv-discover__section bv-comingsoon",
     "files": [
       "views/catalog.js"
     ]
@@ -8930,7 +8920,8 @@
     "text": "bv-group__box bv-gap",
     "files": [
       "views/me-insurance.js",
-      "views/retiring.js"
+      "views/retiring.js",
+      "views/upcoming.js"
     ]
   },
   {
@@ -9104,7 +9095,7 @@
   {
     "text": "bv-setrow bv-comingsoon__row",
     "files": [
-      "views/catalog.js"
+      "views/upcoming.js"
     ]
   },
   {
@@ -9116,7 +9107,7 @@
   {
     "text": "bv-setrow__end bv-comingsoon__end",
     "files": [
-      "views/catalog.js"
+      "views/upcoming.js"
     ]
   },
   {
@@ -9384,6 +9375,12 @@
     ]
   },
   {
+    "text": "bvAdd.noUpcoming",
+    "files": [
+      "views/upcoming.js"
+    ]
+  },
+  {
     "text": "bvAdd.noneRetiringAll",
     "files": [
       "views/retiring.js"
@@ -9404,13 +9401,13 @@
   {
     "text": "bvAdd.notifyMe",
     "files": [
-      "views/catalog.js"
+      "views/upcoming.js"
     ]
   },
   {
     "text": "bvAdd.notifying",
     "files": [
-      "views/catalog.js"
+      "views/upcoming.js"
     ]
   },
   {
@@ -9459,6 +9456,12 @@
     "text": "bvAdd.resetHourly",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "bvAdd.retiringSoon",
+    "files": [
+      "views/catalog.js"
     ]
   },
   {
@@ -9525,6 +9528,12 @@
     "text": "bvAlerts.subPushWeekly",
     "files": [
       "views/me-notifications.js"
+    ]
+  },
+  {
+    "text": "bvCommon.comingSoon",
+    "files": [
+      "views/catalog.js"
     ]
   },
   {

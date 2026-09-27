@@ -1,7 +1,7 @@
 import { discoverNavigation } from '../components/collector-shell.js';
 import { $, $$, haptic, escapeHtml, setHue, bvIDB, SEARCH_DEBOUNCE_MS, mount, toast, thumbImg, snackbar } from '../utils.js';
 import { icon as kitIcon, iconBtn as kitIconBtn, row as kitRow, sectionTitle as kitSectionTitle, pill as kitPill, topbar as kitTopbar, searchBar as kitSearchBar, sheetBody as kitSheetBody, emptyState as kitEmptyState, field as kitField } from '../ui/kit.js';
-import { setRow as kitSetRow, setThumb, money0 } from '../ui/set-ui.js';
+import { setRow as kitSetRow, money0 } from '../ui/set-ui.js';
 import { t, tPlural, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, getSessionUserId, photoScanNeedsSetup, outboxEnqueue } from '../api.js';
@@ -92,11 +92,9 @@ export async function renderAdd() {
   // Coming-soon feed (G2b) — load in the background and surface it on the default
   // catalog view once ready (non-blocking; never delays the catalog paint).
   if (!state.catalog.upcomingLoaded) {
-    api("/api/upcoming").then((r) => {
-      state.catalog.upcoming = r.upcoming || [];
-      state.catalog.upcomingLoaded = true;
+    import("./upcoming.js").then(({ loadUpcoming }) => loadUpcoming()).then(() => {
       if (location.hash.startsWith("#/add") && $("#catalogResults") && isCatalogDefault()) refreshCatalogGrid();
-    }).catch(() => { state.catalog.upcomingLoaded = true; });
+    }).catch(() => {});
   }
   if (!state.catalog.items.length) {
     await loadCatalog({ reset: true });
@@ -200,69 +198,32 @@ function catalogQuery() {
   return p.toString();
 }
 
-// "Retiring soon" preview for the default Discover view (LEGO.com stock data).
+// How many sets LEGO.com lists as retiring (LEGO.com stock data), for the
+// Retiring soon shortcut on the default Discover view.
 async function loadRetiringPreview() {
   if (state.catalog.retiringPreviewLoaded) return;
   try {
-    const r = await api("/api/sets/search?retiring=1&sort=value_desc&limit=3");
-    state.catalog.retiringPreview = r.sets || [];
-  } catch { state.catalog.retiringPreview = []; }
+    const r = await api("/api/sets/search?retiring=1&sort=value_desc&limit=1");
+    state.catalog.retiringCount = Number(r.total) || (r.sets || []).length;
+  } catch { state.catalog.retiringCount = null; }
   state.catalog.retiringPreviewLoaded = true;
 }
 
-function wishFor(setNum) { return (state.wishlist || []).find((w) => w.set_num === setNum); }
-
-// Buy-window pill for a retiring set: on your wishlist → Buy window; owned →
-// Hold; a live buy signal → Buy window; else nothing (no fabricated advice).
-function retiringPill(s) {
-  if (isOwnedSet(s)) return kitPill(t("bvAdd.pillHold"));
-  if (wishFor(s.set_num) || s.deal_signal === "buy") return kitPill(t("bvAdd.pillBuyWindow"), "acc");
-  return "";
-}
-
-function retiringMeta(s) {
-  const bits = [s.theme];
-  if (isOwnedSet(s)) bits.push(t("bvAdd.youOwn"));
-  else if (wishFor(s.set_num)) bits.push(t("bvAdd.onYourWishlist"));
-  return bits.filter(Boolean).join(" · ");
-}
-
-function retiringSectionHTML() {
-  const list = state.catalog.retiringPreview || [];
-  if (!isCatalogDefault() || !list.length) return "";
-  return `<section class="bv-discover__section" aria-labelledby="retiringTitle">
-      ${kitSectionTitle(t("bvAdd.retiringSoon"), { id: "retiringTitle", trailHtml: `<a class="bv-card__link" href="#/retiring">${escapeHtml(t("common.seeAll"))}${kitIcon("chev", { size: 16 })}</a>` })}
-      <div class="bv-group__box">${list.slice(0, 3).map((s) => setRowHTML(s, {
-        meta: retiringMeta(s),
-        endHtml: `<span class="bv-setrow__end"><span class="bv-setrow__value">${escapeHtml(money0(displayValueOf(s)))}</span>${retiringPill(s)}</span>`,
-      })).join("")}</div>
-    </section>`;
-}
-
-// "Coming soon" (upcoming LEGO releases): two compact rows with a bell that
-// wishlists the set (= notify me); See all expands the rest in place.
-// Class names avoid app.css's legacy .coming-soon-wrap / .cs-card rules, which
-// forced these rows into a narrow horizontal rail and hid the set names.
-const COMING_SOON_PREVIEW = 2;
-function notifyLabel(on) { return t(on ? "bvAdd.notifying" : "bvAdd.notifyMe"); }
-function comingSoonSectionHTML() {
-  const up = state.catalog.upcoming || [];
-  if (!isCatalogDefault() || !up.length || getModePref() === "kids") return "";
-  const isLoggedIn = !!getSessionUserId();
-  const wish = new Set((state.wishlist || []).map((w) => w.set_num));
-  const row = (u) => {
-    const on = wish.has(u.set_num);
-    return `<div class="bv-setrow bv-comingsoon__row" data-cs-open="${escapeHtml(String(u.set_num))}" role="link" tabindex="0">
-        ${setThumb(u)}
-        <span class="bv-setrow__body"><span class="bv-setrow__name">${escapeHtml(String(u.name || u.set_num))}</span><span class="bv-setrow__meta">${escapeHtml([String(u.set_num || "").replace(/-\d+$/, ""), u.availability || t("bvCommon.comingSoon")].join(" · "))}</span></span>
-        <span class="bv-setrow__end bv-comingsoon__end">${u.price_usd ? `<span class="bv-setrow__value">${escapeHtml(money0(u.price_usd))}</span>` : ""}
-          ${isLoggedIn ? `<button type="button" class="bv-iconbtn bv-notify" data-cs-wish="${escapeHtml(String(u.set_num))}" data-cs-name="${escapeHtml(String(u.name || ""))}" aria-pressed="${on}" aria-label="${escapeHtml(notifyLabel(on))}" title="${escapeHtml(notifyLabel(on))}">${kitIcon("bell", { size: 20 })}</button>` : ""}</span>
-      </div>`;
-  };
-  return `<section class="bv-discover__section bv-comingsoon" aria-labelledby="comingSoonTitle">
-      ${kitSectionTitle(t("bvCommon.comingSoon"), { id: "comingSoonTitle", trailHtml: up.length > COMING_SOON_PREVIEW ? `<button type="button" class="bv-card__link bv-linkbtn" id="comingSoonAll">${escapeHtml(t("common.seeAll"))}${kitIcon("chev", { size: 16 })}</button>` : "" })}
-      <div class="bv-group__box" id="comingSoonList">${up.slice(0, state.catalog.showAllUpcoming ? 40 : COMING_SOON_PREVIEW).map(row).join("")}</div>
-    </section>`;
+// Retiring soon and Coming soon live on their own screens; the default view
+// keeps one row of shortcuts to them so the catalog starts near the top (both
+// sections used to sit above All sets, with their rows and pills). Kids Mode
+// can open neither screen.
+function shortcutsHTML() {
+  if (!isCatalogDefault() || getModePref() === "kids") return "";
+  const tile = ({ href, iconName, title, count, fallback, id }) => `<a class="bv-shortcut" href="${href}" id="${id}">
+      <span class="bv-shortcut__icon" aria-hidden="true">${kitIcon(iconName, { size: 20 })}</span>
+      <span class="bv-shortcut__text"><span class="bv-shortcut__title">${escapeHtml(title)}</span><span class="bv-shortcut__sub">${escapeHtml(count > 0 ? tPlural("counts.sets", count, { n: count }) : fallback)}</span></span>
+    </a>`;
+  const upcoming = state.catalog.upcoming || [];
+  return `<nav class="bv-discover__shortcuts" aria-label="${escapeHtml(t("bvAdd.shortcuts"))}">
+      ${tile({ href: "#/retiring", id: "retiringShortcut", iconName: "clock", title: t("bvAdd.retiringSoon"), count: state.catalog.retiringCount, fallback: t("bvAdd.retiringShortcutSub") })}
+      ${tile({ href: "#/upcoming", id: "upcomingShortcut", iconName: "bell", title: t("bvCommon.comingSoon"), count: upcoming.length, fallback: t("bvAdd.upcomingShortcutSub") })}
+    </nav>`;
 }
 
 function themeBrowseHTML() {
@@ -293,8 +254,7 @@ function catalogResultsHTML() {
   const f = state.filter;
   const def = isCatalogDefault();
   return `
-    ${retiringSectionHTML()}
-    ${comingSoonSectionHTML()}
+    ${shortcutsHTML()}
     ${themeBrowseHTML()}
     ${def ? kitSectionTitle(t("bvAdd.allSets"), { id: "allSetsTitle" }) : ""}
     ${toolbarHTML()}
@@ -633,7 +593,6 @@ function wireCatalogCards() {
     if (e.target.closest("#filterChip")) { showFilterSheet(reloadGrid); return; }
     if (e.target.closest("#catalogSortBtn")) { openSortSheet(); return; }
     if (e.target.closest("#moreThemesChip")) { openThemePicker(); return; }
-    if (e.target.closest("#comingSoonAll")) { state.catalog.showAllUpcoming = !state.catalog.showAllUpcoming; refreshCatalogGrid(); return; }
     if (e.target.closest("#retiredQuick")) {
       state.filter.catalogRetired = state.filter.catalogRetired === "retired" ? "all" : "retired";
       haptic("light");
@@ -662,32 +621,6 @@ function wireCatalogCards() {
       quickAddFromTile(addBtn.dataset.addSet, addBtn);
       return;
     }
-    // Coming-soon: Notify me = wishlist the upcoming set.
-    const wishBtn = e.target.closest("[data-cs-wish]");
-    if (wishBtn) {
-      e.stopPropagation();
-      const setNum = wishBtn.dataset.csWish;
-      const name = wishBtn.dataset.csName;
-      const isOn = wishBtn.getAttribute("aria-pressed") === "true";
-      haptic("light");
-      try {
-        if (isOn) {
-          await api(`/api/wishlist/by-set/${encodeURIComponent(setNum)}`, { method: "DELETE" });
-          if (state.wishlist) state.wishlist = state.wishlist.filter((w) => w.set_num !== setNum);
-        } else {
-          await api("/api/wishlist", { method: "POST", body: { set_num: setNum, name } });
-          if (state.wishlist) state.wishlist.push({ set_num: setNum, name });
-        }
-        wishBtn.setAttribute("aria-pressed", String(!isOn));
-        wishBtn.setAttribute("aria-label", notifyLabel(!isOn));
-        wishBtn.title = notifyLabel(!isOn);
-      } catch (err) {
-        toast(err.message || t("common.actionFailed"), "error");
-      }
-      return;
-    }
-    const csCard = e.target.closest("[data-cs-open]");
-    if (csCard) { location.hash = "#/set/" + encodeURIComponent(csCard.dataset.csOpen); return; }
     // Kids mode: set detail is blocked, so a card tap opens a friendly confirm
     // sheet (no instant add) and, on confirm, adds the set and awards XP.
     const card = e.target.closest(".bv-tile, .set-list-card");

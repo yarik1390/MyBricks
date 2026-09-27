@@ -230,3 +230,50 @@ test('Retiring soon switches between yours, wishlist and all', async ({ page }) 
   await expect(tabs.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('#retiringPanel')).toContainText('Galaxy Explorer');
 });
+
+test('Discover keeps Retiring soon and Coming soon as two shortcuts, not sections', async ({ page }) => {
+  await page.route('**/api/upcoming', (route) => route.fulfill({ json: { upcoming: [
+    { set_num: '10355-1', name: 'Barad-dûr Tower', price_usd: 459.99 },
+    { set_num: '75419-1', name: 'Death Star', price_usd: 999.99 },
+    { set_num: '21065-1', name: 'Sagrada Família', price_usd: 799.99 },
+  ] } }));
+  await page.route('**/api/sets/search*', (route) => {
+    const retiring = new URL(route.request().url()).searchParams.get('retiring');
+    return route.fulfill({ json: retiring ? { sets: [{ ...OTHER, lego_retiring_soon: 1 }], total: 12, hasMore: true } : { sets: [OTHER], total: 1, hasMore: false } });
+  });
+  await page.goto('/#/add', { waitUntil: 'domcontentloaded' });
+  const shortcuts = page.locator('.bv-discover__shortcuts');
+  await expect(shortcuts.locator('#retiringShortcut')).toContainText('Retiring soon');
+  await expect(shortcuts.locator('#retiringShortcut')).toContainText('12 sets');
+  await expect(shortcuts.locator('#upcomingShortcut')).toContainText('3 sets');
+  // No rows from either list on Discover itself.
+  await expect(page.locator('#discoverPage [data-cs-open], #discoverPage #retiringTitle')).toHaveCount(0);
+  await shortcuts.locator('#upcomingShortcut').click();
+  await expect(page).toHaveURL(/#\/upcoming$/);
+  await expect(page.locator('#comingSoonList [data-cs-open]')).toHaveCount(3);
+  await page.goBack();
+  await page.locator('#retiringShortcut').click();
+  await expect(page).toHaveURL(/#\/retiring$/);
+});
+
+test('the bell on Coming soon wishlists the set and turns off again', async ({ page }) => {
+  const calls = [];
+  await page.route('**/api/upcoming', (route) => route.fulfill({ json: { upcoming: [{ set_num: '10355-1', name: 'Barad-dûr Tower', price_usd: 459.99 }] } }));
+  await page.route('**/api/wishlist**', (route) => {
+    const m = route.request().method();
+    if (m === 'GET') return route.fulfill({ json: { wishlist: [], unread_alerts: [] } });
+    calls.push(`${m} ${new URL(route.request().url()).pathname}`);
+    return route.fulfill({ json: { ok: true } });
+  });
+  await page.goto('/#/upcoming', { waitUntil: 'domcontentloaded' });
+  const bell = page.locator('[data-cs-wish="10355-1"]');
+  await expect(bell).toHaveAttribute('aria-pressed', 'false');
+  await expect(bell).toHaveAccessibleName('Notify me');
+  await bell.click();
+  await expect(bell).toHaveAttribute('aria-pressed', 'true');
+  await expect(bell).toHaveAccessibleName('Notifying');
+  await bell.click();
+  await expect(bell).toHaveAttribute('aria-pressed', 'false');
+  expect(calls).toEqual(['POST /api/wishlist', 'DELETE /api/wishlist/by-set/10355-1']);
+  await expect(page).toHaveURL(/#\/upcoming$/); // the bell never opens the set
+});

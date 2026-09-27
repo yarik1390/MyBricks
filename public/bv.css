@@ -493,7 +493,7 @@ body.collector-ui .sheet .btn-secondary { background: var(--bv-s2); color: var(-
 body.collector-ui .sheet .btn-primary.btn-danger { background: var(--bv-loss); color: #fff; }
 
 /* ------------------------------------------------------------- focus */
-body.collector-ui :is(.bv-btn, .bv-iconbtn, .bv-chip, .bv-row, .bv-setrow, .bv-tile, .bv-card, .bv-fab, .bv-tabs > *, .bv-seg > *, .nav-tab):focus-visible {
+body.collector-ui :is(.bv-btn, .bv-iconbtn, .bv-chip, .bv-row, .bv-setrow, .bv-tile, .bv-card, .bv-shortcut, .bv-fab, .bv-tabs > *, .bv-seg > *, .nav-tab):focus-visible {
   outline: 3px solid var(--bv-acct); outline-offset: 2px;
 }
 
@@ -1414,8 +1414,18 @@ html.bv-scan-native-live .bv-scan__video { display: none; }
 .bv-discover__section { margin: 0 var(--bv-gutter) 4px; }
 .bv-discover__section > .bv-h2 { margin: 20px 4px 8px; }
 .bv-discover__section .bv-card__link svg { width: 16px; height: 16px; }
-/* Coming soon's See all is a button (it expands in place); match the link. */
-.bv-discover__section .bv-h2--row .bv-linkbtn { display: inline-flex; align-items: center; gap: 2px; font: 600 13px/18px var(--bv-sans); color: inherit; }
+/* Retiring soon / Coming soon shortcuts: one row instead of two sections. */
+.bv-discover__shortcuts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 16px var(--bv-gutter) 0; }
+.bv-shortcut {
+  display: flex; align-items: center; gap: 10px; min-height: 64px; min-width: 0; box-sizing: border-box; padding: 10px 12px;
+  border-radius: 18px; background: var(--bv-s); border: 1px solid var(--bv-line); color: var(--bv-ink); text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.bv-shortcut:active { background: color-mix(in srgb, var(--bv-ink) 5%, var(--bv-s)); }
+.bv-shortcut__icon { width: 36px; height: 36px; flex-shrink: 0; border-radius: 18px; display: grid; place-items: center; background: color-mix(in srgb, var(--bv-acc) 28%, transparent); }
+.bv-shortcut__text { display: flex; flex-direction: column; min-width: 0; }
+.bv-shortcut__title { font: 600 14px/18px var(--bv-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bv-shortcut__sub { font: 400 12px/16px var(--bv-sans); color: var(--bv-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bv-discover__section .bv-setrow__end .bv-pill { margin-top: 2px; }
 /* One swipeable row of themes (it wrapped to three rows before), bleeding to
    the screen edges like the other chip rows. */

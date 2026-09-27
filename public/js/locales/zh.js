@@ -636,6 +636,11 @@ export const zh = {
     identifyPhotoSub: '已拼装、散件或盒装',
     identifyPhoto: '通过照片识别',
     howIdentify: '想用哪种方式识别？',
+    shortcuts: '新品雷达',
+    retiringShortcutSub: 'LEGO.com 最后机会',
+    upcomingShortcutSub: '新套装即将推出',
+    upcomingSub: 'LEGO 已发布 · 点按铃铛获取通知',
+    noUpcoming: '目前没有已公布的新套装',
     systemScanner: '看不到相机画面？使用系统扫描器',
     hintShelf: '把整层架子放进画面——光线好更准',
     hintPhoto: '对准套装并拍照',
@@ -1645,6 +1650,7 @@ Object.assign(zh.data, {"csvImportMoreOne":"，另有 {n} 个","csvImportMoreOth
 Object.assign(zh.me, {"trophyShelfOne":"展示架（{n}/6）","trophyShelfOther":"展示架（{n}/6）"});
 Object.assign(zh.build, {"ofOwnedSetsOne":"共 {n} 个已拥有的套装","ofOwnedSetsOther":"共 {n} 个已拥有的套装","indexingOne":"正在后台索引另外 {n} 个套装…","indexingOther":"正在后台索引另外 {n} 个套装…"});
 Object.assign(zh.counts, {"collectedOne":"已收集 {owned}/{total}","collectedOther":"已收集 {owned}/{total}","ownedOne":"拥有 {n}","ownedOther":"拥有 {n}","ofFigsOne":"共 {total} 个人仔","ofFigsOther":"共 {total} 个人仔","resultsOne":"{n} 个结果","resultsOther":"{n} 个结果","figsOne":"{n} 个人仔","figsOther":"{n} 个人仔"});
+Object.assign(zh.counts, { setsOne: '{n} 套', setsOther: '{n} 套' });
 Object.assign(zh.minifigs, {"ownedCountOne":"拥有 {n}","ownedCountOther":"拥有 {n}"});
 Object.assign(zh.catalog, {"filtersWithCountOne":"筛选 · {n}","filtersWithCountOther":"筛选 · {n}"});
 Object.assign(zh.scanner, {"bulkMatchedOne":"{total} 个中匹配 {matched} 个","bulkMatchedOther":"{total} 个中匹配 {matched} 个"});

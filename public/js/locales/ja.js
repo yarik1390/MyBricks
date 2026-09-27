@@ -636,6 +636,11 @@ export const ja = {
     identifyPhotoSub: '組立済み・バラ・箱入り',
     identifyPhoto: '写真で識別',
     howIdentify: 'どの方法で識別しますか？',
+    shortcuts: 'リリースレーダー',
+    retiringShortcutSub: 'LEGO.com での最後のチャンス',
+    upcomingShortcutSub: '新しいセットが登場予定',
+    upcomingSub: 'LEGO が発表済み · ベルをタップして通知を受け取る',
+    noUpcoming: '現在発表されている新作はありません',
     systemScanner: 'カメラが表示されない場合は、システムのスキャナーを使う',
     hintShelf: '棚全体を入れてください。明るい場所がおすすめ',
     hintPhoto: 'セットを枠に入れて撮影',
@@ -1650,6 +1655,7 @@ Object.assign(ja.data, {"csvImportMoreOne":"、ほか{n}件","csvImportMoreOther
 Object.assign(ja.me, {"trophyShelfOne":"トロフィー棚（{n}/6）","trophyShelfOther":"トロフィー棚（{n}/6）"});
 Object.assign(ja.build, {"ofOwnedSetsOne":"所有セット {n} 件中","ofOwnedSetsOther":"所有セット {n} 件中","indexingOne":"バックグラウンドでさらに {n} セットをインデックス中…","indexingOther":"バックグラウンドでさらに {n} セットをインデックス中…"});
 Object.assign(ja.counts, {"collectedOne":"{owned}/{total} 収集済み","collectedOther":"{owned}/{total} 収集済み","ownedOne":"{n} 個所有","ownedOther":"{n} 個所有","ofFigsOne":"全 {total} 体中","ofFigsOther":"全 {total} 体中","resultsOne":"{n} 件","resultsOther":"{n} 件","figsOne":"{n} 体","figsOther":"{n} 体"});
+Object.assign(ja.counts, { setsOne: '{n} セット', setsOther: '{n} セット' });
 Object.assign(ja.minifigs, {"ownedCountOne":"所有 {n}","ownedCountOther":"所有 {n}"});
 Object.assign(ja.catalog, {"filtersWithCountOne":"フィルター · {n}","filtersWithCountOther":"フィルター · {n}"});
 Object.assign(ja.scanner, {"bulkMatchedOne":"{total}件中{matched}件一致","bulkMatchedOther":"{total}件中{matched}件一致"});
