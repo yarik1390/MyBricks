@@ -2135,8 +2135,4 @@ body.collector-ui.offline #app { padding-top: 56px; }
   .bv-listpane .bv-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* Card → detail morph (canvas: CardMotion). */
-::view-transition-group(bv-morph) { animation-duration: .3s; animation-timing-function: cubic-bezier(.2, 0, 0, 1); }
-::view-transition-old(root), ::view-transition-new(root) { animation-duration: .2s; }
-@media (prefers-reduced-motion: reduce) { ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
 /* ---- end area: first ---- */

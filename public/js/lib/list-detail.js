@@ -7,14 +7,14 @@
 // and nothing in the list can re-render over the page. Any non-set route
 // closes the pane.
 //
-// Card → detail: tapping a set row morphs its thumbnail into the set page's
-// photo with the View Transitions API. It never holds the screen for more than
-// a moment: if the set page isn't ready quickly, the transition runs to
-// whatever is on screen. Reduced motion and unsupported browsers get the
-// ordinary route change.
+// Card → detail: tapping a set row grows its thumbnail into the set page's
+// photo. The link navigates as usual; the photo is animated on the live page
+// afterwards (FLIP), and only when the set page is ready quickly. It must never
+// use document.startViewTransition: in the Android WebView its snapshot overlay
+// can stay stuck over the live page, so a tap looked like it did nothing (the
+// same failure 7b27cf1 removed from route changes). Reduced motion skips it.
 const WIDE = '(min-width: 1024px)';
-const MORPH = 'bv-morph';
-const MAX_HOLD_MS = 450;
+const MORPH_WAIT_MS = 600;
 
 let pane = null;          // { html, title, from, nav }
 let wired = false;
@@ -43,7 +43,6 @@ function captureList(host) {
   const clone = list.cloneNode(true);
   clone.removeAttribute('id');
   clone.querySelectorAll('[id]').forEach((n) => n.removeAttribute('id'));
-  clone.querySelectorAll('[style*="view-transition-name"]').forEach((n) => { n.style.viewTransitionName = ''; });
   clone.querySelectorAll('button, [role="button"], input, select').forEach((n) => n.remove());
   pane = {
     html: clone.outerHTML,
@@ -90,27 +89,27 @@ export function syncListPane(hash = location.hash) {
   if (pane.nav) document.querySelectorAll('#nav .nav-tab').forEach((tab) => tab.classList.toggle('active', tab.dataset.route === pane.nav));
 }
 
-function morphTo(t) {
+function morphFrom(t) {
   const thumb = t.host.querySelector('.bv-thumb, .bv-tile__media');
-  if (!thumb || typeof document.startViewTransition !== 'function' || reducedMotion()) return false;
-  thumb.style.viewTransitionName = MORPH;
-  let settled = false;
-  const vt = document.startViewTransition(() => new Promise((resolve) => {
-    const done = () => {
-      if (settled) return;
-      settled = true;
-      window.removeEventListener('bv:routed', done);
-      const hero = document.querySelector('.bv-sethero__media');
-      if (hero && !hero.closest('#bvListPane')) hero.style.viewTransitionName = MORPH;
-      resolve();
-    };
-    window.addEventListener('bv:routed', done, { once: true });
-    setTimeout(done, MAX_HOLD_MS);
-    location.hash = t.href;
-  }));
-  const clear = () => document.querySelectorAll('[style*="view-transition-name"]').forEach((n) => { n.style.viewTransitionName = ''; });
-  vt.finished.then(clear, clear);
-  return true;
+  if (!thumb || reducedMotion() || typeof thumb.animate !== 'function') return;
+  const from = thumb.getBoundingClientRect();
+  if (!from.width || !from.height) return;
+  const started = Date.now();
+  const run = () => {
+    window.removeEventListener('bv:routed', run);
+    if (Date.now() - started > MORPH_WAIT_MS || !setHash(location.hash)) return;
+    const hero = document.querySelector('#root .bv-sethero__media');
+    const to = hero?.getBoundingClientRect();
+    if (!to?.width || !to.height) return;
+    try {
+      hero.animate([
+        { transformOrigin: '0 0', transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${from.width / to.width}, ${from.height / to.height})`, opacity: 0.5 },
+        { transformOrigin: '0 0', transform: 'none', opacity: 1 },
+      ], { duration: 300, easing: 'cubic-bezier(.2, 0, 0, 1)' });
+    } catch { /* decoration only */ }
+  };
+  window.addEventListener('bv:routed', run);
+  setTimeout(() => window.removeEventListener('bv:routed', run), MORPH_WAIT_MS);
 }
 
 export function initListDetail() {
@@ -121,7 +120,7 @@ export function initListDetail() {
     if (!t) return;
     if (isWide()) captureList(t.host);
     if (location.hash === t.href) return;
-    if (morphTo(t)) e.preventDefault();
+    morphFrom(t);
   }, true);
   window.addEventListener('resize', () => syncListPane(location.hash));
 }
