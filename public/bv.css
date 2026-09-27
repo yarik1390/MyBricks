@@ -1779,8 +1779,10 @@ body.bv-nav-off .advisor-fab { bottom: calc(var(--safe-bottom, 0px) + 20px); }
 .bv-pubcard__who { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .bv-pubcard__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .bv-pubcard__name { font: 600 20px/26px var(--bv-sans); overflow-wrap: anywhere; }
-.bv-pubcard__meta { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 13px; line-height: 18px; color: var(--bv-mute); }
-.bv-pubcard__meta svg { color: var(--bv-acct); }
+/* Plain text flow: as a wrapping flex row the long text run dropped below the
+   star as one item ("★" alone on the first line). */
+.bv-pubcard__meta { display: block; font-size: 13px; line-height: 18px; color: var(--bv-mute); }
+.bv-pubcard__meta svg { display: inline-block; vertical-align: -2px; margin-right: 4px; color: var(--bv-acct); }
 .bv-pubstats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .bv-pubstat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .bv-pubstat__num { font: 600 18px/24px var(--bv-mono); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
