@@ -806,7 +806,13 @@ body.collector-ui.selection-mode #nav { display: none; }
 .vault-fig .bv-tile__media img { object-fit: contain; }
 .vault-fig .bv-tile__act { z-index: 2; }
 .vault-fig .bv-tile__act { position: absolute; }
-.vault-figs.is-discover .vault-fig .bv-tile__meta { padding-right: 40px; }
+/* Discover minifig tiles are narrow (3-up on phones): the add button sits on the
+   photo's top corner so the series and fact lines get the card's full width. */
+.vault-figs.is-discover .vault-fig .bv-tile__act {
+  top: 0; right: 0; bottom: auto; width: 44px; height: 44px; min-height: 44px; padding: 7px;
+  background-clip: content-box; border-radius: 50%;
+}
+.vault-figs.is-discover .vault-fig .bv-tile__act svg { width: 16px; height: 16px; }
 .vault-fig__fact { margin-top: 2px; }
 .vault-figs .vault-fig-empty { grid-column: 1 / -1; }
 .vault-figs .vault-fig-empty .bv-empty { margin: 8px 0; }
