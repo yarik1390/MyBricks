@@ -830,7 +830,14 @@ CREATE INDEX IF NOT EXISTS idx_sets_browse_value ON lego_sets(
 --   year_*     -> the leading (year IS NULL) expression blocked idx_sets_year
 --   roi_*      -> a division expression, not a column
 CREATE INDEX IF NOT EXISTS idx_sets_name ON lego_sets(name);
-CREATE INDEX IF NOT EXISTS idx_sets_year_sort ON lego_sets((year IS NULL), year DESC, set_num);
+-- year_* now leads with the thin-row key (SORTS.year_desc in routes/sets-sql.ts:
+-- merch, promos and piece-less rows last). Keep this expression identical to
+-- THIN_ROW_LAST there or Newest, the catalog default, falls back to a full scan.
+CREATE INDEX IF NOT EXISTS idx_sets_newest ON lego_sets(
+  (CASE WHEN COALESCE(theme, '') IN ('Gear', 'Books', 'Promotional') OR COALESCE(pieces, 0) < 1 THEN 1 ELSE 0 END),
+  (year IS NULL), year DESC, set_num
+);
+DROP INDEX IF EXISTS idx_sets_year_sort;
 CREATE INDEX IF NOT EXISTS idx_sets_roi ON lego_sets((current_value / NULLIF(retail_price, 0)) DESC, set_num);
 -- sort=trending drives from the snapshot side (see routes/sets.ts): this makes
 -- "the snapshot for date X" a range scan instead of 27k per-row probes.

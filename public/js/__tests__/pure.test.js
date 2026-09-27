@@ -1695,6 +1695,17 @@ describe('seedFilterSort (offline catalog)', () => {
     assert.deepEqual(seedFilterSort(rows, { min_value: '100' }).map(r => r.set_num).sort(), ['1', '3']);
   });
 
+  it('newest and oldest put merch, promos and empty rows after real sets', () => {
+    const mixed = [
+      ...rows,
+      { set_num: 'p', name: 'Bag Tag', theme: 'Gear', year: 2027, pieces: 1 },
+      { set_num: 'q', name: 'Promo Polybag', theme: 'Promotional', year: 2027, pieces: 40 },
+      { set_num: 'r', name: 'Placeholder', theme: 'City', year: 2027, pieces: 0 },
+    ];
+    assert.deepEqual(seedFilterSort(mixed, { sort: 'year_desc' }).map(r => r.set_num).slice(0, 3), ['2', '3', '1']);
+    assert.deepEqual(seedFilterSort(mixed, { sort: 'year_asc' }).map(r => r.set_num).slice(0, 3), ['1', '3', '2']);
+  });
+
   it('sorts by year, name and roi', () => {
     assert.deepEqual(seedFilterSort(rows, { sort: 'year_desc' }).map(r => r.set_num), ['2', '3', '1']);
     assert.deepEqual(seedFilterSort(rows, { sort: 'az' }).map(r => r.name)[0], 'City Police Station');

@@ -4,6 +4,11 @@
 // no request context — extracted from routes/sets.ts so the route file reads as
 // handlers, and so scan.ts + tests can import the projection directly.
 
+// 1 for rows that aren't a real building set with known contents. idx_sets_newest
+// in schema.sql indexes this exact expression; change both together.
+const THIN_ROW_LAST =
+  "(CASE WHEN COALESCE(s.theme, '') IN ('Gear', 'Books', 'Promotional') OR COALESCE(s.pieces, 0) < 1 THEN 1 ELSE 0 END)";
+
 export const SORTS: Record<string, string> = {
   value_desc: "(CASE WHEN valuation_method IN ('formula_bulk', 'local') THEN 1 ELSE 0 END), COALESCE(NULLIF(blended_value, 0), current_value) DESC",
   // Ascending mirrors: keep formula/local rows last and NULL ROI/years last in
@@ -11,8 +16,12 @@ export const SORTS: Record<string, string> = {
   value_asc:  "(CASE WHEN valuation_method IN ('formula_bulk', 'local') THEN 1 ELSE 0 END), COALESCE(NULLIF(blended_value, 0), current_value) ASC",
   roi_desc:   '(current_value / NULLIF(retail_price, 0)) DESC',
   roi_asc:    '(CASE WHEN retail_price IS NULL OR retail_price = 0 THEN 1 ELSE 0 END), (current_value / NULLIF(retail_price, 0)) ASC',
-  year_desc:  '(year IS NULL) ASC, year DESC',
-  year_asc:   '(year IS NULL) ASC, year ASC',
+  // Newest/oldest lead with real sets: merch (Gear, Books), promo polybags and
+  // placeholder rows with no piece count sink below them. "Newest" is the
+  // catalog default, and without this it opened on a page of 2027 bag tags,
+  // books and gifts-with-purchase at a formula $11.
+  year_desc:  `${THIN_ROW_LAST}, (year IS NULL) ASC, year DESC`,
+  year_asc:   `${THIN_ROW_LAST}, (year IS NULL) ASC, year ASC`,
   az:         'name ASC',
   za:         'name DESC',
   // Trending: 30-day price momentum — sets whose value rose most. The route

@@ -269,7 +269,10 @@ app.post('/', async (c) => {
     set_num?: string; quantity?: number; condition?: string;
     purchase_price?: number; notes?: string; purchased_at?: string;
   }>();
-  const { set_num, quantity = 1, condition = 'new', purchase_price, purchased_at } = body;
+  // No condition given (a quick add from the catalog or set page) means a
+  // sealed box: the value shown is the sealed market, and 'new' reads as
+  // "opened" on the set page.
+  const { set_num, quantity = 1, condition = 'sealed', purchase_price, purchased_at } = body;
   // Cap free text so a client can't persist multi-MB strings (D1 storage is
   // billed and every read pays for the bloat). 500 chars is generous for notes.
   const notes = body.notes != null ? String(body.notes).slice(0, FREE_TEXT_MAX) : body.notes;

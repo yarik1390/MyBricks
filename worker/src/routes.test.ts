@@ -435,6 +435,24 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(nums).not.toContain('TR-NOSNAP');
     });
 
+    it('newest leads with real sets, not merch, promos or empty placeholders', async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO lego_sets (set_num, name, year, theme, pieces) VALUES ('NW-TAG','Bag Tag',2027,'Gear',0)`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, year, theme, pieces) VALUES ('NW-GWP','Gift',2027,'Promotional',27)`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, year, theme, pieces) VALUES ('NW-TBA','Unannounced',2027,'Super Mario',0)`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, year, theme, pieces) VALUES ('NW-REAL','Castle',2026,'Icons',3000)`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, year, theme, pieces) VALUES ('NW-OLD','Old',2020,'City',500)`),
+      ]);
+
+      const nums = (await (await app.fetch(new Request('http://localhost/api/sets/search?sort=year_desc&limit=50'), env)).json<any>()).sets.map((s: any) => s.set_num);
+      expect(nums.indexOf('NW-REAL')).toBeLessThan(nums.indexOf('NW-OLD'));
+      for (const thin of ['NW-TAG', 'NW-GWP', 'NW-TBA']) expect(nums.indexOf('NW-OLD')).toBeLessThan(nums.indexOf(thin));
+
+      // Keyword search joins the FTS table (which also has a theme column).
+      const q = await app.fetch(new Request('http://localhost/api/sets/search?q=castle&sort=year_desc'), env);
+      expect(q.status).toBe(200);
+    });
+
     it('retiring=1 never lists a set that has not released yet', async () => {
       await db.batch([
         db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired, lego_retiring_soon) VALUES ('RT-OLD-1','Real Retiring',2020,0,1)`),
