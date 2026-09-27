@@ -636,6 +636,7 @@ export const nl = {
     identifyPhotoSub: 'Gebouwde, losse of verpakte sets',
     identifyPhoto: 'Herkennen via foto',
     howIdentify: 'Hoe wil je hem herkennen?',
+    systemScanner: 'Zie je de camera niet? Gebruik de systeemscanner',
     hintShelf: 'Zet de hele plank in beeld — goed licht helpt',
     hintPhoto: 'Zet de set in beeld en maak een foto',
     hintNext: 'Volgende doos — houd hem in beeld',

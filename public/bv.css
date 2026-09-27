@@ -1223,9 +1223,11 @@ body.collector-ui .bv-setbar > .bv-btn:first-child:nth-last-child(2) { flex: 1 1
 .bv-scan.has-captured-photo .bv-scan__video { opacity: 0; }
 .bv-scan.is-native .bv-scan__video, .bv-scan.is-native .bv-scan__frame { display: none; }
 .bv-scan__vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 80% 60% at 50% 38%, transparent 40%, rgba(0, 0, 0, .55) 100%); }
-/* Opt-in live native scanner: CameraX draws behind a transparent WebView. */
+/* Live native scanner: CameraX draws behind a transparent WebView. Nothing but
+   the scanner (and the sheet/toast it may raise) may paint over the preview —
+   the page, tab bar and status-bar scrim once covered the camera entirely. */
 html.bv-scan-native-live, html.bv-scan-native-live body, html.bv-scan-native-live #scanOverlay, html.bv-scan-native-live .bv-scan { background: transparent !important; }
-html.bv-scan-native-live #app { visibility: hidden; }
+html.bv-scan-native-live body > :not(#scanOverlay, #sheet, #sheetBackdrop, #toast) { visibility: hidden !important; }
 html.bv-scan-native-live .bv-scan__video { display: none; }
 
 .bv-scan__top {
@@ -1255,6 +1257,8 @@ html.bv-scan-native-live .bv-scan__video { display: none; }
 .bv-scan__seg button::after { content: ""; position: absolute; inset: -6px 0; }
 .bv-scan__seg button { position: relative; }
 .bv-scan__title { justify-self: center; font: 600 16px/1 var(--bv-sans); }
+/* The live scanner adds the torch to this row: keep all three modes legible. */
+@media (max-width: 430px) { .bv-scan__seg button { padding: 0 10px; } .bv-scan__pill { padding: 0 12px 0 10px; } }
 @media (max-width: 360px) { .bv-scan__seg button { padding: 0 9px; font-size: 13px; } .bv-scan__pill { padding: 0 10px; } }
 
 .bv-scan__chip {
@@ -1322,6 +1326,14 @@ html.bv-scan-native-live .bv-scan__video { display: none; }
 .bv-scan__shutter:active { transform: scale(.92); }
 .bv-scan__shutter:disabled { opacity: .45; }
 .bv-scan.has-result .bv-scan__bottom, .bv-scan.scan-busy .bv-scan__bottom { opacity: 0; pointer-events: none; }
+/* Live scanner fallback offer (after a few seconds without a lock). */
+.bv-scan__alt {
+  position: absolute; left: 50%; bottom: calc(var(--safe-bottom, 0px) + 96px); z-index: 4; transform: translateX(-50%);
+  max-width: calc(100% - 48px); min-height: 36px; padding: 8px 14px; border: 0; border-radius: 18px; cursor: pointer;
+  color: #fff; background: rgba(20, 22, 18, .62); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  font: 500 13px/18px var(--bv-sans); text-align: center; animation: fadeIn .2s var(--bv-ease);
+}
+.bv-scan.has-result .bv-scan__alt, .bv-scan.scan-busy .bv-scan__alt { opacity: 0; pointer-events: none; }
 
 /* Result sheet: rises over the camera (380 ms), drops after Add. */
 .bv-scan__sheet {

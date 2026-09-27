@@ -645,6 +645,7 @@ export const en = {
     identifyPhotoSub: 'Built, loose or boxed sets',
     identifyPhoto: 'Identify from a photo',
     howIdentify: 'How would you like to identify it?',
+    systemScanner: 'Camera not showing? Use the system scanner',
     hintShelf: 'Fit the whole shelf in frame — good light helps',
     hintPhoto: 'Frame the set and take a photo',
     hintNext: 'Next box — hold it in view',

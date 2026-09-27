@@ -636,6 +636,7 @@ export const de = {
     identifyPhotoSub: 'Gebaute, lose oder verpackte Sets',
     identifyPhoto: 'Per Foto erkennen',
     howIdentify: 'Wie möchtest du es erkennen?',
+    systemScanner: 'Keine Kamera zu sehen? System-Scanner verwenden',
     hintShelf: 'Das ganze Regal ins Bild — gutes Licht hilft',
     hintPhoto: 'Set ins Bild nehmen und fotografieren',
     hintNext: 'Nächste Schachtel — ins Bild halten',

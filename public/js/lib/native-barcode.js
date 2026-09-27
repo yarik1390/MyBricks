@@ -54,15 +54,16 @@ export async function scanBarcodeNative(win) {
 export async function cancelBarcodeNative() {}
 
 // ---------------------------------------------------------------------------
-// Live in-app scanner (opt-in). ML Kit's startScan() renders CameraX BEHIND a
-// transparent WebView so our own brackets, counter and result sheet stay on
-// screen while the camera keeps running between boxes. It is opt-in
-// (localStorage bv_scan_live = '1') because CameraX-behind-WebView has failed
-// on some edge-to-edge Android releases; the Activity scanner above remains the
-// default and the fallback whenever startScan is unavailable or throws.
+// Live in-app scanner (the default). ML Kit's startScan() renders CameraX
+// BEHIND a transparent WebView so our own brackets, lock-on, counter and
+// result sheet stay on screen while the camera keeps running between boxes.
+// The page underneath must not paint over it (bv.css hides every layer but the
+// scanner while html.bv-scan-native-live is set). The Activity scanner above is
+// the fallback whenever startScan is unavailable or throws, and on request
+// ("Use the system scanner"). localStorage bv_scan_live = '0' turns it off.
 // ---------------------------------------------------------------------------
-export function liveScanOptIn(storage = globalThis.localStorage) {
-  try { return storage?.getItem?.('bv_scan_live') === '1'; } catch { return false; }
+export function liveScanEnabled(storage = globalThis.localStorage) {
+  try { return storage?.getItem?.('bv_scan_live') !== '0'; } catch { return true; }
 }
 
 export async function nativeLiveScanSupported(win) {

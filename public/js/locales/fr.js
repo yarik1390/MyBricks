@@ -636,6 +636,7 @@ export const fr = {
     identifyPhotoSub: 'Sets montés, en vrac ou en boîte',
     identifyPhoto: 'Identifier par photo',
     howIdentify: 'Comment voulez-vous l’identifier ?',
+    systemScanner: 'La caméra ne s’affiche pas ? Utiliser le scanner du système',
     hintShelf: 'Cadrez toute l’étagère — une bonne lumière aide',
     hintPhoto: 'Cadrez le set et prenez une photo',
     hintNext: 'Boîte suivante — gardez-la dans le cadre',
