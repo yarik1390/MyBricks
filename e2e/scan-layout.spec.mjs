@@ -1,87 +1,93 @@
 import { test, expect } from './fixtures.mjs';
 
-// The scanner's top area stacks two centred pills: the Barcode/Photo mode
-// toggle inside .scan-top, and the One set/Whole shelf scope row below it. The
-// scope row was positioned at a hard-coded top:62px, which lands INSIDE
-// .scan-top (60px of padding plus a 42px control), so the two drew on top of
-// each other — visible once translated labels grew.
+// The scanner's top bar packs three things into one row: the Close / Done pill,
+// the Barcode · Photo · Shelf segmented control and the torch. They share a
+// 3-column grid; translated labels (Ukrainian, German) are much longer than the
+// English ones, and the middle column has to give way (ellipsis) rather than
+// drawing over its neighbours.
 //
-// The scanner itself needs getUserMedia, which does not exist here, so this
-// mounts the same markup and class names against the real stylesheet and
-// measures. That is the right target anyway: the bug was in the CSS contract
-// between .scan-top and .scan-top-stack, not in the camera path.
+// The scanner needs getUserMedia, which does not exist here, so this mounts the
+// same markup and class names the scanner renders against the real stylesheet
+// and measures. The bug class is in the CSS contract, not the camera path.
 test.use({ viewport: { width: 390, height: 844 } });
 
-const MOUNT = (barcodeLabel, photoLabel, oneSet, wholeShelf) => `
-  <div class="scan-video-wrap" style="position:relative;height:844px;">
-    <div class="scan-top" style="justify-content: space-between;">
-      <button aria-label="Close">x</button>
-      <div class="scan-mode-toggle" role="group" style="display:flex;align-items:center;">
-        <button class="active">${barcodeLabel}</button><button>${photoLabel}</button>
+const MOUNT = ({ close, modes, torch = true }) => `
+  <div id="scanOverlay" class="open" style="position:fixed;inset:0;display:flex;">
+    <div class="bv-scan" data-mode="barcode" style="height:844px;">
+      <video class="bv-scan__video"></video>
+      <div class="bv-scan__top">
+        <button type="button" class="bv-scan__pill" id="scanCloseBtn"><svg viewBox="0 0 24 24"></svg><span>${close}</span></button>
+        <div class="bv-scan__seg scan-mode-toggle" role="group">${modes.map((m, i) => `<button type="button" aria-pressed="${i === 0}">${m}</button>`).join('')}</div>
+        <button type="button" class="bv-scan__round" id="scanTorchBtn" aria-pressed="false"${torch ? '' : ' hidden'}><svg viewBox="0 0 24 24"></svg></button>
       </div>
-      <div style="width:42px;"></div>
-    </div>
-    <div class="scan-shelf-row scan-top-stack" role="group"
-         style="position:absolute;left:0;right:0;display:flex;justify-content:center;z-index:3;">
-      <div style="display:inline-flex;border-radius:999px;overflow:hidden;">
-        <button style="font-size:12px;font-weight:700;padding:7px 14px;white-space:nowrap;">${oneSet}</button>
-        <button style="font-size:12px;font-weight:700;padding:7px 14px;white-space:nowrap;">${wholeShelf}</button>
-      </div>
+      <div class="bv-scan__frame"></div>
+      <div class="bv-scan__hint">Point at the barcode</div>
     </div>
   </div>`;
 
 const CASES = [
-  { name: 'English', args: ['Barcode', 'Photo', 'One set', 'Whole shelf'] },
-  // The Ukrainian labels that exposed the overlap on a real device.
-  { name: 'Ukrainian', args: ['Штрихкод', 'Фото', 'Один набір', 'Уся полиця'] },
+  { name: 'English', args: { close: 'Close', modes: ['Barcode', 'Photo', 'Shelf'] } },
+  { name: 'English, three sets added', args: { close: 'Done · 3', modes: ['Barcode', 'Photo', 'Shelf'] } },
+  // The Ukrainian labels are the widest the scanner renders.
+  { name: 'Ukrainian', args: { close: 'Готово · 3', modes: ['Штрихкод', 'Фото', 'Полиця'] } },
+  { name: 'German', args: { close: 'Schließen', modes: ['Barcode', 'Foto', 'Regal'] } },
 ];
 
-test('photo result hides the inactive camera chrome', async ({ page }) => {
+const overlaps = (a, b) => a.x < b.x + b.width - 0.5 && b.x < a.x + a.width - 0.5
+  && a.y < b.y + b.height - 0.5 && b.y < a.y + a.height - 0.5;
+
+for (const { name, args } of CASES) {
+  test(`scanner top bar controls do not overlap (${name})`, async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await page.evaluate((html) => { document.body.innerHTML = html; }, MOUNT(args));
+    await page.waitForTimeout(120);
+
+    const close = await page.locator('#scanCloseBtn').boundingBox();
+    const seg = await page.locator('.bv-scan__seg').boundingBox();
+    const torch = await page.locator('#scanTorchBtn').boundingBox();
+    expect(close && seg && torch, 'all three controls render').toBeTruthy();
+    expect(overlaps(close, seg), `${name}: Close runs into the mode switch`).toBe(false);
+    expect(overlaps(seg, torch), `${name}: mode switch runs into the torch`).toBe(false);
+    for (const [label, box] of [['Close', close], ['modes', seg], ['torch', torch]]) {
+      expect(box.x, `${name}: ${label} off the left edge`).toBeGreaterThanOrEqual(-0.5);
+      expect(box.x + box.width, `${name}: ${label} off the right edge`).toBeLessThanOrEqual(390.5);
+    }
+    // Each mode button stays a usable tap target even when labels are long.
+    const heights = await page.locator('.bv-scan__seg button').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height));
+    for (const h of heights) expect(h).toBeGreaterThanOrEqual(36);
+  });
+}
+
+test('a result sheet hides the idle frame and hint', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.locator('body').evaluate((body) => {
     body.innerHTML = `
-      <div class="scan-video-wrap has-result" style="position:relative;height:844px;">
-        <video class="scan-video"></video>
-        <div class="scan-top-stack">One set / Whole shelf</div>
-        <div class="scan-frame"></div>
-        <div class="scan-result show">Set found</div>
+      <div class="bv-scan has-result" style="position:relative;height:844px;">
+        <video class="bv-scan__video"></video>
+        <div class="bv-scan__frame"></div>
+        <div class="bv-scan__hint">Point at the barcode</div>
+        <div class="bv-scan__bottom"><button type="button" class="bv-scan__round">T</button></div>
+        <div class="bv-scan__sheet show">Set found</div>
       </div>`;
   });
-
-  for (const selector of ['.scan-video', '.scan-frame', '.scan-top-stack']) {
+  for (const selector of ['.bv-scan__frame', '.bv-scan__hint', '.bv-scan__bottom']) {
     await expect(page.locator(selector)).toHaveCSS('opacity', '0');
   }
-  await expect(page.locator('.scan-result')).toBeVisible();
+  await expect(page.locator('.bv-scan__sheet')).toBeVisible();
 });
-
-for (const { name, args } of CASES) {
-  test(`scanner top controls do not overlap (${name})`, async ({ page }) => {
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await page.evaluate((html) => { document.body.innerHTML = html; }, MOUNT(...args));
-    await page.waitForTimeout(120);
-
-    const toggle = await page.locator('.scan-mode-toggle').boundingBox();
-    const shelf = await page.locator('.scan-shelf-row > div').boundingBox();
-    expect(toggle, 'mode toggle should render').toBeTruthy();
-    expect(shelf, 'scope row should render').toBeTruthy();
-
-    expect(shelf.y, `${name}: scope row starts before the mode toggle ends`)
-      .toBeGreaterThanOrEqual(toggle.y + toggle.height);
-  });
-}
 
 test('captured photo remains visible while live video is hidden', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.locator('body').evaluate((body) => {
     body.innerHTML = `
-      <div class="scan-video-wrap has-captured-photo" style="height:844px;">
-        <video class="scan-video"></video>
-        <img class="scan-photo-preview" alt="Captured photo"
+      <div class="bv-scan is-photo has-captured-photo" style="position:relative;height:844px;">
+        <video class="bv-scan__video"></video>
+        <img class="bv-scan__photo" alt="Captured photo"
              src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==">
       </div>`;
   });
-  const video = page.locator('.scan-video');
-  const preview = page.locator('.scan-photo-preview');
+  const video = page.locator('.bv-scan__video');
+  const preview = page.locator('.bv-scan__photo');
   await expect(video).toHaveCSS('opacity', '0');
   await expect(preview).toBeVisible();
   await expect(preview).toHaveCSS('object-fit', 'cover');

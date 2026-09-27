@@ -1,10 +1,12 @@
-import { $, $$, haptic, escapeHtml, fmtMoney, parseMarkdown, toast, activateFocusTrap, FOCUSABLE_SEL } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoney, parseMarkdown, toast, advisorEnabled } from '../utils.js';
 import { state } from '../state.js';
 import { api } from '../api.js';
 import { I } from '../icons.js';
 import { isLocalAiSupported, createLocalAiSession, getLocalAiAvailability, checkGemma3Downloaded, runLocalTextInference } from '../lib/local-ai.js';
 import { displayValueOf } from '../lib/pure.js';
-import { tPlural } from '../lib/i18n.js';
+import { t, tPlural } from '../lib/i18n.js';
+import { topbar, iconBtn, icon, btn, emptyState, sheetBody, row } from '../ui/kit.js';
+import { showSheet, hideSheet } from './sheet.js';
 import { getProviderCredential } from '../lib/provider-credentials.js';
 import { runCancellableAdvisorInference } from '../lib/advisor-local-ai.js';
 
@@ -16,184 +18,188 @@ export function cancelActiveStream() {
   if (_activeReader) { _activeReader.cancel().catch(() => {}); _activeReader = null; }
 }
 
-const ADVISOR_PROMPTS = [
-  "Which sets should I sell this month?",
-  "Best buy with $200 budget?",
-  "Which of my sets might retire soon?",
-  "How is my Star Wars collection doing?",
-];
+// Suggested questions (keys under bvCommunity). The first two sit above the
+// input like the design; all four show on an empty conversation.
+const ADVISOR_PROMPTS = ['bvCommunity.advPromptRetiring', 'bvCommunity.advPromptBuy', 'bvCommunity.advPromptSell', 'bvCommunity.advPromptTheme'];
 
-let _advTrapRelease = null;
+const onAdvisor = () => location.hash.split('?')[0] === '#/advisor';
 
+// 2026 redesign: the advisor is a full-screen page (#/advisor). Every old
+// entry point (the FAB, "Ask your advisor" links) still calls toggleAdvisor(),
+// which now simply navigates there.
 export async function toggleAdvisor() {
   const drawer = document.getElementById("advisorDrawer");
-  if (!drawer) return;
-  const isOpen = drawer.classList.contains("open");
-  if (isOpen) {
-    haptic("light");
+  if (drawer?.classList.contains("open")) {
     cancelActiveStream();
     drawer.classList.remove("open");
     document.body.classList.remove("advisor-open");
     document.body.style.overflow = "";
-    _advTrapRelease?.();
-    _advTrapRelease = null;
-  } else {
-    haptic("medium");
-    drawer.classList.add("open");
-    document.body.classList.add("advisor-open");
-    document.body.style.overflow = "hidden";
-    await renderAdvisorDrawer();
-    drawer.setAttribute("role", "dialog");
-    drawer.setAttribute("aria-modal", "true");
-    drawer.setAttribute("aria-label", "AI Advisor");
-    _advTrapRelease?.();
-    _advTrapRelease = activateFocusTrap(drawer, toggleAdvisor);
-    setTimeout(() => { try { (drawer.querySelector("#chatInput") || drawer.querySelector(FOCUSABLE_SEL))?.focus(); } catch {} }, 60);
   }
+  if (!onAdvisor()) { haptic("medium"); location.hash = "#/advisor"; }
 }
 
-export async function renderAdvisorDrawer() {
-  const savedGeminiKey = getProviderCredential('gemini');
-  
-  if (!state.portfolio) {
-    try {
-      state.portfolio = await api("/api/collection");
-    } catch {
-      state.portfolio = { items: [], total_value: 0, total_paid: 0, count: 0 };
-    }
-    const [hist, wl] = await Promise.all([
-      api("/api/collection/history?days=365").catch(() => null),
-      api("/api/wishlist").catch(() => null),
-    ]);
-    if (hist) state.portfolioHistory = hist.snapshots || [];
-    if (wl) { state.wishlist = wl.wishlist || []; state.wishlistAlerts = wl.unread_alerts || []; }
+function engineLabel() {
+  return t(localStorage.getItem('bv_ai_engine') === 'local' ? 'bvCommunity.advSubLocal' : 'bvCommunity.advSubCloud');
+}
+
+function readHistory() {
+  try { return JSON.parse(localStorage.getItem('bv_chat') || '[]'); } catch { return []; }
+}
+
+async function ensurePortfolio() {
+  if (state.portfolio) return;
+  try {
+    state.portfolio = await api("/api/collection");
+  } catch {
+    state.portfolio = { items: [], total_value: 0, total_paid: 0, count: 0 };
   }
+  const [hist, wl] = await Promise.all([
+    api("/api/collection/history?days=365").catch(() => null),
+    api("/api/wishlist").catch(() => null),
+  ]);
+  if (hist) state.portfolioHistory = hist.snapshots || [];
+  if (wl) { state.wishlist = wl.wishlist || []; state.wishlistAlerts = wl.unread_alerts || []; }
+}
 
-  let chatHistory = [];
-  try { chatHistory = JSON.parse(localStorage.getItem('bv_chat') || '[]'); } catch {}
+function healthCardHTML() {
+  const h = portfolioHealth(state.portfolio?.items || []);
+  if (!h) return '';
+  return `<div class="chat-msg ai bv-adv__health" id="advHealth">
+    <span class="bv-adv__score"><span class="bv-adv__scorenum">${h.score}</span><span class="bv-adv__scoretext"><span class="bv-adv__scoretitle">${escapeHtml(t('bvCommunity.advHealth'))}</span><span class="bv-adv__scoresub">${escapeHtml(t('bvCommunity.advOutOf'))}</span></span></span>
+    <span>${escapeHtml(h.text)}</span>
+  </div>`;
+}
 
-  const drawer = document.getElementById("advisorDrawer");
-  if (!drawer) return;
+function chipsHTML(prompts) {
+  return prompts.map(k => `<button type="button" class="bv-chip bv-adv__prompt" data-prompt="${escapeHtml(k)}"><span>${escapeHtml(t(k))}</span></button>`).join('');
+}
 
-  drawer.innerHTML = `
-    <div style="height:100%; display:flex; flex-direction:column; background:var(--surface);">
-      <div class="topbar" style="padding:12px 16px; border-bottom:1.5px solid var(--line-soft); flex-shrink:0;" id="advisorTopbar">
-        <div class="topbar-heading">
-          <div class="topbar-eyebrow">AI & Local Insights</div>
-          <div class="topbar-title" style="font-size:18px;">Advisor</div>
-        </div>
-        <div style="display:flex; gap:8px; align-items:center;">
-          ${chatHistory.length > 0 ? `<button class="icon-btn" id="clearChat" aria-label="Clear history">${I.trash()}</button>` : ""}
-          <button class="icon-btn" id="closeAdvisor" aria-label="Close Advisor">${I.close()}</button>
-        </div>
+export async function renderAdvisorPage() {
+  const root = $("#root");
+  if (!root) return;
+  if (!advisorEnabled()) {
+    root.innerHTML = `<main class="bv-page bv-advoff">${topbar({ title: t('bvCommunity.advTitle'), back: 'history' })}${emptyState({ icon: 'chat', title: t('bvCommunity.advOffTitle'), body: t('bvCommunity.advOffBody'), actionsHtml: btn(t('bvCommunity.advTurnOn'), { id: 'advTurnOn' }) })}</main>`;
+    $('[data-bv-back]')?.addEventListener('click', () => { if (history.length > 1) history.back(); else location.hash = '#/'; });
+    $('#advTurnOn')?.addEventListener('click', () => { localStorage.setItem('bv_advisor', 'on'); renderAdvisorPage(); });
+    return;
+  }
+  root.innerHTML = `<main class="bv-adv" id="advisorPage"><div class="bv-adv__top">${topbar({ title: t('bvCommunity.advTitle'), sub: engineLabel(), back: 'history' })}</div><div class="bv-adv__scroll" aria-busy="true"><div class="bv-skel" style="height:96px;border-radius:18px;margin:8px 16px"></div></div></main>`;
+  await ensurePortfolio();
+  if (!onAdvisor()) return;
+
+  const chatHistory = readHistory();
+  const savedKey = getProviderCredential('gemini') || getProviderCredential('openai');
+  const keyTip = !savedKey && !chatHistory.length && localStorage.getItem('bv_ai_engine') !== 'local'
+    ? `<div class="bv-adv__tip chat-gemini-card">${icon('flash', { size: 18 })}<span>${escapeHtml(t('bvCommunity.advKeyTip'))} <a href="#/me/integrations">${escapeHtml(t('bvCommunity.advKeyLink'))}</a></span></div>`
+    : '';
+  root.innerHTML = `<main class="bv-adv" id="advisorPage">
+    <div class="bv-adv__top" id="advisorTopbar">${topbar({ title: t('bvCommunity.advTitle'), sub: engineLabel(), back: 'history', actionsHtml: iconBtn({ icon: 'more', label: t('bvCommunity.advMenu'), id: 'advMenu' }) })}</div>
+    <div class="bv-adv__scroll" id="chatHistory" role="log" aria-live="polite" aria-label="${escapeHtml(t('bvCommunity.advConversation'))}">
+      ${healthCardHTML()}
+      ${keyTip}
+      ${chatHistory.length === 0 ? `<div class="bv-adv__starters" id="chatSuggestions"><span class="bv-adv__hint">${escapeHtml(t('bvCommunity.advAsk'))}</span><div class="bv-adv__chips bv-adv__chips--wrap">${chipsHTML(ADVISOR_PROMPTS)}</div></div>`
+        : chatHistory.map(m => `<div class="chat-msg ${m.role === "user" ? "user" : "ai"}">${m.role === "ai" ? parseMarkdown(m.content) : escapeHtml(m.content)}</div>`).join("")}
+    </div>
+    <div class="bv-adv__bar" id="chatInputRow">
+      ${chatHistory.length ? `<div class="bv-adv__chips">${chipsHTML(ADVISOR_PROMPTS.slice(0, 2))}</div>` : ''}
+      <div class="bv-adv__compose">
+        <textarea class="bv-adv__input" id="chatInput" aria-label="${escapeHtml(t('bvCommunity.advInputLabel'))}" placeholder="${escapeHtml(t('bvCommunity.advPlaceholder'))}" rows="1"></textarea>
+        <button type="button" class="bv-adv__send" id="chatSend" aria-label="${escapeHtml(t('bvCommunity.advSend'))}">${icon('send', { size: 22 })}</button>
       </div>
+    </div>
+  </main>`;
 
-      <!-- Tab bar -->
-      <div class="chat-tabs" role="tablist" aria-label="Advisor views" style="display:flex; border-bottom:1.5px solid var(--line-soft); background:var(--surface); flex-shrink:0;">
-        <button class="chat-tab-btn active" data-tab="chat" role="tab" aria-selected="true" aria-controls="chatHistory" style="flex:1; padding:12px; background:transparent; border:none; border-bottom:2.5px solid var(--ink); font-weight:700; color:var(--ink); cursor:pointer; font-family:var(--sans); font-size:13px; outline:none;">AI Advisor</button>
-        <button class="chat-tab-btn" data-tab="analyst" role="tab" aria-selected="false" aria-controls="analystArea" style="flex:1; padding:12px; background:transparent; border:none; border-bottom:2.5px solid transparent; font-weight:500; color:var(--ink-mute); cursor:pointer; font-family:var(--sans); font-size:13px; outline:none;">Local Analyst</button>
-      </div>
-
-      <!-- AI Chat Tab Area -->
-      <div class="chat-history" id="chatHistory" role="tabpanel" style="display:flex; flex-direction:column; flex:1; overflow-y:auto; padding:12px 16px; gap:12px;">
-        ${chatHistory.length === 0 ? `
-          <div class="chat-suggestions" id="chatSuggestions" style="padding:0;">
-            ${!savedGeminiKey ? `
-              <div class="chat-gemini-card" style="margin-bottom:12px;">
-                <div style="font-weight:600; font-size:13px; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
-                  ${I.flash({w:16})}<span>Get Free Gemini Key</span>
-                </div>
-                <div style="font-size:11px; color:var(--ink-mute); line-height:1.45;">
-                  Unlock AI advice! Get a key in 30 seconds at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--bv-red); font-weight:600; text-decoration:underline;">Google AI Studio</a> and save it in the <strong>Me</strong> tab.
-                </div>
-              </div>` : ""}
-            <div style="font-size:12px; color:var(--ink-mute); text-align:center; margin-bottom:8px;">Ask about your vault…</div>
-            <div style="display:flex; flex-direction:column; gap:6px;">
-              ${ADVISOR_PROMPTS.map(p => `<button class="chat-suggestion-chip" style="font-size:12px; text-align:left; padding:8px 12px; width:100%;">${escapeHtml(p)}</button>`).join("")}
-            </div>
-          </div>` :
-          chatHistory.map(m => `<div class="chat-msg ${m.role === "user" ? "user" : "ai"}">${m.role === "ai" ? parseMarkdown(m.content) : escapeHtml(m.content)}</div>`).join("")
-        }
-      </div>
-
-      <!-- Local Analyst Tab Area -->
-      <div id="analystArea" role="tabpanel" style="display:none; flex:1; overflow-y:auto; padding:12px 16px;">
-        ${localAnalystHTML()}
-      </div>
-
-      <!-- Chat input row -->
-      <div class="chat-input-row" id="chatInputRow" style="padding:10px 16px; border-top:1.5px solid var(--line-soft); background:var(--surface); flex-shrink:0;">
-        <textarea class="chat-input" id="chatInput" aria-label="Ask the AI advisor" placeholder="Ask anything about your vault…" rows="1" style="max-height:80px;"></textarea>
-        <button class="chat-send-btn" id="chatSend" aria-label="Send">${I.arrowU()}</button>
-      </div>
-    </div>`;
-
-  $("#closeAdvisor")?.addEventListener("click", () => {
-    haptic("light");
-    cancelActiveStream();
-    drawer.classList.remove("open");
-    document.body.classList.remove("advisor-open");
-    document.body.style.overflow = "";
-    _advTrapRelease?.();
-    _advTrapRelease = null;
-  });
-
-  $$(".chat-suggestion-chip").forEach(chip => {
-    chip.addEventListener("click", () => sendAdvisorMessage(chip.textContent.trim()));
-  });
-  $("#clearChat")?.addEventListener("click", () => {
-    clearAdvisorHistory();
-  });
-
-  // Wire Tab Transitions
-  $$(".chat-tab-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      haptic("light");
-      $$(".chat-tab-btn").forEach(b => {
-        b.classList.toggle("active", b === btn);
-        b.setAttribute("aria-selected", String(b === btn));
-        b.style.borderBottomColor = b === btn ? "var(--ink)" : "transparent";
-        b.style.color = b === btn ? "var(--ink)" : "var(--ink-mute)";
-        b.style.fontWeight = b === btn ? "700" : "500";
-      });
-
-      const tab = btn.dataset.tab;
-      if (tab === "chat") {
-        $("#chatHistory").style.display = "flex";
-        $("#chatInputRow").style.display = "flex";
-        $("#analystArea").style.display = "none";
-        const hist = document.getElementById("chatHistory");
-        if (hist) hist.scrollTop = hist.scrollHeight;
-      } else if (tab === "analyst") {
-        $("#chatHistory").style.display = "none";
-        $("#chatInputRow").style.display = "none";
-        $("#analystArea").style.display = "block";
-        $("#analystArea").innerHTML = localAnalystHTML();
-      }
-    });
+  $('[data-bv-back]')?.addEventListener('click', () => { if (history.length > 1) history.back(); else location.hash = '#/'; });
+  $("#advMenu")?.addEventListener("click", openAdvisorMenu);
+  $$("[data-prompt]").forEach(chip => {
+    chip.addEventListener("click", () => sendAdvisorMessage(t(chip.dataset.prompt)));
   });
 
   const input = document.getElementById("chatInput");
   const sendBtn = document.getElementById("chatSend");
-
+  const submit = () => {
+    const q = input?.value.trim();
+    if (q) { input.value = ""; input.style.height = "auto"; sendAdvisorMessage(q); }
+  };
   input?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      const q = input.value.trim();
-      if (q) { input.value = ""; input.style.height = "auto"; sendAdvisorMessage(q); }
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
   });
   input?.addEventListener("input", () => {
     input.style.height = "auto";
-    input.style.height = Math.min(input.scrollHeight, 80) + "px";
+    input.style.height = Math.min(input.scrollHeight, 120) + "px";
   });
-  sendBtn?.addEventListener("click", () => {
-    const q = input?.value.trim();
-    if (q) { input.value = ""; input.style.height = "auto"; sendAdvisorMessage(q); }
-  });
+  sendBtn?.addEventListener("click", submit);
 
   const hist = document.getElementById("chatHistory");
   if (hist) hist.scrollTop = hist.scrollHeight;
+}
+
+function openAdvisorMenu() {
+  haptic("light");
+  const has = readHistory().length > 0;
+  showSheet(sheetBody({
+    title: t('bvCommunity.advTitle'),
+    id: 'advisorMenuSheet',
+    inner: `<div class="bv-group__box">
+      ${row({ icon: 'trend', title: t('bvCommunity.advReport'), sub: t('bvCommunity.advReportSub'), id: 'advReport' })}
+      ${row({ icon: 'sparkle', title: t('bvCommunity.advSettings'), sub: engineLabel(), href: '#/me/integrations', id: 'advSettings' })}
+      ${has ? row({ icon: 'trash', title: t('bvCommunity.advClear'), id: 'clearChat', danger: true, chevron: false }) : ''}
+    </div>`,
+  }));
+  $('#advSettings')?.addEventListener('click', () => hideSheet());
+  $('#advReport')?.addEventListener('click', () => {
+    showSheet(sheetBody({ title: t('bvCommunity.advReport'), id: 'advisorReportSheet', inner: `<div class="bv-adv__report" id="analystArea">${localAnalystHTML()}</div>` }));
+  });
+  $('#clearChat')?.addEventListener('click', () => { hideSheet(); clearAdvisorHistory(); });
+}
+
+/**
+ * Portfolio health (10–100) and a one-line reading, from the same rules the
+ * local report uses: theme spread, completeness and return on what was paid.
+ */
+export function portfolioHealth(items) {
+  if (!items?.length) return null;
+  let score = 70;
+  const themeValues = {};
+  const themeCounts = {};
+  let totalValue = 0, totalSets = 0, completeCount = 0, totalPaid = 0, maxThemeCount = 0;
+  for (const i of items) {
+    const th = i.theme || 'Other';
+    const qty = i.quantity || 1;
+    const value = Number(displayValueOf(i)) || 0;
+    themeCounts[th] = (themeCounts[th] || 0) + qty;
+    themeValues[th] = (themeValues[th] || 0) + value * qty;
+    totalValue += value * qty;
+    totalSets += qty;
+    totalPaid += (Number(i.purchase_price) || 0) * qty;
+    if (i.is_complete !== 0) completeCount += qty;
+    if (themeCounts[th] > maxThemeCount) maxThemeCount = themeCounts[th];
+  }
+  const uniqueThemes = Object.keys(themeCounts).length;
+  if (uniqueThemes >= 5) score += 10;
+  else if (uniqueThemes === 1) score -= 15;
+  const primaryThemeRatio = maxThemeCount / totalSets;
+  if (primaryThemeRatio > 0.6) score -= 15;
+  else if (primaryThemeRatio < 0.3) score += 5;
+  score += Math.round((completeCount / totalSets - 0.8) * 50);
+  const roi = totalPaid > 0 ? (totalValue - totalPaid) / totalPaid : null;
+  if (roi != null) {
+    if (roi > 0.5) score += 15;
+    else if (roi > 0.2) score += 8;
+    else if (roi < 0) score -= 20;
+  }
+  const healthScore = Math.max(10, Math.min(100, Math.round(score)));
+  const [topTheme, topValue] = Object.entries(themeValues).sort((a, b) => b[1] - a[1])[0] || ['', 0];
+  const topPct = totalValue > 0 ? Math.round((topValue / totalValue) * 100) : 0;
+  // Keyed off the return on what was paid: strong, underwater or steady.
+  const leadKey = roi == null ? '' : (roi - 0.2 > 0 ? 'bvCommunity.advLeadGains' : Math.sign(roi) === -1 ? 'bvCommunity.advLeadDown' : 'bvCommunity.advLeadSteady');
+  const lead = leadKey ? t(leadKey) : '';
+  const body = topPct > 50 && uniqueThemes > 1
+    ? t('bvCommunity.advConcentrated', { pct: topPct, theme: topTheme })
+    : uniqueThemes === 1
+      ? t('bvCommunity.advOneTheme', { theme: topTheme })
+      : healthScore >= 80 ? t('bvCommunity.advHealthy') : t('bvCommunity.advRoom');
+  return { score: healthScore, text: [lead, body].filter(Boolean).join(' '), topTheme, topPct, themes: uniqueThemes };
 }
 
 function localAnalystHTML() {
@@ -672,19 +678,6 @@ async function sendAdvisorMessage(q) {
   }
 
   hist.scrollTop = hist.scrollHeight;
-
-  if (!document.getElementById("clearChat")) {
-    const topbar = document.querySelector("#advisorTopbar");
-    if (topbar) {
-      const btn = document.createElement("button");
-      btn.className = "icon-btn"; btn.id = "clearChat";
-      btn.setAttribute("aria-label", "Clear history");
-      btn.innerHTML = I.trash();
-      btn.addEventListener("click", () => clearAdvisorHistory());
-      // Insert clear button before close button
-      topbar.querySelector(".topbar-heading")?.nextElementSibling?.prepend(btn);
-    }
-  }
 }
 
 function appendChatBubble(role, content, streaming = false) {
@@ -712,7 +705,7 @@ function saveChatMessage(role, content) {
 
 function clearAdvisorHistory() {
   localStorage.removeItem('bv_chat');
-  renderAdvisorDrawer();
+  if (onAdvisor()) renderAdvisorPage();
 }
 
 

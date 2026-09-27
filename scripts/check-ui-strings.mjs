@@ -28,7 +28,6 @@ const catalog = new Set(rows.map((row) => row.text));
 // harvester: lowercase rendered labels, ordinary status ellipses, and a literal
 // in a nested conditional. Keep the examples tied to real live UI.
 const required = [
-  'alternate models',
   'Checking compatibility...',
   'Loading pricing methodology...',
   'needs key',
@@ -39,10 +38,8 @@ const required = [
   'Saving…',
   'Testing…',
   'Syncing…',
-  'Deleting…',
   '🧒 Kids mode uses its own bright, playful colors — you can switch modes in Settings to choose a different look.',
   '🧱 Add to vault · +10 XP',
-  'Unlock Premium & Gold by supporting BricksVault ★',
 ];
 const absent = required.filter((text) => !catalog.has(text));
 if (absent.length) {

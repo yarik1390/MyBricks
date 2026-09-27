@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach } from 'vitest';
-import { runWishlistAlerts } from './jobs/wishlist-alerts';
+import { runWishlistAlerts, wantsAlert, inQuietHours } from './jobs/wishlist-alerts';
 import { applyTestTables } from './test-schema';
 
 const db = (env as any).DB as D1Database;
@@ -13,7 +13,7 @@ describe('runWishlistAlerts', () => {
   beforeEach(async () => {
     await applyTestTables(db, [
       'lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist',
-      'wishlist_alerts', 'user_prefs', 'push_subscriptions',
+      'wishlist_alerts', 'user_prefs', 'push_subscriptions', 'set_valuation_state',
     ]);
   });
 
@@ -83,7 +83,7 @@ describe('runWishlistAlerts — blended value + confidence gate', () => {
   beforeEach(async () => {
     await applyTestTables(db, [
       'lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist',
-      'wishlist_alerts', 'user_prefs', 'push_subscriptions',
+      'wishlist_alerts', 'user_prefs', 'push_subscriptions', 'set_valuation_state',
     ]);
   });
 
@@ -152,5 +152,130 @@ describe('runWishlistAlerts — blended value + confidence gate', () => {
     expect(alert!.set_num).toBe('SP-1');
     expect(alert!.current_value).toBe(150);
   });
+
+  it('fires one sell-target alert per upward crossing and re-arms below the target', async () => {
+    await db.batch([
+      db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, valuation_method) VALUES ('T-1','Titanic', 760, 'market')`),
+      db.prepare(`INSERT INTO user_collection (user_id, set_num, purchase_price, sell_target) VALUES ('u1','T-1', 612, 750)`),
+      // Below its target: no alert.
+      db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, valuation_method) VALUES ('T-2','Falcon', 850, 'market')`),
+      db.prepare(`INSERT INTO user_collection (user_id, set_num, purchase_price, sell_target) VALUES ('u1','T-2', 765, 1000)`),
+    ]);
+
+    const first = await runWishlistAlerts(e);
+    expect(first.sellTargets).toBe(1);
+    const alert = await db.prepare(`SELECT alert_type, target_price, current_value FROM wishlist_alerts WHERE set_num='T-1'`).first<{ alert_type: string; target_price: number; current_value: number }>();
+    expect(alert).toEqual({ alert_type: 'sell_target', target_price: 750, current_value: 760 });
+
+    // Still above the target the next day: latched, no duplicate.
+    const second = await runWishlistAlerts(e);
+    expect(second.sellTargets).toBe(0);
+
+    // Falls back below, then crosses again: a new alert.
+    await db.prepare(`UPDATE lego_sets SET current_value = 700 WHERE set_num='T-1'`).run();
+    expect((await runWishlistAlerts(e)).sellTargets).toBe(0);
+    await db.prepare(`UPDATE lego_sets SET current_value = 780 WHERE set_num='T-1'`).run();
+    expect((await runWishlistAlerts(e)).sellTargets).toBe(1);
+    const count = await db.prepare(`SELECT COUNT(*) AS n FROM wishlist_alerts WHERE alert_type='sell_target'`).first<{ n: number }>();
+    expect(count!.n).toBe(2);
+  });
+
+  it('crosses a used copy on its used value, not the sealed one', async () => {
+    await db.batch([
+      // Sealed 800 is past the 600 target, but a built copy is worth 500: silent.
+      db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, ebay_used_value, valuation_method) VALUES ('U-1','Built Copy', 800, 500, 'market')`),
+      db.prepare(`INSERT INTO set_valuation_state (set_num, condition, fair_value) VALUES ('U-1', 'used_complete', 500)`),
+      db.prepare(`INSERT INTO user_collection (user_id, set_num, condition, sell_target) VALUES ('u1','U-1', 'used_good', 600)`),
+      // Its used value (650) is past the target: fires at 650.
+      db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, ebay_used_value, valuation_method) VALUES ('U-2','Parts Copy', 900, 650, 'market')`),
+      db.prepare(`INSERT INTO set_valuation_state (set_num, condition, fair_value) VALUES ('U-2', 'used_complete', 650)`),
+      db.prepare(`INSERT INTO user_collection (user_id, set_num, condition, sell_target) VALUES ('u1','U-2', 'used_acceptable', 600)`),
+    ]);
+    expect((await runWishlistAlerts(e)).sellTargets).toBe(1);
+    const alert = await db.prepare(`SELECT set_num, current_value FROM wishlist_alerts WHERE alert_type='sell_target'`).first<{ set_num: string; current_value: number }>();
+    expect(alert).toEqual({ set_num: 'U-2', current_value: 650 });
+  });
+
+  it('ignores formula-only values for sell targets', async () => {
+    await db.batch([
+      db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, valuation_method) VALUES ('F-1','Formula', 900, 'formula_bulk')`),
+      db.prepare(`INSERT INTO user_collection (user_id, set_num, sell_target) VALUES ('u1','F-1', 500)`),
+    ]);
+    expect((await runWishlistAlerts(e)).sellTargets).toBe(0);
+  });
 });
 
+describe('runWishlistAlerts — per-set switches', () => {
+  beforeEach(async () => {
+    await applyTestTables(db, [
+      'lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist',
+      'wishlist_alerts', 'user_prefs', 'push_subscriptions',
+    ]);
+  });
+
+  it('skips a drop alert when the set\'s "price reaches my target" switch is off', async () => {
+    await db.batch([
+      db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, valuation_method) VALUES ('Q-1','Quiet', 50, 'market')`),
+      db.prepare(`INSERT INTO user_wishlist (user_id, set_num, target_price, notify_target) VALUES ('u1','Q-1', 60, 0)`),
+    ]);
+    const r = await runWishlistAlerts(e);
+    expect(r.fired).toBe(0);
+  });
+
+  it('honours the per-set retiring and back-in-stock switches', async () => {
+    await db.batch([
+      db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, retired, lego_retiring_soon) VALUES ('R-2','Retiring', 30, 0, 1)`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, lego_availability) VALUES ('P-2','Preorder', 'pre_order')`),
+      db.prepare(`INSERT INTO user_wishlist (user_id, set_num, notify_retiring) VALUES ('u1','R-2', 0)`),
+      db.prepare(`INSERT INTO user_wishlist (user_id, set_num, notify_stock) VALUES ('u1','P-2', 0)`),
+    ]);
+    const r = await runWishlistAlerts(e);
+    expect(r.retiring).toBe(0);
+    expect(r.preorders).toBe(0);
+  });
+
+  it('a switched-off category records nothing: no in-app alert, no cooldown stamp', async () => {
+    await db.batch([
+      db.prepare(`INSERT INTO user_prefs (user_id, notify_price_drops, notify_big_moves, notify_retiring) VALUES ('u1', 1, 0, 0)`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, valuation_method) VALUES ('S-9','Spiker', 200, 'market')`),
+      db.prepare(`INSERT INTO user_collection (user_id, set_num, purchase_price) VALUES ('u1','S-9', 100)`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, retired, lego_retiring_soon) VALUES ('R-9','Retiring', 30, 0, 1)`),
+      db.prepare(`INSERT INTO user_wishlist (user_id, set_num) VALUES ('u1','R-9')`),
+      // A collector who wants both still gets both.
+      db.prepare(`INSERT INTO user_collection (user_id, set_num, purchase_price) VALUES ('u2','S-9', 100)`),
+      db.prepare(`INSERT INTO user_wishlist (user_id, set_num) VALUES ('u2','R-9')`),
+    ]);
+    const r = await runWishlistAlerts(e);
+    expect(r.spikes).toBe(1);
+    expect(r.retiring).toBe(1);
+    const mine = await db.prepare(`SELECT COUNT(*) AS n FROM wishlist_alerts WHERE user_id='u1'`).first<{ n: number }>();
+    expect(mine!.n).toBe(0);
+    const stamp = await db.prepare(`SELECT spike_alerted_at FROM user_collection WHERE user_id='u1'`).first<{ spike_alerted_at: string | null }>();
+    expect(stamp!.spike_alerted_at).toBeNull();
+  });
+});
+
+describe('alert preferences', () => {
+  const base = { email: null, discord_webhook_url: null, notify_price_drops: 1 };
+
+  it('categories inherit the master switch until set', () => {
+    expect(wantsAlert({ ...base }, 'moves')).toBe(true);
+    expect(wantsAlert({ ...base, notify_price_drops: 0 }, 'moves')).toBe(false);
+    expect(wantsAlert({ ...base, notify_price_drops: 0, notify_big_moves: 1 }, 'moves')).toBe(true);
+    expect(wantsAlert({ ...base, notify_sell_targets: 0 }, 'sell')).toBe(false);
+    expect(wantsAlert({ ...base, notify_sell_targets: 0 }, 'wishlist')).toBe(true);
+  });
+
+  it('quiet hours wrap midnight in the user\'s time zone', () => {
+    const prefs = { ...base, quiet_hours: 1, quiet_start: 22, quiet_end: 8, timezone: 'Europe/Kyiv' };
+    // 21:30 UTC = 00:30 in Kyiv (UTC+3 in summer) → quiet.
+    expect(inQuietHours(prefs, new Date('2026-07-01T21:30:00Z'))).toBe(true);
+    // 09:00 UTC = 12:00 in Kyiv → not quiet.
+    expect(inQuietHours(prefs, new Date('2026-07-01T09:00:00Z'))).toBe(false);
+    // Off switch or an empty window never silences.
+    expect(inQuietHours({ ...prefs, quiet_hours: 0 }, new Date('2026-07-01T21:30:00Z'))).toBe(false);
+    expect(inQuietHours({ ...prefs, quiet_end: 22 }, new Date('2026-07-01T21:30:00Z'))).toBe(false);
+    // Unknown zone falls back to UTC.
+    expect(inQuietHours({ ...prefs, timezone: 'Not/AZone' }, new Date('2026-07-01T23:00:00Z'))).toBe(true);
+  });
+});

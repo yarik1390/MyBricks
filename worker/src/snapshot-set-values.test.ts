@@ -16,15 +16,23 @@ describe('runSnapshotSetValues', () => {
       db.prepare(`INSERT INTO lego_sets (set_num, name, blended_value, current_value, bl_new_value) VALUES ('X-1','X', 100, 90, 70)`),
       db.prepare(`INSERT INTO user_collection (user_id, set_num) VALUES ('u1','X-1')`),
       db.prepare(`INSERT INTO minifigs (fig_num, name, current_value, ebay_value) VALUES ('fig-1','Luke', 25, 20)`),
-      // Ancient history row (>400d) that must be pruned this run.
+      // Set history keeps five years for the set page's "All" range: a
+      // 500-day-old row stays, a six-year-old one is pruned this run.
       db.prepare(`INSERT INTO set_value_history (set_num, snapshot_date, current_value) VALUES ('X-1', DATE('now','-500 days'), 10)`),
+      db.prepare(`INSERT INTO set_value_history (set_num, snapshot_date, current_value) VALUES ('X-1', DATE('now','-2200 days'), 5)`),
+      // Minifig history stays at 400 days.
+      db.prepare(`INSERT INTO minifig_value_history (fig_num, snapshot_date, current_value) VALUES ('fig-1', DATE('now','-500 days'), 9)`),
     ]);
 
     const r = await runSnapshotSetValues(env as any);
 
     expect(r.snapshotted).toBeGreaterThanOrEqual(1);
     expect(r.figSnapshotted).toBe(1);
-    expect(r.pruned).toBe(1); // the 500-day-old row
+    expect(r.pruned).toBe(1); // only the six-year-old set row
+    const kept = await db.prepare(`SELECT COUNT(*) AS n FROM set_value_history WHERE set_num='X-1' AND snapshot_date < DATE('now','-400 days')`).first<{ n: number }>();
+    expect(kept!.n).toBe(1);
+    const oldFig = await db.prepare(`SELECT COUNT(*) AS n FROM minifig_value_history WHERE snapshot_date < DATE('now','-400 days')`).first<{ n: number }>();
+    expect(oldFig!.n).toBe(0);
 
     const today = await db.prepare(`SELECT current_value FROM set_value_history WHERE set_num='X-1' AND snapshot_date = DATE('now')`).first<{ current_value: number }>();
     expect(today!.current_value).toBe(100); // blended value preferred over current_value

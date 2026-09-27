@@ -27,41 +27,33 @@ function cssRule(selector) {
 }
 
 describe('set-detail Community UI hierarchy', () => {
-  it('welcomes people with semantic framing while preserving contribution actions and moderation truth', () => {
-    assert.match(communityTemplate, /<header class="community-intro">/);
-    assert.match(communityTemplate, /class="community-eyebrow"/);
-    assert.match(communityTemplate, /<h2[^>]*>Community record<\/h2>/);
-    assert.match(communityTemplate, /<div class="community-actions" aria-label="Community contributions">/);
-
-    for (const [act, label] of [
-      ['review', 'Write a review'],
-      ['photo', 'Add photo'],
-      ['fix', 'Suggest a fix'],
-    ]) {
-      assert.match(communityTemplate, new RegExp(`data-act="${act}"[^>]*>[\\s\\S]*?${label}`));
-    }
-    assert.equal((communityTemplate.match(/data-act="(?:review|photo|fix)"/g) || []).length, 3);
-    assert.match(communityTemplate, /class="community-action-copy"/);
+  it('keeps every contribution path and the moderation truth', () => {
+    // Review and photo live in the pinned bottom bar on the Community tab;
+    // "Suggest a fix" is a row inside the tab. All three route through the
+    // delegated [data-contrib] handler.
+    const bar = sourceBetween('function setBarHTML(', '// Hero photo count');
+    assert.match(bar, /tab === "community"/);
+    assert.match(bar, /data-contrib="photo"/);
+    assert.match(bar, /data-contrib="review"/);
+    assert.match(communityTemplate, /"data-contrib": "fix"/);
+    assert.match(communityTemplate, /bvSet\.suggestFix/);
+    assert.match(detailSource, /act === "review"\) openReviewSheet/);
+    assert.match(detailSource, /act === "photo"\) openPhotoSheet/);
+    assert.match(detailSource, /else openDataFixSheet\(set\.set_num, refresh\)/);
     assert.match(communityTemplate, /role="note"/);
-    assert.match(communityTemplate, /class="community-trust-mark" aria-hidden="true"/);
-    assert.match(communityTemplate, /class="u-sr-only">Trust note:/);
-    assert.match(communityTemplate, /Contributions are reviewed before becoming public, keeping shared set data trustworthy\./);
-    assert.match(communityTemplate, /Guest mode can browse community content\. Sign in before contributing/);
+    assert.match(communityTemplate, /bvSet\.trustGuest/);
+    assert.match(communityTemplate, /bvSet\.trustMember/);
+    assert.match(communityTemplate, /bvSet\.communityLoading/);
   });
 
-  it('renders labelled content sections, count/value hierarchy, and one intentional empty card', () => {
-    assert.match(communityWiring, /<section class="community-section community-rating-section" aria-labelledby="communityRatingTitle">/);
-    assert.match(communityWiring, /id="communityRatingTitle"/);
-    assert.match(communityWiring, /class="community-rating-value"/);
-    assert.match(communityWiring, /<section class="community-section" aria-labelledby="communityPhotosTitle">/);
-    assert.match(communityWiring, /<section class="community-section" aria-labelledby="communityReviewsTitle">/);
-    assert.match(communityWiring, /<section class="community-section community-prices" aria-labelledby="communityPricesTitle">/);
-    assert.match(communityWiring, /class="community-section-count"/);
-    assert.match(communityWiring, /class="community-empty"/);
-    assert.equal((communityWiring.match(/class="community-empty"/g) || []).length, 1);
-    assert.doesNotMatch(communityWiring, /No ratings yet — be the first/);
-    assert.match(communityWiring, /Start this set’s community record/);
-    assert.match(communityWiring, /Share the first review or photo, or suggest a correction for the set data\./);
+  it('renders rating, photos, reviews and reported sales, with one intentional empty state', () => {
+    assert.match(communityWiring, /class="bv-card bv-rating community-rating-section"/);
+    assert.match(communityWiring, /bvSet\.ratingReviews/);
+    assert.match(communityWiring, /bvSet\.collectorPhotos/);
+    assert.match(communityWiring, /bvSet\.reviews/);
+    assert.match(communityWiring, /bvSet\.reportedSales/);
+    assert.equal((communityWiring.match(/community-empty"/g) || []).length, 1);
+    assert.match(communityWiring, /bvSet\.communityEmpty/);
 
     // Approved content and pending contribution truth remain distinct and visible.
     assert.match(communityWiring, /reviews\.length/);
@@ -69,16 +61,13 @@ describe('set-detail Community UI hierarchy', () => {
     assert.match(communityWiring, /prices\.length/);
     assert.match(communityWiring, /m\.status === "pending"/);
     assert.match(communityWiring, /community\.pendingSubmission/);
-    assert.match(communityWiring, /Couldn't load community content\./);
-    assert.match(communityTemplate, /Loading community content…/);
+    assert.match(communityWiring, /bvSet\.communityFailed/);
   });
 });
 
 describe('set-detail Manage UI hierarchy', () => {
   it('explains autosave and groups existing fields without changing their IDs or labels', () => {
-    assert.match(manageTemplate, /<div class="manage-tab">/);
-    assert.match(manageTemplate, /<header class="manage-intro">/);
-    assert.match(manageTemplate, /<h2[^>]*>Manage this set<\/h2>/);
+    assert.match(manageTemplate, /<div class="manage-tab bv-passport__body">/);
     assert.match(manageTemplate, /Changes save automatically/);
     assert.match(manageTemplate, /id="manageSaveState"[^>]*aria-live="polite"/);
     assert.equal((manageTemplate.match(/class="form-group manage-group"/g) || []).length, 3);
@@ -103,8 +92,8 @@ describe('set-detail Manage UI hierarchy', () => {
   it('keeps supporting tools and separates the destructive vault removal action', () => {
     assert.match(manageTemplate, /Flip calculator/);
     assert.match(manageTemplate, /Parts completeness/);
-    assert.match(manageTemplate, /Custom photo/);
-    assert.match(manageTemplate, /Story/);
+    assert.match(manageTemplate, /bvSet\.yourPhotos/);
+    assert.match(manageTemplate, /bvSet\.memories/);
     assert.match(manageTemplate, /sellTimingHTML\(set, entry\)/);
     assert.match(detailSource, /<span>Sell timing<\/span>/);
     assert.match(manageTemplate, /id="mSold"/);

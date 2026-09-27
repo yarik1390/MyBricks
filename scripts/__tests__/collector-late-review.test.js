@@ -7,6 +7,8 @@ const minifigsJs = read('public/js/views/minifigs.js');
 const minifigsRoute = read('worker/src/routes/minifigs.ts');
 const detailJs = read('public/js/views/portfolio-detail.js');
 const meJs = read('public/js/views/me.js');
+// Alert switches moved from the Profile page to #/me/notifications (2026 redesign).
+const notifJs = read('public/js/views/me-notifications.js');
 const routerJs = read('public/js/router.js');
 
 function extractBody(source, funcName) {
@@ -50,8 +52,8 @@ describe('late-review Minifigs regressions', () => {
 
 describe('late-review set-detail regressions', () => {
   it('completes ARIA tabs: roving tabindex, arrow/home/end movement, associated panels', () => {
-    assert.match(detailJs, /role="tablist"[\s\S]{0,700}tabindex="\$\{state\.detail\.tab === tab \? "0" : "-1"\}"/);
-    assert.match(detailJs, /aria-controls="panel-\$\{tab\}"/);
+    assert.match(detailJs, /role="tablist"[\s\S]{0,700}tabindex="\$\{tab === id \? "0" : "-1"\}"/);
+    assert.match(detailJs, /aria-controls="panel-\$\{id\}"/);
     const keyBody = detailJs.slice(detailJs.indexOf('Keyboard activation of the tabs'), detailJs.indexOf('Keyboard activation of the tabs') + 900);
     for (const key of ["ArrowRight", "ArrowLeft", "Home", "End"]) assert.match(keyBody, new RegExp(key));
     const switchBody = extractBody(detailJs, 'switchDetailTab');
@@ -59,9 +61,13 @@ describe('late-review set-detail regressions', () => {
   });
 
   it('falls back to info for unknown or unavailable tabs, including manage for unowned sets', () => {
-    const paintBody = extractBody(detailJs, 'paintSetDetail');
-    assert.match(detailJs, /const tabs = owned \? \["info", "forecast", "community", "manage"\] : \["info", "forecast", "community"\]/);
-    assert.match(paintBody, /detailTabs\(owned\)\.includes\(state\.detail\.tab\)/);
+    const paintBody = detailJs.slice(detailJs.indexOf('function paintSetDetail('), detailJs.indexOf('function panelHTML('));
+    assert.match(detailJs, /return \["info", "forecast", "community"\];/);
+    assert.match(detailJs, /TAB_ALIASES = \{ overview: "info", history: "forecast", manage: "passport" \}/);
+    assert.match(paintBody, /if \(!detailTabs\(\)\.includes\(tab\)\) tab = "info";/);
+    // Manage/Passport for a set you don't own falls back to the overview.
+    const passportBody = extractBody(detailJs, 'paintPassport');
+    assert.match(passportBody, /if \(!entry\) \{ state\.detail\.tab = "info"; paintSetDetail\(set, entry\); return; \}/);
   });
 
   it('synchronizes a click-selected tab into the hash route', () => {
@@ -80,22 +86,21 @@ describe('late-review set-detail regressions', () => {
 
 describe('late-review profile settings regressions', () => {
   it('does not swallow notification/digest save failures or fake success', () => {
-    assert.match(meJs, /catch \(err\)\s*\{[\s\S]{0,260}toast\(t\('common\.errorWithDetails'/);
-    assert.doesNotMatch(meJs, /catch \{\}\s*\n\s*toast\(notifyOn \? "Alerts on"/);
-    assert.doesNotMatch(meJs, /catch \{\}\s*\n\s*toast\(digestOn \? "Weekly digest on/);
+    assert.match(notifJs, /catch \(err\)\s*\{[\s\S]{0,260}toast\(t\('common\.errorWithDetails'/);
+    assert.doesNotMatch(notifJs, /catch \{\}\s*\n\s*toast\(/);
+    // Profile edits still surface real errors.
+    assert.match(meJs, /catch \(e\)\s*\{[\s\S]{0,120}toast\(t\('common\.errorWithDetails'/);
   });
 
-  it('disables toggles while saving and rolls back state on failure', () => {
-    assert.match(meJs, /disabled/);
-    assert.match(meJs, /aria-checked/);
-    assert.match(meJs, /on\s*=\s*!on/);
-    assert.match(meJs, /catch \(err\)[\s\S]{0,120}on\s*=\s*!on/);
+  it('flips switches optimistically and rolls back state on failure', () => {
+    assert.match(notifJs, /aria-checked/);
+    assert.match(notifJs, /await savePrefs\(patch, \(\) => \{ prefs\[key\] = prev; \}\)/);
+    assert.match(notifJs, /catch \(err\) \{\s*revert\(\);/);
   });
 
   it('does not imply weekly digest persistence for guests', () => {
-    assert.match(meJs, /isGuestMode\(\)/);
-    const digestRow = meJs.slice(meJs.indexOf('Weekly vault digest'), meJs.indexOf('Weekly vault digest') + 1200);
-    assert.match(digestRow, /guest/);
-    assert.match(digestRow, /disabled|Sign in/);
+    assert.match(notifJs, /isGuestMode\(\)/);
+    assert.match(notifJs, /switchRow\('notify_weekly_digest', 'bvAlerts\.nDigest', 'bvAlerts\.nDigestSub', \{ disabled: guest \}\)/);
+    assert.match(notifJs, /bvAlerts\.guestNote/);
   });
 });

@@ -55,7 +55,7 @@ const WORKER_COPY = [
 // evidence-driven list alongside the harvester instead of re-admitting broad
 // false-positive syntax rules.
 const RUNTIME_EXACT_STRINGS = [
-  'ALL ⭐', 'Insights ⭐', 'Value ↓', 'collection value', 'Common', 'Uncommon',
+  'ALL ⭐', 'Insights ⭐', 'Value ↓', 'Common', 'Uncommon',
   'Rare', 'Legendary', 'Rarity ↓', 'Sync resumes when you return.',
   'Keep your spreadsheet "BricksVault Vault" in sync in the background.',
   'Google Sheets is disabled until OAuth is configured.',
@@ -113,11 +113,11 @@ const RUNTIME_EXACT_STRINGS = [
   'Contributor:', "Couldn't load today's game:", "Couldn't load your year:",
   "Couldn't load:", 'Elapsed:', 'Enable On-Device AI', 'FIRECRAWL_KEY_CREDITS lists',
   'Falling', 'Filters', 'First seen', 'Heartbeat:', 'In stock —', 'Insights',
-  'Key pool — drains in order:', 'Key pool — monthly spend:', 'LOOKUP',
+  'Key pool — drains in order:', 'Key pool — monthly spend:',
   'Local AI session failed.', 'Local Gemma error:', 'New sold', 'New sold comps are',
-  'Next:', 'No pending', 'Open eBay', 'Price checked', 'Provider:', 'Release',
+  'Next:', 'No pending', 'Price checked', 'Provider:', 'Release',
   'Retirement risk: High', 'Rising', 'Sealed', 'Sell', "Sorry, couldn't reach the advisor.",
-  'Submitted:', 'TOP FALLING', 'TOP RISING',
+  'Submitted:',
   'Theme Concentration Warning', 'Try a different search or clear filters.',
   'Used sold', 'Vault:', 'if sold now', 'is a grab', 'not yet run',
   'other themes in your vault', 'skipped —', '· Figs',

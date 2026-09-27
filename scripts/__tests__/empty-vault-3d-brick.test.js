@@ -43,11 +43,11 @@ describe('Crack the Brickvault mini-game', () => {
     const template = emptyVaultTemplate();
     assert.match(template, /class="empty-vault-brick-stage"/);
     assert.match(template, /brand-brick-transparent\.png/);
-    assert.match(template, /class="empty-vault-brick-3d-trigger"/);
+    assert.match(template, /class="empty-vault-brick-3d-trigger[ "]/);
     assert.match(template, /t\('portfolio\.crackVault'\)/);
     assert.match(template, /t\('portfolio\.crackVaultLabel'\)/);
     assert.match(template, /href="#\/add"/);
-    assert.match(template, /href="#\/pile"/);
+    assert.match(template, /data-empty-action="scan"/);
     assert.match(portfolio, /import\(['"]\.\.\/components\/empty-vault-brick-3d\.js['"]\)/);
     assert.doesNotMatch(portfolio, /from ['"].*three/i, 'the Vault route must not eagerly import Three.js');
     assert.match(portfolio, /dataset\.emptyVault3dError/);

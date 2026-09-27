@@ -24,11 +24,12 @@ test.describe('design audit regressions', () => {
   });
 
   test('search and manual-entry controls have stable accessible names and form metadata', async ({ page }) => {
-    await page.goto('/#/minifigs', { waitUntil: 'domcontentloaded' });
+    await page.goto('/#/minifigs?owned=0', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('searchbox', { name: 'Search minifigures' })).toHaveAttribute('name', 'minifig_search');
 
     await page.goto('/#/build', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('searchbox', { name: 'Search buildable sets' })).toHaveAttribute('name', 'build_search');
+    await page.locator('#vaultSearchBtn').click();
+    await expect(page.getByRole('searchbox', { name: 'Search builds' })).toHaveAttribute('name', 'build_search');
 
     await page.goto('/#/pile', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('textbox', { name: 'Set number or barcode' })).toHaveAttribute('name', 'set_identifier');
@@ -46,9 +47,10 @@ test.describe('design audit regressions', () => {
     await page.goto('/#/me', { waitUntil: 'domcontentloaded' });
 
     const change = page.locator('[data-testid="portfolio-change"]');
-    await expect(change).toContainText('Loss');
+    await expect(change).toContainText('loss');
     await expect(change).toContainText('-$100');
-    await expect(change).toContainText('-10.0%');
+    await expect(change).toContainText('−10.0%');
+    await expect(change).toHaveAttribute('aria-label', 'Loss -$100 (−10.0%) against what you paid');
     await expect(change.locator('.arrow')).toHaveText('▼');
     await expect(change).toHaveClass(/is-loss/);
   });
