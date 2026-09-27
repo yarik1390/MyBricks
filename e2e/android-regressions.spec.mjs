@@ -195,6 +195,9 @@ test('the native scan picker keeps its hint clear of the button and lights the s
   const button = await cta.boundingBox();
   expect(hint.y + hint.height).toBeLessThanOrEqual(button.y); // was drawn underneath the button
   expect(await page.evaluate(() => window.__bars.at(-1))).toMatchObject({ lightIcons: true });
+  // A theme resync while the scanner is up (OS light/dark switch) keeps it.
+  await page.evaluate(async () => (await import('/js/theme.js')).applyTheme('light'));
+  expect(await page.evaluate(() => window.__bars.at(-1))).toMatchObject({ lightIcons: true });
 
   await page.locator('#scanCloseBtn').click();
   await expect(page.locator('#scanOverlay.open')).toHaveCount(0);

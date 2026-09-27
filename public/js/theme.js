@@ -33,12 +33,14 @@ export function getSkinPref() {
   } catch { return 'retro'; }
 }
 
+let barsOverride = null; // see setSystemBarsOverride
+
 function updateMetaThemeColor() {
   const scheme = resolveTheme(getThemePref());
   const skin = getSkinPref();
   const color = (META_THEME_COLORS[skin] || META_THEME_COLORS.retro)[scheme];
   document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute('content', color));
-  syncNativeSystemBars(color);
+  syncNativeSystemBars(barsOverride || color);
 }
 
 // The Android shell paints the status/navigation bars natively (MainActivity
@@ -55,10 +57,11 @@ function syncNativeSystemBars(color) {
 }
 
 // A full-screen dark surface (the scanner) needs light status-bar icons while
-// it is up; null hands the bars back to the theme.
+// it is up; null hands the bars back to the theme. Kept as state so a theme
+// resync meanwhile (e.g. the OS switching light/dark) doesn't undo it.
 export function setSystemBarsOverride(color) {
-  if (color) syncNativeSystemBars(color);
-  else updateMetaThemeColor();
+  barsOverride = color || null;
+  updateMetaThemeColor();
 }
 
 export function applyTheme(pref) {
