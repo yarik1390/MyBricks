@@ -8867,7 +8867,7 @@
     ]
   },
   {
-    "text": "bv-discover__section coming-soon-wrap",
+    "text": "bv-discover__section bv-comingsoon",
     "files": [
       "views/catalog.js"
     ]
@@ -9099,6 +9099,12 @@
     "text": "bv-setpage__body bv-enter",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "bv-setrow bv-comingsoon__row",
+    "files": [
+      "views/catalog.js"
     ]
   },
   {

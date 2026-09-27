@@ -1418,7 +1418,7 @@ body.collector-ui .bv-discover #catalogSortBtn { grid-column: auto; grid-row: au
 .bv-notify::after { content: ""; position: absolute; inset: -8px 0; }
 .bv-notify { position: relative; }
 .bv-notify[aria-pressed="true"] { background: var(--bv-ink); color: var(--bv-bg); }
-.cs-card { cursor: pointer; }
+.bv-comingsoon__row { cursor: pointer; }
 .bv-themepicker { max-height: 52dvh; overflow-y: auto; margin-top: 8px; }
 .bv-filter { display: flex; flex-direction: column; gap: 4px; }
 .bv-filter__section { display: flex; flex-direction: column; gap: 6px; padding: 6px 0; }

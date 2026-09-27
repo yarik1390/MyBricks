@@ -240,22 +240,24 @@ function retiringSectionHTML() {
 }
 
 // "Coming soon" (upcoming LEGO releases): rows with Notify me (= wishlist).
+// Class names avoid app.css's legacy .coming-soon-wrap / .cs-card rules, which
+// forced these rows into a narrow horizontal rail and hid the set names.
 function comingSoonSectionHTML() {
   const up = state.catalog.upcoming || [];
-  if (!isCatalogDefault() || !up.length) return "";
+  if (!isCatalogDefault() || !up.length || getModePref() === "kids") return "";
   const isLoggedIn = !!getSessionUserId();
   const wish = new Set((state.wishlist || []).map((w) => w.set_num));
   const row = (u) => {
     const on = wish.has(u.set_num);
-    return `<div class="bv-setrow cs-card" data-cs-open="${escapeHtml(String(u.set_num))}" role="link" tabindex="0">
+    return `<div class="bv-setrow bv-comingsoon__row" data-cs-open="${escapeHtml(String(u.set_num))}" role="link" tabindex="0">
         ${kitThumb({ color: `hsl(${setHue(u)} 45% 60%)`, size: 52 })}
         <span class="bv-setrow__body"><span class="bv-setrow__name">${escapeHtml(String(u.name || u.set_num))}</span><span class="bv-setrow__meta">${escapeHtml([String(u.set_num || "").replace(/-\d+$/, ""), u.availability || t("bvCommon.comingSoon")].join(" · "))}</span></span>
         <span class="bv-setrow__end">${u.price_usd ? `<span class="bv-setrow__value">${escapeHtml(money0(u.price_usd))}</span>` : ""}
-          ${isLoggedIn ? `<button type="button" class="bv-pill bv-pill--info bv-notify cs-wish-btn${on ? " cs-wish-btn--on" : ""}" data-cs-wish="${escapeHtml(String(u.set_num))}" data-cs-name="${escapeHtml(String(u.name || ""))}" aria-pressed="${on}">${escapeHtml(t(on ? "bvAdd.notifying" : "bvAdd.notifyMe"))}</button>` : ""}</span>
+          ${isLoggedIn ? `<button type="button" class="bv-pill bv-pill--info bv-notify" data-cs-wish="${escapeHtml(String(u.set_num))}" data-cs-name="${escapeHtml(String(u.name || ""))}" aria-pressed="${on}">${escapeHtml(t(on ? "bvAdd.notifying" : "bvAdd.notifyMe"))}</button>` : ""}</span>
       </div>`;
   };
-  return `<section class="bv-discover__section coming-soon-wrap" aria-labelledby="comingSoonTitle">
-      ${kitSectionTitle(t("catalog.comingSoon"), { id: "comingSoonTitle", trailHtml: up.length > 3 ? `<button type="button" class="bv-card__link bv-linkbtn" id="comingSoonAll">${escapeHtml(t("common.seeAll"))}${kitIcon("chev", { size: 16 })}</button>` : "" })}
+  return `<section class="bv-discover__section bv-comingsoon" aria-labelledby="comingSoonTitle">
+      ${kitSectionTitle(t("bvCommon.comingSoon"), { id: "comingSoonTitle", trailHtml: up.length > 3 ? `<button type="button" class="bv-card__link bv-linkbtn" id="comingSoonAll">${escapeHtml(t("common.seeAll"))}${kitIcon("chev", { size: 16 })}</button>` : "" })}
       <div class="bv-group__box" id="comingSoonList">${up.slice(0, state.catalog.showAllUpcoming ? 40 : 3).map(row).join("")}</div>
     </section>`;
 }
@@ -674,7 +676,6 @@ function wireCatalogCards() {
           if (state.wishlist) state.wishlist.push({ set_num: setNum, name });
         }
         wishBtn.setAttribute("aria-pressed", String(!isOn));
-        wishBtn.classList.toggle("cs-wish-btn--on", !isOn);
         wishBtn.textContent = t(!isOn ? "bvAdd.notifying" : "bvAdd.notifyMe");
       } catch (err) {
         toast(err.message || t("common.actionFailed"), "error");
