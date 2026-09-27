@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { requireMember } from '../auth';
+import { optionalMember, requireMember } from '../auth';
 import type { Env, Variables } from '../types';
 import { holdingValueForRollout } from '../lib/market-sources';
 
@@ -64,36 +64,76 @@ app.get('/leaderboard', async (c) => {
     current.total_value = Number(current.total_value) + holdingValueForRollout(row, rolloutPercent) * Number(row.quantity || 1);
     grouped.set(userId, current);
   }
-  const ranked = [...grouped.values()]
-    .filter(row => Number(row.total_value) > 0)
-    .sort((a, b) => Number(b.total_value) - Number(a.total_value))
-    .slice(0, 50);
-  const leaders = ranked.map((r, i) => ({
+  const everyone = [...grouped.values()];
+
+  // "Rising": change against each collector's own snapshot from ~30 days ago
+  // (the newest one at least 30 days old). Null when there's no history.
+  const monthAgo = new Map<string, number>();
+  const snaps = await c.env.DB.prepare(`
+    SELECT ps.user_id, ps.total_value FROM portfolio_snapshots ps
+    JOIN (SELECT s.user_id, MAX(s.snapshot_date) AS d FROM portfolio_snapshots s
+          JOIN user_prefs p ON p.user_id = s.user_id
+          WHERE p.is_public = 1 AND p.expose_public_value = 1 AND p.handle IS NOT NULL
+            AND s.snapshot_date <= date('now', '-30 days')
+          GROUP BY s.user_id) m
+      ON m.user_id = ps.user_id AND m.d = ps.snapshot_date
+  `).all<{ user_id: string; total_value: number }>().catch(() => ({ results: [] as { user_id: string; total_value: number }[] }));
+  for (const s of snaps.results || []) if (Number(s.total_value) > 0) monthAgo.set(String(s.user_id), Number(s.total_value));
+  const change = (r: Record<string, unknown>) => {
+    const before = monthAgo.get(String(r.user_id));
+    return before ? Math.round(((Number(r.total_value) - before) / before) * 1000) / 10 : null;
+  };
+
+  // ?sort=value (default) | sets | rising. Rising only ranks collectors with
+  // a month of history.
+  // Only the value-based rankings need a valuation; a collection whose sets
+  // aren't priced yet still has a real set count.
+  const sort = c.req.query('sort') === 'sets' ? 'sets' : c.req.query('sort') === 'rising' ? 'rising' : 'value';
+  const byValue = (a: Record<string, unknown>, b: Record<string, unknown>) => Number(b.total_value) - Number(a.total_value);
+  const valued = everyone.filter(r => Number(r.total_value) > 0);
+  const pool = sort === 'sets' ? everyone : sort === 'rising' ? valued.filter(r => change(r) !== null) : valued;
+  const allRanked = [...pool].sort(
+    sort === 'sets' ? (a, b) => (Number(b.set_count) - Number(a.set_count)) || byValue(a, b)
+      : sort === 'rising' ? (a, b) => (Number(change(b)) - Number(change(a))) || byValue(a, b)
+      : byValue,
+  );
+  const leaders = allRanked.slice(0, 50).map((r, i) => ({
     rank: i + 1,
     handle: r.handle,
     display_name: r.display_name || r.handle,
     is_supporter: r.is_supporter === 1,
     set_count: r.set_count,
     total_value: r.total_value,
+    change_30d_pct: change(r),
   }));
-  return c.json({ leaders });
+
+  // ?value= / ?sets= let a private collector see where they would land
+  // ("You'd be #214 of 1,204") without joining.
+  const probe = Number(c.req.query(sort === 'sets' ? 'sets' : 'value'));
+  const wouldRank = sort !== 'rising' && Number.isFinite(probe) && probe > 0
+    ? allRanked.filter(r => Number(sort === 'sets' ? r.set_count : r.total_value) > probe).length + 1
+    : null;
+  return c.json({ leaders, total: allRanked.length, sort, would_rank: wouldRank });
 });
 
-// GET /api/users/:handle/profile — public, no auth required
-app.get('/:handle/profile', async (c) => {
+// GET /api/users/:handle/profile — public, no auth required. A signed-in
+// owner also gets their own profile while it is private, as a preview
+// (is_owner / is_public tell the page to say so); anyone else gets a 404.
+app.get('/:handle/profile', optionalMember, async (c) => {
   const handle = c.req.param('handle');
   const prefs = await c.env.DB.prepare(
     `SELECT user_id, display_name, is_public, expose_public_value, is_supporter FROM user_prefs WHERE handle=?`
   ).bind(handle).first<{ user_id: string; display_name: string; is_public: number; expose_public_value: number; is_supporter: number }>();
 
-  if (!prefs || !prefs.is_public) return c.json({ error: 'Profile not found' }, 404);
+  const isOwner = !!prefs && !!c.get('userId') && c.get('userId') === prefs.user_id;
+  if (!prefs || (!prefs.is_public && !isOwner)) return c.json({ error: 'Profile not found' }, 404);
 
   const userId = prefs.user_id;
   const exposeValue = prefs.expose_public_value !== 0;
 
   const [holdingResult, showcase, contribCount] = await Promise.all([
     c.env.DB.prepare(`
-      SELECT ${HOLDING_VALUE_COLUMNS}, ls.theme
+      SELECT ${HOLDING_VALUE_COLUMNS}, ls.theme, ls.pieces, uc.added_at
       FROM user_collection uc
       JOIN lego_sets ls ON ls.set_num = uc.set_num
       LEFT JOIN set_valuation_state svn ON svn.set_num=ls.set_num AND svn.condition='new_sealed'
@@ -115,10 +155,15 @@ app.get('/:handle/profile', async (c) => {
   ]);
   const rolloutPercent = Number(c.env.PRICING_V3_READ_PERCENT || 0);
   let totalValue = 0;
+  let pieceCount = 0;
+  let firstAdded: string | null = null;
   const themeValues = new Map<string, number>();
   for (const row of holdingResult.results || []) {
     const value = holdingValueForRollout(row, rolloutPercent) * Number(row.quantity || 1);
     totalValue += value;
+    pieceCount += (Number(row.pieces) || 0) * Number(row.quantity || 1);
+    const added = row.added_at ? String(row.added_at) : null;
+    if (added && (!firstAdded || added < firstAdded)) firstAdded = added;
     const theme = String(row.theme || 'Other');
     themeValues.set(theme, (themeValues.get(theme) || 0) + value);
   }
@@ -129,11 +174,15 @@ app.get('/:handle/profile', async (c) => {
 
   return c.json({
     handle,
+    is_public: !!prefs.is_public,
+    is_owner: isOwner,
     display_name: prefs.display_name || handle,
     is_supporter: prefs.is_supporter === 1,
     approved_contributions: contribCount?.approved_contributions ?? 0,
     expose_public_value: exposeValue,
     set_count: holdingResult.results?.length ?? 0,
+    piece_count: pieceCount,
+    collecting_since: firstAdded ? Number(firstAdded.slice(0, 4)) || null : null,
     total_value: exposeValue ? totalValue : null,
     top_themes: themes,
     showcase,

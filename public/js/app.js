@@ -584,6 +584,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       offlineShowTimer = null;
     }
     document.body.classList.toggle("offline", offlineUiState === "offline");
+    // Presentation only: say when the values are from and what will sync.
+    if (offlineUiState === "offline" && prev !== "offline") {
+      import('./ui/first-ui.js').then(m => m.paintOfflineBanner()).catch(() => {});
+    }
     // Self-heal: while we believe we're offline (or pending), keep re-probing so a
     // transient boot/SW race that stranded the banner recovers on its own — the
     // boot probe is one-shot and only re-checks on the browser "online" event,
@@ -632,11 +636,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   // banner directly, so a single failed request can't flash it on its own.
   window.addEventListener("bv:api-ok", () => { if (offlineUiState !== "online") applyOfflineState(false); });
   window.addEventListener("bv:api-fail", () => { refreshOfflineState(); });
+  // Edits made while already offline land in the outbox — keep the banner's
+  // "N changes will sync" count current.
+  window.addEventListener("bv:outbox", () => {
+    if (offlineUiState === "offline") import('./ui/first-ui.js').then(m => m.paintOfflineBanner()).catch(() => {});
+  });
 
   setupGestures();
   setupFabScrollAwareness();
   setupImageHydration();
   setupKeyboardAwareShell();
+  import('./lib/list-detail.js').then(m => m.initListDetail()).catch(() => {});
 
   if ("serviceWorker" in navigator && !isNativeCapacitor()) {
     navigator.serviceWorker.register("/sw.js")
