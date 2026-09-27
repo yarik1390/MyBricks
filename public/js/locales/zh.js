@@ -636,6 +636,7 @@ export const zh = {
     identifyPhotoSub: '已拼装、散件或盒装',
     identifyPhoto: '通过照片识别',
     howIdentify: '想用哪种方式识别？',
+    systemScanner: '看不到相机画面？使用系统扫描器',
     hintShelf: '把整层架子放进画面——光线好更准',
     hintPhoto: '对准套装并拍照',
     hintNext: '下一个盒子——保持在画面中',

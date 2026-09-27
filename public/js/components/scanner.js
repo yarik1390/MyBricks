@@ -1,7 +1,7 @@
 import { $, $$, haptic, escapeHtml, fmtMoney, toast, setBtnLoading, readFileAsDataURL, resizeImage, setHue, getExchangeRate, CURRENCY_SYMBOLS, activateFocusTrap, FOCUSABLE_SEL, getCachedSetDetail, track, capturedMoneyContext } from '../utils.js';
 import { icon as kitIcon, iconBtn as kitIconBtn, field as kitField, seg as kitSeg, pill as kitPill, sheetBody as kitSheetBody, thumb as kitThumb } from '../ui/kit.js';
 import { quadToViewRect, screenQuadToViewRect, cornerOffsets, defaultFrame } from '../lib/scan-geometry.js';
-import { liveScanOptIn } from '../lib/native-barcode.js';
+import { liveScanEnabled } from '../lib/native-barcode.js';
 import { localMoneyToUsd } from '../lib/money-input.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, outboxEnqueue, getSessionUserId, photoScanNeedsSetup, isGuestMode } from '../api.js';
@@ -32,10 +32,13 @@ let _lastRetryableScan = null;
 let _session = [];           // sets added in this scanner session (Done · N)
 let _lastBarcode = null;     // last decoded / typed barcode (unknown-code card)
 let _moveCloserTimer = null; // "Move closer" + zoom step after 2.5 s
-let _liveStop = null;        // stop() for the opt-in native live scanner
+let _liveStop = null;        // stop() for the native live scanner
+let _liveUnavailable = false; // live camera failed / declined this run → ML Kit Activity
+let _systemScanTimer = null; // offers the Activity scanner if nothing locks on
 let _frameRect = null;       // current searching frame (CSS px)
 let _torchOn = false;
 const MOVE_CLOSER_MS = 2500;
+const SYSTEM_SCAN_MS = 7000;
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 function scanHintText(mode, shelf) {
@@ -59,8 +62,8 @@ function paintCloseButton() {
 }
 
 function scanOverlayHTML(mode, shelf = false) {
-  // Installed app, barcode / blind-box: ML Kit's own Activity owns the camera
-  // unless the opt-in live scanner runs behind a transparent WebView.
+  // Installed app, barcode / blind-box: the live scanner runs CameraX behind a
+  // transparent WebView; ML Kit's own Activity is the fallback (nativeHandoff).
   const nativeHandoff = mode !== "image" && isNativeCapacitor() && !_liveNativeWanted;
   const picking = nativeHandoff && _nativeHold;
   const segMode = mode === "image" ? (shelf ? "shelf" : "image") : mode;
@@ -436,7 +439,7 @@ export function openScan(mode = "barcode", { deferStart = false, shelf = false, 
   state.camera.mode = mode;
   // Shelf Snap: photo mode variant — one wide photo, every set on the shelf.
   state.camera.shelf = mode === "image" && !!shelf;
-  _liveNativeWanted = mode !== "image" && isNativeCapacitor() && liveScanOptIn();
+  _liveNativeWanted = mode !== "image" && isNativeCapacitor() && !_liveUnavailable && liveScanEnabled();
   if (fresh) _nativePicker = pick && isNativeCapacitor();
   _nativeHold = pick && mode === "barcode" && isNativeCapacitor() && !_liveNativeWanted;
   ov.classList.remove("native-handoff");
@@ -523,6 +526,7 @@ export function closeScan() {
 export function stopCamera() {
   clearInterval(state.camera.timer);
   clearTimeout(_moveCloserTimer);
+  clearTimeout(_systemScanTimer);
   state.camera.timer = null;
   if (state.camera.stream) {
     state.camera.stream.getTracks().forEach(t => t.stop());
@@ -542,15 +546,22 @@ export async function startCamera() {
   resetLock();
   showChip("");
   // On the installed app, barcode / blind-box modes use the native ML Kit
-  // scanner — NEVER the getUserMedia path. By default ML Kit's own Activity
-  // owns the preview; the opt-in live scanner keeps our chrome on screen.
+  // scanner — NEVER the getUserMedia path. The live scanner keeps our chrome
+  // on screen; ML Kit's own Activity is the fallback.
   if (state.camera.mode !== "image" && isNativeCapacitor()) {
     // Switching mode or closing while these checks run reopens the scanner
     // (new generation): this start must not launch ML Kit over that screen.
     const generation = _scanGeneration;
     const stale = () => generation !== _scanGeneration;
-    if (_liveNativeWanted && await startLiveNativeScan()) return;
-    if (stale()) return;
+    if (_liveNativeWanted) {
+      if (await startLiveNativeScan(stale)) return;
+      if (stale()) return;
+      // No live camera (permission declined, CameraX error): re-render as the
+      // Activity handoff — the method switcher when opened from a generic entry.
+      _liveUnavailable = true;
+      openScan(state.camera.mode, { pick: _nativePicker });
+      return;
+    }
     document.querySelector(".bv-scan")?.classList.add("is-native");
     let supported = false;
     try {
@@ -604,21 +615,24 @@ export async function startCamera() {
   }
 }
 
-// Opt-in live native scanner: CameraX behind a transparent WebView, our
-// brackets on top. Returns false when it can't run (caller uses the Activity).
-async function startLiveNativeScan() {
+// Live native scanner: CameraX behind a transparent WebView, our brackets on
+// top. Returns false when it can't run (the caller falls back to the Activity);
+// a start that went stale while the camera spun up is stopped and counts as
+// handled, so it never leaves a camera running under another mode.
+async function startLiveNativeScan(stale = () => false) {
+  let stop = null;
   try {
     const mod = await import("../lib/native-barcode.js");
     if (!(await mod.nativeLiveScanSupported(window))) return false;
-    document.documentElement.classList.add("bv-scan-native-live");
-    state.camera.scanning = true;
-    _liveStop = await mod.startNativeLiveScan(window, {
+    if (stale()) return true;
+    stop = await mod.startNativeLiveScan(window, {
       onBarcodes: (barcodes) => {
         if (!state.camera.scanning || _scanPending || $("#scanResult")?.classList.contains("show")) return;
         const b = barcodes.find((x) => x?.rawValue || x?.displayValue);
         if (!b) return;
         state.camera.scanning = false;
         clearTimeout(_moveCloserTimer);
+        hideSystemScanOffer();
         const { w, h } = scanView();
         const rect = screenQuadToViewRect(mod.normalizeCornerPoints(b.cornerPoints), w, h, window.devicePixelRatio || 1);
         haptic("success");
@@ -626,15 +640,52 @@ async function startLiveNativeScan() {
         routeScannedCode(b.rawValue || b.displayValue);
       },
     });
+    if (stale()) { stop().catch(() => {}); return true; }
+    _liveStop = stop;
+    // The WebView is transparent from here: hide the page so only the
+    // scanner chrome draws over the camera preview.
+    document.documentElement.classList.add("bv-scan-native-live");
+    state.camera.scanning = true;
     wireTorch();
     armMoveCloser();
+    armSystemScanOffer();
     return true;
   } catch {
+    stop?.().catch(() => {});
     document.documentElement.classList.remove("bv-scan-native-live");
     _liveStop = null;
     _liveNativeWanted = false;
     return false;
   }
+}
+
+// Live scanner safety net: if nothing has locked on after a few seconds, offer
+// ML Kit's own full-screen scanner (a camera that never shows on some device
+// would otherwise leave only our brackets over black).
+function armSystemScanOffer() {
+  clearTimeout(_systemScanTimer);
+  if (!_liveStop) return;
+  _systemScanTimer = setTimeout(() => {
+    if (!_liveStop || !state.camera.scanning || $("#scanSystemBtn")) return;
+    const wrap = document.querySelector(".bv-scan");
+    if (!wrap) return;
+    const btn = document.createElement("button");
+    btn.id = "scanSystemBtn";
+    btn.type = "button";
+    btn.className = "bv-scan__alt";
+    btn.textContent = t("bvAdd.systemScanner");
+    btn.addEventListener("click", () => {
+      haptic("light");
+      _liveUnavailable = true; // for the rest of this run
+      openScan(state.camera.mode);
+    });
+    wrap.appendChild(btn);
+  }, SYSTEM_SCAN_MS);
+}
+
+function hideSystemScanOffer() {
+  clearTimeout(_systemScanTimer);
+  $("#scanSystemBtn")?.remove();
 }
 
 // Native ML Kit barcode flow (installed app). The native scanner Activity owns

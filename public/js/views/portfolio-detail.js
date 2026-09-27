@@ -1,4 +1,5 @@
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg, capturedMoneyContext, advisorEnabled } from '../utils.js';
+import { goBackOr } from '../lib/nav-history.js';
 import { icon as kitIcon, iconBtn as kitIconBtn, row as kitRow, seg as kitSeg, field as kitField, pill as kitPill, delta as kitDelta, topbar as kitTopbar, emptyState as kitEmptyState, sheetBody as kitSheetBody, brickSvg as kitBrick } from '../ui/kit.js';
 import { localMoneyToUsd, usdMoneyInputValue } from '../lib/money-input.js';
 import { derivePartOutDecision } from '../lib/part-out-decision.js';
@@ -80,12 +81,21 @@ let _swipeAc = null;
    Set detail
    ============================================================ */
 export async function renderSetDetail(setNum) {
-  const hit = state.detail.cache[setNum];
-  const now = Date.now();
-  if (hit && now - hit.ts < 300_000) {
+  // Stale-while-revalidate: any copy we hold — this session's, or the device
+  // cache from an earlier visit — paints at once and the network refresh then
+  // updates the page in place. Only a set never opened here waits on the
+  // network (it used to be every visit after five minutes).
+  let hit = state.detail.cache[setNum];
+  if (!hit) {
+    const stored = await getCachedSetDetail(setNum, getSessionUserId());
+    if (stored?.set) hit = { set: stored.set, entry: stored.entry ?? null, ts: stored.ts };
+    if (!location.hash.includes(setNum)) return; // left while the cache was read
+  }
+  if (hit) {
     let painted = false;
     try { paintSetDetail(hit.set, hit.entry); painted = true; } catch { delete state.detail.cache[setNum]; }
     if (painted) {
+      const shown = JSON.stringify([hit.set, hit.entry]);
       api("/api/sets/" + encodeURIComponent(setNum))
         .then(data => {
           const set = data.set || data;
@@ -93,7 +103,9 @@ export async function renderSetDetail(setNum) {
           const entry = data.entry || null;
           state.detail.cache[setNum] = { set, entry, ts: Date.now() };
           cacheSetDetail(setNum, set, entry, getSessionUserId());
-          // Don't repaint over an open sheet (the user is mid-edit).
+          // Nothing changed → leave the page (and its photo) alone. Don't
+          // repaint over an open sheet either (the user is mid-edit).
+          if (JSON.stringify([set, entry]) === shown) return;
           if (location.hash.includes(setNum) && !document.body.classList.contains("sheet-open")) paintSetDetail(set, entry, { background: true });
         }).catch(() => {
           if (location.hash.includes(setNum)) toast("Showing cached data — live prices are unavailable", "info");
@@ -180,7 +192,7 @@ function paintSetDetail(set, entry, { background = false } = {}) {
   $("#root").innerHTML = `
     <main class="bv-page no-nav has-bar bv-setpage detail-page-container" data-detail-tab="${escapeHtml(tab)}" data-set="${escapeHtml(set.set_num)}">
       ${heroHTML(set, isWish)}
-      <div class="bv-setpage__body bv-enter">
+      <div class="bv-setpage__body${background ? "" : " bv-enter"}">
         ${titleBlockHTML(set)}
         ${valueCardHTML(set, entry)}
         ${signalBannerHTML(set, entry)}
@@ -1990,7 +2002,7 @@ function ensureDetailDelegation() {
   root.addEventListener("click", (e) => {
     try {
       if (!_detailCtx) return;
-      if (e.target.closest("#detailBack")) { if (history.length > 1) history.back(); else location.hash = "#/"; return; }
+      if (e.target.closest("#detailBack")) { goBackOr("#/"); return; }
       if (e.target.closest("#shareBtn")) { shareSet(_detailCtx.set); return; }
       const sheetBtn = e.target.closest("[data-set-sheet]");
       if (sheetBtn && sheetBtn.closest(".bv-setpage")) {

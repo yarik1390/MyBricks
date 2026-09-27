@@ -148,34 +148,43 @@ export async function renderMe() {
   }
 
   let me = state.me;
-  let publicProfile = null;
   if (!me) $("#root").innerHTML = skelPage(skelStatGrid(3) + skelSettingRows(6));
   try {
     me = me || await api("/api/me");
     state.me = me;
-    if (me.handle && !isGuestMode()) {
-      // The owner's own shelf — readable even while the profile is private.
-      // Any failure leaves publicProfile null and the shelf editor stays closed
-      // rather than editing an empty copy.
-      publicProfile = await api("/api/users/" + encodeURIComponent(me.handle) + "/showcase").catch(() => null);
-    }
   } catch (_e) {
     toast(t('bvAccount.loadFailed'), "error");
     me = me || { display_name: t('bvAccount.collector'), handle: null, notify_price_drops: true, portfolio_stats: {} };
   }
   if (!onMe()) return;
+  // Paint from the profile we already hold; the owner's shelf (only the
+  // public-profile sheet needs it) loads behind the page instead of making
+  // every visit wait on a network round trip.
   $("#root").innerHTML = pageHTML(me);
-  wire(me, publicProfile);
+  const shelf = loadOwnShowcase(me);
+  wire(me, shelf);
   // Leaderboard "Go public" and the profile preview's "Turn on" land here.
   if (new URLSearchParams(location.hash.split("?")[1] || "").get("sheet") === "public") {
     history.replaceState(null, "", "#/me");
     if (isGuestMode()) go("#/login");
-    else openPublicProfileSheet(me, publicProfile);
+    else openPublicProfileSheet(me, await shelf);
   }
   if (stripeSuccess) toast(t('bvAccount.thanksSupport'), "success");
 }
 
-function wire(me, publicProfile) {
+// The owner's own shelf — readable even while the profile is private. Any
+// failure resolves null and the shelf editor stays closed rather than editing
+// an empty copy. The last copy answers at once; a fresh one replaces it.
+let _ownShowcase = null; // { handle, profile }
+function loadOwnShowcase(me) {
+  if (!me.handle || isGuestMode()) return Promise.resolve(null);
+  const fresh = api("/api/users/" + encodeURIComponent(me.handle) + "/showcase")
+    .then((profile) => { _ownShowcase = { handle: me.handle, profile }; return profile; })
+    .catch(() => null);
+  return _ownShowcase?.handle === me.handle ? Promise.resolve(_ownShowcase.profile) : fresh;
+}
+
+function wire(me, shelf) {
   // Native installs are versioned by the store build — show the real one
   // instead of a hand-maintained string that drifts out of date.
   getCapacitorPlugin('App')?.getInfo?.().then(info => {
@@ -189,7 +198,8 @@ function wire(me, publicProfile) {
   $("#publicProfileRow")?.addEventListener("click", () => {
     haptic("light");
     if (isGuestMode()) { go("#/login"); return; }
-    openPublicProfileSheet(me, publicProfile);
+    // Freshest copy at tap time (the background refresh may have landed).
+    shelf.then((first) => { if (onMe()) openPublicProfileSheet(me, _ownShowcase?.handle === me.handle ? _ownShowcase.profile : first); });
   });
   $("#appearanceRow")?.addEventListener("click", () => { haptic("light"); openAppearanceSheet(me); });
   $("#currencyRow")?.addEventListener("click", () => { haptic("light"); openCurrencySheet(me); });
@@ -235,7 +245,7 @@ function wire(me, publicProfile) {
 
   async function clearLocalSessionState() {
     invalidatePortfolio(); state.me = null; state.catalog.items = [];
-    state.blind.items = []; state.wishlist = []; state.portfolioHistory = null;
+    state.blind.items = []; state.wishlist = []; state.wishlistLoadedAt = 0; state.portfolioHistory = null;
     try {
       await Promise.all([bvIDB.del('portfolio'), bvIDB.del('catalog'), bvIDB.del('blind')]);
     } catch {}

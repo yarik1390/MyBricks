@@ -636,6 +636,7 @@ export const ja = {
     identifyPhotoSub: '組立済み・バラ・箱入り',
     identifyPhoto: '写真で識別',
     howIdentify: 'どの方法で識別しますか？',
+    systemScanner: 'カメラが表示されない場合は、システムのスキャナーを使う',
     hintShelf: '棚全体を入れてください。明るい場所がおすすめ',
     hintPhoto: 'セットを枠に入れて撮影',
     hintNext: '次の箱 — 画面に入れてください',

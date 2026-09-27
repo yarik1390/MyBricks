@@ -72,12 +72,12 @@ describe('native branded barcode scanning', () => {
   });
 });
 
-describe('opt-in live native scanning', () => {
-  it('is opt-in and needs the embedded scanner API', async () => {
-    const { liveScanOptIn, nativeLiveScanSupported } = await import('../lib/native-barcode.js');
-    assert.equal(liveScanOptIn({ getItem: () => null }), false);
-    assert.equal(liveScanOptIn({ getItem: (k) => (k === 'bv_scan_live' ? '1' : null) }), true);
-    assert.equal(liveScanOptIn({ getItem: () => { throw new Error('blocked'); } }), false);
+describe('live native scanning', () => {
+  it('is on unless turned off, and needs the embedded scanner API', async () => {
+    const { liveScanEnabled, nativeLiveScanSupported } = await import('../lib/native-barcode.js');
+    assert.equal(liveScanEnabled({ getItem: () => null }), true);
+    assert.equal(liveScanEnabled({ getItem: (k) => (k === 'bv_scan_live' ? '0' : null) }), false);
+    assert.equal(liveScanEnabled({ getItem: () => { throw new Error('blocked'); } }), true);
     const generic = { isSupported: async () => ({ supported: true }), scan: async () => ({ barcodes: [] }) };
     const embedded = { ...generic, startScan: async () => {}, stopScan: async () => {}, addListener: async () => ({ remove: async () => {} }) };
     assert.equal(await nativeLiveScanSupported(nativeWindow(generic)), false);

@@ -4,6 +4,7 @@
 // land. A public profile shows only what its owner exposes; the owner can
 // preview it before going public.
 import { $, $$, escapeHtml, haptic, toast, publicOrigin, themeHue, THEME_COLORS, fmtMoneyShort } from '../utils.js';
+import { goBackOr } from '../lib/nav-history.js';
 import { state } from '../state.js';
 import { api, isGuestMode } from '../api.js';
 import { t, tPlural, intlLocale } from '../lib/i18n.js';
@@ -26,7 +27,7 @@ function initial(name) {
   const ch = String(name || '?').trim().replace(/^@/, '').charAt(0);
   return (ch || '?').toUpperCase();
 }
-function back() { if (history.length > 1) history.back(); else location.hash = '#/me'; }
+function back() { goBackOr('#/me'); }
 
 function readCache(sort) {
   try {

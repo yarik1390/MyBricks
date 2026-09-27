@@ -10,6 +10,8 @@ import { getCapacitorPlugin, isNativeCapacitor } from './native-auth.js';
 import { hideSheet } from '../components/sheet.js';
 import { closeScan } from '../components/scanner-lazy.js';
 import { cancelActiveStream } from '../components/advisor-lazy.js';
+import { goBackOr, backTarget } from './nav-history.js';
+import { getModePref } from '../theme.js';
 
 let wired = false;
 
@@ -43,7 +45,7 @@ export function initNativeBack(win) {
   if (!App?.addListener) return;
   wired = true;
 
-  App.addListener('backButton', ({ canGoBack } = {}) => {
+  App.addListener('backButton', () => {
     // 1. Fullscreen image viewer owns a history entry — let it close itself.
     if (document.body.classList.contains('lightbox-open')) { history.back(); return; }
 
@@ -68,13 +70,18 @@ export function initNativeBack(win) {
       return;
     }
 
-    // 6. Not on a home screen → step back one view.
-    const hash = currentHash();
-    if (!ROOTS.has(hash)) {
-      if (canGoBack) history.back();
-      else location.hash = '#/';
+    // 6. Another tab → the home tab. Any other screen → one step back (or
+    // home when the app was opened straight onto it).
+    const kids = getModePref() === 'kids';
+    const home = kids ? '#/kids' : '#/';
+    const target = backTarget(currentHash(), { kids });
+    if (target === 'home') {
+      const from = location.href;
+      history.replaceState(null, '', home);
+      window.dispatchEvent(new HashChangeEvent('hashchange', { oldURL: from, newURL: location.href }));
       return;
     }
+    if (target === 'history') { goBackOr(home); return; }
 
     // 7. A root with nothing open: the handler should already be off. If a
     // press raced the toggle, leave the app the way Android would.

@@ -636,6 +636,7 @@ export const es = {
     identifyPhotoSub: 'Sets montados, sueltos o en caja',
     identifyPhoto: 'Identificar por foto',
     howIdentify: '¿Cómo quieres identificarlo?',
+    systemScanner: '¿No ves la cámara? Usa el escáner del sistema',
     hintShelf: 'Encuadra toda la estantería: la buena luz ayuda',
     hintPhoto: 'Encuadra el set y haz una foto',
     hintNext: 'Siguiente caja: mantenla a la vista',

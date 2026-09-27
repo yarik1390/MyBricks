@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 const source = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
-function harness() {
+function harness({ scroller = false, depth = 2 } = {}) {
   const listeners = {};
   let backs = 0;
   const context = {
@@ -13,11 +13,13 @@ function harness() {
       listeners[name] = fn;
     } },
     overlayOpen: () => false,
+    inSidewaysScroller: () => scroller,
+    canGoBackInApp: () => depth > 0,
     history: { length: 3, back() { backs++; } },
   };
   vm.runInNewContext(source.slice(source.indexOf('function setupGestures()'), source.indexOf('// Hide the advisor FAB')) + '\nsetupGestures();', context);
   return { fire(name, touches = [], changedTouches = touches) {
-    listeners[name]({ touches, changedTouches, preventDefault() { assert.fail('must not suppress native input'); } });
+    listeners[name]?.({ touches, changedTouches, preventDefault() { assert.fail('must not suppress native input'); } });
   }, backs: () => backs };
 }
 const finger = (x, y = 100, identifier = 1) => ({ clientX: x, clientY: y, identifier });
@@ -50,4 +52,12 @@ test('cancelled, multi-touch and mismatched-finger sequences cannot navigate', (
   h.fire('touchstart', [finger(10)]);
   h.fire('touchend', [], [finger(100, 100, 2)]);
   assert.equal(h.backs(), 0);
+});
+test('swipes on sideways scrollers, or with nothing behind in the app, never go back', () => {
+  for (const opts of [{ scroller: true }, { depth: 0 }]) {
+    const h = harness(opts);
+    h.fire('touchstart', [finger(0)]);
+    h.fire('touchend', [], [finger(100)]);
+    assert.equal(h.backs(), 0, JSON.stringify(opts));
+  }
 });

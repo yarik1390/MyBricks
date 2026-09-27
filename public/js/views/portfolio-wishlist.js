@@ -167,7 +167,8 @@ function paint(opts) {
 
 export async function renderWishlist() {
   setPageFab({ label: t('bvAlerts.add'), icon: 'plus', href: '#/add' });
-  const cached = Array.isArray(state.wishlist) && state.wishlist.length;
+  // An empty wishlist that has loaded is cached too (no skeleton on revisits).
+  const cached = Array.isArray(state.wishlist) && (state.wishlist.length > 0 || !!state.wishlistLoadedAt);
   paint({ loading: !cached });
   try {
     const wl = await api('/api/wishlist');
@@ -177,6 +178,7 @@ export async function renderWishlist() {
     }
     state.wishlist = (wl.wishlist || []).filter(w => !state.recentWishlistDeletes?.[w.set_num]);
     state.wishlistAlerts = wl.unread_alerts || [];
+    state.wishlistLoadedAt = Date.now();
     bvIDB.set('wishlist', { data: { wishlist: state.wishlist, alerts: state.wishlistAlerts }, ts: Date.now(), userId: getSessionUserId() }).catch(() => {});
   } catch (_e) {
     // Offline: render whatever hydrateFromIDB restored rather than erroring out.

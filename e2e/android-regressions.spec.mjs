@@ -203,3 +203,130 @@ test('the native scan picker keeps its hint clear of the button and lights the s
   await expect(page.locator('#scanOverlay.open')).toHaveCount(0);
   expect(await page.evaluate(() => window.__bars.at(-1))).toMatchObject({ lightIcons: false });
 });
+
+// ML Kit's embedded scanner: startScan() runs CameraX behind the (transparent)
+// WebView and streams `barcodesScanned` events; scan() is the full-screen
+// Activity fallback. Records every call so tests can tell the two apart.
+function liveScannerStub({ failStart = false, startDelay = 0 } = {}) {
+  window.__bs = { starts: [], stops: 0, scans: 0, listeners: {} };
+  const noop = () => Promise.resolve({ remove() {} });
+  window.Capacitor = {
+    isNativePlatform: () => true,
+    getPlatform: () => 'android',
+    Plugins: {
+      App: { addListener: noop, toggleBackButtonHandler: () => Promise.resolve() },
+      BarcodeScanner: {
+        isSupported: () => Promise.resolve({ supported: true }),
+        addListener: (event, fn) => { window.__bs.listeners[event] = fn; return Promise.resolve({ remove() { delete window.__bs.listeners[event]; } }); },
+        startScan: (opts) => {
+          window.__bs.starts.push(opts);
+          if (failStart) return Promise.reject(new Error('Camera permission denied'));
+          return new Promise((resolve) => setTimeout(resolve, startDelay));
+        },
+        stopScan: () => { window.__bs.stops++; return Promise.resolve(); },
+        scan: () => { window.__bs.scans++; return Promise.resolve({ barcodes: [] }); },
+        getMaxZoomRatio: () => Promise.resolve({ zoomRatio: 4 }),
+        setZoomRatio: () => Promise.resolve(),
+        enableTorch: () => Promise.resolve(),
+        disableTorch: () => Promise.resolve(),
+      },
+    },
+  };
+}
+
+// Alpha (0–255) of screenshot pixels, read back through a canvas in the page.
+async function alphaAt(page, png, points) {
+  return page.evaluate(async ({ b64, points }) => {
+    const img = new Image();
+    img.src = `data:image/png;base64,${b64}`;
+    await img.decode();
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    return points.map(([x, y]) => ctx.getImageData(x, y, 1, 1).data[3]);
+  }, { b64: png.toString('base64'), points });
+}
+
+test('the Android app scans live: our brackets lock onto the barcode over the camera', async ({ page }) => {
+  await page.addInitScript(liveScannerStub, { failStart: false, startDelay: 0 });
+  await page.route('**/api/scan/identify', (route) => route.fulfill({ json: { identified: false, reasoning: 'Barcode not in catalog.' } }));
+  await page.goto('/#/');
+  await page.locator('#bvFab').click();
+  const overlay = page.locator('#scanOverlay.open');
+  await expect(page.locator('html')).toHaveClass(/bv-scan-native-live/);
+  expect(await page.evaluate(() => window.__bs.starts)).toEqual([expect.objectContaining({ lensFacing: 'BACK' })]);
+  // Live chrome, not the Activity handoff: modes, frame and type-a-number.
+  await expect(overlay.locator('.bv-scan')).not.toHaveClass(/is-native/);
+  await expect(overlay.locator('#scanFrame')).toBeVisible();
+  await expect(overlay.locator('.bv-scan__seg [data-mode="image"]')).toBeVisible();
+  await expect(overlay.locator('#scanTypeBtn')).toBeVisible();
+  await expect(overlay.locator('#scanTorchBtn')).toBeVisible();
+  await expect(overlay.locator('#nativeRescanBtn')).toHaveCount(0);
+
+  // The camera draws behind the WebView: nothing may paint over the preview.
+  for (const sel of ['#app', '#nav', '#statusBarScrim']) {
+    expect(await page.locator(sel).evaluate((el) => getComputedStyle(el).visibility)).toBe('hidden');
+  }
+  const frame = await overlay.locator('#scanFrame').boundingBox();
+  const cx = Math.round(frame.x + frame.width / 2), cy = Math.round(frame.y + frame.height / 2);
+  const png = await page.screenshot({ omitBackground: true });
+  expect(await alphaAt(page, png, [[cx, cy], [cx, Math.round(frame.y + 4)]])).toEqual([0, 0]);
+
+  // A barcode in view: the brackets snap onto it and the lookup runs.
+  await page.evaluate(({ cx, cy }) => window.__bs.listeners.barcodesScanned({ barcodes: [{
+    rawValue: '5702017421384', format: 'EAN_13',
+    cornerPoints: [[cx - 60, cy - 20], [cx + 60, cy - 20], [cx + 60, cy + 20], [cx - 60, cy + 20]],
+  }] }), { cx, cy });
+  await expect(overlay.locator('#scanFrame')).toHaveClass(/is-lock/);
+  await expect(overlay.locator('#scanResult')).toContainText('5 702017 42138 4');
+  expect(await page.evaluate(() => window.__bs.scans)).toBe(0);
+
+  await overlay.locator('#scanCloseBtn').click();
+  await expect(page.locator('#scanOverlay.open')).toHaveCount(0);
+  await expect(page.locator('html')).not.toHaveClass(/bv-scan-native-live/);
+  expect(await page.evaluate(() => window.__bs.stops)).toBeGreaterThanOrEqual(1);
+});
+
+test('when the live camera cannot start, Scan falls back to the method switcher and ML Kit', async ({ page }) => {
+  await page.addInitScript(liveScannerStub, { failStart: true, startDelay: 0 });
+  await page.goto('/#/');
+  await page.locator('#bvFab').click();
+  const overlay = page.locator('#scanOverlay.open');
+  await expect(overlay.locator('#nativeRescanBtn')).toBeVisible();
+  await expect(overlay.locator('.bv-scan')).toHaveClass(/is-native/);
+  await expect(page.locator('html')).not.toHaveClass(/bv-scan-native-live/);
+  await overlay.locator('#nativeRescanBtn').click();
+  await expect.poll(() => page.evaluate(() => window.__bs.scans)).toBe(1);
+  expect(await page.evaluate(() => window.__bs.starts.length)).toBe(1); // not retried
+});
+
+test('switching to Photo while the live camera starts stops it again', async ({ page }) => {
+  await page.addInitScript(liveScannerStub, { failStart: false, startDelay: 400 });
+  await page.goto('/#/');
+  await page.locator('#bvFab').click();
+  const overlay = page.locator('#scanOverlay.open');
+  await expect.poll(() => page.evaluate(() => window.__bs.starts.length)).toBe(1);
+  await overlay.locator('.bv-scan__seg [data-mode="image"]').click();
+  await expect(overlay.locator('.bv-scan')).toHaveAttribute('data-mode', 'image');
+  await page.waitForTimeout(700);
+  await expect(page.locator('html')).not.toHaveClass(/bv-scan-native-live/);
+  expect(await page.evaluate(() => window.__bs.stops)).toBeGreaterThanOrEqual(1);
+  expect(await page.evaluate(() => window.__bs.listeners.barcodesScanned)).toBeUndefined();
+  expect(await page.evaluate(() => window.__bs.scans)).toBe(0);
+});
+
+test('the live scanner offers the system scanner when nothing locks on', async ({ page }) => {
+  await page.clock.install();
+  await page.addInitScript(liveScannerStub, { failStart: false, startDelay: 0 });
+  await page.goto('/#/');
+  await page.locator('#bvFab').click();
+  await expect(page.locator('html')).toHaveClass(/bv-scan-native-live/);
+  const offer = page.locator('#scanSystemBtn');
+  await expect(offer).toHaveCount(0);
+  await page.clock.runFor(7500);
+  await expect(offer).toBeVisible();
+  await offer.click();
+  await expect.poll(() => page.evaluate(() => window.__bs.scans)).toBe(1);
+  await expect(page.locator('html')).not.toHaveClass(/bv-scan-native-live/);
+});

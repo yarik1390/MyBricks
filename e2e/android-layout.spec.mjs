@@ -15,7 +15,7 @@ for (const language of ['en', 'uk']) for (const theme of ['light', 'dark']) {
     await page.route('**/api/subcollections', route => route.fulfill({ json: { subcollections: [] } }));
     for (const [route, ready, name] of [
       ['/', '#setList', 'vault'], ['/add', '#catalogLayoutToggle', 'catalog'],
-      ['/wishlist', '.page', 'wishlist'], ['/collections', '#subcollectionsPage', 'collections'],
+      ['/wishlist', '#wishlistPage', 'wishlist'], ['/collections', '#subcollectionsPage', 'collections'],
       ['/minifigs?owned=0', '#figSearch', 'minifigures'], ['/me', '#editName', 'profile'],
     ]) {
       await page.goto(`/#${route}`);
