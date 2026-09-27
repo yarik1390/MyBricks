@@ -87,9 +87,13 @@ export async function enableNativePush({ askPermission = true } = {}) {
   if (isGuestMode()) throw new Error('Sign in before enabling notifications');
   await installNativePushActionListener();
   const token = await requestToken({ askPermission });
+  const platform = window.Capacitor?.getPlatform?.() || 'android';
   await api('/api/push/native', {
     method: 'POST',
-    body: { token, platform: window.Capacitor?.getPlatform?.() || 'android' },
+    // This Android build draws alerts itself (AlertMessagingService), so the
+    // server can send them with their buttons. The web bundle ships inside
+    // the APK, so the flag always matches the native code it runs with.
+    body: { token, platform, actions: platform === 'android' },
   });
   saveRegistration(token);
   return true;

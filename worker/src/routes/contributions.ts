@@ -197,11 +197,14 @@ app.get('/photos/file/:id', optionalMember, async (c) => {
 // GET /api/contributions/mine — the caller's submissions + approved count.
 app.get('/mine', requireMember, async (c) => {
   const userId = c.get('userId')!;
+  // set_name lets the list read "Photo · Millennium Falcon"; kind tells a
+  // barcode or price fix apart from other data fixes.
   const rows = await c.env.DB.prepare(
-    "SELECT 'review' AS type, id, set_num, status, review_note, created_at, reviewed_at FROM set_reviews WHERE user_id=? AND deleted_at IS NULL " +
-    "UNION ALL SELECT 'photo', id, set_num, status, review_note, created_at, reviewed_at FROM set_photos WHERE user_id=? AND deleted_at IS NULL " +
-    "UNION ALL SELECT 'data', id, set_num, status, review_note, created_at, reviewed_at FROM set_contributions WHERE user_id=? AND deleted_at IS NULL " +
-    'ORDER BY created_at DESC LIMIT 200'
+    'SELECT x.*, (SELECT name FROM lego_sets ls WHERE ls.set_num = x.set_num) AS set_name FROM (' +
+    "SELECT 'review' AS type, id, set_num, NULL AS kind, status, review_note, created_at, reviewed_at FROM set_reviews WHERE user_id=? AND deleted_at IS NULL " +
+    "UNION ALL SELECT 'photo', id, set_num, NULL, status, review_note, created_at, reviewed_at FROM set_photos WHERE user_id=? AND deleted_at IS NULL " +
+    "UNION ALL SELECT 'data', id, set_num, kind, status, review_note, created_at, reviewed_at FROM set_contributions WHERE user_id=? AND deleted_at IS NULL " +
+    ') x ORDER BY created_at DESC LIMIT 200'
   ).bind(userId, userId, userId).all();
   const approved = (rows.results || []).filter((r: any) => r.status === 'approved').length;
   return c.json({ submissions: rows.results || [], approved_count: approved });

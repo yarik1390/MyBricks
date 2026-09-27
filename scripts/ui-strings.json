@@ -84,6 +84,13 @@
     ]
   },
   {
+    "text": "2-digit",
+    "files": [
+      "ui/first-ui.js",
+      "views/me-notifications.js"
+    ]
+  },
+  {
     "text": "2-year forecast",
     "files": [
       "views/portfolio-detail-market.js"
@@ -120,12 +127,6 @@
     ]
   },
   {
-    "text": "5× photo-scan and revaluation limits",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "5× scan and revaluation limits",
     "files": [
       "components/onboarding.js"
@@ -135,12 +136,6 @@
     "text": "A 3D stage is required",
     "files": [
       "components/empty-vault-brick-3d.js"
-    ]
-  },
-  {
-    "text": "A Sunday summary: value change, top mover, wishlist hits.",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -204,12 +199,6 @@
     ]
   },
   {
-    "text": "AI & Local Insights",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
     "text": "AI & Routing",
     "files": [
       "views/me-admin-config.js"
@@ -218,33 +207,13 @@
   {
     "text": "AI Advisor",
     "files": [
-      "components/advisor.js",
       "components/onboarding.js"
-    ]
-  },
-  {
-    "text": "AI Scanning",
-    "files": [
-      "views/me-integrations.js"
     ]
   },
   {
     "text": "AI assistant",
     "files": [
-      "components/onboarding.js",
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "AI assistant off",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "AI assistant on",
-    "files": [
-      "views/me.js"
+      "components/onboarding.js"
     ]
   },
   {
@@ -292,8 +261,13 @@
   {
     "text": "AT TARGET",
     "files": [
-      "runtime-exact",
-      "views/portfolio-wishlist.js"
+      "runtime-exact"
+    ]
+  },
+  {
+    "text": "About these values",
+    "files": [
+      "lib/insurance-report.js"
     ]
   },
   {
@@ -442,27 +416,9 @@
     ]
   },
   {
-    "text": "Add to shelf",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Add to your home screen for a full-screen, app-like experience.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Add your first set from Catalog or Scan.",
     "files": [
       "components/onboarding.js"
-    ]
-  },
-  {
-    "text": "Add your first set!",
-    "files": [
-      "views/kids.js"
     ]
   },
   {
@@ -511,8 +467,7 @@
   {
     "text": "Admin console",
     "files": [
-      "views/me-admin.js",
-      "views/me.js"
+      "views/me-admin.js"
     ]
   },
   {
@@ -530,20 +485,7 @@
   {
     "text": "Advisor",
     "files": [
-      "components/advisor.js",
       "route-meta.js"
-    ]
-  },
-  {
-    "text": "Advisor views",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
-    "text": "After pledging, your badge is granted within 24 hours.",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -556,24 +498,6 @@
     "text": "Aggregated community set ratings shown on set pages.",
     "files": [
       "views/me-admin-config.js"
-    ]
-  },
-  {
-    "text": "Alert when wishlisted sets hit your target.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Alerts on",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Alerts paused",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -652,36 +576,6 @@
     ]
   },
   {
-    "text": "App experience",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "App lock",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "App lock off",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "App lock on — fingerprint required to open",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "App locked",
-    "files": [
-      "lib/app-lock.js"
-    ]
-  },
-  {
     "text": "App revenue (month)",
     "files": [
       "views/me-admin.js"
@@ -691,24 +585,6 @@
     "text": "App revenue has passed the PriceCharting commercial-agreement threshold — the free-use permission no longer covers this level of revenue.",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "App tour",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Appearance",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Appearance & view",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -772,24 +648,6 @@
     ]
   },
   {
-    "text": "Ask about your vault…",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
-    "text": "Ask anything about your vault…",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
-    "text": "Ask the AI advisor",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
     "text": "Ask what to buy, sell, or hold — anytime.",
     "files": [
       "components/onboarding.js"
@@ -805,12 +663,6 @@
     "text": "Asking the master builder…",
     "files": [
       "components/scanner.js"
-    ]
-  },
-  {
-    "text": "Australia",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -840,8 +692,7 @@
   {
     "text": "Auto",
     "files": [
-      "components/onboarding.js",
-      "views/me.js"
+      "components/onboarding.js"
     ]
   },
   {
@@ -869,12 +720,6 @@
     ]
   },
   {
-    "text": "Available to pre-order",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
     "text": "Awaiting mobile approval",
     "files": [
       "views/me-admin.js"
@@ -884,12 +729,6 @@
     "text": "BATCH RESULTS",
     "files": [
       "components/scanner.js"
-    ]
-  },
-  {
-    "text": "BL ↗",
-    "files": [
-      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -907,27 +746,7 @@
   {
     "text": "Back",
     "files": [
-      "components/onboarding.js",
-      "views/portfolio-social.js",
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
-    "text": "Back BricksVault on Patreon to unlock supporter perks:",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Back to profile",
-    "files": [
-      "views/me-shared.js"
-    ]
-  },
-  {
-    "text": "Back to vault",
-    "files": [
-      "views/game.js"
+      "components/onboarding.js"
     ]
   },
   {
@@ -955,12 +774,6 @@
     ]
   },
   {
-    "text": "Backups",
-    "files": [
-      "views/me-data.js"
-    ]
-  },
-  {
     "text": "Badge",
     "files": [
       "methodology.html"
@@ -970,8 +783,7 @@
     "text": "Badges",
     "files": [
       "index.html",
-      "route-meta.js",
-      "views/kids.js"
+      "route-meta.js"
     ]
   },
   {
@@ -1047,12 +859,6 @@
     ]
   },
   {
-    "text": "Be the first — make your profile public and expose your value in the You tab.",
-    "files": [
-      "views/portfolio-social.js"
-    ]
-  },
-  {
     "text": "Bear",
     "files": [
       "runtime-exact"
@@ -1068,12 +874,6 @@
     "text": "Below MSRP",
     "files": [
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Best buy with $200 budget?",
-    "files": [
-      "components/advisor.js"
     ]
   },
   {
@@ -1188,8 +988,7 @@
     "text": "BricksVault Pro",
     "files": [
       "lib/revenuecat-native.js",
-      "route-meta.js",
-      "views/me.js"
+      "route-meta.js"
     ]
   },
   {
@@ -1211,12 +1010,6 @@
     ]
   },
   {
-    "text": "BricksVault is locked",
-    "files": [
-      "lib/app-lock.js"
-    ]
-  },
-  {
     "text": "Brickset / Rebrickable",
     "files": [
       "methodology.html"
@@ -1226,12 +1019,6 @@
     "text": "Brickset / barcode",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Brickset Collection Sync",
-    "files": [
-      "views/me-integrations.js"
     ]
   },
   {
@@ -1277,18 +1064,6 @@
     ]
   },
   {
-    "text": "Browse Catalog",
-    "files": [
-      "router.js"
-    ]
-  },
-  {
-    "text": "Browse catalog",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
     "text": "Browser",
     "files": [
       "lib/amazon-affiliate.js",
@@ -1305,12 +1080,6 @@
     "text": "Build",
     "files": [
       "route-meta.js"
-    ]
-  },
-  {
-    "text": "Builder",
-    "files": [
-      "views/kids.js"
     ]
   },
   {
@@ -1340,9 +1109,9 @@
     ]
   },
   {
-    "text": "By value",
+    "text": "COLLECTION VALUATION",
     "files": [
-      "views/portfolio-wishlist.js"
+      "lib/insurance-report.js"
     ]
   },
   {
@@ -1373,12 +1142,6 @@
     "text": "Can't reach the server — an ad-blocker or privacy extension may be blocking it. Disable it for this site, or try another browser.",
     "files": [
       "app.js"
-    ]
-  },
-  {
-    "text": "Canada",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -1425,21 +1188,9 @@
     ]
   },
   {
-    "text": "Catalog data & images from",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Catalog import",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Catalog imports, jobs, integration health",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -1469,8 +1220,7 @@
   {
     "text": "Celebration sounds",
     "files": [
-      "components/onboarding.js",
-      "views/me.js"
+      "components/onboarding.js"
     ]
   },
   {
@@ -1588,12 +1338,6 @@
     ]
   },
   {
-    "text": "Choose a unique username/handle to create a public profile page showing off your stats and Trophy Shelf.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Choose the exported Minifigures file (tab format).",
     "files": [
       "views/me-admin.js"
@@ -1606,12 +1350,6 @@
     ]
   },
   {
-    "text": "Clear history",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
     "text": "Close",
     "files": [
       "components/methodology.js",
@@ -1620,21 +1358,9 @@
     ]
   },
   {
-    "text": "Close Advisor",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
     "text": "Close image viewer",
     "files": [
       "components/lightbox.js"
-    ]
-  },
-  {
-    "text": "Closest to target",
-    "files": [
-      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -1674,12 +1400,6 @@
     ]
   },
   {
-    "text": "Collection value",
-    "files": [
-      "views/portfolio-social.js"
-    ]
-  },
-  {
     "text": "Collections",
     "files": [
       "route-meta.js"
@@ -1688,20 +1408,7 @@
   {
     "text": "Collector",
     "files": [
-      "views/me-shared.js",
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Collector command center",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Collector profile overview",
-    "files": [
-      "views/me.js"
+      "views/me-shared.js"
     ]
   },
   {
@@ -1720,8 +1427,7 @@
     "text": "Coming soon",
     "files": [
       "lib/pure.js",
-      "views/portfolio-detail-market.js",
-      "views/portfolio-wishlist.js"
+      "views/portfolio-detail-market.js"
     ]
   },
   {
@@ -1733,9 +1439,7 @@
   {
     "text": "Community",
     "files": [
-      "views/me-contributions.js",
-      "views/portfolio-detail.js",
-      "views/portfolio-social.js"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -1860,18 +1564,6 @@
     ]
   },
   {
-    "text": "Connected services",
-    "files": [
-      "views/me-integrations.js"
-    ]
-  },
-  {
-    "text": "Connected to Google Sheets",
-    "files": [
-      "views/me-integrations.js"
-    ]
-  },
-  {
     "text": "Connecting…",
     "files": [
       "views/me-integrations.js"
@@ -1896,27 +1588,9 @@
     ]
   },
   {
-    "text": "Continue as guest",
-    "files": [
-      "views/login.js"
-    ]
-  },
-  {
     "text": "Continue valuation v3 shadow checks.",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Continue with Apple",
-    "files": [
-      "views/login.js"
-    ]
-  },
-  {
-    "text": "Continue with Google",
-    "files": [
-      "views/login.js"
     ]
   },
   {
@@ -1934,8 +1608,7 @@
   {
     "text": "Contributions",
     "files": [
-      "views/me-admin.js",
-      "views/me-contributions.js"
+      "views/me-admin.js"
     ]
   },
   {
@@ -1954,12 +1627,6 @@
     "text": "Copies your active session JWT to the clipboard for API debugging.",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Copy",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -2023,12 +1690,6 @@
     ]
   },
   {
-    "text": "Could not update retail market",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Could not update source match.",
     "files": [
       "views/me-admin.js"
@@ -2041,27 +1702,9 @@
     ]
   },
   {
-    "text": "Could not withdraw",
-    "files": [
-      "views/me-contributions.js"
-    ]
-  },
-  {
     "text": "Couldn't add that set",
     "files": [
       "views/catalog.js"
-    ]
-  },
-  {
-    "text": "Couldn't delete your account. Please try again.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Couldn't dismiss the alert — try again when online.",
-    "files": [
-      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -2077,40 +1720,15 @@
     ]
   },
   {
-    "text": "Couldn't load leaderboard",
-    "files": [
-      "views/portfolio-social.js"
-    ]
-  },
-  {
     "text": "Couldn't load price history.",
     "files": [
       "views/portfolio-detail.js"
     ]
   },
   {
-    "text": "Couldn't load profile",
-    "files": [
-      "views/me.js",
-      "views/portfolio-social.js"
-    ]
-  },
-  {
-    "text": "Couldn't load the leaderboard",
-    "files": [
-      "views/portfolio-social.js"
-    ]
-  },
-  {
     "text": "Couldn't load today's game:",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "Couldn't load wishlist",
-    "files": [
-      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -2283,12 +1901,6 @@
     ]
   },
   {
-    "text": "Daily challenge",
-    "files": [
-      "views/game.js"
-    ]
-  },
-  {
     "text": "Daily provider quota controls how far this advances.",
     "files": [
       "views/me-admin-config.js"
@@ -2297,28 +1909,19 @@
   {
     "text": "Dark",
     "files": [
-      "components/onboarding.js",
-      "views/me.js"
+      "components/onboarding.js"
     ]
   },
   {
     "text": "Data",
     "files": [
-      "route-meta.js",
-      "views/me-data.js",
-      "views/me.js"
+      "route-meta.js"
     ]
   },
   {
     "text": "Data Partners",
     "files": [
       "components/legal-sheet.js"
-    ]
-  },
-  {
-    "text": "Data fix",
-    "files": [
-      "views/me-contributions.js"
     ]
   },
   {
@@ -2336,8 +1939,7 @@
   {
     "text": "Data sources & partners",
     "files": [
-      "methodology.html",
-      "views/me.js"
+      "methodology.html"
     ]
   },
   {
@@ -2379,33 +1981,15 @@
     ]
   },
   {
-    "text": "Delete account",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Delete memory",
     "files": [
       "views/portfolio-detail.js"
     ]
   },
   {
-    "text": "Delete my account",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Deletes this holding from your vault after confirmation.",
     "files": [
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Deleting…",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -2476,12 +2060,6 @@
     ]
   },
   {
-    "text": "Discord Alerts",
-    "files": [
-      "views/me-integrations.js"
-    ]
-  },
-  {
     "text": "Discord alerts cleared",
     "files": [
       "views/me-integrations.js"
@@ -2494,21 +2072,9 @@
     ]
   },
   {
-    "text": "Discord webhook",
-    "files": [
-      "views/me-integrations.js"
-    ]
-  },
-  {
     "text": "Discover",
     "files": [
       "index.html"
-    ]
-  },
-  {
-    "text": "Display Name",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -2604,18 +2170,6 @@
     ]
   },
   {
-    "text": "Edit Display Name",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Edit name",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Elapsed:",
     "files": [
       "runtime-exact"
@@ -2708,12 +2262,6 @@
     ]
   },
   {
-    "text": "Enter a handle",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Enter a set number like 71043-1 or a longer barcode.",
     "files": [
       "components/scanner.js"
@@ -2769,12 +2317,6 @@
     ]
   },
   {
-    "text": "Enter your guess first",
-    "files": [
-      "views/game.js"
-    ]
-  },
-  {
     "text": "Error",
     "files": [
       "views/me-admin.js"
@@ -2788,7 +2330,8 @@
       "components/onboarding.js",
       "components/sheet.js",
       "utils.js",
-      "views/portfolio.js"
+      "views/portfolio.js",
+      "views/wrapped.js"
     ]
   },
   {
@@ -2963,18 +2506,6 @@
     ]
   },
   {
-    "text": "Export",
-    "files": [
-      "views/me-data.js"
-    ]
-  },
-  {
-    "text": "Export & import your vault as CSV",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Export CSV",
     "files": [
       "views/me-data.js"
@@ -2996,12 +2527,6 @@
     "text": "Export your BrickLink order history as CSV and upload it here to auto-add sets you've bought.",
     "files": [
       "views/me-data.js"
-    ]
-  },
-  {
-    "text": "Expose the total value and thematic breakdown of your vault on your public profile.",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -3048,21 +2573,9 @@
     ]
   },
   {
-    "text": "Failed to acknowledge wishlist alert",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
     "text": "Failed to connect Google Sheets",
     "files": [
       "views/me-integrations.js"
-    ]
-  },
-  {
-    "text": "Failed to copy link",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -3105,12 +2618,6 @@
     "text": "Failed to load user profile",
     "files": [
       "router.js"
-    ]
-  },
-  {
-    "text": "Failed to mark alert as read:",
-    "files": [
-      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -3159,7 +2666,9 @@
   {
     "text": "Filesystem",
     "files": [
-      "lib/native-file-export.js"
+      "lib/native-file-export.js",
+      "views/me-insurance.js",
+      "views/wrapped.js"
     ]
   },
   {
@@ -3309,12 +2818,6 @@
     ]
   },
   {
-    "text": "France",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Fresh price from a market source",
     "files": [
       "lib/pure.js"
@@ -3351,12 +2854,6 @@
     ]
   },
   {
-    "text": "Full 1-year portfolio history (free: 90 days)",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Full breakdown",
     "files": [
       "views/portfolio-detail-market.js"
@@ -3365,7 +2862,8 @@
   {
     "text": "Full investor view — market value, ROI and 2-year projections.",
     "files": [
-      "components/onboarding.js"
+      "components/onboarding.js",
+      "views/welcome.js"
     ]
   },
   {
@@ -3379,12 +2877,6 @@
     "files": [
       "components/scanner.js",
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Gain",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -3442,15 +2934,9 @@
     ]
   },
   {
-    "text": "Germany",
+    "text": "Generated by BricksVault",
     "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Get Free Gemini Key",
-    "files": [
-      "components/advisor.js"
+      "lib/insurance-report.js"
     ]
   },
   {
@@ -3490,27 +2976,9 @@
     ]
   },
   {
-    "text": "Go to Vault",
-    "files": [
-      "router.js"
-    ]
-  },
-  {
     "text": "Go to sign in",
     "files": [
       "views/login.js"
-    ]
-  },
-  {
-    "text": "Gold ★",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Gold ★ skin + ⭐ badge on your public profile",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -3545,18 +3013,6 @@
     ]
   },
   {
-    "text": "Google Sheets Auto-Sync",
-    "files": [
-      "views/me-integrations.js"
-    ]
-  },
-  {
-    "text": "Google Sheets Sync",
-    "files": [
-      "views/me-integrations.js"
-    ]
-  },
-  {
     "text": "Google Sheets collection export and sync.",
     "files": [
       "views/me-admin-config.js"
@@ -3573,12 +3029,6 @@
     "files": [
       "runtime-exact",
       "views/me-integrations.js"
-    ]
-  },
-  {
-    "text": "Google Sheets, Discord, Brickset, push alerts, AI keys",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -3645,25 +3095,14 @@
     "text": "Guest Collector",
     "files": [
       "api.js",
-      "router.js"
-    ]
-  },
-  {
-    "text": "Guest data stays on this device. Sign in later to sync your vault and wishlist.",
-    "files": [
-      "views/login.js"
+      "router.js",
+      "views/welcome.js"
     ]
   },
   {
     "text": "Guest exports use the local vault on this device.",
     "files": [
       "views/me-data.js"
-    ]
-  },
-  {
-    "text": "Guest mode - saved on this device",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -3679,21 +3118,9 @@
     ]
   },
   {
-    "text": "Handle saved successfully",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Handle, email, or user ID",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Handle: 3-30 chars, letters, numbers, hyphens only",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -3741,12 +3168,6 @@
     ]
   },
   {
-    "text": "History",
-    "files": [
-      "views/me-contributions.js"
-    ]
-  },
-  {
     "text": "History anomaly",
     "files": [
       "views/portfolio-detail-market.js"
@@ -3787,12 +3208,6 @@
     "text": "How denominators work",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "How is my Star Wars collection doing?",
-    "files": [
-      "components/advisor.js"
     ]
   },
   {
@@ -3899,12 +3314,6 @@
     ]
   },
   {
-    "text": "Import & export",
-    "files": [
-      "views/me-data.js"
-    ]
-  },
-  {
     "text": "Import BrickLink Orders",
     "files": [
       "views/me-data.js"
@@ -3933,12 +3342,6 @@
     "text": "Import from BrickLink orders",
     "files": [
       "views/me-data.js"
-    ]
-  },
-  {
-    "text": "Import from Brickset",
-    "files": [
-      "views/me-integrations.js"
     ]
   },
   {
@@ -4059,18 +3462,6 @@
     ]
   },
   {
-    "text": "Install BricksVault",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Installing BricksVault…",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Instructions",
     "files": [
       "views/portfolio-detail.js"
@@ -4085,16 +3476,13 @@
   {
     "text": "Insurance report",
     "files": [
-      "route-meta.js",
-      "views/me-data.js"
+      "route-meta.js"
     ]
   },
   {
     "text": "Integrations",
     "files": [
-      "route-meta.js",
-      "views/me-integrations.js",
-      "views/me.js"
+      "route-meta.js"
     ]
   },
   {
@@ -4104,16 +3492,9 @@
     ]
   },
   {
-    "text": "Invested",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Investor insights: sell/buy signals, top movers, retirement radar",
     "files": [
-      "components/onboarding.js",
-      "views/me.js"
+      "components/onboarding.js"
     ]
   },
   {
@@ -4185,7 +3566,8 @@
   {
     "text": "Kids",
     "files": [
-      "components/onboarding.js"
+      "components/onboarding.js",
+      "views/welcome.js"
     ]
   },
   {
@@ -4222,12 +3604,6 @@
     "text": "LLM Routing",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "LVL",
-    "files": [
-      "views/kids.js"
     ]
   },
   {
@@ -4271,9 +3647,7 @@
   {
     "text": "Leaderboard",
     "files": [
-      "route-meta.js",
-      "views/me.js",
-      "views/portfolio-social.js"
+      "route-meta.js"
     ]
   },
   {
@@ -4349,16 +3723,9 @@
     ]
   },
   {
-    "text": "Level",
-    "files": [
-      "views/kids.js"
-    ]
-  },
-  {
     "text": "Light",
     "files": [
-      "components/onboarding.js",
-      "views/me.js"
+      "components/onboarding.js"
     ]
   },
   {
@@ -4383,12 +3750,6 @@
     "text": "Limited recent market data — treat as a rough guide",
     "files": [
       "lib/pure.js"
-    ]
-  },
-  {
-    "text": "Link copied to clipboard",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -4478,7 +3839,6 @@
   {
     "text": "Loading…",
     "files": [
-      "views/me-contributions.js",
       "views/me-data.js",
       "views/portfolio-detail.js"
     ]
@@ -4502,57 +3862,15 @@
     ]
   },
   {
-    "text": "Local Analyst",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
     "text": "Local Gemma error:",
     "files": [
       "runtime-exact"
     ]
   },
   {
-    "text": "Local guest",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Local guest vault",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Local market for store offers. Resale values remain in USD.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Local model weights deleted",
     "files": [
       "views/me-integrations.js"
-    ]
-  },
-  {
-    "text": "Local-only vault",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Lock in",
-    "files": [
-      "views/game.js"
-    ]
-  },
-  {
-    "text": "Loss",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -4617,34 +3935,20 @@
     ]
   },
   {
-    "text": "Manage subscription",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Many minifigs — strong parts-out potential",
     "files": [
       "views/portfolio-detail.js"
     ]
   },
   {
-    "text": "Mark all read",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
     "text": "Mark read",
     "files": [
-      "views/portfolio-wishlist.js",
       "views/portfolio.js"
     ]
   },
   {
     "text": "Mark this alert read",
     "files": [
-      "views/portfolio-wishlist.js",
       "views/portfolio.js"
     ]
   },
@@ -4718,12 +4022,6 @@
     ]
   },
   {
-    "text": "Market value & ROI columns in CSV export",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Market value summary",
     "files": [
       "views/portfolio-detail.js"
@@ -4760,12 +4058,6 @@
     ]
   },
   {
-    "text": "Match your device or pick a side.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Matching the barcode against blind-box data.",
     "files": [
       "components/scanner.js"
@@ -4788,12 +4080,6 @@
     "text": "Medium confidence",
     "files": [
       "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "Member - BricksVault",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -4864,6 +4150,12 @@
     ]
   },
   {
+    "text": "Minifigures",
+    "files": [
+      "lib/insurance-report.js"
+    ]
+  },
+  {
     "text": "Missing MSRP",
     "files": [
       "views/me-admin.js"
@@ -4913,22 +4205,9 @@
     ]
   },
   {
-    "text": "Models you can build from sets you own",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Modular",
     "files": [
-      "components/onboarding.js",
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "More",
-    "files": [
-      "views/me.js"
+      "components/onboarding.js"
     ]
   },
   {
@@ -4962,12 +4241,6 @@
     ]
   },
   {
-    "text": "My Collection",
-    "files": [
-      "views/kids.js"
-    ]
-  },
-  {
     "text": "Mystery set unlocked",
     "files": [
       "components/empty-vault-brick-3d.js"
@@ -4989,12 +4262,6 @@
     "text": "NONE",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "Name updated",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -5097,12 +4364,6 @@
     ]
   },
   {
-    "text": "New sets every day at midnight UTC. Values are BricksVault market prices.",
-    "files": [
-      "views/game.js"
-    ]
-  },
-  {
     "text": "New sold",
     "files": [
       "runtime-exact"
@@ -5137,12 +4398,6 @@
     "text": "Next image",
     "files": [
       "components/lightbox.js"
-    ]
-  },
-  {
-    "text": "Next set",
-    "files": [
-      "views/game.js"
     ]
   },
   {
@@ -5291,18 +4546,6 @@
     ]
   },
   {
-    "text": "No public collections yet",
-    "files": [
-      "views/portfolio-social.js"
-    ]
-  },
-  {
-    "text": "No purchases to restore",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "No quarantined matches.",
     "files": [
       "views/me-admin.js"
@@ -5333,18 +4576,6 @@
     ]
   },
   {
-    "text": "No showcased sets yet",
-    "files": [
-      "views/portfolio-social.js"
-    ]
-  },
-  {
-    "text": "No submissions yet. Open any set's",
-    "files": [
-      "views/me-contributions.js"
-    ]
-  },
-  {
     "text": "No supporters yet.",
     "files": [
       "views/me-admin.js"
@@ -5353,8 +4584,7 @@
   {
     "text": "No target",
     "files": [
-      "runtime-exact",
-      "views/portfolio-wishlist.js"
+      "runtime-exact"
     ]
   },
   {
@@ -5499,12 +4729,6 @@
     ]
   },
   {
-    "text": "Nothing wishlisted yet",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
     "text": "Notification permission denied",
     "files": [
       "views/me-integrations.js"
@@ -5538,14 +4762,7 @@
     "text": "Notifications",
     "files": [
       "route-meta.js",
-      "views/me-admin-config.js",
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Now",
-    "files": [
-      "views/portfolio-wishlist.js"
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -5585,21 +4802,9 @@
     ]
   },
   {
-    "text": "On back-order",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
     "text": "On refresh, timestamped",
     "files": [
       "methodology.html"
-    ]
-  },
-  {
-    "text": "On-Device Offline AI",
-    "files": [
-      "views/me-integrations.js"
     ]
   },
   {
@@ -5735,12 +4940,6 @@
     ]
   },
   {
-    "text": "Open on BrickLink",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
     "text": "Open set",
     "files": [
       "views/me-admin.js"
@@ -5873,12 +5072,6 @@
     ]
   },
   {
-    "text": "PIN set — tap to enter Kids Mode or change settings.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "PINs don't match.",
     "files": [
       "components/kids-pin.js"
@@ -5894,18 +5087,6 @@
     "text": "Packaging",
     "files": [
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Page not found",
-    "files": [
-      "router.js"
-    ]
-  },
-  {
-    "text": "Page not found · BricksVault",
-    "files": [
-      "router.js"
     ]
   },
   {
@@ -6019,18 +5200,6 @@
     ]
   },
   {
-    "text": "Permanently erase your account and all data.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Photo",
-    "files": [
-      "views/me-contributions.js"
-    ]
-  },
-  {
     "text": "Photo added to the story",
     "files": [
       "views/portfolio-detail.js"
@@ -6080,21 +5249,9 @@
     ]
   },
   {
-    "text": "Pick a visual skin — free or supporter.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Pick another category tab.",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Pick up to six favorite sets from your vault to make your public profile feel alive.",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -6122,15 +5279,10 @@
     ]
   },
   {
-    "text": "Play a chime on milestones and rewards.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Playful, price-free mode with XP and badges.",
     "files": [
-      "components/onboarding.js"
+      "components/onboarding.js",
+      "views/welcome.js"
     ]
   },
   {
@@ -6233,12 +5385,6 @@
     ]
   },
   {
-    "text": "Portfolio summary",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Possible",
     "files": [
       "runtime-exact"
@@ -6269,27 +5415,9 @@
     ]
   },
   {
-    "text": "Preferences",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Premium",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Premium & Gold ★ skins + ⭐ profile badge",
     "files": [
       "components/onboarding.js"
-    ]
-  },
-  {
-    "text": "Premium ★",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -6319,8 +5447,7 @@
   {
     "text": "Price It!",
     "files": [
-      "route-meta.js",
-      "views/game.js"
+      "route-meta.js"
     ]
   },
   {
@@ -6333,12 +5460,6 @@
     "text": "Price not announced",
     "files": [
       "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "Price target hit! 🎯",
-    "files": [
-      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -6357,12 +5478,6 @@
     "text": "Price trend: Rising",
     "files": [
       "utils.js"
-    ]
-  },
-  {
-    "text": "Price-drop alerts",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -6481,12 +5596,6 @@
     ]
   },
   {
-    "text": "Printable valuation of your vault — save as PDF for home insurance.",
-    "files": [
-      "views/me-data.js"
-    ]
-  },
-  {
     "text": "Privacy",
     "files": [
       "methodology.html"
@@ -6495,20 +5604,7 @@
   {
     "text": "Privacy Policy",
     "files": [
-      "components/legal-sheet.js",
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Private",
-    "files": [
-      "views/portfolio-social.js"
-    ]
-  },
-  {
-    "text": "Private profile",
-    "files": [
-      "views/me.js"
+      "components/legal-sheet.js"
     ]
   },
   {
@@ -6532,39 +5628,13 @@
   {
     "text": "Profile",
     "files": [
-      "index.html",
-      "views/me.js",
-      "views/portfolio-social.js"
-    ]
-  },
-  {
-    "text": "Profile and app settings",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Profile not found",
-    "files": [
-      "views/portfolio-social.js"
+      "index.html"
     ]
   },
   {
     "text": "Profile not found or private",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "Profile private",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Profile public",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -6598,34 +5668,9 @@
     ]
   },
   {
-    "text": "Public Portfolio",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Public Profile",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Public profile",
     "files": [
-      "route-meta.js",
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Public profiles and Trophy Shelf sync require an account — use",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Public valuation",
-    "files": [
-      "views/me.js"
+      "route-meta.js"
     ]
   },
   {
@@ -6650,24 +5695,6 @@
     "text": "Purchases",
     "files": [
       "lib/revenuecat-native.js"
-    ]
-  },
-  {
-    "text": "Purchases restored ⭐",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Push Notifications",
-    "files": [
-      "views/me-integrations.js"
-    ]
-  },
-  {
-    "text": "Push notifications",
-    "files": [
-      "views/me-integrations.js"
     ]
   },
   {
@@ -6716,12 +5743,6 @@
     "text": "Quota:",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "RETIRED",
-    "files": [
-      "views/portfolio-social.js"
     ]
   },
   {
@@ -6818,12 +5839,6 @@
     "text": "Receive price alerts on your device even when the app is closed.",
     "files": [
       "views/me-integrations.js"
-    ]
-  },
-  {
-    "text": "Recent",
-    "files": [
-      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -6986,12 +6001,6 @@
     ]
   },
   {
-    "text": "Remove from shelf",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Remove from vault",
     "files": [
       "views/portfolio-detail.js"
@@ -7007,12 +6016,6 @@
     "text": "Removed",
     "files": [
       "components/scanner.js"
-    ]
-  },
-  {
-    "text": "Removed from trophy shelf",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -7061,24 +6064,6 @@
     "text": "Replay the first-run setup (mode, appearance, extras, Pro) to review it.",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Replay the quick guided walkthrough.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Report failed",
-    "files": [
-      "views/me-data.js"
-    ]
-  },
-  {
-    "text": "Require your fingerprint (or device PIN) to open BricksVault.",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -7172,12 +6157,6 @@
     ]
   },
   {
-    "text": "Restore purchases",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Restore snapshot",
     "files": [
       "views/me-data.js"
@@ -7205,18 +6184,6 @@
     "text": "Retail MSRP",
     "files": [
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Retail market",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Retail market updated",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -7289,8 +6256,7 @@
   {
     "text": "Retro",
     "files": [
-      "components/onboarding.js",
-      "views/me.js"
+      "components/onboarding.js"
     ]
   },
   {
@@ -7298,7 +6264,6 @@
     "files": [
       "components/advisor.js",
       "components/legal-sheet.js",
-      "router.js",
       "views/catalog.js",
       "views/me-admin.js",
       "views/me-data.js",
@@ -7339,8 +6304,7 @@
   {
     "text": "Review",
     "files": [
-      "views/me-admin.js",
-      "views/me-contributions.js"
+      "views/me-admin.js"
     ]
   },
   {
@@ -7395,12 +6359,6 @@
     "text": "Reviews appear once approved by a moderator.",
     "files": [
       "components/contribute.js"
-    ]
-  },
-  {
-    "text": "Reviews, photos & data fixes you've submitted",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -7633,8 +6591,7 @@
     "text": "Scan a set",
     "files": [
       "route-meta.js",
-      "views/portfolio-detail.js",
-      "views/portfolio-wishlist.js"
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -7760,21 +6717,9 @@
     ]
   },
   {
-    "text": "See my score",
-    "files": [
-      "views/game.js"
-    ]
-  },
-  {
     "text": "Sell",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "Sell Opportunities",
-    "files": [
-      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -7800,12 +6745,6 @@
     "text": "Sells slowly",
     "files": [
       "lib/pure.js"
-    ]
-  },
-  {
-    "text": "Send",
-    "files": [
-      "components/advisor.js"
     ]
   },
   {
@@ -7863,9 +6802,9 @@
     ]
   },
   {
-    "text": "Set Handle",
+    "text": "Set",
     "files": [
-      "views/me.js"
+      "lib/insurance-report.js"
     ]
   },
   {
@@ -7878,12 +6817,6 @@
     "text": "Set PIN & Enter Kids Mode",
     "files": [
       "components/kids-pin.js"
-    ]
-  },
-  {
-    "text": "Set a 4-digit PIN to enable a gamified, price-free view for kids.",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -7960,19 +6893,6 @@
     ]
   },
   {
-    "text": "Sets",
-    "files": [
-      "views/kids.js",
-      "views/portfolio-social.js"
-    ]
-  },
-  {
-    "text": "Sets owned",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Sets with BrickLink market data.",
     "files": [
       "views/me-admin.js"
@@ -7994,12 +6914,6 @@
     "text": "Sets with validated used sold comps.",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Setting up today's five…",
-    "files": [
-      "views/game.js"
     ]
   },
   {
@@ -8038,7 +6952,8 @@
     "files": [
       "lib/native-file-export.js",
       "lib/native-share.js",
-      "views/game.js"
+      "views/me-insurance.js",
+      "views/wrapped.js"
     ]
   },
   {
@@ -8079,18 +6994,6 @@
     ]
   },
   {
-    "text": "Show the floating assistant button for price help.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Show total valuation",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Show values in your local currency.",
     "files": [
       "components/onboarding.js"
@@ -8119,8 +7022,7 @@
     "files": [
       "components/scanner.js",
       "route-meta.js",
-      "views/login.js",
-      "views/me.js"
+      "views/login.js"
     ]
   },
   {
@@ -8138,7 +7040,8 @@
   {
     "text": "Sign in first — a parent PIN keeps kids from exiting.",
     "files": [
-      "components/onboarding.js"
+      "components/onboarding.js",
+      "views/welcome.js"
     ]
   },
   {
@@ -8154,18 +7057,6 @@
     ]
   },
   {
-    "text": "Sign in to get the Sunday email summary.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Sign in to sync",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Sign in to sync with Google Sheets",
     "files": [
       "api.js"
@@ -8174,7 +7065,8 @@
   {
     "text": "Sign in to use Kids Mode — the parent PIN needs an account.",
     "files": [
-      "components/onboarding.js"
+      "components/onboarding.js",
+      "views/welcome.js"
     ]
   },
   {
@@ -8187,12 +7079,6 @@
     "text": "Sign in to use this feature",
     "files": [
       "api.js"
-    ]
-  },
-  {
-    "text": "Sign out",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -8223,13 +7109,7 @@
     "text": "Simple",
     "files": [
       "components/onboarding.js",
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Simple hides ROI charts & forecasts — just value & your sets.",
-    "files": [
-      "views/me.js"
+      "views/welcome.js"
     ]
   },
   {
@@ -8337,12 +7217,6 @@
     ]
   },
   {
-    "text": "Something went wrong",
-    "files": [
-      "router.js"
-    ]
-  },
-  {
     "text": "Something went wrong.",
     "files": [
       "views/me.js"
@@ -8370,18 +7244,6 @@
     "text": "Sorting the 1×1 plates…",
     "files": [
       "components/scanner.js"
-    ]
-  },
-  {
-    "text": "Sounds off",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Sounds on",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -8529,21 +7391,9 @@
     ]
   },
   {
-    "text": "Store unavailable — try again",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Story, details, anything…",
     "files": [
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Style",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -8584,21 +7434,9 @@
     ]
   },
   {
-    "text": "Support BricksVault",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Support link shown on the Me tab.",
     "files": [
       "views/me-admin-config.js"
-    ]
-  },
-  {
-    "text": "Support on Patreon →",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -8680,12 +7518,6 @@
     ]
   },
   {
-    "text": "Sync your local vault across devices.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Syncing...",
     "files": [
       "views/me-integrations.js"
@@ -8754,21 +7586,9 @@
     ]
   },
   {
-    "text": "Tap the heart on any set to watch it. We'll alert you when the price hits your target.",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
     "text": "Tap the minifig you pulled to add it to your collection.",
     "files": [
       "components/scanner.js"
-    ]
-  },
-  {
-    "text": "Target",
-    "files": [
-      "views/portfolio-wishlist.js"
     ]
   },
   {
@@ -8793,8 +7613,7 @@
   {
     "text": "Terms of Service",
     "files": [
-      "components/legal-sheet.js",
-      "views/me.js"
+      "components/legal-sheet.js"
     ]
   },
   {
@@ -8807,24 +7626,6 @@
     "text": "Testing…",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Thank you for going Pro. Your support keeps BricksVault alive — enjoy your perks.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Thank you for supporting BricksVault!",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Thanks for the support — you rock. 🧱",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -8870,12 +7671,6 @@
     ]
   },
   {
-    "text": "The link may be outdated or mistyped.",
-    "files": [
-      "router.js"
-    ]
-  },
-  {
     "text": "The most common price-guide error isn't a wrong price — it's the right price for the",
     "files": [
       "methodology.html"
@@ -8914,8 +7709,7 @@
   {
     "text": "Theme",
     "files": [
-      "components/onboarding.js",
-      "views/me.js"
+      "components/onboarding.js"
     ]
   },
   {
@@ -8938,27 +7732,9 @@
     ]
   },
   {
-    "text": "This cannot be undone.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "This collector has not added anything to their public Trophy Shelf.",
-    "files": [
-      "views/portfolio-social.js"
-    ]
-  },
-  {
     "text": "This feature needs additional setup",
     "files": [
       "api.js"
-    ]
-  },
-  {
-    "text": "This permanently erases your vault, wishlist, showcase, uploaded photos, reviews, contributions, and preferences.",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -9034,12 +7810,6 @@
     ]
   },
   {
-    "text": "Today's game isn't ready yet — check back soon.",
-    "files": [
-      "views/game.js"
-    ]
-  },
-  {
     "text": "Took too long — try again.",
     "files": [
       "runtime-exact"
@@ -9058,27 +7828,15 @@
     ]
   },
   {
-    "text": "Top public collections by value",
+    "text": "Total market value",
     "files": [
-      "views/me.js"
+      "lib/insurance-report.js"
     ]
   },
   {
-    "text": "Top public collections by value. Make your profile public and expose your value in the",
+    "text": "Total paid",
     "files": [
-      "views/portfolio-social.js"
-    ]
-  },
-  {
-    "text": "Top themes",
-    "files": [
-      "views/portfolio-social.js"
-    ]
-  },
-  {
-    "text": "Total value",
-    "files": [
-      "views/me.js"
+      "lib/insurance-report.js"
     ]
   },
   {
@@ -9127,12 +7885,6 @@
     "text": "Trending",
     "files": [
       "views/catalog.js"
-    ]
-  },
-  {
-    "text": "Trophy Shelf",
-    "files": [
-      "views/portfolio-social.js"
     ]
   },
   {
@@ -9203,12 +7955,6 @@
     ]
   },
   {
-    "text": "Type",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Type at least 2 characters.",
     "files": [
       "views/me-admin.js"
@@ -9230,18 +7976,6 @@
     "text": "Uncommon",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "United Kingdom",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "United States",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -9271,34 +8005,10 @@
     ]
   },
   {
-    "text": "Unlock",
-    "files": [
-      "lib/app-lock.js"
-    ]
-  },
-  {
-    "text": "Unlock AI advice! Get a key in 30 seconds at",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
     "text": "Unlock BricksVault",
     "files": [
       "lib/app-lock.js",
       "lib/native-biometric.js"
-    ]
-  },
-  {
-    "text": "Unlock BricksVault Pro:",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Unlock Premium & Gold by supporting BricksVault ★",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -9360,12 +8070,6 @@
     "text": "Updating soon",
     "files": [
       "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "Upgrade to Pro",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -9533,26 +8237,15 @@
     ]
   },
   {
-    "text": "Valuation hidden publicly",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Valuation sources",
     "files": [
       "views/me-admin-config.js"
     ]
   },
   {
-    "text": "Valuation visible publicly",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Value",
     "files": [
+      "lib/insurance-report.js",
       "views/catalog.js",
       "views/minifigs.js"
     ]
@@ -9586,12 +8279,6 @@
     "text": "Vault cracked! Add your first set to make it real.",
     "files": [
       "components/empty-vault-brick-3d.js"
-    ]
-  },
-  {
-    "text": "Vault snapshots",
-    "files": [
-      "views/me-data.js"
     ]
   },
   {
@@ -9649,12 +8336,6 @@
     ]
   },
   {
-    "text": "View all →",
-    "files": [
-      "views/kids.js"
-    ]
-  },
-  {
     "text": "View as grid",
     "files": [
       "views/catalog.js"
@@ -9667,22 +8348,9 @@
     ]
   },
   {
-    "text": "View mode",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Visual style",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Vivid",
     "files": [
-      "components/onboarding.js",
-      "views/me.js"
+      "components/onboarding.js"
     ]
   },
   {
@@ -9722,12 +8390,6 @@
     ]
   },
   {
-    "text": "We couldn't load this page. Check your connection and try again.",
-    "files": [
-      "router.js"
-    ]
-  },
-  {
     "text": "We sent a confirmation link to",
     "files": [
       "views/login.js"
@@ -9758,24 +8420,6 @@
     ]
   },
   {
-    "text": "Weekly digest off",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Weekly digest on — first one this Sunday",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Weekly vault digest",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Weight",
     "files": [
       "views/portfolio-detail.js"
@@ -9797,18 +8441,6 @@
     "text": "Welcome to BricksVault",
     "files": [
       "components/onboarding.js"
-    ]
-  },
-  {
-    "text": "Welcome to BricksVault Pro! ⭐",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "What Can I Build?",
-    "files": [
-      "views/me.js"
     ]
   },
   {
@@ -9842,30 +8474,6 @@
     ]
   },
   {
-    "text": "What's it worth on the market today?",
-    "files": [
-      "views/game.js"
-    ]
-  },
-  {
-    "text": "When turned on, anyone with the link can view your vault and showcase shelf.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Which of my sets might retire soon?",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
-    "text": "Which sets should I sell this month?",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
     "text": "Wide range",
     "files": [
       "views/portfolio-detail-market.js"
@@ -9875,20 +8483,7 @@
     "text": "Wishlist",
     "files": [
       "index.html",
-      "route-meta.js",
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
-    "text": "Withdraw",
-    "files": [
-      "views/me-contributions.js"
-    ]
-  },
-  {
-    "text": "Withdrawn",
-    "files": [
-      "views/me-contributions.js"
+      "route-meta.js"
     ]
   },
   {
@@ -9940,16 +8535,9 @@
     ]
   },
   {
-    "text": "YOU",
-    "files": [
-      "views/portfolio-social.js"
-    ]
-  },
-  {
     "text": "You",
     "files": [
-      "components/onboarding.js",
-      "views/portfolio-social.js"
+      "components/onboarding.js"
     ]
   },
   {
@@ -9983,18 +8571,6 @@
     ]
   },
   {
-    "text": "You're offline — try marking alerts read when connected.",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
-    "text": "You're offline — wishlist isn't cached yet",
-    "files": [
-      "views/portfolio-wishlist.js"
-    ]
-  },
-  {
     "text": "You're offline. Reconnect to identify by photo, or set up on-device AI in Settings.",
     "files": [
       "components/scanner.js"
@@ -10020,33 +8596,15 @@
     ]
   },
   {
-    "text": "Your Trophy Shelf is empty.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Your Vault",
     "files": [
       "components/onboarding.js"
     ]
   },
   {
-    "text": "Your account has been deleted.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "Your app is ready. Add your first set to see it valued — or explore around.",
     "files": [
       "components/onboarding.js"
-    ]
-  },
-  {
-    "text": "Your brick portfolio, always in hand.",
-    "files": [
-      "views/login.js"
     ]
   },
   {
@@ -10058,20 +8616,13 @@
   {
     "text": "Your contributions",
     "files": [
-      "views/me-contributions.js",
-      "views/me.js"
+      "route-meta.js"
     ]
   },
   {
     "text": "Your first set! Welcome to BricksVault!",
     "files": [
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Your guess",
-    "files": [
-      "views/game.js"
     ]
   },
   {
@@ -10082,12 +8633,6 @@
   },
   {
     "text": "Your profile just got a display case.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "Your sets are saved on this device. Sign in before switching devices to sync your vault, publish a profile, unlock Trophy Shelf, and connect Google Sheets.",
     "files": [
       "views/me.js"
     ]
@@ -10153,15 +8698,21 @@
     ]
   },
   {
-    "text": "above.",
+    "text": "a.bv-setrow[data-set-num], .vault-row[data-set-num] a.vault-row__link, .bv-tile[data-set-num] a.bv-tile__link",
     "files": [
-      "views/me.js"
+      "lib/list-detail.js"
     ]
   },
   {
     "text": "accept the license",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "action-result bv-data__result",
+    "files": [
+      "views/me-data.js"
     ]
   },
   {
@@ -10220,6 +8771,18 @@
     ]
   },
   {
+    "text": "bv-adv__tip chat-gemini-card",
+    "files": [
+      "components/advisor.js"
+    ]
+  },
+  {
+    "text": "bv-alertsws bv-insurance__opts",
+    "files": [
+      "views/me-insurance.js"
+    ]
+  },
+  {
     "text": "bv-bar insights-theme__bar",
     "files": [
       "views/insights.js"
@@ -10235,6 +8798,24 @@
     "text": "bv-btn-row vault-facets__actions",
     "files": [
       "views/minifigs.js"
+    ]
+  },
+  {
+    "text": "bv-card bv-game__rows",
+    "files": [
+      "views/game.js"
+    ]
+  },
+  {
+    "text": "bv-card bv-game__score",
+    "files": [
+      "views/game.js"
+    ]
+  },
+  {
+    "text": "bv-card bv-game__set",
+    "files": [
+      "views/game.js"
     ]
   },
   {
@@ -10256,9 +8837,21 @@
     ]
   },
   {
+    "text": "bv-card bv-ready__alerts",
+    "files": [
+      "views/welcome.js"
+    ]
+  },
+  {
     "text": "bv-card__link bv-linkbtn",
     "files": [
       "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bv-chip bv-adv__prompt",
+    "files": [
+      "components/advisor.js"
     ]
   },
   {
@@ -10310,6 +8903,12 @@
     ]
   },
   {
+    "text": "bv-game__stage game-set-photo-stage",
+    "files": [
+      "views/game.js"
+    ]
+  },
+  {
     "text": "bv-grid bv-discover__grid",
     "files": [
       "views/catalog.js"
@@ -10324,6 +8923,7 @@
   {
     "text": "bv-group__box bv-gap",
     "files": [
+      "views/me-insurance.js",
       "views/retiring.js"
     ]
   },
@@ -10331,6 +8931,12 @@
     "text": "bv-group__box bv-themepicker",
     "files": [
       "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bv-group__box bv-wel__prefs",
+    "files": [
+      "views/welcome.js"
     ]
   },
   {
@@ -10373,6 +8979,30 @@
     "text": "bv-iconbtn bv-scanres__dismiss",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "bv-ident__stats profile-summary",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "bv-insprev__val bv-num",
+    "files": [
+      "views/me-insurance.js"
+    ]
+  },
+  {
+    "text": "bv-intcard__actions integration-inline-actions",
+    "files": [
+      "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "bv-intcard__note integration-ready-note",
+    "files": [
+      "views/me-integrations.js"
     ]
   },
   {
@@ -10430,6 +9060,18 @@
     ]
   },
   {
+    "text": "bv-proplan__price bv-num",
+    "files": [
+      "views/pro.js"
+    ]
+  },
+  {
+    "text": "bv-pub__note public-showcase-empty",
+    "files": [
+      "views/portfolio-social.js"
+    ]
+  },
+  {
     "text": "bv-row__text scan-method-copy",
     "files": [
       "views/catalog.js"
@@ -10478,9 +9120,21 @@
     ]
   },
   {
+    "text": "bv-sheet__sub bv-permcopy",
+    "files": [
+      "views/me-notifications.js"
+    ]
+  },
+  {
     "text": "bv-sheet__sub bv-why__detail",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "bv-sr bv-contribsum__sr",
+    "files": [
+      "views/me-contributions.js"
     ]
   },
   {
@@ -10499,6 +9153,180 @@
     "text": "bv-valuecard__value bv-num detail-summary-val",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "bv-wel__body bv-wel__center",
+    "files": [
+      "views/welcome.js"
+    ]
+  },
+  {
+    "text": "bv-wel__note bv-note",
+    "files": [
+      "views/welcome.js"
+    ]
+  },
+  {
+    "text": "bvAccount.aiCloud",
+    "files": [
+      "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "bvAccount.aiOnDevice",
+    "files": [
+      "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "bvAccount.appLockOff",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "bvAccount.appLockOn",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "bvAccount.fingerprint",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "bvAccount.gainAria",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "bvAccount.gainLabel",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "bvAccount.insDownloaded",
+    "files": [
+      "views/me-insurance.js"
+    ]
+  },
+  {
+    "text": "bvAccount.insDownloadedShare",
+    "files": [
+      "views/me-insurance.js"
+    ]
+  },
+  {
+    "text": "bvAccount.kidsOff",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "bvAccount.kidsOn",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "bvAccount.lossAria",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "bvAccount.lossLabel",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "bvAccount.off",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "bvAccount.planBest",
+    "files": [
+      "views/pro.js"
+    ]
+  },
+  {
+    "text": "bvAccount.planCancel",
+    "files": [
+      "views/pro.js"
+    ]
+  },
+  {
+    "text": "bvAccount.planMonthly",
+    "files": [
+      "views/pro.js"
+    ]
+  },
+  {
+    "text": "bvAccount.planYearly",
+    "files": [
+      "views/pro.js"
+    ]
+  },
+  {
+    "text": "bvAccount.proNothingRestore",
+    "files": [
+      "views/pro.js"
+    ]
+  },
+  {
+    "text": "bvAccount.proRestored",
+    "files": [
+      "views/pro.js"
+    ]
+  },
+  {
+    "text": "bvAccount.publicOff",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "bvAccount.publicOn",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "bvAccount.styleHelp",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "bvAccount.styleHelpPro",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "bvAccount.themeAuto",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "bvAccount.themeDark",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "bvAccount.themeLight",
+    "files": [
+      "views/me.js"
     ]
   },
   {
@@ -10646,14 +9474,178 @@
     ]
   },
   {
-    "text": "bvCommon.comingSoon",
+    "text": "bvAlerts.alertDropAt",
     "files": [
-      "views/advisor-page.js",
-      "views/me-insurance.js",
-      "views/me-notifications.js",
-      "views/pro.js",
-      "views/welcome.js",
-      "views/wrapped.js"
+      "views/portfolio-wishlist.js"
+    ]
+  },
+  {
+    "text": "bvAlerts.alertDropBelow",
+    "files": [
+      "views/portfolio-wishlist.js"
+    ]
+  },
+  {
+    "text": "bvAlerts.emptyTitle",
+    "files": [
+      "views/portfolio-wishlist.js"
+    ]
+  },
+  {
+    "text": "bvAlerts.subEmail",
+    "files": [
+      "views/me-notifications.js"
+    ]
+  },
+  {
+    "text": "bvAlerts.subEmailWeekly",
+    "files": [
+      "views/me-notifications.js"
+    ]
+  },
+  {
+    "text": "bvAlerts.subPushEmail",
+    "files": [
+      "views/me-notifications.js"
+    ]
+  },
+  {
+    "text": "bvAlerts.subPushWeekly",
+    "files": [
+      "views/me-notifications.js"
+    ]
+  },
+  {
+    "text": "bvCommunity.advOffTitle",
+    "files": [
+      "components/advisor.js"
+    ]
+  },
+  {
+    "text": "bvCommunity.advSubCloud",
+    "files": [
+      "components/advisor.js"
+    ]
+  },
+  {
+    "text": "bvCommunity.advSubLocal",
+    "files": [
+      "components/advisor.js"
+    ]
+  },
+  {
+    "text": "bvCommunity.contribEmptyTitle",
+    "files": [
+      "views/me-contributions.js"
+    ]
+  },
+  {
+    "text": "bvCommunity.emptyBody",
+    "files": [
+      "views/portfolio-social.js"
+    ]
+  },
+  {
+    "text": "bvCommunity.emptyTitle",
+    "files": [
+      "views/portfolio-social.js"
+    ]
+  },
+  {
+    "text": "bvCommunity.gameLoadFailedTitle",
+    "files": [
+      "views/game.js"
+    ]
+  },
+  {
+    "text": "bvCommunity.gameNotReadyTitle",
+    "files": [
+      "views/game.js"
+    ]
+  },
+  {
+    "text": "bvCommunity.loadFailedBody",
+    "files": [
+      "views/portfolio-social.js"
+    ]
+  },
+  {
+    "text": "bvCommunity.loadFailedTitle",
+    "files": [
+      "views/me-contributions.js",
+      "views/portfolio-social.js"
+    ]
+  },
+  {
+    "text": "bvCommunity.noApproved",
+    "files": [
+      "views/me-contributions.js"
+    ]
+  },
+  {
+    "text": "bvCommunity.noPending",
+    "files": [
+      "views/me-contributions.js"
+    ]
+  },
+  {
+    "text": "bvCommunity.notFoundBody",
+    "files": [
+      "views/portfolio-social.js"
+    ]
+  },
+  {
+    "text": "bvCommunity.notFoundTitle",
+    "files": [
+      "views/portfolio-social.js"
+    ]
+  },
+  {
+    "text": "bvCommunity.risingEmptyBody",
+    "files": [
+      "views/portfolio-social.js"
+    ]
+  },
+  {
+    "text": "bvCommunity.risingEmptyTitle",
+    "files": [
+      "views/portfolio-social.js"
+    ]
+  },
+  {
+    "text": "bvFirst.alertsBlocked",
+    "files": [
+      "views/welcome.js"
+    ]
+  },
+  {
+    "text": "bvFirst.alertsFailed",
+    "files": [
+      "views/welcome.js"
+    ]
+  },
+  {
+    "text": "bvFirst.currencyHelp",
+    "files": [
+      "views/welcome.js"
+    ]
+  },
+  {
+    "text": "bvFirst.lookSub",
+    "files": [
+      "views/welcome.js"
+    ]
+  },
+  {
+    "text": "bvFirst.lookSubAuto",
+    "files": [
+      "views/welcome.js"
+    ]
+  },
+  {
+    "text": "bvFirst.marketHelp",
+    "files": [
+      "views/welcome.js"
     ]
   },
   {
@@ -10870,6 +9862,18 @@
     "text": "changes-hero__value bv-num",
     "files": [
       "views/changes.js"
+    ]
+  },
+  {
+    "text": "chat-msg ai bv-adv__health",
+    "files": [
+      "components/advisor.js"
+    ]
+  },
+  {
+    "text": "csv-import-wrap bv-datarow__actions",
+    "files": [
+      "views/me-data.js"
     ]
   },
   {
@@ -11186,30 +10190,6 @@
     ]
   },
   {
-    "text": "tab to contribute.",
-    "files": [
-      "views/me-contributions.js"
-    ]
-  },
-  {
-    "text": "tab to join.",
-    "files": [
-      "views/portfolio-social.js"
-    ]
-  },
-  {
-    "text": "tab.",
-    "files": [
-      "components/advisor.js"
-    ]
-  },
-  {
-    "text": "to confirm.",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
     "text": "to manually force Chrome to download the model weights.",
     "files": [
       "views/me-integrations.js"
@@ -11354,12 +10334,6 @@
     ]
   },
   {
-    "text": "← Back to Vault",
-    "files": [
-      "views/kids.js"
-    ]
-  },
-  {
     "text": "← Back to app",
     "files": [
       "methodology.html"
@@ -11375,18 +10349,6 @@
     "text": "✓ Earned!",
     "files": [
       "views/kids.js"
-    ]
-  },
-  {
-    "text": "⭐ BricksVault Pro",
-    "files": [
-      "views/me.js"
-    ]
-  },
-  {
-    "text": "⭐ Supporter",
-    "files": [
-      "views/portfolio-social.js"
     ]
   },
   {

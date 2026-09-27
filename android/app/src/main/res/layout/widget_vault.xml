@@ -1,65 +1,122 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen vault widget (2026 redesign, canvas HomeScreen): "Vault value"
+     + last-sync time, the value with its change chip, and Scan / Search
+     buttons that deep-link straight into the scanner and Discover. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="horizontal"
+    android:orientation="vertical"
     android:gravity="center_vertical"
-    android:padding="16dp"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp"
+    android:paddingTop="14dp"
+    android:paddingBottom="14dp"
     android:background="@drawable/widget_bg">
 
     <LinearLayout
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical">
+        android:orientation="horizontal"
+        android:baselineAligned="true">
 
         <TextView
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="@string/widget_eyebrow"
-            android:textSize="10sp"
-            android:letterSpacing="0.08"
-            android:fontFamily="monospace"
-            android:textColor="#8A8172" />
-
-        <TextView
-            android:id="@+id/widget_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="1dp"
-            android:text="Open the app"
-            android:textSize="26sp"
-            android:textStyle="bold"
-            android:textColor="#26231D"
-            android:maxLines="1" />
-
-        <TextView
-            android:id="@+id/widget_delta"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="1dp"
-            android:text=""
+            android:layout_weight="1"
+            android:text="@string/widget_label"
             android:textSize="13sp"
-            android:textStyle="bold"
-            android:textColor="#2C7A4B"
+            android:textColor="@color/widget_mute"
             android:maxLines="1" />
 
         <TextView
             android:id="@+id/widget_meta"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="Open the app to sync"
-            android:textSize="10sp"
-            android:textColor="#8A8172"
+            android:layout_marginStart="8dp"
+            android:text="@string/widget_open_to_sync"
+            android:textSize="12sp"
+            android:textColor="@color/widget_mute"
+            android:ellipsize="end"
             android:maxLines="1" />
     </LinearLayout>
 
-    <ImageView
-        android:layout_width="46dp"
-        android:layout_height="46dp"
-        android:layout_marginStart="10dp"
-        android:src="@drawable/widget_brick"
-        android:contentDescription="@string/app_name" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/widget_value"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/widget_open_app"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace"
+            android:letterSpacing="-0.03"
+            android:textColor="@color/widget_ink"
+            android:maxLines="1" />
+
+        <TextView
+            android:id="@+id/widget_delta"
+            android:layout_width="wrap_content"
+            android:layout_height="24dp"
+            android:layout_marginStart="10dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:gravity="center"
+            android:background="@drawable/widget_chip_up"
+            android:text=""
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace"
+            android:textColor="#1D6F38"
+            android:maxLines="1" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/widget_scan"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1"
+            android:layout_marginEnd="4dp"
+            android:gravity="center"
+            android:background="@drawable/widget_btn_acc"
+            android:drawableStart="@drawable/widget_ic_scan"
+            android:drawablePadding="8dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:text="@string/widget_scan"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="#252820"
+            android:maxLines="1" />
+
+        <TextView
+            android:id="@+id/widget_search"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1"
+            android:layout_marginStart="4dp"
+            android:gravity="center"
+            android:background="@drawable/widget_btn_soft"
+            android:drawableStart="@drawable/widget_ic_search"
+            android:drawablePadding="8dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:text="@string/widget_search"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="@color/widget_ink"
+            android:maxLines="1" />
+    </LinearLayout>
 </LinearLayout>

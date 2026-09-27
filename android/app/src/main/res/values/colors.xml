@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="brickvault_splash_background">#F5F1E8</color>
+    <!-- Home-screen widget (2026 redesign tokens: bg / surface-2 / ink / mute). -->
+    <color name="widget_surface">#F7F5EE</color>
+    <color name="widget_surface_2">#EFEDE4</color>
+    <color name="widget_ink">#252820</color>
+    <color name="widget_mute">#5B5F53</color>
 </resources>

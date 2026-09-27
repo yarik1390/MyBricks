@@ -1,11 +1,9 @@
-// Placeholder for a 2026-redesign screen (Community area). Replaced by the
-// area's implementation; kept renderable so the route never errors.
-import { $ } from '../utils.js';
-import { t } from '../lib/i18n.js';
-import { topbar, emptyState, btn } from '../ui/kit.js';
+// Advisor (#/advisor) — 2026 redesign. A full-screen chat that uses the
+// collector's vault: portfolio health, the conversation, suggested questions
+// and the input bar. The chat itself (SSE streaming, bring-your-own-key and the
+// on-device models) lives in components/advisor.js, loaded lazily.
+import { renderAdvisorPage as render } from '../components/advisor-lazy.js';
 
 export async function renderAdvisorPage() {
-  const root = $('#root');
-  if (!root) return;
-  root.innerHTML = `<main class="bv-page no-nav">${topbar({ title: t('bvCommon.comingSoon'), back: 'history' })}${emptyState({ icon: 'sparkle', title: t('bvCommon.comingSoon'), actionsHtml: btn(t('nav.vault'), { href: '#/', kind: 'tonal' }) })}</main>`;
+  await render();
 }
