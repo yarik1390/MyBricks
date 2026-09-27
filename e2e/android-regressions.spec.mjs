@@ -131,3 +131,44 @@ test('switching to Photo while the native scanner check runs never launches ML K
   await expect(overlay.locator('.bv-scan')).toHaveAttribute('data-mode', 'image');
   await expect(overlay.locator('.bv-scan')).not.toHaveClass(/is-native/);
 });
+
+test('tapping a set photo opens the set in grids and on the Wishlist', async ({ page }) => {
+  const withPhoto = { set_num: '75192-1', name: 'Millennium Falcon', theme: 'Star Wars', current_value: 850, image_url: '/icon-512.png' };
+  await page.route('**/api/sets/search*', (route) => route.fulfill({ json: { sets: [withPhoto], total: 1, hasMore: false } }));
+  await page.route('**/api/wishlist', (route) => (route.request().method() === 'GET'
+    ? route.fulfill({ json: { wishlist: [{ id: 'w1', ...withPhoto }], unread_alerts: 0 } })
+    : route.fallback()));
+  const tapPhoto = async (selector) => {
+    const img = page.locator(selector).first();
+    await expect(img).toBeVisible();
+    const box = await img.boundingBox();
+    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(page).toHaveURL(/#\/set\/75192-1$/);
+  };
+  await page.goto('/#/add');
+  await expect(page.locator('#catalogCount')).toBeVisible();
+  if (await page.locator('#catalogLayoutToggle').getAttribute('aria-pressed') === 'true') await page.locator('#catalogLayoutToggle').click();
+  await tapPhoto('#catalogResults .bv-tile img.set-photo');
+  await page.goto('/#/wishlist');
+  await tapPhoto('.bv-wlrow img.set-photo');
+});
+
+test('the set page photo gets most of the hero, below the status bar', async ({ page }) => {
+  await page.route('**/api/sets/75192-1*', (route) => route.fulfill({ json: { set: { set_num: '75192-1', name: 'Millennium Falcon', theme: 'Star Wars', year: 2017, current_value: 850, image_url: '/icon-512.png' }, entry: null } }));
+  await page.goto('/#/set/75192-1');
+  await page.addStyleTag({ content: INSETS });
+  const media = page.locator('.bv-sethero__media');
+  await expect(media).toBeVisible();
+  const box = await media.boundingBox();
+  expect(box.y).toBeGreaterThanOrEqual(40 + 48); // below the status bar and the back/share row
+  expect(box.height).toBeGreaterThanOrEqual(200); // was ~130px on Android
+  expect(box.width).toBeGreaterThanOrEqual(360);
+});
+
+test('Coming soon rows show the catalog photo', async ({ page }) => {
+  await page.route('**/api/upcoming', (route) => route.fulfill({ json: { upcoming: [
+    { set_num: '21065-1', name: 'Sagrada Família', price_usd: 799.99, availability: 'Coming Soon', image_url: '/icon-512.png' },
+  ] } }));
+  await page.goto('/#/add');
+  await expect(page.locator('#comingSoonList [data-cs-open] img.set-photo')).toHaveCount(1);
+});
