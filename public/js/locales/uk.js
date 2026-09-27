@@ -724,6 +724,11 @@ export const uk = {
     identifyPhotoSub: 'Зібрані, розсипні чи в коробці',
     identifyPhoto: 'Розпізнати за фото',
     howIdentify: 'Як ви хочете його розпізнати?',
+    shortcuts: 'Радар новинок',
+    retiringShortcutSub: 'Останній шанс на LEGO.com',
+    upcomingShortcutSub: 'Нові набори на підході',
+    upcomingSub: 'Анонсовано LEGO · торкніться дзвіночка, щоб отримати сповіщення',
+    noUpcoming: 'Зараз немає анонсованих наборів',
     systemScanner: 'Камера не показується? Скористайтеся системним сканером',
     hintShelf: 'Візьміть усю полицю в кадр — допоможе гарне світло',
     hintPhoto: 'Візьміть набір у кадр і сфотографуйте',
@@ -1781,6 +1786,7 @@ Object.assign(uk.data, { csvImportMoreOne: ' і ще {n}', csvImportMoreFew: ' �
 Object.assign(uk.me, { trophyShelfOne: 'Полиця трофеїв ({n}/6)', trophyShelfFew: 'Полиця трофеїв ({n}/6)', trophyShelfMany: 'Полиця трофеїв ({n}/6)', trophyShelfOther: 'Полиця трофеїв ({n}/6)' });
 Object.assign(uk.build, { ofOwnedSetsOne: 'з {n} набору у власності', ofOwnedSetsFew: 'з {n} наборів у власності', ofOwnedSetsMany: 'з {n} наборів у власності', ofOwnedSetsOther: 'з {n} набору у власності', indexingOne: 'У фоні індексується ще {n} набір…', indexingFew: 'У фоні індексуються ще {n} набори…', indexingMany: 'У фоні індексуються ще {n} наборів…', indexingOther: 'У фоні індексуються ще {n} набору…' });
 Object.assign(uk.counts, { collectedOne: 'Зібрано {owned}/{total}', collectedFew: 'Зібрано {owned}/{total}', collectedMany: 'Зібрано {owned}/{total}', collectedOther: 'Зібрано {owned}/{total}', ownedOne: '{n} у власності', ownedFew: '{n} у власності', ownedMany: '{n} у власності', ownedOther: '{n} у власності', ofFigsOne: 'з {total} мініфігурки', ofFigsFew: 'з {total} мініфігурок', ofFigsMany: 'з {total} мініфігурок', ofFigsOther: 'з {total} мініфігурки', resultsOne: '{n} результат', resultsFew: '{n} результати', resultsMany: '{n} результатів', resultsOther: '{n} результату', figsOne: '{n} мініфігурка', figsFew: '{n} мініфігурки', figsMany: '{n} мініфігурок', figsOther: '{n} мініфігурки' });
+Object.assign(uk.counts, { setsOne: '{n} набір', setsFew: '{n} набори', setsMany: '{n} наборів', setsOther: '{n} набору' });
 Object.assign(uk.minifigs, { ownedCountOne: '{n} у власності', ownedCountFew: '{n} у власності', ownedCountMany: '{n} у власності', ownedCountOther: '{n} у власності' });
 Object.assign(uk.catalog, { filtersWithCountOne: 'Фільтр · {n}', filtersWithCountFew: 'Фільтри · {n}', filtersWithCountMany: 'Фільтрів · {n}', filtersWithCountOther: 'Фільтра · {n}' });
 Object.assign(uk.scanner, {"bulkMatchedOne":"Збігів: {matched} з {total}","bulkMatchedOther":"Збігів: {matched} з {total}"});

@@ -636,6 +636,11 @@ export const hi = {
     identifyPhotoSub: 'बने, खुले या डिब्बाबंद सेट',
     identifyPhoto: 'फ़ोटो से पहचानें',
     howIdentify: 'आप इसे कैसे पहचानना चाहेंगे?',
+    shortcuts: 'रिलीज़ रडार',
+    retiringShortcutSub: 'LEGO.com पर आखिरी मौका',
+    upcomingShortcutSub: 'नए सेट आने वाले हैं',
+    upcomingSub: 'LEGO द्वारा घोषित · सूचना के लिए घंटी दबाएँ',
+    noUpcoming: 'अभी कोई आगामी सेट घोषित नहीं है',
     systemScanner: 'कैमरा नहीं दिख रहा? सिस्टम स्कैनर इस्तेमाल करें',
     hintShelf: 'पूरा शेल्फ़ फ़्रेम में रखें — अच्छी रोशनी मदद करती है',
     hintPhoto: 'सेट को फ़्रेम में रखकर फ़ोटो लें',
@@ -1645,6 +1650,7 @@ Object.assign(hi.data, {"csvImportMoreOne":" और {n} और","csvImportMoreOt
 Object.assign(hi.me, {"trophyShelfOne":"ट्रॉफी शेल्फ ({n}/6)","trophyShelfOther":"ट्रॉफी शेल्फ ({n}/6)"});
 Object.assign(hi.build, {"ofOwnedSetsOne":"{n} स्वामित्व वाले सेट में से","ofOwnedSetsOther":"{n} स्वामित्व वाले सेट में से","indexingOne":"पृष्ठभूमि में {n} और सेट अनुक्रमित हो रहे हैं…","indexingOther":"पृष्ठभूमि में {n} और सेट अनुक्रमित हो रहे हैं…"});
 Object.assign(hi.counts, {"collectedOne":"{owned}/{total} एकत्रित","collectedOther":"{owned}/{total} एकत्रित","ownedOne":"{n} स्वामित्व में","ownedOther":"{n} स्वामित्व में","ofFigsOne":"{total} में से","ofFigsOther":"{total} में से","resultsOne":"{n} परिणाम","resultsOther":"{n} परिणाम","figsOne":"{n} मिनीफ़िगर","figsOther":"{n} मिनीफ़िगर"});
+Object.assign(hi.counts, { setsOne: '{n} सेट', setsOther: '{n} सेट' });
 Object.assign(hi.minifigs, {"ownedCountOne":"{n} स्वामित्व में","ownedCountOther":"{n} स्वामित्व में"});
 Object.assign(hi.catalog, {"filtersWithCountOne":"फ़िल्टर · {n}","filtersWithCountOther":"फ़िल्टर · {n}"});
 Object.assign(hi.scanner, {"bulkMatchedOne":"{total} में से {matched} मिले","bulkMatchedOther":"{total} में से {matched} मिले"});

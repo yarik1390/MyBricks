@@ -636,6 +636,11 @@ export const es = {
     identifyPhotoSub: 'Sets montados, sueltos o en caja',
     identifyPhoto: 'Identificar por foto',
     howIdentify: '¿Cómo quieres identificarlo?',
+    shortcuts: 'Radar de lanzamientos',
+    retiringShortcutSub: 'Última oportunidad en LEGO.com',
+    upcomingShortcutSub: 'Nuevos sets en camino',
+    upcomingSub: 'Anunciados por LEGO · toca la campana para recibir avisos',
+    noUpcoming: 'No hay sets anunciados por ahora',
     systemScanner: '¿No ves la cámara? Usa el escáner del sistema',
     hintShelf: 'Encuadra toda la estantería: la buena luz ayuda',
     hintPhoto: 'Encuadra el set y haz una foto',
@@ -1645,6 +1650,7 @@ Object.assign(es.data, {"csvImportMoreOne":" y {n} más","csvImportMoreOther":" 
 Object.assign(es.me, {"trophyShelfOne":"Estantería de trofeos ({n}/6)","trophyShelfOther":"Estantería de trofeos ({n}/6)"});
 Object.assign(es.build, {"ofOwnedSetsOne":"de {n} sets en propiedad","ofOwnedSetsOther":"de {n} sets en propiedad","indexingOne":"Indexando {n} set(s) más en segundo plano…","indexingOther":"Indexando {n} set(s) más en segundo plano…"});
 Object.assign(es.counts, {"collectedOne":"{owned}/{total} coleccionadas","collectedOther":"{owned}/{total} coleccionadas","ownedOne":"{n} en propiedad","ownedOther":"{n} en propiedad","ofFigsOne":"de {total} minifiguras","ofFigsOther":"de {total} minifiguras","resultsOne":"{n} resultados","resultsOther":"{n} resultados","figsOne":"{n} minifiguras","figsOther":"{n} minifiguras"});
+Object.assign(es.counts, { setsOne: '{n} set', setsOther: '{n} sets' });
 Object.assign(es.minifigs, {"ownedCountOne":"{n} en propiedad","ownedCountOther":"{n} en propiedad"});
 Object.assign(es.catalog, {"filtersWithCountOne":"Filtros · {n}","filtersWithCountOther":"Filtros · {n}"});
 Object.assign(es.scanner, {"bulkMatchedOne":"{matched} de {total} encontrados","bulkMatchedOther":"{matched} de {total} encontrados"});

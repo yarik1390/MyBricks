@@ -645,6 +645,11 @@ export const en = {
     identifyPhotoSub: 'Built, loose or boxed sets',
     identifyPhoto: 'Identify from a photo',
     howIdentify: 'How would you like to identify it?',
+    shortcuts: 'Release radar',
+    retiringShortcutSub: 'Last chance at LEGO.com',
+    upcomingShortcutSub: 'New sets on the way',
+    upcomingSub: 'Announced by LEGO · tap the bell to get notified',
+    noUpcoming: 'No upcoming sets announced right now',
     systemScanner: 'Camera not showing? Use the system scanner',
     hintShelf: 'Fit the whole shelf in frame — good light helps',
     hintPhoto: 'Frame the set and take a photo',
@@ -1914,6 +1919,7 @@ Object.assign(en.data, { csvImportMoreOne: ' and {n} more', csvImportMoreOther: 
 Object.assign(en.me, { trophyShelfOne: 'Trophy Shelf ({n}/6)', trophyShelfOther: 'Trophy Shelf ({n}/6)' });
 Object.assign(en.build, { ofOwnedSetsOne: 'of {n} owned set', ofOwnedSetsOther: 'of {n} owned sets', indexingOne: 'Indexing {n} more set in the background…', indexingOther: 'Indexing {n} more sets in the background…' });
 Object.assign(en.counts, { collectedOne: '{owned}/{total} collected', collectedOther: '{owned}/{total} collected', ownedOne: '{n} owned', ownedOther: '{n} owned', ofFigsOne: 'of {total} fig', ofFigsOther: 'of {total} figs', resultsOne: '{n} result', resultsOther: '{n} results', figsOne: '{n} fig', figsOther: '{n} figs' });
+Object.assign(en.counts, { setsOne: '{n} set', setsOther: '{n} sets' });
 Object.assign(en.minifigs, { ownedCountOne: '{n} owned', ownedCountOther: '{n} owned' });
 Object.assign(en.catalog, { filtersWithCountOne: 'Filter · {n}', filtersWithCountOther: 'Filters · {n}' });
 Object.assign(en.scanner, {"bulkMatchedOne":"{matched} of {total} matched","bulkMatchedOther":"{matched} of {total} matched"});
