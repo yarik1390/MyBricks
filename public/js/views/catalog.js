@@ -537,7 +537,7 @@ function paintAdd() {
       }
     }, SEARCH_DEBOUNCE_MS);
   });
-  $("#catalogScanBtn")?.addEventListener("click", () => { haptic("light"); openScan("barcode"); });
+  $("#catalogScanBtn")?.addEventListener("click", () => { haptic("light"); openScan("barcode", { pick: true }); });
   $("#discoverMoreBtn")?.addEventListener("click", openDiscoverMore);
 
   wireCatalogCards();
