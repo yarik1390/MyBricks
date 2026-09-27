@@ -98,7 +98,7 @@ test('scanner session: add, add again, then Done lists both with working Undo', 
   await page.locator('#scanAdd').click();
   await expect(page.locator('#scanCloseBtn')).toHaveText(/Done · 1/);
   const post = calls.find((c) => c.method === 'POST' && c.path === '/api/collection');
-  expect(post?.body).toEqual({ set_num: '10497-1', quantity: 1, condition: 'new' });
+  expect(post?.body).toEqual({ set_num: '10497-1', quantity: 1, condition: 'sealed' }); // "New" in the scanner is a sealed box
 
   // 2) A set you already own → one more copy on the same row.
   await expect(page.locator('#scanAdd')).toHaveCount(0);

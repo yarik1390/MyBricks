@@ -864,7 +864,8 @@ async function guestAddCollection(body = {}) {
   if (!setNum) throw new Error('set_num required');
   const quantity = Math.max(1, parseInt(String(body.quantity ?? 1), 10) || 1);
   const validConditions = ['new', 'used_good', 'used_acceptable', 'sealed'];
-  const condition = validConditions.includes(body.condition) ? body.condition : 'new';
+  // Same default as the Worker: a quick add is a sealed box, not "opened".
+  const condition = validConditions.includes(body.condition) ? body.condition : 'sealed';
   const items = readGuestCollection();
   const idx = items.findIndex(item => sameSetNum(item.set_num, setNum));
   const existing = idx >= 0 ? items[idx] : null;

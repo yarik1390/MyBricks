@@ -239,7 +239,7 @@ async function ownedEntryFor(setNum) {
 
 // Add one set (or one more copy). Price paid stays EMPTY unless the user
 // picked one — the old flow stored the market value as the purchase price.
-async function addScannedSet(set, { priceUsd = null, condition = "new" } = {}) {
+async function addScannedSet(set, { priceUsd = null, condition = "sealed" } = {}) {
   const entry = await ownedEntryFor(set.set_num);
   const record = { set_num: set.set_num, name: set.name, image_url: set.image_url, theme: set.theme };
   try {
@@ -1517,7 +1517,7 @@ function showSingleSet(el, set) {
       <details class="bv-scanres__more">
         <summary>${escapeHtml(t("bvAdd.moreOptions"))}${kitIcon("down", { size: 18 })}</summary>
         <div class="bv-field"><span class="bv-field__label">${escapeHtml(t("bvAdd.condition"))}</span>
-          ${kitSeg([{ label: t("bvAdd.condNew"), value: "new", current: true }, { label: t("bvAdd.condUsed"), value: "used_good" }], { label: t("bvAdd.condition"), id: "scanCond" })}</div>
+          ${kitSeg([{ label: t("bvAdd.condNew"), value: "sealed", current: true }, { label: t("bvAdd.condUsed"), value: "used_good" }], { label: t("bvAdd.condition"), id: "scanCond" })}</div>
         ${dealScoreHTML(set)}
         <div id="scanFlipCalcContainer">${flipCalcHTML(set, null)}</div>
         ${amazonSlotHTML(set.set_num, { compact: true })}
@@ -1554,7 +1554,7 @@ function showSingleSet(el, set) {
   $("#scanAdd")?.addEventListener("click", async () => {
     const price = readPickedPrice();
     if (!price.ok) { toast(t("bvAdd.priceInvalid"), "error"); $("#scanOtherPrice")?.focus(); return; }
-    const condition = $("#scanCond [aria-pressed='true']")?.dataset.value || "new";
+    const condition = $("#scanCond [aria-pressed='true']")?.dataset.value || "sealed";
     haptic("heavy");
     setBtnLoading($("#scanAdd"), true);
     try {
