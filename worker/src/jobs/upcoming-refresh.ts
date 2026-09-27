@@ -36,13 +36,14 @@ export async function runUpcomingRefresh(env: Env) {
 /**
  * A set LEGO lists as coming soon isn't retiring. Clear the flag a stock scrape
  * stored anyway (its parsers can match "Retiring soon" in LEGO.com's site
- * navigation). Runs even when the scrape is off or fails, so bad flags heal.
+ * navigation) and the risk score cached from it, which the app also reads as
+ * "retiring" at 70+. Runs even when the scrape is off or fails, so bad flags heal.
  */
 export async function clearRetiringOnUpcoming(env: Env): Promise<number> {
   try {
     const res = await env.DB.prepare(
-      `UPDATE lego_sets SET lego_retiring_soon = 0
-       WHERE lego_retiring_soon = 1
+      `UPDATE lego_sets SET lego_retiring_soon = 0, retirement_risk_score = 0
+       WHERE (lego_retiring_soon = 1 OR COALESCE(retirement_risk_score, 0) > 0)
          AND (set_num IN (SELECT set_num FROM upcoming_sets)
               OR COALESCE(lego_availability, '') IN ('coming_soon', 'pre_order'))`,
     ).run();

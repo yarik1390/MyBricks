@@ -23,6 +23,9 @@ export function computeRetirementRisk(set: {
   pa_in_stock?: number | boolean | null;
 }): number {
   if (set.retired) return 0;
+  // Not released yet: nothing to retire, whatever a scrape flagged.
+  const status = (set.lego_availability ?? '').toLowerCase();
+  if (status === 'coming_soon' || status === 'pre_order') return 0;
   const currentYear = new Date().getFullYear();
   const age = currentYear - set.year;
 
