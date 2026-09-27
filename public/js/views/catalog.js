@@ -1,7 +1,7 @@
 import { discoverNavigation } from '../components/collector-shell.js';
 import { $, $$, haptic, escapeHtml, setHue, bvIDB, SEARCH_DEBOUNCE_MS, mount, toast, thumbImg, snackbar } from '../utils.js';
-import { icon as kitIcon, iconBtn as kitIconBtn, row as kitRow, sectionTitle as kitSectionTitle, thumb as kitThumb, pill as kitPill, topbar as kitTopbar, searchBar as kitSearchBar, sheetBody as kitSheetBody, emptyState as kitEmptyState, field as kitField } from '../ui/kit.js';
-import { setRow as kitSetRow, money0 } from '../ui/set-ui.js';
+import { icon as kitIcon, iconBtn as kitIconBtn, row as kitRow, sectionTitle as kitSectionTitle, pill as kitPill, topbar as kitTopbar, searchBar as kitSearchBar, sheetBody as kitSheetBody, emptyState as kitEmptyState, field as kitField } from '../ui/kit.js';
+import { setRow as kitSetRow, setThumb, money0 } from '../ui/set-ui.js';
 import { t, tPlural, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, getSessionUserId, photoScanNeedsSetup, outboxEnqueue } from '../api.js';
@@ -250,7 +250,7 @@ function comingSoonSectionHTML() {
   const row = (u) => {
     const on = wish.has(u.set_num);
     return `<div class="bv-setrow bv-comingsoon__row" data-cs-open="${escapeHtml(String(u.set_num))}" role="link" tabindex="0">
-        ${kitThumb({ color: `hsl(${setHue(u)} 45% 60%)`, size: 52 })}
+        ${setThumb(u)}
         <span class="bv-setrow__body"><span class="bv-setrow__name">${escapeHtml(String(u.name || u.set_num))}</span><span class="bv-setrow__meta">${escapeHtml([String(u.set_num || "").replace(/-\d+$/, ""), u.availability || t("bvCommon.comingSoon")].join(" · "))}</span></span>
         <span class="bv-setrow__end">${u.price_usd ? `<span class="bv-setrow__value">${escapeHtml(money0(u.price_usd))}</span>` : ""}
           ${isLoggedIn ? `<button type="button" class="bv-pill bv-pill--info bv-notify" data-cs-wish="${escapeHtml(String(u.set_num))}" data-cs-name="${escapeHtml(String(u.name || ""))}" aria-pressed="${on}">${escapeHtml(t(on ? "bvAdd.notifying" : "bvAdd.notifyMe"))}</button>` : ""}</span>

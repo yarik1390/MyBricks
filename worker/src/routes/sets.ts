@@ -184,7 +184,11 @@ const searchHandler = async (c: Context<{ Bindings: Env; Variables: Variables }>
   // near retirement. Both are real columns, so this filters/paginates correctly.
   const retiring = c.req.query('retiring') || '';
   if (retiring === '1' || retiring === 'true') {
-    addFilter(`s.retired = 0 AND (s.lego_retiring_soon = 1 OR s.retirement_risk_score >= 70)`);
+    // A set that hasn't released yet (LEGO.com coming-soon feed, or a coming
+    // soon / pre-order status) can't be retiring, whatever a scrape flagged.
+    addFilter(`s.retired = 0 AND (s.lego_retiring_soon = 1 OR s.retirement_risk_score >= 70)
+      AND COALESCE(s.lego_availability, '') NOT IN ('coming_soon', 'pre_order')
+      AND NOT EXISTS (SELECT 1 FROM upcoming_sets up WHERE up.set_num = s.set_num)`);
   }
   // Deals: the persisted deal signal (same computeDealSignal as the badge), so
   // the filter and the on-card DEAL badge always agree.

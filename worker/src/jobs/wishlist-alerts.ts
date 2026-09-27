@@ -412,6 +412,8 @@ async function runRetirementAlerts(env: Env): Promise<{ fired: number }> {
     ) u ON u.set_num = ls.set_num
     LEFT JOIN user_prefs up ON up.user_id = u.user_id
     WHERE ls.retired = 0 AND ls.lego_retiring_soon = 1
+      AND COALESCE(ls.lego_availability, '') NOT IN ('coming_soon', 'pre_order')
+      AND NOT EXISTS (SELECT 1 FROM upcoming_sets us WHERE us.set_num = ls.set_num)
       AND ${categoryWanted('up', 'notify_retiring')}
       AND NOT EXISTS (
         SELECT 1 FROM wishlist_alerts wa

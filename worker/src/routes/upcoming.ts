@@ -7,10 +7,16 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 // No auth (browsable like the catalog). Highest-ticket first.
 app.get('/', async (c) => {
   try {
+    // The scrape carries no images; the catalog usually already has the set
+    // (Rebrickable lists announced sets), so borrow its photo and theme. A set
+    // the catalog marks retired has plainly released — a stale scrape row.
     const { results } = await c.env.DB.prepare(
-      `SELECT set_num, name, price_usd, availability, first_seen_at
-       FROM upcoming_sets
-       ORDER BY COALESCE(price_usd, 0) DESC, name ASC
+      `SELECT u.set_num, u.name, u.price_usd, u.availability, u.first_seen_at,
+              ls.image_url, ls.theme
+       FROM upcoming_sets u
+       LEFT JOIN lego_sets ls ON ls.set_num = u.set_num
+       WHERE COALESCE(ls.retired, 0) = 0
+       ORDER BY COALESCE(u.price_usd, 0) DESC, u.name ASC
        LIMIT 100`,
     ).all<Record<string, unknown>>();
     return c.json({ upcoming: results || [] });

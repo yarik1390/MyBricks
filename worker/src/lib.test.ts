@@ -253,6 +253,12 @@ describe('computeRetirementRisk', () => {
     expect(computeRetirementRisk({ year: 2015, theme: 'Star Wars', pieces: 1000, retired: 1 })).toBe(0);
   });
 
+  it('returns 0 for a set that has not released yet, even if flagged retiring', () => {
+    for (const lego_availability of ['coming_soon', 'pre_order']) {
+      expect(computeRetirementRisk({ year: currentYear - 5, theme: 'City', pieces: 3000, retired: 0, lego_retiring_soon: 1, lego_availability })).toBe(0);
+    }
+  });
+
   it('returns 0 for a set released this year (no age factor)', () => {
     // City theme adds 10, so use null theme to isolate the age-factor test.
     expect(computeRetirementRisk({ year: currentYear, theme: null, pieces: 100, retired: 0 })).toBe(0);

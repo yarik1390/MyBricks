@@ -17,6 +17,7 @@ import {
   parseBricksetHtml,
   parseLegoStockHtml,
 } from './lib/brightdata-parsers';
+import { notRetiringIfUnreleased } from './lib/lego-stock';
 
 const db = (env as any).DB as D1Database;
 const pool = {
@@ -279,6 +280,18 @@ describe('deterministic Bright Data HTML parsers', () => {
     expect(parseLegoStockHtml(`{"availabilityStatus":"IN_STOCK"}`)).toMatchObject({
       in_stock: true, retiring_soon: false, availability: 'in_stock',
     });
+  });
+
+  it('never stores a coming-soon or pre-order product as retiring', () => {
+    // Site navigation on every LEGO.com product page links "Retiring soon".
+    const page = (status: string) => `<nav><a href="/retiring-soon">Retiring soon</a></nav><script>{"availabilityStatus":"${status}"}</script>`;
+    const comingSoon = notRetiringIfUnreleased(parseLegoStockHtml(page('COMING_SOON')));
+    expect(comingSoon).toMatchObject({ availability: 'coming_soon', retiring_soon: false });
+    const preOrder = notRetiringIfUnreleased(parseLegoStockHtml(page('PRE_ORDER')));
+    expect(preOrder).toMatchObject({ availability: 'pre_order', retiring_soon: false });
+    // A released product keeps what the page says.
+    expect(notRetiringIfUnreleased(parseLegoStockHtml(`{"availabilityStatus":"RETIRING_SOON"}`))).toMatchObject({ retiring_soon: true });
+    expect(notRetiringIfUnreleased(null)).toBeNull();
   });
 
   it('scopes JSON-LD to the requested product when an unrelated set appears first', () => {

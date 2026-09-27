@@ -291,7 +291,7 @@ test('how-we-price opens in-app and preserves the current route', async ({ page 
   await expect(page).toHaveURL(/#\/me$/);
 });
 
-test('Pixel-sized set detail clears the sticky action bar and uses a compact hero', async ({ page, stub }) => {
+test('Pixel-sized set detail clears the sticky action bar and keeps the hero within its photo size', async ({ page, stub }) => {
   await page.setViewportSize({ width: 412, height: 915 });
   await page.route('**/api/sets/75192-1', (route) => route.fulfill({
     status: 200,
@@ -310,7 +310,9 @@ test('Pixel-sized set detail clears the sticky action bar and uses a compact her
   });
   // DOMRect float rounding can differ by ~0.00003px; retain the 16px gap.
   expect(layout.panelBottom).toBeLessThanOrEqual(layout.actionTop - 16 + 0.001);
-  expect(layout.heroHeight).toBeLessThanOrEqual(248);
+  // The hero grew so the set photo reads at phone size (it was ~130px tall on
+  // Android); it must not grow past that — 300px plus the status-bar inset.
+  expect(layout.heroHeight).toBeLessThanOrEqual(300);
 });
 
 test('Pixel-sized set detail ends close to the action bar and stages the photo in the hero', async ({ page, stub }) => {
