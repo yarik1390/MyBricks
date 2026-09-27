@@ -54,6 +54,13 @@ function syncNativeSystemBars(color) {
   bars.setStyle({ color, lightIcons: luminance < 0.5 }).catch(() => {});
 }
 
+// A full-screen dark surface (the scanner) needs light status-bar icons while
+// it is up; null hands the bars back to the theme.
+export function setSystemBarsOverride(color) {
+  if (color) syncNativeSystemBars(color);
+  else updateMetaThemeColor();
+}
+
 export function applyTheme(pref) {
   document.documentElement.dataset.theme = resolveTheme(pref);
   updateMetaThemeColor();

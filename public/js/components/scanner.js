@@ -14,7 +14,7 @@ import { isNativeCapacitor } from '../lib/native-auth.js';
 import { collectOcrCandidates } from '../lib/scan-ocr.js';
 import { amazonSlotHTML, hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
 import { t, tPlural, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
-import { getModePref } from '../theme.js';
+import { getModePref, setSystemBarsOverride } from '../theme.js';
 import { getProviderCredential } from '../lib/provider-credentials.js';
 
 let _scanTrapRelease = null;
@@ -411,6 +411,7 @@ function setScanPending(on) {
 
 
 let _liveNativeWanted = false;
+const SCAN_BG = "#151712"; // .bv-scan background (bv.css)
 // Installed app, opened from a generic "Scan" entry (FAB, search icon): show the
 // method switcher (Barcode · Photo · Shelf · type) instead of handing straight
 // to ML Kit's full-screen Activity, which hides every other way to add a set.
@@ -442,6 +443,8 @@ export function openScan(mode = "barcode", { deferStart = false, shelf = false, 
   ov.innerHTML = scanOverlayHTML(mode, state.camera.shelf);
   ov.classList.add("open");
   document.body.classList.add("scan-active");
+  // The scanner is dark edge to edge: light status-bar icons while it's up.
+  if (fresh) setSystemBarsOverride(SCAN_BG);
   $("#scanCloseBtn")?.addEventListener("click", () => { haptic("light"); finishSession(); });
   _scanTrapRelease?.();
   _scanTrapRelease = activateFocusTrap(ov, closeScan);
@@ -508,6 +511,7 @@ export function closeScan() {
   document.body.classList.remove("scan-active");
   document.documentElement.classList.remove("bv-scan-native-live");
   const ov = $("#scanOverlay");
+  if (ov.classList.contains("open")) setSystemBarsOverride(null);
   ov.classList.remove("open", "native-handoff");
   ov.innerHTML = "";
   ov.ontouchstart = null;
