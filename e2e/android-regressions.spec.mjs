@@ -103,3 +103,31 @@ test('on the Android app the Scan button offers every method before the barcode 
   await expect(overlay.locator('#nativeRescanBtn')).toBeVisible();
   await expect(overlay.locator('.bv-scan__seg [data-mode="image"]')).toBeVisible();
 });
+
+test('switching to Photo while the native scanner check runs never launches ML Kit', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__scans = 0;
+    const noop = () => Promise.resolve({ remove() {} });
+    window.Capacitor = {
+      isNativePlatform: () => true,
+      getPlatform: () => 'android',
+      Plugins: {
+        App: { addListener: noop, toggleBackButtonHandler: () => Promise.resolve() },
+        BarcodeScanner: {
+          // A slow support check: the user picks Photo before it answers.
+          isSupported: () => new Promise((resolve) => setTimeout(() => resolve({ supported: true }), 400)),
+          scan: () => { window.__scans++; return Promise.resolve({ barcodes: [] }); },
+        },
+      },
+    };
+  });
+  await page.goto('/#/');
+  await page.locator('#bvFab').click();
+  const overlay = page.locator('#scanOverlay.open');
+  await overlay.locator('.bv-scan__seg [data-mode="image"]').click();
+  await expect(overlay.locator('.bv-scan')).toHaveAttribute('data-mode', 'image');
+  await page.waitForTimeout(900);
+  expect(await page.evaluate(() => window.__scans)).toBe(0);
+  await expect(overlay.locator('.bv-scan')).toHaveAttribute('data-mode', 'image');
+  await expect(overlay.locator('.bv-scan')).not.toHaveClass(/is-native/);
+});

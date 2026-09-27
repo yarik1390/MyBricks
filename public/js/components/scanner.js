@@ -541,13 +541,19 @@ export async function startCamera() {
   // scanner — NEVER the getUserMedia path. By default ML Kit's own Activity
   // owns the preview; the opt-in live scanner keeps our chrome on screen.
   if (state.camera.mode !== "image" && isNativeCapacitor()) {
+    // Switching mode or closing while these checks run reopens the scanner
+    // (new generation): this start must not launch ML Kit over that screen.
+    const generation = _scanGeneration;
+    const stale = () => generation !== _scanGeneration;
     if (_liveNativeWanted && await startLiveNativeScan()) return;
+    if (stale()) return;
     document.querySelector(".bv-scan")?.classList.add("is-native");
     let supported = false;
     try {
       const { nativeBarcodeSupported } = await import("../lib/native-barcode.js");
       supported = await nativeBarcodeSupported(window);
     } catch { /* import/plugin failure → manual entry below */ }
+    if (stale()) return;
     if (supported && _nativeHold) { ensureNativeRescanButton(); return; }
     if (supported) { runNativeBarcodeScan(); return; }
     const hint = $("#scanHint");
