@@ -1043,6 +1043,11 @@ export function resolveDownloadResume(meta, responseStatus, responseEtag) {
  *   params — plain object with the same keys catalogQuery() emits
  * Returns a new sorted+filtered array (does not mutate rows).
  */
+// Mirrors THIN_ROW_LAST in worker/src/routes/sets-sql.ts: merch, promos and
+// placeholder rows with no piece count sort after real sets by year.
+const THIN_THEMES = new Set(['Gear', 'Books', 'Promotional']);
+const thinRow = (s) => (THIN_THEMES.has(s.theme || '') || !(Number(s.pieces) >= 1) ? 1 : 0);
+
 export function seedFilterSort(rows, params = {}) {
   const val = (s) => Number(s.market_value) || 0;
   const num = (v) => (v === "" || v == null ? null : Number(v));
@@ -1082,8 +1087,8 @@ export function seedFilterSort(rows, params = {}) {
     value_asc: (a, b) => val(a) - val(b),
     roi_desc: (a, b) => roi(b) - roi(a),
     roi_asc: (a, b) => roi(a) - roi(b),
-    year_desc: (a, b) => (Number(b.year) || 0) - (Number(a.year) || 0),
-    year_asc: (a, b) => (Number(a.year) || 0) - (Number(b.year) || 0),
+    year_desc: (a, b) => thinRow(a) - thinRow(b) || (Number(b.year) || 0) - (Number(a.year) || 0),
+    year_asc: (a, b) => thinRow(a) - thinRow(b) || (Number(a.year) || 0) - (Number(b.year) || 0),
     az: (a, b) => String(a.name || "").localeCompare(String(b.name || "")),
     za: (a, b) => String(b.name || "").localeCompare(String(a.name || "")),
     trending: (a, b) => (Number(b.retirement_risk_score) || 0) - (Number(a.retirement_risk_score) || 0) || val(b) - val(a),

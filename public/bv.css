@@ -809,7 +809,7 @@ body.collector-ui.selection-mode #nav { display: none; }
 /* Discover minifig tiles are narrow (3-up on phones): the add button sits on the
    photo's top corner so the series and fact lines get the card's full width. */
 .vault-figs.is-discover .vault-fig .bv-tile__act {
-  top: 0; right: 0; bottom: auto; width: 44px; height: 44px; min-height: 44px; padding: 7px;
+  top: 0; right: 0; bottom: auto; box-sizing: border-box; width: 44px; height: 44px; min-height: 44px; padding: 7px;
   background-clip: content-box; border-radius: 50%;
 }
 .vault-figs.is-discover .vault-fig .bv-tile__act svg { width: 16px; height: 16px; }

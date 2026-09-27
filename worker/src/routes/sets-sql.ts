@@ -4,7 +4,8 @@
 // no request context — extracted from routes/sets.ts so the route file reads as
 // handlers, and so scan.ts + tests can import the projection directly.
 
-// 1 for rows that aren't a real building set with known contents.
+// 1 for rows that aren't a real building set with known contents. idx_sets_newest
+// in schema.sql indexes this exact expression; change both together.
 const THIN_ROW_LAST =
   "(CASE WHEN COALESCE(s.theme, '') IN ('Gear', 'Books', 'Promotional') OR COALESCE(s.pieces, 0) < 1 THEN 1 ELSE 0 END)";
 

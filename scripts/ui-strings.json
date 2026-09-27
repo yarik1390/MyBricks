@@ -913,6 +913,12 @@
     ]
   },
   {
+    "text": "Books",
+    "files": [
+      "lib/pure.js"
+    ]
+  },
+  {
     "text": "Box",
     "files": [
       "views/portfolio-detail.js"
@@ -2879,6 +2885,12 @@
     "files": [
       "components/scanner.js",
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Gear",
+    "files": [
+      "lib/pure.js"
     ]
   },
   {
