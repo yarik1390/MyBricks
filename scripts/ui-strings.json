@@ -9652,6 +9652,12 @@
     ]
   },
   {
+    "text": "bvFirst.errorTitle",
+    "files": [
+      "views/upcoming.js"
+    ]
+  },
+  {
     "text": "bvFirst.lookSub",
     "files": [
       "views/welcome.js"

@@ -73,7 +73,7 @@ export async function renderRetiring() {
   const root = $('#root');
   if (!root) return;
   const gen = ++_gen;
-  const shell = (inner) => `<main class="bv-page no-nav bv-retiring" id="retiringPage">
+  const shell = (inner) => `<main class="bv-page bv-retiring" id="retiringPage">
       ${topbar({ title: t('bvAdd.retiringSoon'), sub: t('bvAdd.retiringSub'), back: 'history', actionsHtml: iconBtn({ icon: 'bell', label: t('bvAdd.retiringAlerts'), href: '#/me/notifications' }) })}
       ${tabs(TABS.map((id) => ({ label: t({ yours: 'bvAdd.tabYours', wishlist: 'bvAdd.tabWishlist', all: 'common.all' }[id]), value: id, selected: _tab === id, attrs: { id: `retiringTab-${id}`, 'aria-controls': 'retiringPanel' } })), { label: t('bvAdd.retiringSoon'), id: 'retiringTabs', cls: 'bv-tabs--seg' })}
       <div id="retiringPanel" role="tabpanel" aria-labelledby="retiringTab-${_tab}">${inner}</div>

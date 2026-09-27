@@ -277,3 +277,32 @@ test('the bell on Coming soon wishlists the set and turns off again', async ({ p
   expect(calls).toEqual(['POST /api/wishlist', 'DELETE /api/wishlist/by-set/10355-1']);
   await expect(page).toHaveURL(/#\/upcoming$/); // the bell never opens the set
 });
+
+test('Coming soon offers Retry when the feed fails, instead of "nothing announced"', async ({ page }) => {
+  let fail = true;
+  await page.route('**/api/upcoming', (route) => (fail
+    ? route.fulfill({ status: 503, json: { error: 'unavailable' } })
+    : route.fulfill({ json: { upcoming: [{ set_num: '10355-1', name: 'Barad-dûr Tower', price_usd: 459.99 }] } })));
+  await page.goto('/#/upcoming', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#upcomingRetry')).toBeVisible();
+  await expect(page.locator('#upcomingPage')).not.toContainText('No upcoming sets');
+  fail = false;
+  await page.locator('#upcomingRetry').click();
+  await expect(page.locator('#comingSoonList [data-cs-open]')).toHaveCount(1);
+});
+
+test('the last Coming soon and Retiring soon rows stay clear of the tab bar', async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 600 });
+  const many = Array.from({ length: 12 }, (_, i) => ({ ...OTHER, set_num: `${10000 + i}-1`, name: `Set ${i}`, lego_retiring_soon: 1, price_usd: 99 }));
+  await page.route('**/api/upcoming', (route) => route.fulfill({ json: { upcoming: many } }));
+  await page.route('**/api/sets/search*', (route) => route.fulfill({ json: { sets: many, total: many.length, hasMore: false } }));
+  for (const [hash, rows] of [['/upcoming', '#comingSoonList .bv-setrow'], ['/retiring', '#retiringPanel .bv-setrow']]) {
+    await page.goto(`/#${hash}`, { waitUntil: 'domcontentloaded' });
+    if (hash === '/retiring') await page.locator('#retiringTab-all').click();
+    await expect(page.locator(rows)).toHaveCount(12);
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    const last = await page.locator(rows).last().boundingBox();
+    const nav = await page.locator('#nav').boundingBox();
+    expect(last.y + last.height).toBeLessThanOrEqual(nav.y);
+  }
+});

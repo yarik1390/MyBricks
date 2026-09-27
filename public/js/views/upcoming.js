@@ -6,20 +6,20 @@ import { $, escapeHtml, haptic, toast } from '../utils.js';
 import { t } from '../lib/i18n.js';
 import { state } from '../state.js';
 import { api, getSessionUserId } from '../api.js';
-import { topbar, icon, emptyState, skeletonRows } from '../ui/kit.js';
+import { topbar, icon, emptyState, skeletonRows, btn } from '../ui/kit.js';
 import { setThumb, money0 } from '../ui/set-ui.js';
 
 let _gen = 0;
 
-/** Upcoming releases, fetched once per session (Discover's tile shares it). */
+/**
+ * Upcoming releases, fetched once per session (Discover's tile shares it).
+ * A failed fetch (offline included) rejects and stays unloaded, so it is
+ * retried instead of passing for "nothing announced".
+ */
 export async function loadUpcoming() {
   if (state.catalog.upcomingLoaded) return state.catalog.upcoming || [];
-  try {
-    const r = await api('/api/upcoming');
-    state.catalog.upcoming = r.upcoming || [];
-  } catch {
-    state.catalog.upcoming = state.catalog.upcoming || [];
-  }
+  const r = await api('/api/upcoming');
+  state.catalog.upcoming = r.upcoming || [];
   state.catalog.upcomingLoaded = true;
   return state.catalog.upcoming;
 }
@@ -39,7 +39,7 @@ function rowHTML(u, wish, signedIn) {
 }
 
 function pageHTML(inner) {
-  return `<main class="bv-page no-nav bv-retiring bv-upcoming" id="upcomingPage">
+  return `<main class="bv-page bv-retiring bv-upcoming" id="upcomingPage">
       ${topbar({ title: t('bvCommon.comingSoon'), sub: t('bvAdd.upcomingSub'), back: 'history' })}
       ${inner}
     </main>`;
@@ -88,6 +88,15 @@ function wire(page) {
   });
 }
 
+function failedHTML() {
+  return emptyState({
+    icon: 'cloudOff',
+    title: t('bvFirst.errorTitle'),
+    body: t('bvFirst.errorBody'),
+    actionsHtml: btn(t('bvFirst.retry'), { id: 'upcomingRetry', icon: 'refresh' }),
+  });
+}
+
 export async function renderUpcoming() {
   const root = $('#root');
   if (!root) return;
@@ -96,8 +105,10 @@ export async function renderUpcoming() {
   root.innerHTML = pageHTML(cached ? listHTML(state.catalog.upcoming || []) : `<div class="bv-group__box bv-gap">${skeletonRows(4)}</div>`);
   wire($('#upcomingPage'));
   if (cached) return;
-  const list = await loadUpcoming();
+  let list = null;
+  try { list = await loadUpcoming(); } catch { /* shown as a retryable error below */ }
   if (gen !== _gen || !location.hash.startsWith('#/upcoming')) return;
-  root.innerHTML = pageHTML(listHTML(list));
+  root.innerHTML = pageHTML(list ? listHTML(list) : failedHTML());
   wire($('#upcomingPage'));
+  $('#upcomingRetry')?.addEventListener('click', () => { haptic('light'); renderUpcoming(); });
 }
