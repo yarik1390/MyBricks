@@ -1198,6 +1198,13 @@ async function guestApi(path, opts = {}, streamMode = false) {
     if (method === 'GET') return { handled: true, value: guestWishlistPayload() };
     if (method === 'POST') return { handled: true, value: await guestAddWishlist(body) };
   }
+  const bySetMatch = pathname.match(/^\/api\/wishlist\/by-set\/([^/]+)$/);
+  if (bySetMatch && method === 'DELETE') {
+    let ref = bySetMatch[1];
+    try { ref = decodeURIComponent(ref); } catch { /* keep the raw ref */ }
+    writeGuestWishlist(readGuestWishlist().filter(item => !sameSetNum(item.set_num, ref)));
+    return { handled: true, value: null };
+  }
   const wishlistMatch = pathname.match(/^\/api\/wishlist\/([^/]+)$/);
   if (wishlistMatch) {
     if (method === 'DELETE') {

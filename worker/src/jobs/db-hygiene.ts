@@ -7,7 +7,7 @@ import { recomputeBlendedValues } from '../lib/market-sources';
 // Daily cleanup of unbounded tables. Each table accumulates rows that are only
 // useful for a short window: rate-limit counters, short-lived OAuth nonces, and
 // import job history. Without this, they grow forever on a busy deployment.
-export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, number>; retailBackfilled: number; comingSoonHealed: number; retailEchoScrubbed: number; beValuesHealed: number; staleCronRuns: number; opsAlerts: number }> {
+export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, number>; retailBackfilled: number; comingSoonHealed: number; futureRetiredHealed: number; retailEchoScrubbed: number; beValuesHealed: number; staleCronRuns: number; opsAlerts: number }> {
   // Close out cron_runs rows orphaned at 'running' by a killed invocation, so the
   // admin Activity view doesn't show dead jobs as live indefinitely.
   const staleCronRuns = await sweepStaleCronRuns(env);
@@ -99,6 +99,31 @@ export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, 
     console.warn('[db-hygiene] coming-soon value heal failed:', (e as Error).message);
   }
 
+  // A set with a LEGO exit date still ahead of us hasn't retired yet. Some
+  // import paths flagged these retired by year, which hid them from Retiring
+  // soon (it filters retired = 0) and labelled them "Retired" on the set page —
+  // the Millennium Falcon 75192 (exit 2026-12-31) was one. Unflag them, and
+  // flag them back once the date passes: enriched rows never re-query
+  // Brickset, so nothing else would. The 30-day window keeps that second
+  // pass to sets retiring now (this job runs daily), not old catalog rows.
+  let futureRetiredHealed = 0;
+  try {
+    const [unflag] = await env.DB.batch([
+      env.DB.prepare(`
+        UPDATE lego_sets SET retired = 0
+        WHERE retired = 1 AND exit_date IS NOT NULL AND date(exit_date) > date('now')
+      `),
+      env.DB.prepare(`
+        UPDATE lego_sets SET retired = 1
+        WHERE retired = 0 AND exit_date IS NOT NULL
+          AND date(exit_date) <= date('now') AND date(exit_date) > date('now', '-30 days')
+      `),
+    ]);
+    futureRetiredHealed = (unflag.meta?.changes as number | undefined) ?? 0;
+  } catch (e) {
+    console.warn('[db-hygiene] future-retired heal failed:', (e as Error).message);
+  }
+
   // Fabricated retail echo: the BrickEconomy LLM scrape sometimes copies the
   // market value into the retail field (Ole Kirk's House stored retail =
   // $13,037 = value). With no independent MSRP and a ≥$500 figure, such a
@@ -124,7 +149,7 @@ export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, 
 
   const beValuesHealed = await healImplausibleBeValues(env);
 
-  return { deleted, retailBackfilled, comingSoonHealed, retailEchoScrubbed, beValuesHealed, staleCronRuns, opsAlerts: ops.alerts.length };
+  return { deleted, retailBackfilled, comingSoonHealed, futureRetiredHealed, retailEchoScrubbed, beValuesHealed, staleCronRuns, opsAlerts: ops.alerts.length };
 }
 
 // Rows whose current_value came from an UNCORROBORATED BrickEconomy scrape that

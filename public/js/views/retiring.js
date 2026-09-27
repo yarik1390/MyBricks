@@ -49,6 +49,8 @@ async function loadLists() {
     yours: (coll?.items || []).filter(isRetiring),
     wishlist: (wish?.wishlist || []).filter(isRetiring),
     all: all?.sets || [],
+    // The All tab shows the 60 most valuable; the heading counts every one.
+    allTotal: Number(all?.total) || (all?.sets || []).length,
   };
 }
 
@@ -66,7 +68,12 @@ function listHTML(lists) {
     return `<h2 class="bv-h2">${escapeHtml(t(_tab === 'yours' ? 'bvAdd.youOwnHeading' : 'bvAdd.onWishlistHeading'))}</h2><div class="bv-group__box bv-gap">${items.map((s) => rowFor(s, _tab)).join('')}</div>`;
   }
   if (!lists.all.length) return emptyState({ icon: 'clock', title: t('bvAdd.noneRetiringAll') });
-  return `<h2 class="bv-h2">${escapeHtml(tPlural('bvAdd.retiringCount', lists.all.length, { count: lists.all.length }))}</h2><div class="bv-group__box bv-gap">${lists.all.map((s) => rowFor(s, 'all')).join('')}</div>`;
+  const total = Math.max(lists.allTotal, lists.all.length);
+  // More retiring than fit here: hand off to the catalog, filtered to them.
+  const more = total > lists.all.length
+    ? `<div class="bv-gap">${btn(t('bvAdd.seeAllRetiring'), { kind: 'tonal', full: true, href: '#/add?retired=retiring&sort=value_desc', id: 'retiringCatalog' })}</div>`
+    : '';
+  return `<h2 class="bv-h2">${escapeHtml(tPlural('bvAdd.retiringCount', total))}</h2><div class="bv-group__box bv-gap">${lists.all.map((s) => rowFor(s, 'all')).join('')}</div>${more}`;
 }
 
 export async function renderRetiring() {
