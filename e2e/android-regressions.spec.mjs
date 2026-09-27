@@ -172,3 +172,34 @@ test('Coming soon rows show the catalog photo', async ({ page }) => {
   await page.goto('/#/add');
   await expect(page.locator('#comingSoonList [data-cs-open] img.set-photo')).toHaveCount(1);
 });
+
+test('the native scan picker keeps its hint clear of the button and lights the status-bar icons', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__bars = [];
+    const noop = () => Promise.resolve({ remove() {} });
+    window.Capacitor = {
+      isNativePlatform: () => true,
+      getPlatform: () => 'android',
+      Plugins: {
+        App: { addListener: noop, toggleBackButtonHandler: () => Promise.resolve() },
+        SystemBars: { setStyle: (o) => { window.__bars.push(o); return Promise.resolve(); } },
+        BarcodeScanner: { isSupported: () => Promise.resolve({ supported: true }), scan: () => Promise.resolve({ barcodes: [] }) },
+      },
+    };
+  });
+  await page.goto('/#/');
+  await page.locator('#bvFab').click();
+  const cta = page.locator('#scanOverlay.open #nativeRescanBtn');
+  await expect(cta).toBeVisible();
+  const hint = await page.locator('#scanHint').boundingBox();
+  const button = await cta.boundingBox();
+  expect(hint.y + hint.height).toBeLessThanOrEqual(button.y); // was drawn underneath the button
+  expect(await page.evaluate(() => window.__bars.at(-1))).toMatchObject({ lightIcons: true });
+  // A theme resync while the scanner is up (OS light/dark switch) keeps it.
+  await page.evaluate(async () => (await import('/js/theme.js')).applyTheme('light'));
+  expect(await page.evaluate(() => window.__bars.at(-1))).toMatchObject({ lightIcons: true });
+
+  await page.locator('#scanCloseBtn').click();
+  await expect(page.locator('#scanOverlay.open')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__bars.at(-1))).toMatchObject({ lightIcons: false });
+});

@@ -1301,6 +1301,10 @@ html.bv-scan-native-live .bv-scan__video { display: none; }
 .bv-scan__spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .3); border-top-color: #fff; animation: bvSpin .8s linear infinite; }
 @keyframes bvSpin { to { transform: rotate(360deg); } }
 .bv-scan__cta { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 4; }
+/* Installed app: no camera frame here (ML Kit owns the preview), so the hint
+   sits just above the centred Scan barcode button / spinner instead of at the
+   hidden frame's bottom edge, where it ran underneath the button. */
+.bv-scan.is-native .bv-scan__hint { top: auto !important; bottom: calc(50% + 40px); }
 
 .bv-scan__bottom {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; box-sizing: border-box;
