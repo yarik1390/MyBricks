@@ -83,7 +83,9 @@ describe('Partner page + footer credits', () => {
 
   it('links the page from the Me footer and methodology, with only PriceCharting as partner', () => {
     assert.match(meView, /data-legal-sheet="partners"/);
-    assert.match(meView, /Market data partner: PriceCharting\. Sources: BrickLink, eBay, BrickEconomy &amp; Brickset/);
+    // The footer credit is a locale string now; English keeps the contract wording.
+    assert.match(meView, /t\('bvAccount\.credits'\)/);
+    assert.match(enLocale, /credits: 'Catalog data and images from Rebrickable\. Market data partner: PriceCharting\. Sources: BrickLink, eBay, BrickEconomy & Brickset\.'/);
     assert.doesNotMatch(meView, /Pricing from BrickLink, eBay, PriceCharting/);
     assert.match(methodology, /\/data-partners\.html/);
     assert.match(methodology, /Sources, roles and freshness/);

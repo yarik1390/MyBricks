@@ -107,11 +107,16 @@ app.post('/sync', async (c) => {
       for (const r of results) known.add(r.set_num);
     }
 
-    let added = 0;
-    let skipped = 0;
+    // unknown = not in our catalog; already = in the vault before this run.
+    // skipped (their sum) stays for older clients.
+    let unknown = 0;
+    let already = 0;
+    const addedSetNums: string[] = [];
+    const toInsert: string[] = [];
     const inserts: D1PreparedStatement[] = [];
     for (const setNum of setNums) {
-      if (!known.has(setNum)) { skipped++; continue; }
+      if (!known.has(setNum)) { unknown++; continue; }
+      toInsert.push(setNum);
       inserts.push(c.env.DB.prepare(
         `INSERT INTO user_collection (user_id, set_num, acquisition_source, last_modified, added_at)
          VALUES (?, ?, 'brickset', datetime('now'), datetime('now'))
@@ -123,9 +128,20 @@ app.post('/sync', async (c) => {
     // Keep write batches modest to leave headroom in the invocation query budget.
     for (let i = 0; i < inserts.length; i += 100) {
       const res = await c.env.DB.batch(inserts.slice(i, i + 100));
-      for (const r of res) { if (((r.meta?.changes as number | undefined) ?? 0) > 0) added++; else skipped++; }
+      res.forEach((r, j) => {
+        if (((r.meta?.changes as number | undefined) ?? 0) > 0) addedSetNums.push(toInsert[i + j]);
+        else already++;
+      });
     }
-    return c.json({ ok: true, added, skipped, total: sets.length });
+    return c.json({
+      ok: true,
+      added: addedSetNums.length,
+      skipped: unknown + already,
+      unknown,
+      already,
+      added_set_nums: addedSetNums,
+      total: sets.length,
+    });
   } catch (e) {
     console.warn('[brickset/sync] failed:', (e as Error).message);
     return c.json({ error: 'Brickset sync failed. Try again in a moment.' }, 500);
