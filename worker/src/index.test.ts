@@ -364,6 +364,9 @@ describe('BrickVault API Worker Tests', () => {
         added_at TEXT DEFAULT CURRENT_TIMESTAMP,
         alerted_at TEXT,
         acknowledged_at TEXT,
+        notify_target INTEGER NOT NULL DEFAULT 1,
+        notify_retiring INTEGER NOT NULL DEFAULT 1,
+        notify_stock INTEGER NOT NULL DEFAULT 1,
         UNIQUE(user_id, set_num)
       )`,
 
@@ -407,6 +410,8 @@ describe('BrickVault API Worker Tests', () => {
         google_spreadsheet_id TEXT,
         handle TEXT, display_name TEXT, currency TEXT DEFAULT 'USD',
         notify_price_drops INTEGER DEFAULT 1, notify_weekly_digest INTEGER DEFAULT 0, is_public INTEGER NOT NULL DEFAULT 0,
+        notify_sell_targets INTEGER, notify_big_moves INTEGER, notify_retiring INTEGER, notify_back_in_stock INTEGER,
+        quiet_hours INTEGER DEFAULT 0, quiet_start INTEGER DEFAULT 22, quiet_end INTEGER DEFAULT 8, timezone TEXT,
         expose_public_value INTEGER NOT NULL DEFAULT 1,
         email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT,
         is_supporter INTEGER DEFAULT 0, supporter_since TEXT, stripe_customer_id TEXT,

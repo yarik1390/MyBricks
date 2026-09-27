@@ -20,7 +20,7 @@ test('portfolio renders the collection', async ({ page }) => {
 
 test('catalog ("Find a set") renders search results', async ({ page }) => {
   await page.goto('/#/add', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('h1.topbar-title')).toHaveText('Discover');
+  await expect(page.locator('#discoverPage h1')).toHaveText('Discover');
   await expect(page.locator('#catalogGrid')).toBeVisible();
   await expect(page.locator('#catalogCount')).toContainText('1 result');
 });
@@ -64,7 +64,7 @@ test('photo capture freezes the still and Try again starts a fresh camera', asyn
     const preview = document.querySelector('#scanPhotoPreview');
     const frozeStill = preview?.src === dataUrl
       && preview.hidden === false
-      && document.querySelector('.scan-video-wrap')?.classList.contains('has-captured-photo');
+      && document.querySelector('.bv-scan')?.classList.contains('has-captured-photo');
     scanner.showScanResult({ identified: false, reasoning: "Couldn't identify the set." });
     document.querySelector('#scanRetry')?.click();
     await new Promise(resolve => setTimeout(resolve, 0));
@@ -196,9 +196,14 @@ test('compact catalog rows reflow long labels without horizontal clipping', asyn
 
   const row = page.locator('.set-list-card.compact').first();
   await expect(row).toBeVisible();
-  await expect(row.locator('.sl-name')).toHaveCSS('-webkit-line-clamp', '2');
-  const clippedBadge = await row.locator('.trust-badge').evaluate(el => el.scrollWidth > el.clientWidth + 1);
-  expect(clippedBadge).toBe(false);
+  // Long names ellipsize inside the body; the value column never overlaps them.
+  const geometry = await row.evaluate((el) => {
+    const name = el.querySelector('.bv-setrow__name').getBoundingClientRect();
+    const end = el.querySelector('.bv-setrow__end').getBoundingClientRect();
+    return { nameRight: name.right, endLeft: end.left, fits: el.scrollWidth <= el.clientWidth + 1 };
+  });
+  expect(geometry.nameRight).toBeLessThanOrEqual(geometry.endLeft + 0.5);
+  expect(geometry.fits).toBe(true);
   const pageOverflows = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
   expect(pageOverflows).toBe(false);
 });
@@ -255,7 +260,7 @@ test('optimized collector pages keep mobile hierarchy and accessible controls', 
   await expect(page.locator('.profile-identity-card')).toBeVisible();
   await expect(page.locator('.profile-summary')).toHaveAttribute('aria-label', 'Portfolio summary');
   await expect(page.locator('.profile-settings-nav')).toHaveAttribute('aria-label', 'Profile and app settings');
-  await expect(page.locator('.profile-settings-heading').first()).toBeVisible();
+  await expect(page.locator('.profile-settings-nav .bv-h2').first()).toBeVisible();
 
   const noHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
   expect(noHorizontalOverflow).toBe(true);
@@ -484,10 +489,10 @@ test('vivid light mode gives set photos a neutral non-blended stage', async ({ p
     }], total: 1, hasMore: false }),
   }));
   await page.goto('/#/add', { waitUntil: 'domcontentloaded' });
-  const image = page.locator('.set-card-img img.set-photo').first();
+  const image = page.locator('.bv-tile__media img.set-photo').first();
   await expect(image).toBeVisible();
   await expect(image).toHaveCSS('mix-blend-mode', 'normal');
-  await expect(page.locator('.set-card-img').first()).toHaveCSS('background-color', 'rgb(244, 244, 242)');
+  await expect(page.locator('.bv-tile__media').first()).toHaveCSS('background-color', 'rgb(244, 244, 242)');
 });
 
 test('wishlist toggle removes the set and flips the button', async ({ page, stub }) => {
@@ -577,6 +582,8 @@ test('me: account deletion is gated behind typing DELETE (store requirement)', a
 
 test('me: public profile switches update without repainting the page', async ({ page, stub }) => {
   await page.goto('/#/me', { waitUntil: 'domcontentloaded' });
+  // The switches live in the Public profile sheet (2026 Profile hub).
+  await page.locator('#publicProfileRow').click();
 
   for (const id of ['publicToggle', 'publicValToggle']) {
     const toggle = page.locator(`#${id}`);
@@ -704,10 +711,14 @@ test('export page states the free/Pro column split honestly', async ({ page }) =
   await expect(page.getByText('adds current value, retail & ROI')).toBeVisible();
 });
 
-test('Pro pitch on the Me page leads with the investor toolkit', async ({ page }) => {
+test('Pro pitch leads with the investor toolkit and is one tap from the Profile hub', async ({ page }) => {
   await page.goto('/#/me', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByText('Investor insights: sell/buy signals, top movers, retirement radar')).toBeVisible();
-  await expect(page.getByText('Full 1-year portfolio history')).toBeVisible();
+  await page.locator('#proRow').click();
+  await expect(page).toHaveURL(/#\/pro$/);
+  const benefits = page.locator('.bv-probenefits li');
+  await expect(benefits.first()).toContainText('Investor insights');
+  await expect(benefits.first()).toContainText('Buy and sell signals, top movers, retirement radar');
+  await expect(page.getByText('1 year and all-time charts (free: 90 days)')).toBeVisible();
 });
 
 // ---------------------------------------------------------------------------
@@ -809,7 +820,7 @@ test('catalog and detail show the SAME value for a blended-only set', async ({ p
   await page.goto('/#/add', { waitUntil: 'domcontentloaded' });
   // Catalog card must use the blended value (the old code fell through to a
   // missing current_value and disagreed with the vault/detail).
-  await expect(page.locator('.set-card-value').first()).toContainText('$500');
+  await expect(page.locator('.bv-tile__value').first()).toContainText('$500');
   await page.evaluate(() => { location.hash = '#/set/77777-1'; });
   await expect(page.locator('.detail-summary-val')).toContainText('$500');
   await expect(page.locator('#addBtn')).toContainText('$500');
@@ -818,5 +829,6 @@ test('catalog and detail show the SAME value for a blended-only set', async ({ p
 test('web share target lands as a catalog search', async ({ page }) => {
   await page.goto('/?text=75192', { waitUntil: 'domcontentloaded' });
   await expect.poll(() => page.evaluate(() => location.hash)).toContain('#/add?q=75192');
-  await expect(page.locator('h1.topbar-title')).toHaveText('Discover');
+  await expect(page.locator('#discoverPage h1')).toHaveText('Discover');
+  await expect(page.locator('#catalogSearch')).toHaveValue('75192');
 });

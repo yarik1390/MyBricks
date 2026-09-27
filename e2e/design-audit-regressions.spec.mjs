@@ -47,9 +47,10 @@ test.describe('design audit regressions', () => {
     await page.goto('/#/me', { waitUntil: 'domcontentloaded' });
 
     const change = page.locator('[data-testid="portfolio-change"]');
-    await expect(change).toContainText('Loss');
+    await expect(change).toContainText('loss');
     await expect(change).toContainText('-$100');
-    await expect(change).toContainText('-10.0%');
+    await expect(change).toContainText('−10.0%');
+    await expect(change).toHaveAttribute('aria-label', 'Loss -$100 (−10.0%) against what you paid');
     await expect(change.locator('.arrow')).toHaveText('▼');
     await expect(change).toHaveClass(/is-loss/);
   });

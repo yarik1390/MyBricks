@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget and launcher shortcut labels. -->
+<resources>
+    <string name="widget_label">Kluiswaarde</string>
+    <string name="widget_open_app">Open de app</string>
+    <string name="widget_open_to_sync">Open de app om te synchroniseren</string>
+    <string name="widget_scan">Scannen</string>
+    <string name="widget_search">Zoeken</string>
+    <string name="shortcut_scan_short">Set scannen</string>
+    <string name="shortcut_scan_long">Barcode van een set scannen</string>
+    <string name="shortcut_shelf_short">Plank fotograferen</string>
+    <string name="shortcut_shelf_long">Een hele plank fotograferen</string>
+    <string name="shortcut_wishlist_short">Verlanglijst</string>
+    <string name="shortcut_wishlist_long">Je verlanglijst openen</string>
+    <!-- Notification channel for price/sell/retiring alerts. -->
+    <string name="alerts_channel_name">Meldingen</string>
+    <string name="alerts_channel_description">Prijsdalingen, verkoopdoelen, grote bewegingen en sets die uit productie gaan</string>
+</resources>

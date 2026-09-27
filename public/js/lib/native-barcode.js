@@ -52,3 +52,83 @@ export async function scanBarcodeNative(win) {
 // The generic native scanner Activity closes itself. Kept as an idempotent API
 // for route/back cleanup shared with scanner.js.
 export async function cancelBarcodeNative() {}
+
+// ---------------------------------------------------------------------------
+// Live in-app scanner (opt-in). ML Kit's startScan() renders CameraX BEHIND a
+// transparent WebView so our own brackets, counter and result sheet stay on
+// screen while the camera keeps running between boxes. It is opt-in
+// (localStorage bv_scan_live = '1') because CameraX-behind-WebView has failed
+// on some edge-to-edge Android releases; the Activity scanner above remains the
+// default and the fallback whenever startScan is unavailable or throws.
+// ---------------------------------------------------------------------------
+export function liveScanOptIn(storage = globalThis.localStorage) {
+  try { return storage?.getItem?.('bv_scan_live') === '1'; } catch { return false; }
+}
+
+export async function nativeLiveScanSupported(win) {
+  if (!isNativeCapacitor(win)) return false;
+  const BS = getCapacitorPlugin('BarcodeScanner', win);
+  if (!BS?.startScan || !BS?.stopScan || !BS?.addListener) return false;
+  try {
+    const { supported } = await BS.isSupported();
+    return !!supported;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Start continuous scanning. `onBarcodes(barcodes)` receives every
+ * `barcodesScanned` event ({ rawValue, displayValue, cornerPoints: [[x,y]…] }).
+ * Resolves to an idempotent async stop() that removes the listener and stops
+ * the camera. Rejects when the camera can't start so the caller falls back.
+ */
+export async function startNativeLiveScan(win, { onBarcodes, onError } = {}) {
+  const BS = getCapacitorPlugin('BarcodeScanner', win);
+  if (!BS?.startScan) throw new Error('Live scanner is unavailable');
+  const handles = [];
+  let stopped = false;
+  const stop = async () => {
+    if (stopped) return;
+    stopped = true;
+    for (const h of handles) { try { await h?.remove?.(); } catch { /* already gone */ } }
+    try { await BS.stopScan(); } catch { /* not running */ }
+  };
+  try {
+    handles.push(await BS.addListener('barcodesScanned', (event) => {
+      if (!stopped) onBarcodes?.(Array.isArray(event?.barcodes) ? event.barcodes : []);
+    }));
+    if (onError) handles.push(await BS.addListener('scanError', (event) => { if (!stopped) onError(event); }));
+    await BS.startScan({ formats: FORMATS, lensFacing: 'BACK' });
+  } catch (error) {
+    await stop();
+    throw error;
+  }
+  return stop;
+}
+
+/** ML Kit corner points arrive as [[x, y], …]; normalise to [{x, y}, …]. */
+export function normalizeCornerPoints(points) {
+  if (!Array.isArray(points)) return [];
+  return points
+    .map((p) => (Array.isArray(p) ? { x: Number(p[0]), y: Number(p[1]) } : { x: Number(p?.x), y: Number(p?.y) }))
+    .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+}
+
+export async function setNativeTorch(win, on) {
+  const BS = getCapacitorPlugin('BarcodeScanner', win);
+  try {
+    if (on) await BS?.enableTorch?.(); else await BS?.disableTorch?.();
+    return true;
+  } catch { return false; }
+}
+
+export async function setNativeZoom(win, zoomRatio) {
+  const BS = getCapacitorPlugin('BarcodeScanner', win);
+  try {
+    const limits = await BS?.getMaxZoomRatio?.().catch(() => null);
+    const max = Number(limits?.zoomRatio) || zoomRatio;
+    await BS?.setZoomRatio?.({ zoomRatio: Math.min(zoomRatio, max) });
+    return true;
+  } catch { return false; }
+}
