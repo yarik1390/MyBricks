@@ -1,8 +1,9 @@
-import { syncCollectorChrome, rememberCollectorScroll, restoreCollectorScroll } from './components/collector-shell.js';
-import { $, $$, prefersReducedMotion, advisorEnabled, track } from './utils.js';
+import { syncCollectorChrome, rememberCollectorScroll, restoreCollectorScroll, resetPageFab } from './components/collector-shell.js';
+import { $, $$, prefersReducedMotion, advisorEnabled, track, escapeHtml } from './utils.js';
 import { state } from './state.js';
 import { api } from './api.js';
-import { I } from './icons.js';
+import { t } from './lib/i18n.js';
+import { icon as kitIcon, btn as kitBtn } from './ui/kit.js';
 import { routeMetaFor, allowedInKidsMode } from './route-meta.js';
 import { getModePref } from './theme.js';
 // View modules load on demand via dynamic import() in the route dispatch below,
@@ -14,6 +15,7 @@ import { hideSheet } from './components/sheet.js';
 import { closeScan } from './components/scanner-lazy.js';
 import { cancelActiveStream } from './components/advisor-lazy.js';
 import { skelCardList, skelDetail, skelPage } from './components/skeleton.js';
+import { syncListPane } from './lib/list-detail.js';
 
 let _routeBusy = false;
 let _routeQueued = false;
@@ -26,6 +28,10 @@ export async function route() {
   try {
     await _routeImpl();
   } finally {
+    // Large screens keep the list beside a set page; the card→detail morph
+    // waits for this signal before animating to the new page.
+    try { syncListPane(location.hash); } catch { /* layout nicety only */ }
+    window.dispatchEvent(new Event('bv:routed'));
     _routeBusy = false;
     if (_routeQueued) { _routeQueued = false; route(); }
   }
@@ -33,6 +39,7 @@ export async function route() {
 
 async function _routeImpl() {
   rememberCollectorScroll();
+  resetPageFab();
   hideSheet();
   closeScan();
   cancelActiveStream();
@@ -41,7 +48,7 @@ async function _routeImpl() {
   let hash = (location.hash.replace("#", "") || "/").split("?")[0];
   if (hash === "/blind") { location.hash = "#/minifigs"; return; }
   const meta = routeMetaFor(hash);
-  if (meta.key === 'minifigs' && new URLSearchParams(location.hash.split('?')[1] || '').get('owned') === '0') meta.nav = '/add';
+  if (meta.key === 'minifigs' && new URLSearchParams(location.hash.split('?')[1] || '').get('owned') === '0') { meta.nav = '/add'; meta.scanFab = false; }
   document.body.dataset.route = meta.key;
   $("#advisorDrawer")?.classList.remove("open");
   document.body.classList.remove("advisor-open");
@@ -116,6 +123,16 @@ async function _routeImpl() {
     else if (hash === "/room") await (await import('./views/collection-room.js')).renderCollectionRoom();
     else if (hash === "/collections") await (await import('./views/subcollections.js')).renderSubcollections();
     else if (hash === "/game") await (await import('./views/game.js')).renderGame();
+    // 2026 redesign screens.
+    else if (hash === "/changes") await (await import('./views/changes.js')).renderChanges();
+    else if (hash === "/insights") await (await import('./views/insights.js')).renderInsights();
+    else if (hash === "/retiring") await (await import('./views/retiring.js')).renderRetiring();
+    else if (hash === "/me/notifications") await (await import('./views/me-notifications.js')).renderMeNotifications();
+    else if (hash === "/me/insurance") await (await import('./views/me-insurance.js')).renderMeInsurance();
+    else if (hash === "/pro") await (await import('./views/pro.js')).renderPro();
+    else if (hash === "/wrapped") await (await import('./views/wrapped.js')).renderWrapped();
+    else if (hash === "/advisor") await (await import('./views/advisor-page.js')).renderAdvisorPage();
+    else if (hash === "/welcome" || hash.startsWith("/welcome/")) await (await import('./views/welcome.js')).renderWelcome(hash.split("/")[2] || "");
     else if (hash === "/leaderboard") await (await import('./views/portfolio-social.js')).renderLeaderboard();
     else if (hash.startsWith("/set/")) {
       const parts = hash.split("/");
@@ -131,19 +148,8 @@ async function _routeImpl() {
       await (await import('./views/kids.js')).renderKidsBadges();
     } else {
       const root = $("#root");
-      if (root) root.innerHTML = `
-        <main class="page" aria-labelledby="notFoundTitle">
-          <section class="empty-state card" role="status">
-            <div class="empty-icon" aria-hidden="true">🧱</div>
-            <h1 id="notFoundTitle">Page not found</h1>
-            <p>The link may be outdated or mistyped.</p>
-            <div class="empty-actions">
-              <a class="btn btn-primary" href="#/">Go to Vault</a>
-              <a class="btn btn-secondary" href="#/add">Browse Catalog</a>
-            </div>
-          </section>
-        </main>`;
-      document.title = "Page not found · BricksVault";
+      if (root) root.innerHTML = notFoundHTML();
+      document.title = [t('bvFirst.notFoundTitle'), 'BricksVault'].join(' · ');
     }
   };
 
@@ -227,14 +233,27 @@ export async function withViewTransition(fn) {
   root.classList.add('route-fade');
 }
 
+// Canvas: ErrorState. Honest and actionable: what failed, that nothing was
+// lost, and a Retry that re-runs the route.
 export function errorStateHTML() {
-  return `
-    <div class="page">
-      <div class="empty card">
-        <div class="empty-icon">${I.info()}</div>
-        <h3>Something went wrong</h3>
-        <p>We couldn't load this page. Check your connection and try again.</p>
-        <button class="btn-primary" id="errorRetry">${I.refresh()}<span>Retry</span></button>
-      </div>
-    </div>`;
+  return `<main class="bv-page bv-state" aria-labelledby="errorTitle">
+      <section class="bv-empty" role="alert">
+        <div class="bv-empty__art">${kitIcon('cloudOff')}</div>
+        <h2 id="errorTitle">${escapeHtml(t('bvFirst.errorTitle'))}</h2>
+        <p>${escapeHtml(t('bvFirst.errorBody'))}</p>
+        <div class="bv-empty__actions">${kitBtn(t('bvFirst.retry'), { id: 'errorRetry', icon: 'refresh' })}${kitBtn(t('bvFirst.goVault'), { href: '#/', kind: 'text' })}</div>
+      </section>
+    </main>`;
+}
+
+// Unknown hash: say so plainly and offer the two places people usually meant.
+export function notFoundHTML() {
+  return `<main class="bv-page bv-state" aria-labelledby="notFoundTitle">
+      <section class="bv-empty" role="status">
+        <div class="bv-empty__art">${kitIcon('search')}</div>
+        <h1 id="notFoundTitle">${escapeHtml(t('bvFirst.notFoundTitle'))}</h1>
+        <p>${escapeHtml(t('bvFirst.notFoundBody'))}</p>
+        <div class="bv-empty__actions">${kitBtn(t('bvFirst.goVault'), { href: '#/' })}${kitBtn(t('bvFirst.browseCatalog'), { href: '#/add', kind: 'tonal' })}</div>
+      </section>
+    </main>`;
 }

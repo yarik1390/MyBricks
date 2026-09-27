@@ -19,7 +19,7 @@ test('fresh guest add renders the saved set in the vault immediately', async ({ 
   });
 
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#setList .set-list-card')).toHaveCount(1);
+  await expect(page.locator('#setList .bv-setrow')).toHaveCount(1);
   await expect(page.locator('#setList')).toContainText('Galaxy Explorer');
 });
 
@@ -40,7 +40,7 @@ test('guest Build gate does not call account-scoped build APIs', async ({ page }
     if (/\/api\/build(?:\/sets)?(?:\?|$)/.test(request.url())) protectedBuildRequests.push(request.url());
   });
   await page.goto('/#/build', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByText('Sign in to build from your vault')).toBeVisible();
+  await expect(page.getByText('Sign in to see what you can build')).toBeVisible();
   await page.waitForTimeout(250);
   expect(protectedBuildRequests).toEqual([]);
 });
@@ -80,7 +80,7 @@ test('Build clears account-scoped state across guest and user identity transitio
   });
   await expect(page).toHaveURL(/#\/me$/);
   await page.evaluate(() => { location.hash = '#/build'; });
-  await expect(page.getByText('Sign in to build from your vault')).toBeVisible();
+  await expect(page.getByText('Sign in to see what you can build')).toBeVisible();
   await expect(page.getByText('User A private build')).toHaveCount(0);
 
   await page.evaluate(async () => {
@@ -125,14 +125,16 @@ test('guest remove undo waits for restore and synchronizes the visible detail st
     }]));
   });
   await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#qtyDown')).toBeVisible();
+  await expect(page.locator('#manageBtn')).toBeVisible();
+  await page.locator('#manageBtn').click();
   await page.locator('#qtyDown').click();
-  await expect(page.getByRole('button', { name: 'Remove' })).toBeVisible();
-  await page.getByRole('button', { name: 'Remove' }).click();
+  await expect(page.getByRole('button', { name: 'Remove', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Remove', exact: true }).click();
+  await expect(page.locator('#addBtn')).toBeVisible();
   await page.locator('.toast-undo-btn').click();
 
   await expect.poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem('bv_guest_collection') || '[]').length)).toBe(1);
-  await expect(page.locator('#qtyDown')).toBeVisible();
+  await expect(page.locator('#manageBtn')).toBeVisible();
   await expect(page.locator('#addBtn')).toHaveCount(0);
 });
 
@@ -145,7 +147,7 @@ test('guest EUR detail price remains EUR after adding to the vault', async ({ pa
   await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#addBtn')).toContainText('€');
   await page.locator('#addBtn').click();
-  await expect(page.locator('#qtyDown')).toBeVisible();
+  await expect(page.locator('#manageBtn')).toBeVisible();
   await expect(page.locator('.detail-summary-val')).toContainText('€');
 });
 
@@ -154,8 +156,7 @@ test('web Pro options provides a visible fallback instead of a no-op', async ({ 
     localStorage.setItem('bv_onboarded_v1', '1');
     localStorage.setItem('bv_setup_v1', '1');
   });
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.locator('.portfolio-tab[data-tab="insights"]').click();
+  await page.goto('/#/insights', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#insightsUpgradeBtn')).toBeVisible();
   await page.locator('#insightsUpgradeBtn').click();
   await expect(page.locator('#sheet')).toHaveClass(/show/);

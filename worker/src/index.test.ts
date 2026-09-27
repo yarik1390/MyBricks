@@ -290,6 +290,7 @@ describe('BrickVault API Worker Tests', () => {
         missing_pieces INTEGER DEFAULT 0,
         spike_alerted_at TEXT,
         custom_image_url TEXT,
+        sold_price REAL, sold_at TEXT, sell_target REAL, sell_target_alerted_at TEXT, sold_fees REAL,
         UNIQUE(user_id, set_num)
       )`,
 
@@ -363,6 +364,9 @@ describe('BrickVault API Worker Tests', () => {
         added_at TEXT DEFAULT CURRENT_TIMESTAMP,
         alerted_at TEXT,
         acknowledged_at TEXT,
+        notify_target INTEGER NOT NULL DEFAULT 1,
+        notify_retiring INTEGER NOT NULL DEFAULT 1,
+        notify_stock INTEGER NOT NULL DEFAULT 1,
         UNIQUE(user_id, set_num)
       )`,
 
@@ -406,6 +410,8 @@ describe('BrickVault API Worker Tests', () => {
         google_spreadsheet_id TEXT,
         handle TEXT, display_name TEXT, currency TEXT DEFAULT 'USD',
         notify_price_drops INTEGER DEFAULT 1, notify_weekly_digest INTEGER DEFAULT 0, is_public INTEGER NOT NULL DEFAULT 0,
+        notify_sell_targets INTEGER, notify_big_moves INTEGER, notify_retiring INTEGER, notify_back_in_stock INTEGER,
+        quiet_hours INTEGER DEFAULT 0, quiet_start INTEGER DEFAULT 22, quiet_end INTEGER DEFAULT 8, timezone TEXT,
         expose_public_value INTEGER NOT NULL DEFAULT 1,
         email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT,
         is_supporter INTEGER DEFAULT 0, supporter_since TEXT, stripe_customer_id TEXT,
@@ -1270,6 +1276,43 @@ describe('BrickVault API Worker Tests', () => {
       expect(res5.status).toBe(200);
       const etag3 = res5.headers.get('ETag') || '';
       expect(etag3).not.toBe(etag2);
+    });
+    it('stores a sell target, rejects invalid ones, and re-arms its alert', async () => {
+      const addRes = await app.fetch(new Request('http://localhost/api/collection', {
+        method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ set_num: '75192', quantity: 1 }),
+      }), env);
+      const { item } = await addRes.json<{ item: { id: number } }>();
+      await db.prepare(`UPDATE user_collection SET sell_target_alerted_at = datetime('now') WHERE id = ?`).bind(item.id).run();
+      const patch = (body: unknown) => app.fetch(new Request(`http://localhost/api/collection/${item.id}`, {
+        method: 'PATCH', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }), env);
+      expect((await patch({ sell_target: -5 })).status).toBe(400);
+      expect((await patch({ sell_target: 'lots' })).status).toBe(400);
+      const ok = await patch({ sell_target: 1000 });
+      expect(ok.status).toBe(200);
+      const row = await db.prepare('SELECT sell_target, sell_target_alerted_at FROM user_collection WHERE id = ?').bind(item.id).first<{ sell_target: number; sell_target_alerted_at: string | null }>();
+      expect(row).toEqual({ sell_target: 1000, sell_target_alerted_at: null });
+      expect((await patch({ sell_target: null })).status).toBe(200);
+      const cleared = await db.prepare('SELECT sell_target FROM user_collection WHERE id = ?').bind(item.id).first<{ sell_target: number | null }>();
+      expect(cleared!.sell_target).toBeNull();
+    });
+
+    it('records sale fees and rejects fees at or above the price', async () => {
+      await app.fetch(new Request('http://localhost/api/collection', {
+        method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ set_num: '75192', quantity: 1 }),
+      }), env);
+      const sell = (body: unknown) => app.fetch(new Request('http://localhost/api/collection/sell', {
+        method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }), env);
+      expect((await sell({ set_num: '75192', sold_price: 100, sold_fees: 100 })).status).toBe(400);
+      const res = await sell({ set_num: '75192', sold_price: 920, sold_fees: 120, sold_at: '2026-09-20' });
+      expect(res.status).toBe(200);
+      const row = await db.prepare(`SELECT sold_price, sold_fees, sold_at FROM user_collection WHERE set_num = '75192' ORDER BY id DESC LIMIT 1`).first<{ sold_price: number; sold_fees: number; sold_at: string }>();
+      expect(row).toEqual({ sold_price: 920, sold_fees: 120, sold_at: '2026-09-20' });
     });
   });
 

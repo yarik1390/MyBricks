@@ -1,40 +1,54 @@
 import { test, expect } from './fixtures.mjs';
 
 test.use({ viewport: { width: 390, height: 844 } });
-test('collector navigation, permanent search, manual add, and room entry', async ({ page }) => {
+test('collector navigation, permanent search, one-tap scan, and room entry', async ({ page }) => {
   await page.goto('/#/');
-  await expect(page.locator('#collectorAdd')).toBeVisible();
+  const fab = page.locator('#bvFab');
+  await expect(fab).toBeVisible();
+  await expect(fab).toHaveAccessibleName('Scan to add');
   await expect(page.locator('#nav .nav-tab:visible')).toHaveCount(4);
   await expect(page.locator('#nav [aria-current="page"]')).toHaveAttribute('data-route', '/');
   await expect(page.locator('#advisorFab')).toBeHidden();
+  // Search lives behind the top-bar icon and filters the list in place.
+  await page.locator('#vaultSearchBtn').click();
   await expect(page.locator('#portfolioSearch')).toBeVisible();
-  await expect(page.locator('.collector-market')).not.toHaveAttribute('open');
   await page.locator('#portfolioSearch').fill('no-such-set');
   await expect(page.locator('#clearVaultSearch')).toBeVisible();
   await expect(page.getByText('Your collection starts here')).toHaveCount(0);
   await page.locator('#clearVaultSearch').click();
-  await expect(page.locator('#setList .set-list-card')).toHaveCount(1);
+  await expect(page.locator('#setList .bv-setrow')).toHaveCount(1);
   await page.locator('#portfolioSearch').blur();
-  await page.locator('#collectorAdd').click();
-  await page.locator('#collectorManual').click();
-  await page.locator('#collectorSetNumber').fill('75192');
-  await page.locator('#collectorLookup button').click();
+  // One primary action, one tap: the FAB opens the camera directly.
+  await fab.click();
+  await expect(page.locator('#scanOverlay')).toHaveClass(/open/);
+  await expect(fab).toBeHidden();
+  await page.locator('#scanCloseBtn').click();
+  await expect(page.locator('#scanOverlay')).not.toHaveClass(/open/);
+  // Typing a set number still works (the scan page's lookup form).
+  await page.goto('/#/pile');
+  await page.locator('#pileManualInput').fill('75192');
+  await page.locator('#pileManualSubmit').click();
   await expect(page).toHaveURL(/#\/set\/75192-1$/);
-  await expect(page.locator('#collectorAdd')).toBeHidden();
+  await expect(fab).toBeHidden();
+  // The set page is a detail screen: no nav bar, a back arrow instead.
+  await expect(page.locator('#nav')).toBeHidden();
+  await expect(page.locator('#detailBack')).toBeVisible();
+  await page.evaluate(() => { location.hash = '#/add'; });
+  await expect(page.locator('#nav')).toBeVisible();
   await page.locator('#nav [data-route="/add"]').click();
   await expect(page.locator('#catalogSearch')).toBeVisible();
   await expect(page.locator('#nav [aria-current="page"]')).toHaveAttribute('data-route', '/add');
-  await expect(page.locator('#collectorAdd')).toBeVisible();
+  await expect(fab).toBeVisible();
   await page.locator('#nav [data-route="/me"]').click();
   await expect(page.locator('#nav [aria-current="page"]')).toHaveAttribute('data-route', '/me');
-  await expect(page.locator('#collectorAdd')).toBeVisible();
+  await expect(fab).toBeHidden();
   await page.locator('#nav [data-route="/"]').click();
-  await expect(page.locator('#setList .set-list-card')).toBeVisible();
-  await expect(page.locator('#collectorAdd')).toBeVisible();
+  await expect(page.locator('#setList .bv-setrow')).toBeVisible();
+  await expect(fab).toBeVisible();
   await page.screenshot({ path: 'audit/collector-vault-mobile.png' });
   await page.locator('[data-vault-view="room"]').click();
   await expect(page.locator('#roomStage')).toBeAttached();
-  await expect(page.locator('#collectorAdd')).toBeHidden();
+  await expect(fab).toBeHidden();
   await page.locator('[data-vault-view="grid"]').click();
   await expect(page.locator('#roomStage')).toHaveCount(0);
 });
@@ -47,8 +61,9 @@ test('pinned collection returns from Vault and filters retain their context', as
   await expect(page.locator('[data-pin]')).toHaveAttribute('aria-pressed', 'true');
   await page.locator('#nav [data-route="/"]').click();
   await expect(page.locator('.collector-pins')).toContainText('Space shelf');
+  await page.locator('#vaultSearchBtn').click();
   await page.locator('#portfolioSearch').fill('Falcon');
-  await expect(page.locator('#setList .set-list-card')).toHaveCount(1);
+  await expect(page.locator('#setList .bv-setrow')).toHaveCount(1);
   await page.locator('#portfolioSearch').blur();
   await page.locator('#nav [data-route="/wishlist"]').click();
   await expect(page.locator('#nav [aria-current="page"]')).toHaveAttribute('data-route', '/wishlist');
@@ -59,10 +74,36 @@ test('pinned collection returns from Vault and filters retain their context', as
 test('dark theme and large text retain usable navigation', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('bv_theme', 'dark'));
   await page.goto('/#/');
-  await expect(page.locator('#collectorAdd')).toBeVisible();
-  await expect(page.locator('#setList .set-list-card')).toBeVisible();
+  await expect(page.locator('#bvFab')).toBeVisible();
+  await expect(page.locator('#setList .bv-setrow')).toBeVisible();
   await page.evaluate(() => { document.documentElement.style.fontSize = '24px'; });
   await expect(page.locator('#nav .nav-tab:visible')).toHaveCount(4);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
   await page.screenshot({ path: 'audit/collector-dark-mobile.png' });
+});
+
+test('the advisor button returns wherever no other floating action is shown', async ({ page }) => {
+  await page.goto('/#/');
+  const advisor = page.locator('#advisorFab');
+  // Vault has the Scan FAB, so the advisor steps aside…
+  await expect(page.locator('#bvFab')).toBeVisible();
+  await expect(advisor).toBeHidden();
+  // …and comes back on routes without one.
+  for (const route of ['#/leaderboard', '#/build', '#/u/tester']) {
+    await page.goto(`/${route}`);
+    await expect(page.locator('#bvFab')).toBeHidden();
+    await expect(advisor).toBeVisible();
+  }
+  await page.goto('/#/');
+  await expect(advisor).toBeHidden();
+  // Settings, the scanner and the set page (its own action bar holds the
+  // primary actions) still never show it.
+  for (const route of ['#/me', '#/pile', '#/set/75192-1']) {
+    await page.goto(`/${route}`);
+    await expect(advisor).toBeHidden();
+  }
+  // Turning the assistant off keeps it hidden everywhere.
+  await page.evaluate(() => localStorage.setItem('bv_advisor', 'off'));
+  await page.goto('/#/leaderboard');
+  await expect(advisor).toBeHidden();
 });

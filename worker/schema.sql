@@ -329,6 +329,15 @@ CREATE TABLE IF NOT EXISTS user_collection (
   custom_image_url TEXT,
   sold_price REAL,
   sold_at DATE,
+  -- Fees paid on the sale (marketplace + payment + shipping), so the realized
+  -- gain is net of costs; sold_price stays the gross price the comps use.
+  sold_fees REAL,
+  -- The value the collector wants to sell at. The daily wishlist-alerts job
+  -- inserts a wishlist_alerts row (alert_type 'sell_target') once per upward
+  -- crossing; sell_target_alerted_at latches that crossing (re-armed when the
+  -- value falls back below the target or the target changes).
+  sell_target REAL,
+  sell_target_alerted_at TEXT,
   UNIQUE(user_id, set_num)
 );
 
@@ -564,6 +573,19 @@ CREATE TABLE IF NOT EXISTS user_prefs (
   retail_market TEXT DEFAULT 'FR',
   notify_price_drops INTEGER DEFAULT 1,
   notify_weekly_digest INTEGER DEFAULT 0,
+  -- Per-category alert switches (Notifications screen). NULL inherits
+  -- notify_price_drops, the original master switch, so existing users keep
+  -- exactly what they had until they change a category.
+  notify_sell_targets INTEGER,
+  notify_big_moves INTEGER,
+  notify_retiring INTEGER,
+  notify_back_in_stock INTEGER,
+  -- Quiet hours: no push between quiet_start and quiet_end (local hours in
+  -- the user's IANA timezone); alerts still land in the app and email.
+  quiet_hours INTEGER DEFAULT 0,
+  quiet_start INTEGER DEFAULT 22,
+  quiet_end INTEGER DEFAULT 8,
+  timezone TEXT,
   is_public INTEGER NOT NULL DEFAULT 0,
   expose_public_value INTEGER DEFAULT 1,
   google_refresh_token TEXT,
@@ -610,6 +632,10 @@ CREATE TABLE IF NOT EXISTS user_wishlist (
   added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   alerted_at DATETIME,
   acknowledged_at DATETIME,
+  -- Per-set price-alert switches (price alert sheet).
+  notify_target INTEGER NOT NULL DEFAULT 1,
+  notify_retiring INTEGER NOT NULL DEFAULT 1,
+  notify_stock INTEGER NOT NULL DEFAULT 1,
   UNIQUE(user_id, set_num)
 );
 
@@ -828,6 +854,9 @@ CREATE TABLE IF NOT EXISTS native_push_tokens (
   user_id TEXT NOT NULL,
   token TEXT NOT NULL,
   platform TEXT NOT NULL DEFAULT 'android',
+  -- 1 when the installed app draws its own notifications (action buttons);
+  -- older builds rely on FCM's system-drawn notification instead.
+  supports_actions INTEGER NOT NULL DEFAULT 0,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(user_id, token)

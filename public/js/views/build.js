@@ -1,21 +1,29 @@
-import { $, $$, escapeHtml, haptic, toast, debounce, SEARCH_DEBOUNCE_MS, mount, emptyState } from '../utils.js';
+import { $, $$, escapeHtml, haptic, toast, debounce, SEARCH_DEBOUNCE_MS, mount } from '../utils.js';
 import { api, getSessionUserId, isGuestMode } from '../api.js';
-import { skelPage, skelCardList } from '../components/skeleton.js';
-import { I } from '../icons.js';
-import { tPlural } from '../lib/i18n.js';
+import { t, tPlural, getLocale } from '../lib/i18n.js';
+import { vaultNavigation } from '../components/collector-shell.js';
+import { icon, card, seg, bar, pill, emptyState, btn, skeletonRows } from '../ui/kit.js';
+import { setThumb } from '../ui/set-ui.js';
+import { vaultTopbar, vaultSearchRow, openActionSheet } from '../ui/vault-ui.js';
 
-// "What Can I Build?" has two tabs:
-//  - Buildable sets: official sets you can build from the COMBINED parts of the
-//    sets you own, with completion % and "Need N" (powered by set_parts).
-//  - Alternate builds: Rebrickable MOC alternates of a single owned set, with
+// Vault → Build (#/build) has two views:
+//  - Official sets: sets you could build from the COMBINED parts of the sets
+//    you own, ranked by completion, with how many parts you're short
+//    (powered by set_parts).
+//  - Alternate models: Rebrickable MOC alternates of a single owned set, with
 //    free instructions.
 
 let _mode = 'sets';   // 'sets' | 'alts'
 let _q = '';
+let _searchOpen = false;
 const _sets = { loaded: false, loading: false, error: "", authRequired: false, builds: [], can_build: 0, near: 0, owned_sets: 0, parts_sets: 0 };
 const _alts = { loaded: false, loading: false, error: "", authRequired: false, builds: [], can_build: 0, sets_with_alts: 0, owned_sets: 0, indexing: 0 };
 let _cacheIdentity = getSessionUserId();
 let _cacheGeneration = 0;
+
+const esc = (v) => escapeHtml(v == null ? '' : String(v));
+const onBuild = () => location.hash.split('?')[0] === '#/build';
+const fmtInt = (n) => { try { return Number(n).toLocaleString(getLocale()); } catch { return String(n); } };
 
 function resetStore(store) {
   store.loaded = false;
@@ -39,6 +47,7 @@ function resetForIdentityChange() {
   resetStore(_sets);
   resetStore(_alts);
   _q = '';
+  _searchOpen = false;
 }
 
 async function loadSets() {
@@ -67,12 +76,12 @@ async function loadSets() {
     _sets.loaded = true;
   } catch (e) {
     if (generation !== _cacheGeneration || identity !== getSessionUserId()) return;
-    _sets.error = e?.message || "Couldn't load buildable sets";
+    _sets.error = e?.message || t('bvVault.buildLoadFailed');
     // Build needs a synced (authed) collection. Guests — and any 401 ("Unauthorized:
     // no token") — get the friendly sign-in prompt, not a raw error + dead Retry.
     _sets.authRequired = isGuestMode() || /unauthorized|no token|sign in|sync this feature|session expired/i.test(_sets.error);
     _sets.loaded = true;
-    if (!_sets.authRequired) toast("Couldn't load buildable sets", 'error');
+    if (!_sets.authRequired) toast(t('bvVault.buildLoadFailed'), 'error');
   }
   finally { if (generation === _cacheGeneration) _sets.loading = false; }
 }
@@ -101,31 +110,27 @@ async function loadAlts() {
     _alts.loaded = true;
   } catch (e) {
     if (generation !== _cacheGeneration || identity !== getSessionUserId()) return;
-    _alts.error = e?.message || "Couldn't load alternate builds";
+    _alts.error = e?.message || t('bvVault.buildAltsLoadFailed');
     _alts.authRequired = isGuestMode() || /unauthorized|no token|sign in|sync this feature|session expired/i.test(_alts.error);
     _alts.loaded = true;
-    if (!_alts.authRequired) toast("Couldn't load alternate builds", 'error');
+    if (!_alts.authRequired) toast(t('bvVault.buildAltsLoadFailed'), 'error');
   }
   finally { if (generation === _cacheGeneration) _alts.loading = false; }
 }
 
 function setRow(b) {
   const pct = Math.round(Number(b.pct) || 0);
-  const img = b.image_url
-    ? `<img class="b-thumb" src="${escapeHtml(String(b.image_url))}" alt="${escapeHtml(String(b.name || ''))}" loading="lazy">`
-    : `<div class="b-thumb b-thumb-e"></div>`;
-  const sub = [b.theme, b.year].filter(Boolean).map((x) => escapeHtml(String(x))).join(' · ');
-  const right = b.buildable
-    ? `<span class="b-badge b-ok">Buildable</span>`
-    : `<span class="b-need">${tPlural('build.needParts', b.need)}</span>`;
-  return `<a class="b-row" href="#/set/${encodeURIComponent(String(b.set_num))}">
-    ${img}
-    <div class="b-meta">
-      <div class="b-name">${escapeHtml(String(b.name || b.set_num))}</div>
-      <div class="b-sub">${sub}${b.pieces ? ' · ' + b.pieces + ' pcs' : ''}</div>
-      <div class="b-barwrap"><div class="b-bar ${b.buildable ? 'b-bar-ok' : 'b-bar-mid'}" style="width:${pct}%"></div></div>
-    </div>
-    <div class="b-side"><span class="b-pct">${pct}%</span>${right}</div>
+  const ready = !!b.buildable || pct >= 100;
+  const sub = [b.theme, b.pieces ? tPlural('bvVault.buildPieces', Number(b.pieces), { count: fmtInt(b.pieces) }) : '',
+    ready ? t('bvVault.buildAllParts') : tPlural('bvVault.buildPartsMissing', Number(b.need) || 0, { count: fmtInt(Number(b.need) || 0) })].filter(Boolean).join(' · ');
+  const right = ready ? pill(t('bvVault.buildReady'), 'gain', { icon: 'check' }) : `<span class="bv-num vault-build-row__pct">${pct}%</span>`;
+  return `<a class="vault-build-row" href="#/set/${encodeURIComponent(String(b.set_num))}" data-set-num="${esc(b.set_num)}">
+    ${setThumb(b)}
+    <span class="vault-build-row__body">
+      <span class="vault-build-row__head"><span class="vault-build-row__name">${esc(b.name || b.set_num)}</span>${right}</span>
+      ${bar(pct, { label: t('bvVault.buildPctLabel', { pct }) }).replace('class="bv-bar"', `class="bv-bar${ready ? ' is-ready' : ''}"`)}
+      <span class="vault-build-row__sub">${esc(sub)}</span>
+    </span>
   </a>`;
 }
 
@@ -134,60 +139,60 @@ function altRow(b) {
   // prohibits reusing or displaying them (incl. hotlinking), so we render a
   // neutral brick glyph instead of moc_img_url. The name / pieces / designer /
   // "Instructions" link out to Rebrickable all remain, so the feature is intact.
-  const img = `<div class="b-thumb b-thumb-e"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="9" width="18" height="11" rx="1.5"/><path d="M7 9V7.5a2 2 0 0 1 4 0V9M13 9V7.5a2 2 0 0 1 4 0V9"/></svg></div>`;
-  const parts = b.num_parts ? `${b.num_parts} pieces` : '';
-  const designer = b.designer ? `by ${escapeHtml(String(b.designer))}` : '';
-  const fromSet = b.from_set_name ? `from ${escapeHtml(String(b.from_set_name))}` : '';
-  const url = b.moc_url ? escapeHtml(String(b.moc_url)) : '#';
-  return `<a class="b-row" href="${url}" target="_blank" rel="noopener noreferrer">
-    ${img}
-    <div class="b-meta">
-      <div class="b-name">${escapeHtml(String(b.name || 'Untitled build'))}</div>
-      <div class="b-sub">${[parts, designer].filter(Boolean).join(' · ')}</div>
-      <div class="b-sub" style="opacity:.5">${fromSet}</div>
-    </div>
-    <div class="b-side"><span class="b-badge b-ok">Instructions</span><span class="b-chevron">›</span></div>
+  const sub = [
+    b.num_parts ? tPlural('bvVault.buildPieces', Number(b.num_parts), { count: fmtInt(b.num_parts) }) : '',
+    b.designer ? t('bvVault.buildBy', { designer: String(b.designer) }) : '',
+    b.from_set_name ? t('bvVault.buildFrom', { set: String(b.from_set_name) }) : '',
+  ].filter(Boolean).join(' · ');
+  const url = b.moc_url ? String(b.moc_url) : '#';
+  return `<a class="vault-build-row is-alt" href="${esc(url)}" target="_blank" rel="noopener noreferrer">
+    <span class="bv-thumb vault-build-row__glyph">${icon('brick', { size: 26, stroke: 1.8 })}</span>
+    <span class="vault-build-row__body">
+      <span class="vault-build-row__head"><span class="vault-build-row__name">${esc(b.name || t('bvVault.buildUntitled'))}</span><span class="bv-card__link">${esc(t('bvVault.buildInstructions'))}${icon('ext', { size: 16 })}</span></span>
+      <span class="vault-build-row__sub">${esc(sub)}</span>
+    </span>
   </a>`;
 }
 
-function tiles() {
-  if (_mode === 'sets') {
-    return `<div class="b-tiles">
-      <div class="b-tile"><div class="b-n">${_sets.can_build}</div><div class="b-l">sets you can build</div></div>
-      <div class="b-tile"><div class="b-n">${_sets.near}</div><div class="b-l">almost (≥80%)</div></div>
-    </div>`;
+function heroHTML() {
+  if (_mode === 'alts') {
+    if (!_alts.loaded || _alts.authRequired || _alts.error) return '';
+    return card(`<span class="vault-hero__label">${esc(tPlural('bvVault.buildAltsFrom', _alts.owned_sets))}</span>
+      <span class="vault-build-hero__line"><span class="vault-build-hero__big">${esc(tPlural('bvVault.buildAltModels', _alts.can_build))}</span>${_alts.sets_with_alts ? `<span class="vault-build-hero__rest">${esc(tPlural('bvVault.buildAltsSets', _alts.sets_with_alts))}</span>` : ''}</span>
+      <span class="vault-build-hero__note">${icon('info', { size: 18 })}<span>${esc(t('bvVault.buildAltsNote'))}</span></span>`, { cls: 'vault-build-hero' });
   }
-  return `<div class="b-tiles">
-    <div class="b-tile"><div class="b-n">${_alts.can_build}</div><div class="b-l">alternate models</div></div>
-    <div class="b-tile"><div class="b-n">${_alts.sets_with_alts}</div><div class="b-l">${tPlural('build.ofOwnedSets', _alts.owned_sets)}</div></div>
-  </div>`;
+  if (!_sets.loaded || _sets.authRequired || _sets.error) return '';
+  const more = Math.max(0, (_sets.near || 0));
+  return card(`<span class="vault-hero__label">${esc(tPlural('bvVault.buildFromParts', _sets.owned_sets))}</span>
+    <span class="vault-build-hero__line"><span class="vault-build-hero__big">${esc(tPlural('bvVault.buildReadyCount', _sets.can_build))}</span>${more ? `<span class="vault-build-hero__rest">${esc(tPlural('bvVault.buildNear', more))}</span>` : ''}</span>
+    <span class="vault-build-hero__note">${icon('info', { size: 18 })}<span>${esc(t('bvVault.buildNote'))}</span></span>`, { cls: 'vault-build-hero' });
 }
 
 function listHtml() {
   const st = _mode === 'sets' ? _sets : _alts;
-  if (st.loading && !st.loaded) return skelCardList(6);
+  if (st.loading && !st.loaded) return skeletonRows(6);
   if (st.authRequired) {
     return emptyState({
-      icon: I.layers(),
-      title: 'Sign in to build from your vault',
-      body: 'Build tools need your synced collection and parts data. You can still browse the catalog or scan sets as a guest.',
-      action: `<div class="empty-actions"><a class="btn-primary" href="#/login">${I.user()}<span>Sign in</span></a><a class="btn-secondary" href="#/add">${I.search()}<span>Browse catalog</span></a><a class="btn-secondary" href="#/pile">${I.scan()}<span>Scan a set</span></a></div>`,
+      icon: 'user',
+      title: t('bvVault.buildSignInTitle'),
+      body: t('bvVault.buildSignInBody'),
+      actionsHtml: `${btn(t('bvVault.buildSignIn'), { href: '#/login', icon: 'user', full: true })}${btn(t('bvVault.emptyBrowse'), { href: '#/add', kind: 'tonal', icon: 'search', full: true })}${btn(t('bvVault.buildScan'), { href: '#/pile', kind: 'tonal', icon: 'scan', full: true })}`,
     });
   }
   if (st.error) {
     return emptyState({
-      icon: I.info(),
-      title: 'Build tools are unavailable',
+      icon: 'alert',
+      title: t('bvVault.buildUnavailable'),
       body: st.error,
-      action: `<div class="empty-actions"><button class="btn-primary" id="buildRetry">${I.refresh()}<span>Retry</span></button><a class="btn-secondary" href="#/add">${I.search()}<span>Browse catalog</span></a></div>`,
+      actionsHtml: `${btn(t('common.retry'), { id: 'buildRetry', icon: 'refresh', full: true })}${btn(t('bvVault.emptyBrowse'), { href: '#/add', kind: 'tonal', icon: 'search', full: true })}`,
     });
   }
   if (st.loaded && !st.owned_sets) {
     return emptyState({
-      icon: I.box(),
-      title: 'Nothing to build yet',
-      body: 'Add sets to your vault, then come back to see what you can build from their parts.',
-      action: `<div class="empty-actions"><a class="btn-primary" href="#/add">${I.search()}<span>Browse catalog</span></a><a class="btn-secondary" href="#/pile">${I.scan()}<span>Scan a set</span></a></div>`,
+      icon: 'box',
+      title: t('bvVault.buildNothingTitle'),
+      body: t('bvVault.buildNothingBody'),
+      actionsHtml: `${btn(t('bvVault.emptyBrowse'), { href: '#/add', icon: 'search', full: true })}${btn(t('bvVault.buildScan'), { href: '#/pile', kind: 'tonal', icon: 'scan', full: true })}`,
     });
   }
   let items = st.builds;
@@ -197,44 +202,37 @@ function listHtml() {
   }
   if (!items.length) {
     if (_mode === 'sets' && _sets.loaded && !_sets.parts_sets) {
-      return emptyState({ icon: I.layers(), title: 'Indexing parts', body: "We're still indexing the part lists for your sets — check back shortly." });
+      return emptyState({ icon: 'brick', title: t('bvVault.buildIndexingTitle'), body: t('bvVault.buildIndexingBody') });
     }
     if (_mode === 'alts' && _alts.loaded && (_alts.indexing > 0 || (_alts.owned_sets && !_alts.sets_with_alts))) {
       // Alternates are indexed lazily (a few sets per visit + nightly backfill).
       // An empty list usually means "not indexed yet", not "no MOCs exist".
-      return emptyState({ icon: I.layers(), title: 'Indexing your sets', body: 'We\u2019re looking up alternate builds for the sets in your vault \u2014 this fills in automatically. Check back soon.' });
+      return emptyState({ icon: 'brick', title: t('bvVault.buildAltsIndexingTitle'), body: t('bvVault.buildAltsIndexingBody') });
     }
-    return emptyState({ icon: I.search(), title: _q ? `No matches for "${escapeHtml(_q)}"` : 'No matches yet', body: _q ? 'Try a different search term.' : '' });
+    return emptyState({ icon: 'search', title: _q ? t('bvVault.buildNoMatchesFor', { query: _q }) : t('bvVault.buildNoMatches'), body: _q ? t('bvVault.buildTryAnother') : '' });
   }
-  return `<div class="b-list">${items.map(_mode === 'sets' ? setRow : altRow).join('')}</div>`;
+  return `<div class="vault-build-list">${items.map(_mode === 'sets' ? setRow : altRow).join('')}</div>`;
 }
 
 function pageHtml() {
-  const _intro = _mode === 'sets'
-    ? `Official sets you could build right now from the combined parts of the sets you own — with completion % and how many pieces you're short. (You'd part out your sets to build them.)`
-    : `Alternate models you can build from a set you own, each with free building instructions.`;
-  return `<div class="page build-view">
-    <div class="topbar">
-      <button class="icon-btn" id="buildBack" aria-label="Back">${I.chevL()}</button>
-      <div class="topbar-heading">
-        <div class="topbar-eyebrow">Vault tools</div>
-        <h1 class="topbar-title">Build</h1>
-      </div>
-    </div>
-    <div class="b-tabs" role="tablist" aria-label="Build views">
-      <button class="b-tab ${_mode === 'sets' ? 'b-tab-on' : ''}" data-mode="sets" role="tab" aria-selected="${_mode === 'sets'}">Buildable sets</button>
-      <button class="b-tab ${_mode === 'alts' ? 'b-tab-on' : ''}" data-mode="alts" role="tab" aria-selected="${_mode === 'alts'}">Alternate builds</button>
-    </div>
-    <p class="build-intro">${_mode === 'sets' ? 'Official sets you can build from owned parts, ranked by completion.' : 'Alternate models from sets you own, with instruction links.'}</p>
-    ${tiles()}
-    <input id="buildSearch" name="build_search" class="build-search" type="search" aria-label="Search buildable sets" placeholder="Search…" autocomplete="off" value="${escapeHtml(_q)}">
-    ${(_mode === 'alts' && _alts.indexing) ? `<div class="b-indexing">${tPlural('build.indexing', _alts.indexing)}</div>` : ''}
+  const altLabel = _alts.loaded && !_alts.authRequired && !_alts.error ? tPlural('bvVault.buildAltsTab', _alts.can_build, { count: fmtInt(_alts.can_build) }) : t('bvVault.buildAltsTabPlain');
+  return `<main class="bv-page vault-build build-view" id="buildPage">
+    ${vaultTopbar({ searchOpen: _searchOpen, searchLabel: t('bvVault.buildSearch'), searchControls: 'buildSearchRow' })}
+    ${_searchOpen ? vaultSearchRow({ id: 'buildSearch', rowId: 'buildSearchRow', name: 'build_search', value: _q, placeholder: t('bvVault.buildSearchPlaceholder'), label: t('bvVault.buildSearch') }) : ''}
+    ${_searchOpen ? '' : heroHTML()}
+    ${vaultNavigation('build')}
+    <div class="vault-build-seg">${seg([
+      { label: t('bvVault.buildOfficial'), value: 'sets', current: _mode === 'sets', attrs: { 'data-mode': 'sets' } },
+      { label: altLabel, value: 'alts', current: _mode === 'alts', attrs: { 'data-mode': 'alts' } },
+    ], { label: t('bvVault.buildViews') })}</div>
+    ${(_mode === 'alts' && _alts.indexing) ? `<p class="bv-foot" role="status">${esc(tPlural('build.indexing', _alts.indexing))}</p>` : ''}
     ${listHtml()}
-  </div>`;
+  </main>`;
 }
 
 function rerender() {
   resetForIdentityChange();
+  if (!onBuild()) return;
   mount($('#root'), pageHtml());
   wire();
 }
@@ -246,13 +244,11 @@ async function ensureLoaded() {
 }
 
 function wire() {
-  const back = $('#buildBack');
-  if (back) back.onclick = () => { haptic('light'); if (history.length > 1) history.back(); else location.hash = '#/me'; };
-  $$('.b-tab').forEach((t) => {
-    t.onclick = async () => {
-      const m = t.dataset.mode;
+  $$('#buildPage [data-mode]').forEach((b) => {
+    b.onclick = async () => {
+      const m = b.dataset.mode;
       if (m === _mode) return;
-      _mode = m; _q = '';
+      _mode = m;
       haptic('light');
       rerender();
       await ensureLoaded();
@@ -269,7 +265,28 @@ function wire() {
       if (s2) { s2.focus(); s2.setSelectionRange(s2.value.length, s2.value.length); }
     }, SEARCH_DEBOUNCE_MS || 250);
   }
-  $('#buildRetry')?.addEventListener('click', async () => {
+  const searchBtn = $('#vaultSearchBtn');
+  if (searchBtn) searchBtn.onclick = () => {
+    haptic('light');
+    _searchOpen = !_searchOpen;
+    if (!_searchOpen) _q = '';
+    rerender();
+    if (_searchOpen) $('#buildSearch')?.focus();
+  };
+  const more = $('#vaultMoreBtn');
+  if (more) more.onclick = () => {
+    haptic('light');
+    openActionSheet({
+      title: t('bvVault.moreOptions'),
+      groups: [{ rows: [
+        { id: 'buildMoreOfficial', icon: 'brick', label: t('bvVault.buildOfficial'), onClick: () => { $('#buildPage [data-mode="sets"]')?.click(); } },
+        { id: 'buildMoreAlts', icon: 'wand', label: t('bvVault.buildAltsTabPlain'), onClick: () => { $('#buildPage [data-mode="alts"]')?.click(); } },
+        { id: 'buildMoreChanges', icon: 'bell', label: t('bvVault.whatChanged'), href: '#/changes' },
+      ] }],
+    });
+  };
+  const retry = $('#buildRetry');
+  if (retry) retry.onclick = async () => {
     const st = _mode === 'sets' ? _sets : _alts;
     st.loaded = false;
     st.error = "";
@@ -277,11 +294,15 @@ function wire() {
     rerender();
     await ensureLoaded();
     rerender();
-  });
+  };
 }
 
 export async function renderBuild() {
-  $('#root').innerHTML = skelPage(skelCardList(6));
+  resetForIdentityChange();
+  $('#root').innerHTML = `<main class="bv-page vault-build" aria-busy="true">${vaultTopbar()}${vaultNavigation('build')}${skeletonRows(6)}</main>`;
   await ensureLoaded();
   rerender();
+  // The Alternate models count on the switch comes from its own read; fetch it
+  // quietly once the official list is on screen.
+  if (_mode === 'sets' && !_alts.loaded && !isGuestMode()) loadAlts().then(() => { if (onBuild()) rerender(); }).catch(() => {});
 }

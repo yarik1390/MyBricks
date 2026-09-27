@@ -42,6 +42,7 @@ try {
 <link rel="preconnect" href="https://brickvault-api.zhydenko.workers.dev" crossorigin>
 <link rel="preconnect" href="https://cdn.rebrickable.com" crossorigin>
 <link rel="preload" href="/app.css" as="style">
+<link rel="preload" href="/bv.css" as="style">
 <link rel="preload" href="/js/app.js" as="script" crossorigin>
 <!-- The boot graph is discovered one module at a time (app.js → utils.js →
      api.js → …), a request waterfall on cold loads. modulepreload the whole
@@ -54,11 +55,14 @@ try {
 <link rel="modulepreload" href="/js/theme.js">
 <link rel="modulepreload" href="/js/lib/pure-core.js">
 <link rel="modulepreload" href="/js/lib/morphdom.js">
+<link rel="modulepreload" href="/js/ui/kit.js">
 <link rel="stylesheet" href="/app.css">
 <!-- Only the ACTIVE skin is loaded — theme-init sets this href — instead of five
      render-blocking skin sheets. Placed AFTER app.css so its rules win the cascade. -->
 <link rel="stylesheet" id="bvSkin">
 <link rel="stylesheet" href="/collector.css">
+<!-- 2026 design system: tokens, components and the app shell. Loaded last. -->
+<link rel="stylesheet" href="/bv.css">
 <!-- Sets the saved theme + active skin pre-paint AND loads Google Fonts
      non-render-blocking. Runs after app.css so it can target #bvSkin; still
      synchronous in <head>, so the theme is applied before first paint (no flash).
@@ -71,7 +75,7 @@ try {
 <div id="navProgress"></div>
 <div id="statusBarScrim" class="status-bar-scrim" aria-hidden="true"></div>
 <a href="#main-content" class="skip-link">Skip to content</a>
-<div id="offlineBanner" class="offline-banner" role="status" aria-live="polite">You're offline — showing cached data</div>
+<div id="offlineBanner" class="offline-banner" role="status" aria-live="polite"><svg class="offline-banner__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 18h10M3 3l18 18M17.5 10A6 6 0 0 0 9 6.3M6 9.5A4.3 4.3 0 0 0 7 18"/></svg><span class="offline-banner__text">You're offline — showing cached data</span></div>
 
 <div id="app">
   <main id="main-content" tabindex="-1">
@@ -94,9 +98,9 @@ try {
     <span class="nav-icon"></span>
     <span class="nav-label">Vault</span>
   </a>
-  <a href="#/add" class="nav-tab" data-route="/add" aria-label="Catalog">
+  <a href="#/add" class="nav-tab" data-route="/add" aria-label="Discover">
     <span class="nav-icon"></span>
-    <span class="nav-label">Catalog</span>
+    <span class="nav-label">Discover</span>
   </a>
   <a href="#/pile" class="nav-tab scan-tab kids-only" data-route="/pile" aria-label="Scan">
     <div class="scan-orb"></div>
@@ -113,7 +117,7 @@ try {
   </a>
   <a href="#/me" class="nav-tab" data-route="/me" aria-label="Profile">
     <span class="nav-icon"></span>
-    <span class="nav-label">Me</span>
+    <span class="nav-label">Profile</span>
   </a>
 </nav>
 

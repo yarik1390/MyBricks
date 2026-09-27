@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget and launcher shortcut labels. -->
+<resources>
+    <string name="widget_label">Вартість сховища</string>
+    <string name="widget_open_app">Відкрийте застосунок</string>
+    <string name="widget_open_to_sync">Відкрийте застосунок для синхронізації</string>
+    <string name="widget_scan">Сканувати</string>
+    <string name="widget_search">Пошук</string>
+    <string name="shortcut_scan_short">Сканувати набір</string>
+    <string name="shortcut_scan_long">Сканувати штрихкод набору</string>
+    <string name="shortcut_shelf_short">Сфотографувати полицю</string>
+    <string name="shortcut_shelf_long">Сфотографувати всю полицю</string>
+    <string name="shortcut_wishlist_short">Бажане</string>
+    <string name="shortcut_wishlist_long">Відкрити список бажаного</string>
+    <!-- Notification channel for price/sell/retiring alerts. -->
+    <string name="alerts_channel_name">Сповіщення</string>
+    <string name="alerts_channel_description">Зниження цін, цілі продажу, великі зміни й набори, що знімаються з виробництва</string>
+</resources>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget and launcher shortcut labels. -->
+<resources>
+    <string name="widget_label">コレクションの価値</string>
+    <string name="widget_open_app">アプリを開く</string>
+    <string name="widget_open_to_sync">アプリを開いて同期</string>
+    <string name="widget_scan">スキャン</string>
+    <string name="widget_search">検索</string>
+    <string name="shortcut_scan_short">セットをスキャン</string>
+    <string name="shortcut_scan_long">セットのバーコードをスキャン</string>
+    <string name="shortcut_shelf_short">棚を撮影</string>
+    <string name="shortcut_shelf_long">棚全体を撮影</string>
+    <string name="shortcut_wishlist_short">ほしい物</string>
+    <string name="shortcut_wishlist_long">ほしい物を開く</string>
+    <!-- Notification channel for price/sell/retiring alerts. -->
+    <string name="alerts_channel_name">アラート</string>
+    <string name="alerts_channel_description">値下がり、売却目標、大きな値動き、販売終了予定のセット</string>
+</resources>

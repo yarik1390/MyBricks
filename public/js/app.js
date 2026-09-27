@@ -1,8 +1,10 @@
-import { $, $$, haptic, toast, fetchExchangeRates, bvIDB, installImageFallback, track } from './utils.js';
+import { $, $$, haptic, toast, fetchExchangeRates, hasCachedExchangeRates, bvIDB, installImageFallback, track } from './utils.js';
 import { state, invalidatePortfolio } from './state.js';
 import { nextOfflineBannerState, shouldUseKeyboardShell } from './lib/pure-core.js';
 import { loadSession, saveSession, setSupabaseConfig, drainOutbox, getSessionOwnerSnapshot, snapshotGuestVault, migrateGuestVault, isGuestMode, backfillGuestVault, stashRecoveryGrant } from './api.js';
 import { I } from './icons.js';
+import { icon as kitIcon } from './ui/kit.js';
+import { paintNavBadges } from './components/collector-shell.js';
 import { route } from './router.js';
 import { getThemePref, applyTheme, getModePref, applyMode } from './theme.js';
 import { initLocale, t as translate, tPlural, onLocaleChange, applyUiDictionary, startAutoTranslate } from './lib/i18n.js';
@@ -10,6 +12,7 @@ import { toggleAdvisor } from './components/advisor-lazy.js';
 import { openScan, closeScan, capturePhoto } from './components/scanner-lazy.js';
 import { installMethodologySheet } from './components/methodology.js';
 import { closeNativeAuthBrowser, getCapacitorPlugin, isNativeCapacitor, nativeOAuthCallbackFromWebBridge, oauthHashFromCallbackUrl } from './lib/native-auth.js';
+import { deepLinkHash } from './lib/deep-links.js';
 // onboarding (welcome carousel) is lazy-loaded at the end of boot (see below).
 
 // The visible button is the sole keyboard stop; its click forwards to a native
@@ -323,6 +326,17 @@ async function consumeOAuthHash() {
 
 let nativeAuthBridgeReady = false;
 
+// Launcher shortcuts and bricksvault.app links land on their hash route
+// (#/pile?scan=barcode opens the scanner). A cold launch replaces the entry so
+// Back doesn't return to an empty start page.
+function openDeepLink(url, { replace = false } = {}) {
+  const hash = deepLinkHash(url);
+  if (!hash || hash === location.hash) return false;
+  if (replace) history.replaceState(null, '', `${location.pathname}${location.search}${hash}`);
+  else location.hash = hash;
+  return true;
+}
+
 async function consumeNativeOAuthCallback(url, { reroute = false } = {}) {
   const hash = oauthHashFromCallbackUrl(url);
   if (!hash) return false;
@@ -340,7 +354,10 @@ async function setupNativeAuthBridge() {
   if (!App) return false;
   try {
     App.addListener?.('appUrlOpen', event => {
-      consumeNativeOAuthCallback(event?.url, { reroute: true }).catch(err => {
+      consumeNativeOAuthCallback(event?.url, { reroute: true }).then(consumed => {
+        // Not a sign-in callback: a launcher shortcut or app link → its route.
+        if (!consumed) openDeepLink(event?.url);
+      }).catch(err => {
         console.warn('[native-auth] failed to consume OAuth callback:', err);
       });
     });
@@ -349,7 +366,11 @@ async function setupNativeAuthBridge() {
   }
   try {
     const launch = await App.getLaunchUrl?.();
-    if (launch?.url) return await consumeNativeOAuthCallback(launch.url, { reroute: false });
+    if (launch?.url) {
+      const consumed = await consumeNativeOAuthCallback(launch.url, { reroute: false });
+      if (!consumed) openDeepLink(launch.url, { replace: true });
+      return consumed;
+    }
   } catch (err) {
     console.warn('[native-auth] launch URL unavailable:', err);
   }
@@ -501,10 +522,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   };
   paintNavLabels();
-  onLocaleChange(paintNavLabels);
+  paintNavBadges();
+  onLocaleChange(() => { paintNavLabels(); paintNavBadges(); });
 
   // Wire nav icons using icon library
-  const icons = { "/": I.home, "/add": I.search, "/minifigs": I.figure, "/kids/badges": I.star, "/me": I.user, "/wishlist": I.heart };
+  const kit = (name) => () => kitIcon(name);
+  const icons = { "/": kit('vault'), "/add": kit('search'), "/minifigs": I.figure, "/kids/badges": I.star, "/me": kit('user'), "/wishlist": kit('heart') };
   $$("#nav .nav-tab").forEach(t => {
     const r = t.dataset.route;
     const iconFn = icons[r];
@@ -561,6 +584,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       offlineShowTimer = null;
     }
     document.body.classList.toggle("offline", offlineUiState === "offline");
+    // Presentation only: say when the values are from and what will sync.
+    if (offlineUiState === "offline" && prev !== "offline") {
+      import('./ui/first-ui.js').then(m => m.paintOfflineBanner()).catch(() => {});
+    }
     // Self-heal: while we believe we're offline (or pending), keep re-probing so a
     // transient boot/SW race that stranded the banner recovers on its own — the
     // boot probe is one-shot and only re-checks on the browser "online" event,
@@ -609,11 +636,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   // banner directly, so a single failed request can't flash it on its own.
   window.addEventListener("bv:api-ok", () => { if (offlineUiState !== "online") applyOfflineState(false); });
   window.addEventListener("bv:api-fail", () => { refreshOfflineState(); });
+  // Edits made while already offline land in the outbox — keep the banner's
+  // "N changes will sync" count current.
+  window.addEventListener("bv:outbox", () => {
+    if (offlineUiState === "offline") import('./ui/first-ui.js').then(m => m.paintOfflineBanner()).catch(() => {});
+  });
 
   setupGestures();
   setupFabScrollAwareness();
   setupImageHydration();
   setupKeyboardAwareShell();
+  import('./lib/list-detail.js').then(m => m.initListDetail()).catch(() => {});
 
   if ("serviceWorker" in navigator && !isNativeCapacitor()) {
     navigator.serviceWorker.register("/sw.js")
@@ -647,7 +680,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Hydrate in-memory state from IDB so first tab visit is instant.
   if (session) await hydrateFromIDB();
 
-  await fetchExchangeRates();
+  // Currency rates: a cached copy (even a stale one) is good enough for the
+  // first paint; refresh in the background and repaint only if they changed.
+  // Only a first-ever launch with no cached rates waits for the network.
+  if (hasCachedExchangeRates()) {
+    fetchExchangeRates({ background: true }).then(changed => {
+      // Repaint with the fresh rates unless the user is mid-task in an overlay.
+      const busy = ['sheet-open', 'scan-active', 'advisor-open', 'selection-mode'].some(c => document.body.classList.contains(c));
+      if (changed && !busy) route();
+    }).catch(() => {});
+  } else {
+    await fetchExchangeRates();
+  }
 
   // Initial route — after config and session are loaded.
   await route();

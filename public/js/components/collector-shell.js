@@ -3,16 +3,25 @@ import { I } from '../icons.js';
 import { state } from '../state.js';
 import { getSessionUserId, getSessionOwnerSnapshot } from '../api.js';
 import { getModePref } from '../theme.js';
-import { t } from '../lib/i18n.js';
+import { t, tPlural } from '../lib/i18n.js';
 import { readCollectorPreferences, writeCollectorPreferences } from '../lib/collector-preferences.js';
 import { showSheet, hideSheet } from './sheet.js';
 import { toggleAdvisor } from './advisor-lazy.js';
+import { openScan } from './scanner-lazy.js';
+import { icon, tabs as kitTabs, seg as kitSeg } from '../ui/kit.js';
 
+// Vault sections: Sets · Minifigs · Lists · Build. "What can I build" lives
+// with the collection it is computed from, not under Discover.
 export function vaultNavigation(selected = 'sets') {
   if (getModePref() === 'kids') return '';
-  return `<nav class="collector-tabs" aria-label="${escapeHtml(t('collector.collectionTabs'))}">
-    ${[['sets', '#/', 'sets'], ['minifigs', '#/minifigs?owned=1', 'minifigures'], ['collections', '#/collections', 'collections']].map(([key, href, label]) => `<a href="${href}" ${key === selected ? 'aria-current="page"' : ''}>${t(`collector.${label}`)}</a>`).join('')}
-  </nav>`;
+  const items = [
+    ['sets', '#/', 'shell.tabSets'],
+    ['minifigs', '#/minifigs?owned=1', 'shell.tabMinifigs'],
+    ['collections', '#/collections', 'shell.tabLists'],
+    ['build', '#/build', 'shell.tabBuild'],
+  ];
+  return kitTabs(items.map(([key, href, label]) => ({ label: t(label), href, selected: key === selected })),
+    { label: t('collector.collectionTabs'), cls: 'collector-tabs' });
 }
 export function vaultViewSwitch(selected = 'grid') {
   return `<nav class="vault-view-switch" aria-label="${escapeHtml(t('collector.view'))}">
@@ -20,8 +29,12 @@ export function vaultViewSwitch(selected = 'grid') {
     <a href="#/room" data-vault-view="room" ${selected === 'room' ? 'aria-current="page"' : ''}>${I.home()}<span>${t('collector.room')}</span></a>
   </nav>`;
 }
+// Discover scope: the whole catalog of sets, or minifigures.
 export function discoverNavigation(selected = 'sets') {
-  return `<nav class="collector-tabs" aria-label="${escapeHtml(t('collector.discover'))}">${[['sets', '#/add', 'sets'], ['minifigs', '#/minifigs?owned=0', 'minifigures'], ['build', '#/build', 'buildIdeas']].map(([key, href, label]) => `<a href="${href}" ${key === selected ? 'aria-current="page"' : ''}>${t(`collector.${label}`)}</a>`).join('')}</nav>`;
+  return `<div class="bv-discover-scope">${kitSeg([
+    { label: t('shell.tabSets'), href: '#/add', current: selected === 'sets' },
+    { label: t('shell.tabMinifigs'), href: '#/minifigs?owned=0', current: selected === 'minifigs' },
+  ], { label: t('collector.discover') })}</div>`;
 }
 export function collectorTools() {
   return `<div class="collector-tools"><a href="#/build">${I.brick ? I.brick() : I.grid()}<span>${t('collector.buildIdeas')}</span>${I.chev()}</a>${advisorEnabled() ? `<button type="button" data-collector-advisor>${I.spark ? I.spark() : I.info()}<span>${t('collector.advisor')}</span>${I.chev()}</button>` : ''}</div>`;
@@ -56,6 +69,116 @@ export function installCollectorShell() {
     if (view) writeCollectorPreferences(getSessionUserId(), { view });
     const home = target?.closest('#nav [data-route="/"]');
     if (home) writeCollectorPreferences(getSessionUserId(), { view: 'grid' });
+    // Top-bar back arrows rendered as buttons step back through the SPA; a
+    // cold deep link (nothing to go back to) lands on the Vault instead.
+    const back = target?.closest('button[data-bv-back]');
+    if (back) {
+      event.preventDefault();
+      if (history.length > 1) history.back();
+      else location.hash = back.dataset.bvBackFallback || '#/';
+    }
+    if (target?.closest('[data-bv-sheet-close]')) { event.preventDefault(); hideSheet(); }
+  });
+  installFabScroll();
+}
+
+// ---------------------------------------------------------------- Scan FAB
+// One floating primary action per screen. Routes opt in through route-meta
+// (`scanFab`); a view can replace it for its own screen with setPageFab() (the
+// Lists tab shows "New list", the Wishlist "Add"). The router resets it on
+// every navigation, before the next view renders.
+let pageFab = null;
+function defaultFab() {
+  return { label: t('shell.scanToAdd'), icon: 'scan', onClick: () => { haptic('light'); openScan('barcode'); } };
+}
+function fabEl() {
+  let el = document.getElementById('bvFab');
+  if (!el) {
+    el = document.createElement('button');
+    el.id = 'bvFab';
+    el.type = 'button';
+    el.className = 'bv-fab';
+    el.hidden = true;
+    el.addEventListener('click', event => {
+      const cfg = el._bvFab;
+      if (!cfg) return;
+      if (cfg.href) { location.hash = cfg.href; return; }
+      cfg.onClick?.(event);
+    });
+    document.body.appendChild(el);
+  }
+  return el;
+}
+function paintFab(cfg) {
+  const el = fabEl();
+  el._bvFab = cfg;
+  if (!cfg) { el.hidden = true; document.body.classList.remove('bv-fab-on'); syncAdvisorFab(); return; }
+  el.innerHTML = `${icon(cfg.icon || 'scan')}<span class="bv-fab__label">${escapeHtml(cfg.label)}</span>`;
+  el.setAttribute('aria-label', cfg.label);
+  el.classList.remove('is-compact');
+  el.hidden = false;
+  document.body.classList.add('bv-fab-on');
+  syncAdvisorFab();
+}
+
+// Only one floating action at a time: the advisor button steps aside while the
+// screen shows a primary FAB (Scan, Add, New list) and comes back when it
+// doesn't, on every route that offers the advisor (route meta `fab`).
+let advisorWanted = false;
+function syncAdvisorFab() {
+  const adv = document.getElementById('advisorFab');
+  if (!adv || getModePref() === 'kids') return;
+  const primaryShown = document.getElementById('bvFab')?.hidden === false;
+  adv.style.display = advisorWanted && advisorEnabled() && !primaryShown ? 'flex' : 'none';
+}
+/** Replace this screen's FAB ({ label, icon, href | onClick }), or hide it with null. */
+export function setPageFab(cfg) {
+  pageFab = cfg === null ? { hidden: true } : cfg;
+  paintFab(cfg === null ? null : cfg);
+}
+/** Called by the router before each view renders. */
+export function resetPageFab() { pageFab = null; }
+
+function installFabScroll() {
+  let lastY = window.scrollY;
+  let ticking = false;
+  const update = () => {
+    ticking = false;
+    const el = document.getElementById('bvFab');
+    const y = window.scrollY;
+    const dy = y - lastY;
+    if (!el) return;
+    if (y < 80) { el.classList.remove('is-compact'); lastY = y; return; }
+    if (Math.abs(dy) < 12) return;
+    el.classList.toggle('is-compact', dy > 0);
+    lastY = y;
+  };
+  document.addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
+}
+
+// ---------------------------------------------------------------- nav badges
+const navBadges = new Map();
+/** Count badge on a bottom-nav destination (e.g. unread wishlist alerts). */
+export function setNavBadge(route, count) {
+  navBadges.set(route, Number(count) || 0);
+  paintNavBadges();
+}
+export function paintNavBadges() {
+  navBadges.forEach((count, route) => {
+    const tab = document.querySelector(`#nav .nav-tab[data-route="${route}"]`);
+    const host = tab?.querySelector('.nav-icon');
+    if (!host) return;
+    let badge = host.querySelector('.nav-badge');
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'nav-badge';
+      badge.setAttribute('aria-hidden', 'true');
+      host.appendChild(badge);
+    }
+    badge.hidden = count <= 0;
+    badge.textContent = count > 99 ? '99+' : String(count);
+    const label = tab.querySelector('.nav-label')?.textContent || '';
+    tab.setAttribute('aria-label', count > 0 ? `${label}, ${tPlural('shell.alerts', count)}` : label);
   });
 }
 
@@ -63,25 +186,19 @@ export function syncCollectorChrome(meta) {
   installCollectorShell();
   const kids = getModePref() === 'kids';
   document.body.classList.toggle('collector-ui', !kids);
-  let add = $('#collectorAdd');
-  if (!add) {
-    add = document.createElement('button');
-    add.id = 'collectorAdd'; add.className = 'collector-add'; add.type = 'button';
-    add.setAttribute('data-collector-add', '');
-    const nav = $('#nav');
-    const catalogTab = nav?.querySelector('[data-route="/add"]');
-    if (catalogTab?.nextSibling) catalogTab.parentNode.insertBefore(add, catalogTab.nextSibling);
-    else if (nav) nav.appendChild(add);
-    else document.body.appendChild(add);
-  }
-  add.innerHTML = `${I.plus()}<span>${t('collector.add')}</span>`;
-  add.hidden = kids || meta.fullscreen || !meta.nav;
-  // The advisor remains available contextually; only one floating primary action.
-  if (!kids && $('#advisorFab')) $('#advisorFab').style.display = 'none';
+  // Details, the scanner and full-screen views hide the bottom bar.
+  document.body.classList.toggle('bv-nav-off', !kids && (!!meta.fullscreen || !!meta.navOff));
+  // The legacy "+ Add" nav button is superseded by the Scan FAB.
+  $('#collectorAdd')?.remove();
+  advisorWanted = !!meta.fab;
+  if (kids) paintFab(null);
+  else if (pageFab) paintFab(pageFab.hidden ? null : pageFab);
+  else paintFab(meta.scanFab && !meta.fullscreen ? defaultFab() : null);
   document.querySelectorAll('#nav .nav-tab').forEach(link => {
     if (link.classList.contains('active')) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
   });
+  paintNavBadges();
 }
 
 export function setPinnedCollection(id, pinned) {
