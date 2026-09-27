@@ -171,8 +171,12 @@ export function tPlural(baseKey, count, vars = {}) {
     || (lookup(catalogues[active], baseKey) != null ? baseKey : '')
     || forms.find((candidate) => lookup(catalogues[FALLBACK], candidate) != null)
     || baseKey;
-  const resolvedCount = Number.isFinite(n) ? n : count;
-  return t(key, { ...vars, n: resolvedCount, count: vars.count ?? resolvedCount });
+  // Group digits the locale's way ("28,497 results", not "28497 results").
+  let resolvedCount = count;
+  if (Number.isFinite(n)) {
+    try { resolvedCount = n.toLocaleString(active); } catch { resolvedCount = n; }
+  }
+  return t(key, { ...vars, n: vars.n ?? resolvedCount, count: vars.count ?? resolvedCount });
 }
 
 /** Subscribe to language changes; returns an unsubscribe. */

@@ -344,6 +344,9 @@ a.bv-card, button.bv-card { text-decoration: none; text-align: left; font: inher
 .bv-search input { flex: 1 1 auto; min-width: 0; height: 100%; border: 0; outline: none; background: transparent; font: 400 16px var(--bv-sans); color: var(--bv-ink); padding: 0; box-shadow: none; }
 .bv-search input::placeholder { color: var(--bv-mute); opacity: 1; }
 .bv-search:focus-within { box-shadow: 0 0 0 2px var(--bv-ink); }
+/* The pill's ring is the focus indicator; the global text-field outline drew a
+   second, square box inside it. */
+.bv-search input:focus-visible { outline: none; background: transparent; }
 
 .bv-toggle {
   width: 52px; height: 32px; margin: 8px 0; padding: 0; flex-shrink: 0; position: relative; cursor: pointer; box-sizing: border-box;
@@ -2033,7 +2036,9 @@ body.bv-nav-off .advisor-fab { bottom: calc(var(--safe-bottom, 0px) + 20px); }
 .bv-login__link--strong { color: var(--bv-acct); font-weight: 700; }
 .bv-login__guest { color: var(--bv-acct); font-weight: 600; }
 .bv-login__note { margin: 4px 8px 0; font-size: 12px; line-height: 18px; color: var(--bv-mute); text-align: center; }
-.bv-login__legal { border: 0; background: transparent; padding: 0; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
+/* Inline links in running text (WCAG 2.5.8 inline exception): the global 44px
+   button floor pushed the second line of the fine print a full line down. */
+.bv-login__legal { border: 0; background: transparent; padding: 0; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; min-height: 0; min-width: 0; vertical-align: baseline; }
 .bv-login__done { display: flex; flex-direction: column; gap: 10px; text-align: center; }
 .bv-login__donetitle { font: 600 16px/22px var(--bv-sans); color: var(--bv-gain); }
 .bv-login__donebody { font-size: 14px; line-height: 20px; color: var(--bv-mute); }

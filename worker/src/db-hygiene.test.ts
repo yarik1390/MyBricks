@@ -110,6 +110,25 @@ describe('runDbHygiene', () => {
     expect(rl!.current_value).toBe(250); // released — untouched
   });
 
+  it('unflags sets marked retired whose LEGO exit date is still ahead', async () => {
+    await db.batch([
+      // Millennium Falcon case: retired=1 but exit 2026-12-31 was in the future.
+      db.prepare(`INSERT INTO lego_sets (set_num, name, retired, exit_date) VALUES ('FUT-1','Future', 1, strftime('%Y-%m-%dT00:00:00Z', 'now', '+90 days'))`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, retired, exit_date) VALUES ('PAST-1','Past', 1, '2020-12-31T00:00:00Z')`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, retired, exit_date) VALUES ('NOD-1','No date', 1, NULL)`),
+    ]);
+
+    const r = await runDbHygiene(env as any);
+
+    expect(r.futureRetiredHealed).toBe(1);
+    const rows = await db.prepare(`SELECT set_num, retired FROM lego_sets ORDER BY set_num`).all<{ set_num: string; retired: number }>();
+    expect(rows.results).toEqual([
+      { set_num: 'FUT-1', retired: 0 },
+      { set_num: 'NOD-1', retired: 1 },
+      { set_num: 'PAST-1', retired: 1 },
+    ]);
+  });
+
   it('scrubs a fabricated retail echo (BE scrape copied value into retail)', async () => {
     await db.batch([
       // Ole Kirk's House case: retail = be_retail = be_value_new = $13,037, no MSRP.

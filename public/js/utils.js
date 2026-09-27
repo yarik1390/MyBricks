@@ -147,7 +147,9 @@ export function fmtMoney(n, opts = {}) {
   const converted = n * rate;
   const sign = converted < 0 ? "-" : "";
   const abs = Math.abs(converted);
-  const v = abs.toLocaleString("en-US", { minimumFractionDigits: opts.cents ?? 2, maximumFractionDigits: 2 });
+  // cents: 0 means whole units — "$103", never "$102.98" beside a "$103" hero.
+  const digits = opts.cents ?? 2;
+  const v = abs.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits === 0 ? 0 : Math.max(digits, 2) });
   return sign + symbol + v;
 }
 

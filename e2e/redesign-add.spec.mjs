@@ -256,6 +256,27 @@ test('Discover keeps Retiring soon and Coming soon as two shortcuts, not section
   await expect(page).toHaveURL(/#\/retiring$/);
 });
 
+test('Retiring soon counts every retiring set and hands the rest to the catalog', async ({ page }) => {
+  const queries = [];
+  await page.route('**/api/sets/search*', (route) => {
+    const url = new URL(route.request().url());
+    queries.push(url.searchParams.toString());
+    return url.searchParams.get('retiring')
+      ? route.fulfill({ json: { sets: [{ ...OTHER, lego_retiring_soon: 1 }], total: 1234, hasMore: true } })
+      : route.fulfill({ json: { sets: [OTHER], total: 28497, hasMore: false } });
+  });
+  // Warm the unfiltered catalog first: the handoff must not reuse its results.
+  await page.goto('/#/add', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#catalogCount')).toContainText('28,497');
+  await page.goto('/#/retiring', { waitUntil: 'domcontentloaded' });
+  await page.locator('#retiringTab-all').click();
+  await expect(page.locator('#retiringPanel h2')).toHaveText('1,234 sets retiring'); // was the 60-row page size
+  await page.locator('#retiringCatalog').click();
+  await expect(page).toHaveURL(/#\/add\?retired=retiring&sort=value_desc$/);
+  await expect(page.locator('#catalogCount')).toContainText('1,234');
+  expect(queries.at(-1)).toContain('retiring=1');
+});
+
 test('the bell on Coming soon wishlists the set and turns off again', async ({ page }) => {
   const calls = [];
   await page.route('**/api/upcoming', (route) => route.fulfill({ json: { upcoming: [{ set_num: '10355-1', name: 'Barad-dûr Tower', price_usd: 459.99 }] } }));

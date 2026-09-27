@@ -23,6 +23,11 @@ function readCatalogURLParams() {
   if (!raw) return;
   const p = new URLSearchParams(raw);
   const f = state.filter;
+  // The query string carries every non-default filter (syncCatalogURL), so a
+  // deep link like #/add?retired=retiring is the whole filter set: start from
+  // defaults rather than layering it over an earlier search.
+  Object.assign(f, { catalogQ: '', catalogTheme: 'all', catalogSort: 'year_desc', catalogRetired: 'all', catalogDeal: false, catalogThemeGroup: 'all', catalogCategory: 'all' });
+  for (const k of Object.keys(f.catalogRanges || {})) f.catalogRanges[k] = '';
   if (p.has('q')) f.catalogQ = p.get('q');
   if (p.has('theme')) f.catalogTheme = p.get('theme');
   if (p.has('sort')) f.catalogSort = p.get('sort');
@@ -76,6 +81,9 @@ const activeCatalogSortLabel = (cur) => {
 
 export async function renderAdd() {
   readCatalogURLParams();
+  // Cached results from a different filter set (a deep link, or a filter
+  // changed elsewhere) must not paint under the new filters — reload them.
+  if (state.catalog.items.length && state.catalog._key && state.catalog._key !== catalogKey()) state.catalog.items = [];
   if (!state.catalog.items.length) $("#root").innerHTML = skelPage(skelCardList(6));
   if (!state.themes.length) {
     try {
@@ -127,11 +135,13 @@ export async function loadCatalog({ reset = false } = {}) {
   if (!reset && !c.hasMore) return [];
   if (reset) { _catalogGen++; c.offset = 0; c.hasMore = false; c.total = 0; }
   const myGen = _catalogGen;
+  const key = catalogKey();
   c.loading = true;
   try {
     const res = await api("/api/sets/search?" + catalogQuery());
     if (myGen !== _catalogGen) return [];
     const fresh = res.sets || [];
+    c._key = key;
     c.items = reset ? fresh : c.items.concat(fresh);
     c.total = res.total ?? c.items.length;
     c.offset = c.items.length;
@@ -178,6 +188,13 @@ function isCatalogDefault() {
     Object.values(f.catalogRanges || {}).every(v => v === '');
 }
 
+// The filter/sort identity of a catalog query, without paging.
+function catalogKey() {
+  const p = new URLSearchParams(catalogQuery());
+  p.delete("offset");
+  return p.toString();
+}
+
 function catalogQuery() {
   const f = state.filter;
   const p = new URLSearchParams();
@@ -217,7 +234,7 @@ function shortcutsHTML() {
   if (!isCatalogDefault() || getModePref() === "kids") return "";
   const tile = ({ href, iconName, title, count, fallback, id }) => `<a class="bv-shortcut" href="${href}" id="${id}">
       <span class="bv-shortcut__icon" aria-hidden="true">${kitIcon(iconName, { size: 20 })}</span>
-      <span class="bv-shortcut__text"><span class="bv-shortcut__title">${escapeHtml(title)}</span><span class="bv-shortcut__sub">${escapeHtml(count > 0 ? tPlural("counts.sets", count, { n: count }) : fallback)}</span></span>
+      <span class="bv-shortcut__text"><span class="bv-shortcut__title">${escapeHtml(title)}</span><span class="bv-shortcut__sub">${escapeHtml(count > 0 ? tPlural("counts.sets", count) : fallback)}</span></span>
     </a>`;
   const upcoming = state.catalog.upcoming || [];
   return `<nav class="bv-discover__shortcuts" aria-label="${escapeHtml(t("bvAdd.shortcuts"))}">

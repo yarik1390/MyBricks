@@ -287,8 +287,11 @@ function titleBlockHTML(set) {
     set.year ? escapeHtml(String(set.year)) : "",
     Number(set.pieces) > 0 ? escapeHtml(t("bvSet.pcs", { count: Number(set.pieces).toLocaleString(getLocale()) })) : "",
   ].filter(Boolean);
+  // An exit date still ahead means the set hasn't retired yet, whatever the
+  // retired flag says (75192 read "Retired" months before its Dec 2026 exit).
+  const exitAhead = Date.parse(set.exit_date) > Date.now();
   const status = set.coming_soon ? t("bvCommon.comingSoon")
-    : set.lego_retiring_soon && !set.retired ? t("bvSet.retiringSoon")
+    : (set.lego_retiring_soon && !set.retired) || exitAhead ? t("bvSet.retiringSoon")
     : set.retired ? t("bvCommon.retired") : "";
   return `<div class="bv-settitle detail-identity-block" aria-label="${escapeHtml(t("bvSet.identity"))}">
     <h1 class="bv-settitle__name${size}">${escapeHtml(set.name || set.set_num)}</h1>
@@ -1022,7 +1025,7 @@ function infoTabHTML(set, entry) {
       ? `<div class="detail-kv"><span class="k">Released</span> <span class="v">${launchStr}</span></div>`
       : '';
     const retiredYearBadge = exitStr
-      ? `<div class="detail-kv"><span class="k">Retired</span> <span class="v">${exitStr}</span></div>`
+      ? `<div class="detail-kv"><span class="k">${Date.parse(set.exit_date) > Date.now() ? escapeHtml(t('bvAdd.retiring')) : 'Retired'}</span> <span class="v">${exitStr}</span></div>`
       : (retiredYear && set.retired
         ? `<div class="detail-kv"><span class="k">Retired</span> <span class="v">${retiredYear}</span></div>`
         : '');
