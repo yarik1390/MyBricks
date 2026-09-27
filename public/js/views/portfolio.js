@@ -89,13 +89,16 @@ export async function loadPortfolioData() {
 }
 
 let _revalidating = false;
+const SYNC_LINE_DELAY_MS = 600;
 async function _revalidatePortfolio() {
   if (_revalidating) return;
   _revalidating = true;
   const token = state._revalToken || 0;
-  // "Updating prices" while the saved values are refreshed (canvas: Syncing).
+  // "Updating prices" while the saved values are refreshed (canvas: Syncing) —
+  // once the refresh is actually slow. Shown at once, it flashed on every
+  // Vault visit and made each one look like a fresh load.
   const online = navigator.onLine !== false && !document.body.classList.contains('offline');
-  if (online) setSyncState({ active: true, done: 0, total: 0 });
+  const syncLine = online ? setTimeout(() => setSyncState({ active: true, done: 0, total: 0 }), SYNC_LINE_DELAY_MS) : 0;
   try {
     const fresh = await api("/api/collection");
     if ((state._revalToken || 0) !== token) return; // mutation happened mid-flight
@@ -119,6 +122,7 @@ async function _revalidatePortfolio() {
     }
   } finally {
     _revalidating = false;
+    clearTimeout(syncLine);
     setSyncState({ active: false });
   }
 }

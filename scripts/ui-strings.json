@@ -8861,6 +8861,12 @@
     ]
   },
   {
+    "text": "bv-chips bv-discover__themes",
+    "files": [
+      "views/catalog.js"
+    ]
+  },
+  {
     "text": "bv-discover__count result-count",
     "files": [
       "views/catalog.js"
@@ -9096,12 +9102,6 @@
     ]
   },
   {
-    "text": "bv-setpage__body bv-enter",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "bv-setrow bv-comingsoon__row",
     "files": [
       "views/catalog.js"
@@ -9111,6 +9111,12 @@
     "text": "bv-setrow bv-scansession__row",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "bv-setrow__end bv-comingsoon__end",
+    "files": [
+      "views/catalog.js"
     ]
   },
   {
@@ -9985,6 +9991,12 @@
     ]
   },
   {
+    "text": "img.set-photo, img.fig-photo",
+    "files": [
+      "app.js"
+    ]
+  },
+  {
     "text": "is a grab",
     "files": [
       "runtime-exact"
@@ -10000,6 +10012,12 @@
     "text": "lane stays held pending provider authorization regardless of this setting.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "main, .page",
+    "files": [
+      "router.js"
     ]
   },
   {

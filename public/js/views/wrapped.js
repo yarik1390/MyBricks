@@ -7,6 +7,7 @@
 // /api/me/wrapped summary for sales; slides without real data are skipped
 // rather than filled with zeros.
 import { $, haptic, toast, escapeHtml, prefersReducedMotion, publicOrigin } from '../utils.js';
+import { goBackOr } from '../lib/nav-history.js';
 import { state } from '../state.js';
 import { api, isGuestMode } from '../api.js';
 import { t, tPlural, intlLocale } from '../lib/i18n.js';
@@ -130,8 +131,7 @@ function step(delta) {
 }
 
 function close() {
-  if (history.length > 1) history.back();
-  else location.hash = '#/me';
+  goBackOr('#/me');
 }
 
 export async function renderWrapped() {

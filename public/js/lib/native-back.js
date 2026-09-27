@@ -10,11 +10,23 @@ import { getCapacitorPlugin, isNativeCapacitor } from './native-auth.js';
 import { hideSheet } from '../components/sheet.js';
 import { closeScan } from '../components/scanner-lazy.js';
 import { cancelActiveStream } from '../components/advisor-lazy.js';
+import { goBackOr } from './nav-history.js';
+import { getModePref } from '../theme.js';
 
 let wired = false;
 
 // Route hashes that are "home": back from here leaves the app.
 const ROOTS = new Set(['', '/', '/kids']);
+// The other bottom-bar tabs. Android's bottom-navigation rule: back from one
+// of them returns to the home tab, instead of retracing every tab and page
+// visited before it (which is where back used to land "on the wrong page").
+const TABS = new Set(['/add', '/wishlist', '/me']);
+
+/** Where back goes from `hash` with nothing open: 'exit', 'home' or 'history'. */
+export function backTarget(hash) {
+  if (ROOTS.has(hash)) return 'exit';
+  return TABS.has(hash) ? 'home' : 'history';
+}
 
 function currentHash() {
   return (location.hash.replace('#', '') || '/').split('?')[0];
@@ -43,7 +55,7 @@ export function initNativeBack(win) {
   if (!App?.addListener) return;
   wired = true;
 
-  App.addListener('backButton', ({ canGoBack } = {}) => {
+  App.addListener('backButton', () => {
     // 1. Fullscreen image viewer owns a history entry — let it close itself.
     if (document.body.classList.contains('lightbox-open')) { history.back(); return; }
 
@@ -68,13 +80,17 @@ export function initNativeBack(win) {
       return;
     }
 
-    // 6. Not on a home screen → step back one view.
-    const hash = currentHash();
-    if (!ROOTS.has(hash)) {
-      if (canGoBack) history.back();
-      else location.hash = '#/';
+    // 6. Another tab → the home tab. Any other screen → one step back (or
+    // home when the app was opened straight onto it).
+    const home = getModePref() === 'kids' ? '#/kids' : '#/';
+    const target = backTarget(currentHash());
+    if (target === 'home') {
+      const from = location.href;
+      history.replaceState(null, '', home);
+      window.dispatchEvent(new HashChangeEvent('hashchange', { oldURL: from, newURL: location.href }));
       return;
     }
+    if (target === 'history') { goBackOr(home); return; }
 
     // 7. A root with nothing open: the handler should already be off. If a
     // press raced the toggle, leave the app the way Android would.

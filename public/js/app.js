@@ -6,6 +6,7 @@ import { I } from './icons.js';
 import { icon as kitIcon } from './ui/kit.js';
 import { paintNavBadges } from './components/collector-shell.js';
 import { route } from './router.js';
+import { installNavHistory, canGoBackInApp } from './lib/nav-history.js';
 import { getThemePref, applyTheme, getModePref, applyMode } from './theme.js';
 import { initLocale, t as translate, tPlural, onLocaleChange, applyUiDictionary, startAutoTranslate } from './lib/i18n.js';
 import { toggleAdvisor } from './components/advisor-lazy.js';
@@ -13,6 +14,10 @@ import { openScan, closeScan, capturePhoto } from './components/scanner-lazy.js'
 import { installMethodologySheet } from './components/methodology.js';
 import { closeNativeAuthBrowser, getCapacitorPlugin, isNativeCapacitor, nativeOAuthCallbackFromWebBridge, oauthHashFromCallbackUrl } from './lib/native-auth.js';
 import { deepLinkHash } from './lib/deep-links.js';
+
+// Number history entries before anything pushes or replaces one (OAuth
+// cleanup, the first route) so back arrows know what is behind them.
+installNavHistory();
 // onboarding (welcome carousel) is lazy-loaded at the end of boot (see below).
 
 // The visible button is the sole keyboard stop; its click forwards to a native
@@ -34,17 +39,20 @@ function overlayOpen() {
     || document.body.dataset.route === "collection-room"
     || $("#scanOverlay")?.classList.contains("open");
 }
+// A touch that starts inside a sideways scroller (chip rows, rails) is that
+// row's own swipe, never a back gesture.
+function inSidewaysScroller(el) {
+  for (let n = el instanceof Element ? el : null; n && n !== document.body; n = n.parentElement) {
+    if (n.scrollWidth > n.clientWidth + 1 && /(auto|scroll)/.test(getComputedStyle(n).overflowX)) return true;
+  }
+  return false;
+}
 function setupGestures() {
   // swipe-back from left edge (disabled while an overlay owns the gesture, so
-  // dragging a sheet near the edge can't navigate back underneath it).
+  // dragging a sheet near the edge can't navigate back underneath it, and for
+  // swipes that start on a sideways-scrolling row such as the theme chips).
   let edgeTouch = null;
-  document.addEventListener("touchstart", e => {
-    const touch = e.touches[0];
-    edgeTouch = e.touches.length === 1 && touch.clientX < 44 && !overlayOpen()
-      ? { id: touch.identifier, x: touch.clientX, y: touch.clientY }
-      : null;
-  }, { passive: true });
-  document.addEventListener("touchmove", e => {
+  const onMove = e => {
     if (!edgeTouch) return;
     const touch = Array.from(e.touches).find(t => t.identifier === edgeTouch.id);
     if (e.touches.length !== 1 || !touch || overlayOpen()
@@ -54,17 +62,36 @@ function setupGestures() {
       // Claim only a recognized horizontal swipe, never a tap or vertical drag.
       e.preventDefault();
     }
-  }, { passive: false });
-  document.addEventListener("touchcancel", () => { edgeTouch = null; }, { passive: true });
-  document.addEventListener("touchend", e => {
+  };
+  const onCancel = () => { edgeTouch = null; };
+  const onEnd = e => {
     const start = edgeTouch;
     edgeTouch = null;
     if (!start || e.touches.length || overlayOpen()) return;
     const touch = Array.from(e.changedTouches).find(t => t.identifier === start.id);
     if (!touch) return;
     const dx = touch.clientX - start.x;
-    if (dx > 60 && dx > Math.abs(touch.clientY - start.y) && history.length > 1) history.back();
+    if (dx > 60 && dx > Math.abs(touch.clientY - start.y) && canGoBackInApp()) history.back();
+  };
+  document.addEventListener("touchstart", e => {
+    const touch = e.touches[0];
+    edgeTouch = e.touches.length === 1 && touch.clientX < 44 && !overlayOpen() && !inSidewaysScroller(e.target)
+      ? { id: touch.identifier, x: touch.clientX, y: touch.clientY }
+      : null;
+    // A touch keeps targeting the element it began on. If a repaint removes
+    // that element mid-swipe (a skeleton swapped for the page), its later
+    // events never bubble to document — listen on it directly too.
+    const origin = e.target;
+    if (edgeTouch && origin?.addEventListener && origin !== document) {
+      const opts = { passive: true, once: true };
+      origin.addEventListener("touchmove", onMove, { passive: false });
+      origin.addEventListener("touchcancel", () => { origin.removeEventListener("touchmove", onMove); onCancel(); }, opts);
+      origin.addEventListener("touchend", (ev) => { origin.removeEventListener("touchmove", onMove); if (!origin.isConnected) onEnd(ev); }, opts);
+    }
   }, { passive: true });
+  document.addEventListener("touchmove", onMove, { passive: false });
+  document.addEventListener("touchcancel", onCancel, { passive: true });
+  document.addEventListener("touchend", onEnd, { passive: true });
 }
 
 // Hide the advisor FAB while scrolling down, reveal on scroll-up. The FAB used
@@ -152,6 +179,22 @@ function setupImageHydration() {
       img.parentElement?.classList.add("photo-loaded");
     }
   }, true);
+  // A photo already in the memory cache is complete the moment its element is
+  // created, but its load event only fires a task later — so every revisit
+  // flashed the brick placeholder behind it. Mark those frames before paint.
+  const PHOTO = "img.set-photo, img.fig-photo";
+  const markIfComplete = (img) => {
+    if (img.complete && (img.naturalWidth || 0) > 2) img.parentElement?.classList.add("photo-loaded");
+  };
+  new MutationObserver((records) => {
+    for (const record of records) {
+      for (const node of record.addedNodes) {
+        if (!(node instanceof Element)) continue;
+        if (node.matches(PHOTO)) markIfComplete(node);
+        else if (node.firstElementChild) node.querySelectorAll(PHOTO).forEach(markIfComplete);
+      }
+    }
+  }).observe(document.body, { childList: true, subtree: true });
   document.addEventListener("error", (e) => {
     const img = e.target;
     if (!(img instanceof HTMLImageElement)) return;

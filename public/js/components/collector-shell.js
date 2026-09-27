@@ -1,4 +1,5 @@
 import { $, escapeHtml, haptic, advisorEnabled, toast } from '../utils.js';
+import { goBackOr } from '../lib/nav-history.js';
 import { I } from '../icons.js';
 import { state } from '../state.js';
 import { getSessionUserId, getSessionOwnerSnapshot } from '../api.js';
@@ -74,8 +75,7 @@ export function installCollectorShell() {
     const back = target?.closest('button[data-bv-back]');
     if (back) {
       event.preventDefault();
-      if (history.length > 1) history.back();
-      else location.hash = back.dataset.bvBackFallback || '#/';
+      goBackOr(back.dataset.bvBackFallback || '#/');
     }
     if (target?.closest('[data-bv-sheet-close]')) { event.preventDefault(); hideSheet(); }
   });

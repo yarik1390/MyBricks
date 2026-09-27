@@ -197,6 +197,7 @@ export function saveSession(s, opts = {}) {
     state.catalog.items = [];
     state.blind.items = [];
     state.wishlist = [];
+    state.wishlistLoadedAt = 0;
     state.portfolioHistory = null;
     state.ownedFigs = new Set();
     state.ownedSetNums = new Set();

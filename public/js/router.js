@@ -17,27 +17,36 @@ import { cancelActiveStream } from './components/advisor-lazy.js';
 import { skelCardList, skelDetail, skelPage } from './components/skeleton.js';
 import { syncListPane } from './lib/list-detail.js';
 
-let _routeBusy = false;
+// Navigations run as soon as they are asked for. They used to queue behind
+// the current render, so on a slow network a tap on another tab waited for
+// the previous page's fetch to finish. A render that completes after a newer
+// one did may have painted the old screen over it: re-run the current route.
+let _routeGen = 0;
+let _completedGen = 0;
 let _routeQueued = false;
+const SKELETON_DELAY_MS = 180;
+const LEAVING = 'data-bv-leaving';
 
 export { routeMetaFor };
 
 export async function route() {
-  if (_routeBusy) { _routeQueued = true; return; }
-  _routeBusy = true;
+  const gen = ++_routeGen;
   try {
-    await _routeImpl();
+    await _routeImpl(gen);
   } finally {
-    // Large screens keep the list beside a set page; the card→detail morph
-    // waits for this signal before animating to the new page.
-    try { syncListPane(location.hash); } catch { /* layout nicety only */ }
-    window.dispatchEvent(new Event('bv:routed'));
-    _routeBusy = false;
-    if (_routeQueued) { _routeQueued = false; route(); }
+    const superseded = gen < _completedGen;
+    if (!superseded) {
+      _completedGen = gen;
+      // Large screens keep the list beside a set page; the card→detail morph
+      // waits for this signal before animating to the new page.
+      try { syncListPane(location.hash); } catch { /* layout nicety only */ }
+      window.dispatchEvent(new Event('bv:routed'));
+    }
+    if (superseded || _routeQueued) { _routeQueued = false; route(); }
   }
 }
 
-async function _routeImpl() {
+async function _routeImpl(gen) {
   rememberCollectorScroll();
   resetPageFab();
   hideSheet();
@@ -46,7 +55,7 @@ async function _routeImpl() {
   // Strip query params from the fragment (e.g. #/me?google_sync=success → /me).
   // Views that need the query string read location.hash directly.
   let hash = (location.hash.replace("#", "") || "/").split("?")[0];
-  if (hash === "/blind") { location.hash = "#/minifigs"; return; }
+  if (hash === "/blind") { redirect("#/minifigs"); return; }
   const meta = routeMetaFor(hash);
   if (meta.key === 'minifigs' && new URLSearchParams(location.hash.split('?')[1] || '').get('owned') === '0') { meta.nav = '/add'; meta.scanFab = false; }
   document.body.dataset.route = meta.key;
@@ -75,12 +84,28 @@ async function _routeImpl() {
 
   // Paint before profile loading and lazy view-module imports. This matters on
   // Android process restarts, where both can otherwise leave a blank canvas.
+  // A revisit usually paints from memory within a frame, so while a page is on
+  // screen the skeleton waits a beat and only goes up if the next view hasn't
+  // painted by then — wiping to a skeleton on every tap made each visit look
+  // like a cold load.
+  // The outgoing page carries a marker that any repaint drops — replaced
+  // outright, or morphed by mount(), which syncs attributes to the new markup.
+  let skeletonTimer = null;
   if (!hasCachedView(hash)) {
-    showNavProgress();
     const root = $("#root");
-    if (root) root.innerHTML = hash.startsWith('/set/')
-      ? skelDetail()
-      : skelPage(skelCardList(hash === '/build' || hash === '/leaderboard' ? 6 : 4));
+    const shown = root?.firstElementChild || null;
+    const paintSkeleton = () => {
+      if (!root) return;
+      if (shown && (root.firstElementChild !== shown || !shown.hasAttribute(LEAVING))) return; // the view painted
+      showNavProgress();
+      root.innerHTML = hash.startsWith('/set/')
+        ? skelDetail()
+        : skelPage(skelCardList(hash === '/build' || hash === '/leaderboard' ? 6 : 4));
+    };
+    if (root && shown?.matches?.('main, .page')) {
+      shown.setAttribute(LEAVING, '');
+      skeletonTimer = setTimeout(paintSkeleton, SKELETON_DELAY_MS);
+    } else paintSkeleton();
   }
 
   if (!state.me) {
@@ -96,7 +121,7 @@ async function _routeImpl() {
   // catalog and scan are reachable. Any other route (incl. "/", set detail,
   // /me, wishlist, leaderboard) bounces back to the kids home.
   if (getModePref() === "kids" && !allowedInKidsMode(hash)) {
-    location.hash = "#/kids"; return;
+    redirect("#/kids"); return;
   }
 
   if (hash !== "/" && hash !== "") {
@@ -155,13 +180,14 @@ async function _routeImpl() {
 
   try {
     const cached = hasCachedView(hash);
-    if (!cached) showNavProgress();
     await withViewTransition(() => render());
+    clearTimeout(skeletonTimer);
     hideNavProgress();
     if (!cached) {
       document.querySelector('#root .page')?.setAttribute('data-fresh', '1');
     }
   } catch (e) {
+    clearTimeout(skeletonTimer);
     hideNavProgress();
     if (e && e.__redirect) return;
     const root = $("#root");
@@ -170,12 +196,23 @@ async function _routeImpl() {
       $("#errorRetry")?.addEventListener("click", () => route());
     }
   }
+  // A newer navigation owns the chrome and scroll position now.
+  if (gen !== _routeGen) return;
+  $("#root")?.firstElementChild?.removeAttribute(LEAVING);
   // renderLogin adds this to drop the reserved bottom-nav space; any route
   // that renders with the nav visible must restore it.
   if (!location.hash.startsWith("#/login")) document.body.classList.remove("nav-hidden");
   track("route_view", routeMetaFor(hash).key, 0.1);
   syncCollectorChrome(meta);
   restoreCollectorScroll(hash);
+}
+
+// A bounce (legacy alias, a route Kids Mode can't show) swaps the current
+// entry rather than adding one: back from the target used to land on the
+// bounced route and bounce straight forward again.
+function redirect(hash) {
+  history.replaceState(null, '', hash);
+  _routeQueued = true;
 }
 
 // Navigate + render deterministically. Unlike assigning `location.hash`
@@ -197,10 +234,6 @@ export function showNavProgress() {
     el.offsetWidth;
     el.classList.add('loading');
   }
-  const root = document.getElementById('root');
-  if (root) {
-    root.classList.add('route-loading');
-  }
 }
 
 export function hideNavProgress() {
@@ -209,10 +242,6 @@ export function hideNavProgress() {
     el.classList.remove('loading');
     el.classList.add('done');
     setTimeout(() => { el.classList.remove('done'); }, 500);
-  }
-  const root = document.getElementById('root');
-  if (root) {
-    root.classList.remove('route-loading');
   }
 }
 
