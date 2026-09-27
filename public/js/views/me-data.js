@@ -1,116 +1,83 @@
-import { $, haptic, toast, setBtnLoading } from '../utils.js';
+import { $, haptic, toast, setBtnLoading, escapeHtml } from '../utils.js';
 import { invalidatePortfolio } from '../state.js';
 import { api, _authSession, isGuestMode, guestCollectionCSVBlob } from '../api.js';
-import { I } from '../icons.js';
+import { icon as kitIcon, row as kitRow } from '../ui/kit.js';
 import { confirmSheet } from '../components/sheet.js';
 import { parseCollectionCSV } from '../lib/pure.js';
 import { subpageTopbarHTML, loadMe } from './me-shared.js';
 import { state } from '../state.js';
 import { skelPage, skelSettingRows } from '../components/skeleton.js';
 import { exportBlob } from '../lib/native-file-export.js';
-import { t, tPlural } from '../lib/i18n.js';
+import { t, tPlural, getLocale } from '../lib/i18n.js';
+
+// "2026-08-24" → a friendly day ("24 Aug 2026"); unknown shapes stay as-is.
+function backupLabel(d) {
+  const ts = Date.parse(`${d}T12:00:00Z`);
+  return Number.isFinite(ts) ? new Date(ts).toLocaleDateString(getLocale(), { day: 'numeric', month: 'short', year: 'numeric' }) : d;
+}
 
 export async function renderMeData() {
   if (!state.me) $("#root").innerHTML = skelPage(skelSettingRows(3));
   await loadMe();
   const guest = isGuestMode();
 
-  $("#root").innerHTML = `
-    <div class="page data-page">
-      ${subpageTopbarHTML("Import & export", "Data")}
-
-      <div class="data-grid">
-        <section class="data-card">
-          <div class="section-title">Export</div>
-          <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Export collection</div><div class="desc">${state.me?.is_supporter
-            ? "CSV with all collector fields, market values &amp; ROI."
-            : "CSV of everything you've entered. <a href='#/me' style='color:var(--bv-red);font-weight:600;'>Pro</a> adds current value, retail &amp; ROI columns."}</div></div>
-          <button class="import-btn" id="exportCsvBtn" aria-label="Export CSV">${I.download()}</button>
-          </div>
-          <div class="action-result" id="exportResult" aria-live="polite">${guest ? "Guest exports use the local vault on this device." : "Signed-in exports are pulled from your synced account."}</div>
-          ${guest ? "" : `
-          <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Insurance report</div><div class="desc">${state.me?.is_supporter
-            ? "Printable valuation of your vault — save as PDF for home insurance."
-            : "Printable valuation for home insurance. A <a href='#/me' style='color:var(--bv-red);font-weight:600;'>Pro</a> feature."}</div></div>
-          <button class="import-btn" id="insuranceReportBtn" aria-label="Insurance report" ${state.me?.is_supporter ? "" : "disabled"}>${I.download()}</button>
-          </div>
-          <div class="action-result" id="insuranceResult" aria-live="polite"></div>`}
-        </section>
-
-        ${guest ? "" : `
-        <section class="data-card">
-          <div class="section-title">Backups</div>
-          <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
-            <div class="lbl-wrap">
-              <div class="lbl">Vault snapshots</div>
-              <div class="desc">Your vault is snapshotted every Sunday. Restore rolls your collection back to that day without losing history.</div>
-            </div>
-            <div id="backupList" class="action-result" aria-live="polite">Loading…</div>
-          </div>
-        </section>`}
-
-        ${!guest && localStorage.getItem("bv_failed_guest_migration") ? `
-        <section class="data-card">
-          <div class="section-title">Guest sync</div>
-          <div class="setting-row">
-          <div class="lbl-wrap"><div class="lbl">Retry guest sync</div><div class="desc">Some items from your guest vault didn't sync when you signed in. Retry now — already-synced sets are skipped.</div></div>
-          <button class="btn-primary" id="retryGuestSyncBtn" style="width:auto;padding:8px 14px;font-size:13px;">Retry</button>
-          </div>
-          <div class="action-result" id="retryGuestSyncResult" aria-live="polite"></div>
-        </section>` : ""}
-
-        <section class="data-card">
-          <div class="section-title">Import</div>
-          <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
-          <div class="lbl-wrap">
-            <div class="lbl">Import collection</div>
-            <div class="desc">Upload a CSV to add sets in bulk — works with Brickset and BrickEconomy exports too. Existing sets are skipped.</div>
-          </div>
-          <div class="csv-import-wrap">
-            <span class="csv-file-picker"><button type="button" class="csv-file-label" data-file-picker data-file-input="csvFile">${I.upload()}<span>Choose CSV file</span></button><input type="file" id="csvFile" accept=".csv" tabindex="-1" aria-hidden="true"></span>
-            <span id="csvFileName"></span>
-            <button class="btn-primary" id="csvImportBtn" style="display:none;">${I.plus()}<span>Import</span></button>
-          </div>
-          <div id="csvImportResult" class="action-result" aria-live="polite"></div>
-          </div>
-          <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
-          <div class="lbl-wrap">
-            <div class="lbl">Import from BrickLink orders</div>
-            <div class="desc">Export your BrickLink order history as CSV and upload it here to auto-add sets you've bought.</div>
-          </div>
-          <div class="csv-import-wrap">
-            <span class="csv-file-picker"><button type="button" class="csv-file-label" data-file-picker data-file-input="blOrderFile">${I.upload()}<span>Choose BrickLink CSV</span></button><input type="file" id="blOrderFile" accept=".csv" tabindex="-1" aria-hidden="true"></span>
-            <span id="blOrderFileName"></span>
-            <button class="btn-primary" id="blOrderImportBtn" style="display:none;">${I.plus()}<span>Import BrickLink Orders</span></button>
-          </div>
-          <div id="blOrderImportResult" class="action-result" aria-live="polite"></div>
-          </div>
-        </section>
+  const pro = !!state.me?.is_supporter;
+  const fileRow = ({ icon: ic, title, sub, inputId, pickLabel, nameId, importId, importLabel, resultId }) => `
+    <div class="bv-datarow">
+      <div class="bv-datarow__head">${kitIcon(ic, { size: 22 })}<span class="bv-row__text"><span class="bv-row__title">${title}</span><span class="bv-row__sub">${sub}</span></span></div>
+      <div class="csv-import-wrap bv-datarow__actions">
+        <span class="csv-file-picker"><button type="button" class="bv-btn bv-btn--tonal csv-file-label" data-file-picker data-file-input="${inputId}">${kitIcon('upload', { size: 20 })}<span>${pickLabel}</span></button><input type="file" id="${inputId}" accept=".csv" tabindex="-1" aria-hidden="true"></span>
+        <span class="bv-datarow__file" id="${nameId}"></span>
+        <button type="button" class="bv-btn bv-btn--primary" id="${importId}" style="display:none;">${kitIcon('plus', { size: 20 })}<span>${importLabel}</span></button>
       </div>
+      <div id="${resultId}" class="action-result" aria-live="polite"></div>
     </div>`;
 
-  $("#insuranceReportBtn")?.addEventListener("click", async () => {
-    haptic("medium");
-    const out = $("#insuranceResult");
-    if (out) out.textContent = t('data.reportPreparing');
-    try {
-      const token = _authSession?.access_token;
-      const res = await fetch((window.WORKER_BASE || "") + "/api/me/insurance-report", {
-        cache: "no-store",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || "Report failed");
-      const blob = await res.blob();
-      const result = await exportBlob(blob, "bricksvault-insurance-report.html", { title: t('data.insuranceReportTitle') });
-      if (out) out.textContent = result === "shared"
-        ? t('data.reportSharedReady')
-        : t('data.reportDownloadedReady');
-    } catch (e) {
-      if (out) out.textContent = t('data.reportFailed', { error: e.message || e });
-    }
-  });
+  $("#root").innerHTML = `
+    <main class="bv-page data-page bv-data">
+      ${subpageTopbarHTML(t('bvAccount.dataLead'), t('bvAccount.importExport'))}
+
+      <section class="bv-group">
+        <h2 class="bv-h2">${escapeHtml(t('bvAccount.bringIn'))}</h2>
+        <div class="bv-group__box">
+          ${kitRow({ icon: 'brick', title: t('bvAccount.fromBrickset'), sub: t('bvAccount.fromBricksetSub'), href: '#/me/integrations' })}
+          ${fileRow({ icon: 'upload', title: 'Import from BrickLink orders', sub: "Export your BrickLink order history as CSV and upload it here to auto-add sets you've bought.", inputId: 'blOrderFile', pickLabel: 'Choose BrickLink CSV', nameId: 'blOrderFileName', importId: 'blOrderImportBtn', importLabel: 'Import BrickLink Orders', resultId: 'blOrderImportResult' })}
+          ${fileRow({ icon: 'file', title: 'Import collection', sub: 'Upload a CSV to add sets in bulk — works with Brickset and BrickEconomy exports too. Existing sets are skipped.', inputId: 'csvFile', pickLabel: 'Choose CSV file', nameId: 'csvFileName', importId: 'csvImportBtn', importLabel: 'Import', resultId: 'csvImportResult' })}
+        </div>
+      </section>
+
+      <section class="bv-group">
+        <h2 class="bv-h2">${escapeHtml(t('bvAccount.takeOut'))}</h2>
+        <div class="bv-group__box">
+          <button type="button" class="bv-row" id="exportCsvBtn" aria-label="Export CSV">${kitIcon('download', { size: 22 })}<span class="bv-row__text"><span class="bv-row__title">Export collection</span><span class="bv-row__sub">${pro
+            ? "CSV with all collector fields, market values &amp; ROI."
+            : "CSV of everything you've entered. <a href='#/pro'>Pro</a> adds current value, retail &amp; ROI columns."}</span></span><span class="bv-row__trail">${kitIcon('chev', { size: 20 })}</span></button>
+          <div class="action-result bv-data__result" id="exportResult" aria-live="polite">${guest ? "Guest exports use the local vault on this device." : "Signed-in exports are pulled from your synced account."}</div>
+          ${guest ? '' : kitRow({ icon: 'shield', title: t('bvAccount.insurance'), sub: t('bvAccount.insuranceSub'), href: '#/me/insurance' })}
+        </div>
+      </section>
+
+      ${guest ? "" : `
+      <section class="bv-group">
+        <h2 class="bv-h2">${escapeHtml(t('bvAccount.backups'))}</h2>
+        <div class="bv-group__box">
+          <p class="bv-data__lead">Your vault is snapshotted every Sunday. Restore rolls your collection back to that day without losing history.</p>
+          <div id="backupList" class="action-result bv-backups" aria-live="polite">Loading…</div>
+        </div>
+      </section>`}
+
+      ${!guest && localStorage.getItem("bv_failed_guest_migration") ? `
+      <section class="bv-group">
+        <h2 class="bv-h2">Guest sync</h2>
+        <div class="bv-group__box">
+          <div class="bv-datarow">
+            <div class="bv-datarow__head">${kitIcon('refresh', { size: 22 })}<span class="bv-row__text"><span class="bv-row__title">Retry guest sync</span><span class="bv-row__sub">Some items from your guest vault didn't sync when you signed in. Retry now — already-synced sets are skipped.</span></span></div>
+            <div class="bv-datarow__actions"><button type="button" class="bv-btn bv-btn--primary" id="retryGuestSyncBtn">Retry</button></div>
+            <div class="action-result" id="retryGuestSyncResult" aria-live="polite"></div>
+          </div>
+        </div>
+      </section>` : ""}
+    </main>`;
 
   // Backups: list snapshot dates with per-date Restore. Best-effort — the card
   // simply reports when backups aren't configured or none exist yet.
@@ -123,8 +90,8 @@ export async function renderMeData() {
       if (!dates.length) { list.textContent = t('data.noSnapshotsYet'); return; }
       list.innerHTML = dates.slice(0, 8).map((d) => `
         <div class="backup-row">
-          <span style="font-family:var(--mono);font-size:12px;">${d}</span>
-          <button class="btn-secondary backup-restore" data-date="${d}" aria-label="Restore snapshot from ${d}">Restore</button>
+          ${kitIcon('clock', { size: 22 })}<span class="backup-row__date">${escapeHtml(backupLabel(d))}</span>
+          <button type="button" class="bv-btn bv-btn--outline backup-restore" data-date="${escapeHtml(d)}" aria-label="Restore snapshot from ${escapeHtml(d)}">Restore</button>
         </div>`).join("");
       list.querySelectorAll(".backup-restore").forEach((btn) => btn.addEventListener("click", async (e) => {
         const date = e.currentTarget.dataset.date;

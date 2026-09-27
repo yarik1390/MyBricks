@@ -29,7 +29,10 @@ describe('scanner and haptic recovery hooks', () => {
   it('announces scanner hints and gives failures retry/manual-entry recovery', () => {
     const scanner = read('public/js/components/scanner.js');
     assert.match(scanner, /id="scanHint" role="status" aria-live="polite"/);
-    assert.ok(scanner.includes("Scanner couldn't start. Try again or enter the barcode or set number manually."));
+    // The failure copy is localized (bvAdd.scannerFailed) and offers both ways forward.
+    assert.match(scanner, /hint\.textContent = t\("bvAdd\.scannerFailed"\)/);
+    const en = read('public/js/locales/en.js');
+    assert.match(en, /scannerFailed: 'The scanner couldn\\'t start\. Try again, or type the barcode or set number\.'/);
     assert.match(scanner, /if \(scanError\)[\s\S]*ensureNativeRescanButton\(\);[\s\S]*showManualBarcodeEntry\(\);/);
   });
 

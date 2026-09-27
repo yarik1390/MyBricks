@@ -125,14 +125,16 @@ test('guest remove undo waits for restore and synchronizes the visible detail st
     }]));
   });
   await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#qtyDown')).toBeVisible();
+  await expect(page.locator('#manageBtn')).toBeVisible();
+  await page.locator('#manageBtn').click();
   await page.locator('#qtyDown').click();
-  await expect(page.getByRole('button', { name: 'Remove' })).toBeVisible();
-  await page.getByRole('button', { name: 'Remove' }).click();
+  await expect(page.getByRole('button', { name: 'Remove', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Remove', exact: true }).click();
+  await expect(page.locator('#addBtn')).toBeVisible();
   await page.locator('.toast-undo-btn').click();
 
   await expect.poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem('bv_guest_collection') || '[]').length)).toBe(1);
-  await expect(page.locator('#qtyDown')).toBeVisible();
+  await expect(page.locator('#manageBtn')).toBeVisible();
   await expect(page.locator('#addBtn')).toHaveCount(0);
 });
 
@@ -145,7 +147,7 @@ test('guest EUR detail price remains EUR after adding to the vault', async ({ pa
   await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#addBtn')).toContainText('€');
   await page.locator('#addBtn').click();
-  await expect(page.locator('#qtyDown')).toBeVisible();
+  await expect(page.locator('#manageBtn')).toBeVisible();
   await expect(page.locator('.detail-summary-val')).toContainText('€');
 });
 

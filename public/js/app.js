@@ -12,6 +12,7 @@ import { toggleAdvisor } from './components/advisor-lazy.js';
 import { openScan, closeScan, capturePhoto } from './components/scanner-lazy.js';
 import { installMethodologySheet } from './components/methodology.js';
 import { closeNativeAuthBrowser, getCapacitorPlugin, isNativeCapacitor, nativeOAuthCallbackFromWebBridge, oauthHashFromCallbackUrl } from './lib/native-auth.js';
+import { deepLinkHash } from './lib/deep-links.js';
 // onboarding (welcome carousel) is lazy-loaded at the end of boot (see below).
 
 // The visible button is the sole keyboard stop; its click forwards to a native
@@ -325,6 +326,17 @@ async function consumeOAuthHash() {
 
 let nativeAuthBridgeReady = false;
 
+// Launcher shortcuts and bricksvault.app links land on their hash route
+// (#/pile?scan=barcode opens the scanner). A cold launch replaces the entry so
+// Back doesn't return to an empty start page.
+function openDeepLink(url, { replace = false } = {}) {
+  const hash = deepLinkHash(url);
+  if (!hash || hash === location.hash) return false;
+  if (replace) history.replaceState(null, '', `${location.pathname}${location.search}${hash}`);
+  else location.hash = hash;
+  return true;
+}
+
 async function consumeNativeOAuthCallback(url, { reroute = false } = {}) {
   const hash = oauthHashFromCallbackUrl(url);
   if (!hash) return false;
@@ -342,7 +354,10 @@ async function setupNativeAuthBridge() {
   if (!App) return false;
   try {
     App.addListener?.('appUrlOpen', event => {
-      consumeNativeOAuthCallback(event?.url, { reroute: true }).catch(err => {
+      consumeNativeOAuthCallback(event?.url, { reroute: true }).then(consumed => {
+        // Not a sign-in callback: a launcher shortcut or app link → its route.
+        if (!consumed) openDeepLink(event?.url);
+      }).catch(err => {
         console.warn('[native-auth] failed to consume OAuth callback:', err);
       });
     });
@@ -351,7 +366,11 @@ async function setupNativeAuthBridge() {
   }
   try {
     const launch = await App.getLaunchUrl?.();
-    if (launch?.url) return await consumeNativeOAuthCallback(launch.url, { reroute: false });
+    if (launch?.url) {
+      const consumed = await consumeNativeOAuthCallback(launch.url, { reroute: false });
+      if (!consumed) openDeepLink(launch.url, { replace: true });
+      return consumed;
+    }
   } catch (err) {
     console.warn('[native-auth] launch URL unavailable:', err);
   }
@@ -565,6 +584,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       offlineShowTimer = null;
     }
     document.body.classList.toggle("offline", offlineUiState === "offline");
+    // Presentation only: say when the values are from and what will sync.
+    if (offlineUiState === "offline" && prev !== "offline") {
+      import('./ui/first-ui.js').then(m => m.paintOfflineBanner()).catch(() => {});
+    }
     // Self-heal: while we believe we're offline (or pending), keep re-probing so a
     // transient boot/SW race that stranded the banner recovers on its own — the
     // boot probe is one-shot and only re-checks on the browser "online" event,
@@ -613,11 +636,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   // banner directly, so a single failed request can't flash it on its own.
   window.addEventListener("bv:api-ok", () => { if (offlineUiState !== "online") applyOfflineState(false); });
   window.addEventListener("bv:api-fail", () => { refreshOfflineState(); });
+  // Edits made while already offline land in the outbox — keep the banner's
+  // "N changes will sync" count current.
+  window.addEventListener("bv:outbox", () => {
+    if (offlineUiState === "offline") import('./ui/first-ui.js').then(m => m.paintOfflineBanner()).catch(() => {});
+  });
 
   setupGestures();
   setupFabScrollAwareness();
   setupImageHydration();
   setupKeyboardAwareShell();
+  import('./lib/list-detail.js').then(m => m.initListDetail()).catch(() => {});
 
   if ("serviceWorker" in navigator && !isNativeCapacitor()) {
     navigator.serviceWorker.register("/sw.js")

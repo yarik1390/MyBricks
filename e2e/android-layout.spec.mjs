@@ -16,7 +16,7 @@ for (const language of ['en', 'uk']) for (const theme of ['light', 'dark']) {
     for (const [route, ready, name] of [
       ['/', '#setList', 'vault'], ['/add', '#catalogLayoutToggle', 'catalog'],
       ['/wishlist', '.page', 'wishlist'], ['/collections', '#subcollectionsPage', 'collections'],
-      ['/minifigs?owned=0', '#figSearch', 'minifigures'], ['/me', '#themeSeg', 'profile'],
+      ['/minifigs?owned=0', '#figSearch', 'minifigures'], ['/me', '#editName', 'profile'],
     ]) {
       await page.goto(`/#${route}`);
       await expect(page.locator(ready)).toBeVisible();
@@ -67,7 +67,9 @@ for (const language of ['en', 'uk']) for (const theme of ['light', 'dark']) {
         await expect(page.locator('#collectionEditor input').first()).toBeVisible();
       }
       if (name === 'profile') {
-        const contrast = await page.locator('#themeSeg button.active').evaluate(el => {
+        // Theme lives in the Appearance sheet of the 2026 Profile hub.
+        await page.locator('#appearanceRow').click();
+        const contrast = await page.locator('#themeSeg [aria-pressed="true"]').evaluate(el => {
           const luminance = color => color.match(/[\d.]+/g).slice(0,3).map(Number).map(v => {
             v /= 255;
             return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
@@ -76,6 +78,7 @@ for (const language of ['en', 'uk']) for (const theme of ['light', 'dark']) {
           return (Math.max(a,b) + 0.05) / (Math.min(a,b) + 0.05);
         });
         expect(contrast).toBeGreaterThanOrEqual(4.5);
+        await page.keyboard.press('Escape');
       }
     }
   });

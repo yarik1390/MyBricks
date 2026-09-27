@@ -132,6 +132,16 @@ describe('GET /api/changes — What changed digest', () => {
     expect(noHistory).toMatchObject({ days: 3, delta: null, compared: 0, total_now: 760, movers: [] });
   });
 
+  it('nets realized gains of sale fees and the cost of every copy sold', async () => {
+    await seedSet('10294-1', 'Titanic', 150);
+    await hold(OWNER, '10294-1', { quantity: 3, price: 100, sold: { price: 450, daysAgo: 5 } });
+    await db.prepare('UPDATE user_collection SET sold_fees = 20 WHERE user_id = ?').bind(OWNER).run();
+    const body = await (await request()).json<any>();
+    // Three copies bought at $100 sold together for $450, $20 in fees: +$130.
+    expect(body.realized).toMatchObject({ gain: 130, sales: 1, priced_sales: 1, proceeds: 450 });
+    expect(body.realized.items[0]).toMatchObject({ sold_price: 450, sold_fees: 20, quantity: 3, purchase_price: 100 });
+  });
+
   it('summarizes realized gains from sold holdings with known cost', async () => {
     await seedSet('10281-1', 'Bonsai Tree', 45);
     await seedSet('10497-1', 'Galaxy Explorer', 88);

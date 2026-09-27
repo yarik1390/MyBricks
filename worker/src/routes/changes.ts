@@ -24,7 +24,9 @@ import { holdingValueForRollout } from '../lib/market-sources';
 //   total_now    Σ today's value × quantity over every current holding
 //   compared     number of holdings with a value on both ends
 //   movers       biggest movers over `mover_days` (7), by absolute holding delta
-//   realized     { gain, sales, priced_sales, proceeds, items[] } from sold rows
+//   realized     { gain, sales, priced_sales, proceeds, items[] } from sold rows;
+//                gain is net of sale fees and of every copy's cost (sold_price
+//                is what the whole holding fetched)
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 app.use('*', async (c, next) => { c.header('Cache-Control', 'private, no-store'); await next(); });
@@ -153,18 +155,19 @@ app.get('/', async (c) => {
       SELECT CAST(COUNT(*) AS INTEGER) AS sales,
              CAST(COALESCE(SUM(CASE WHEN purchase_price IS NOT NULL THEN 1 ELSE 0 END), 0) AS INTEGER) AS priced_sales,
              COALESCE(SUM(sold_price), 0) AS proceeds,
-             COALESCE(SUM(CASE WHEN purchase_price IS NOT NULL THEN sold_price - purchase_price ELSE 0 END), 0) AS gain
+             -- Net of sale fees; sold_price covers the whole holding, so every copy's cost comes off.
+             COALESCE(SUM(CASE WHEN purchase_price IS NOT NULL THEN sold_price - COALESCE(sold_fees, 0) - purchase_price * COALESCE(quantity, 1) ELSE 0 END), 0) AS gain
       FROM user_collection
       WHERE user_id = ? AND sold_at IS NOT NULL AND sold_price IS NOT NULL
     `).bind(userId).first<{ sales: number; priced_sales: number; proceeds: number; gain: number }>(),
     c.env.DB.prepare(`
-      SELECT uc.set_num, s.name, uc.sold_at, uc.sold_price, uc.purchase_price
+      SELECT uc.set_num, s.name, uc.sold_at, uc.sold_price, uc.sold_fees, uc.quantity, uc.purchase_price
       FROM user_collection uc
       JOIN lego_sets s ON s.set_num = uc.set_num
       WHERE uc.user_id = ? AND uc.sold_at IS NOT NULL AND uc.sold_price IS NOT NULL
       ORDER BY uc.sold_at DESC
       LIMIT ${SALES_LIMIT}
-    `).bind(userId).all<{ set_num: string; name: string | null; sold_at: string; sold_price: number; purchase_price: number | null }>(),
+    `).bind(userId).all<{ set_num: string; name: string | null; sold_at: string; sold_price: number; sold_fees: number | null; quantity: number | null; purchase_price: number | null }>(),
   ]);
 
   const rolloutPercent = Number(c.env.PRICING_V3_READ_PERCENT || 0);
@@ -213,6 +216,8 @@ app.get('/', async (c) => {
         name: row.name || row.set_num,
         sold_at: String(row.sold_at).slice(0, 10),
         sold_price: Number(row.sold_price) || 0,
+        sold_fees: Number(row.sold_fees) || 0,
+        quantity: Math.max(1, Number(row.quantity) || 1),
         purchase_price: row.purchase_price == null ? null : Number(row.purchase_price),
       })),
     },

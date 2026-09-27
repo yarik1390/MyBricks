@@ -2,23 +2,27 @@ import { test, expect, SET } from './fixtures.mjs';
 
 test.use({ viewport: { width: 390, height: 844 } });
 
-test('Ukrainian onboarding respects the selected language', async ({ page }) => {
+test('Ukrainian first run respects the selected language', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.removeItem('bv_session');
     localStorage.removeItem('bv_setup_v1');
     localStorage.setItem('bv.lang', 'uk');
   });
   await page.goto('/#/');
-  const setup = page.locator('.bv-setup');
-  await expect(setup).toBeVisible();
-  await expect(setup.locator('.bv-note')).toContainText(/пристро/);
-  await expect(setup.locator('.bv-setup-foot .primary')).not.toHaveText("Let's go");
+  // The 2026 first run is the Welcome flow, not an overlay wizard.
+  await expect(page).toHaveURL(/#\/welcome$/);
+  const welcome = page.locator('#welcomePage');
+  await expect(welcome).toBeVisible();
+  await expect(welcome.locator('.bv-note')).toContainText(/пристро/);
+  await expect(page.locator('#welContinue')).not.toHaveText('Continue');
   await page.screenshot({ path: 'artifacts/ui-ux-audit-2026-09-14/29-onboarding-after.png', animations: 'disabled' });
-  await setup.locator('.bv-setup-foot .primary').click();
-  await expect(setup.locator('[data-mode="pro"] b')).toHaveText('Інвестор');
-  await expect(setup.locator('[data-mode="pro"] span')).toContainText('Повний інвесторський');
-  await expect(setup.locator('[data-mode="simple"] b')).toHaveText('Простий');
-  await expect(setup.locator('[data-mode="simple"] span')).not.toContainText('Just your sets');
+  await expect(page.locator('#welMode .bv-row__trail')).toHaveText('Інвестор');
+  await page.locator('#welMode').click();
+  const modes = page.locator('#welModeSheet');
+  await expect(modes.locator('[data-mode="pro"] b')).toHaveText('Інвестор');
+  await expect(modes.locator('[data-mode="pro"] .bv-opt-desc')).toContainText('Повний інвесторський');
+  await expect(modes.locator('[data-mode="simple"] b')).toHaveText('Простий');
+  await expect(modes.locator('[data-mode="simple"] .bv-opt-desc')).not.toContainText('Just your sets');
   await page.screenshot({ path: 'artifacts/ui-ux-audit-2026-09-14/30-onboarding-mode-after.png', animations: 'disabled' });
 });
 

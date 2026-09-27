@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.net.Uri;
 import android.text.format.DateFormat;
 import android.widget.RemoteViews;
 
@@ -23,7 +24,7 @@ public class VaultWidgetProvider extends AppWidgetProvider {
     @Override
     public void onUpdate(Context context, AppWidgetManager appWidgetManager, int[] appWidgetIds) {
         SharedPreferences prefs = context.getSharedPreferences(WidgetBridgePlugin.PREFS, Context.MODE_PRIVATE);
-        String value = prefs.getString(WidgetBridgePlugin.KEY_VALUE, "Open the app");
+        String value = prefs.getString(WidgetBridgePlugin.KEY_VALUE, context.getString(R.string.widget_open_app));
         String delta = prefs.getString(WidgetBridgePlugin.KEY_DELTA, "");
         boolean deltaUp = prefs.getBoolean(WidgetBridgePlugin.KEY_DELTA_UP, true);
         int sets = prefs.getInt(WidgetBridgePlugin.KEY_SETS, 0);
@@ -35,7 +36,7 @@ public class VaultWidgetProvider extends AppWidgetProvider {
             String time = DateFormat.getTimeFormat(context).format(new Date(updatedAt));
             meta = sets + (sets == 1 ? " set · " : " sets · ") + "updated " + time;
         } else {
-            meta = "Open the app to sync";
+            meta = context.getString(R.string.widget_open_to_sync);
         }
 
         for (int id : appWidgetIds) {
@@ -43,7 +44,11 @@ public class VaultWidgetProvider extends AppWidgetProvider {
             views.setTextViewText(R.id.widget_value, value);
             views.setTextViewText(R.id.widget_delta, delta);
             views.setTextColor(R.id.widget_delta,
-                Color.parseColor(deltaUp ? "#2c7a4b" : "#b3402a"));
+                Color.parseColor(deltaUp ? "#1d6f38" : "#a8261d"));
+            // Change chip: green or red pill; hidden until the app has pushed a delta.
+            views.setInt(R.id.widget_delta, "setBackgroundResource",
+                deltaUp ? R.drawable.widget_chip_up : R.drawable.widget_chip_down);
+            views.setViewVisibility(R.id.widget_delta, delta.isEmpty() ? android.view.View.GONE : android.view.View.VISIBLE);
             views.setTextViewText(R.id.widget_meta, meta);
 
             Intent open = new Intent(context, MainActivity.class);
@@ -52,8 +57,22 @@ public class VaultWidgetProvider extends AppWidgetProvider {
                 context, 0, open,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             views.setOnClickPendingIntent(R.id.widget_root, pi);
+            // Scan / Search buttons deep-link like the launcher shortcuts; the
+            // web layer routes the URL (public/js/lib/deep-links.js).
+            views.setOnClickPendingIntent(R.id.widget_scan,
+                deepLink(context, 1, "https://bricksvault.app/#/pile?scan=barcode"));
+            views.setOnClickPendingIntent(R.id.widget_search,
+                deepLink(context, 2, "https://bricksvault.app/#/add"));
 
             appWidgetManager.updateAppWidget(id, views);
         }
+    }
+
+    private static PendingIntent deepLink(Context context, int requestCode, String url) {
+        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url), context, MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        return PendingIntent.getActivity(
+            context, requestCode, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 }

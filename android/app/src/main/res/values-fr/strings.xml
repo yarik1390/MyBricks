@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget and launcher shortcut labels. -->
+<resources>
+    <string name="widget_label">Valeur du coffre</string>
+    <string name="widget_open_app">Ouvrir l\'appli</string>
+    <string name="widget_open_to_sync">Ouvrez l\'appli pour synchroniser</string>
+    <string name="widget_scan">Scanner</string>
+    <string name="widget_search">Rechercher</string>
+    <string name="shortcut_scan_short">Scanner un set</string>
+    <string name="shortcut_scan_long">Scanner le code-barres d\'un set</string>
+    <string name="shortcut_shelf_short">Photographier une étagère</string>
+    <string name="shortcut_shelf_long">Photographier toute une étagère</string>
+    <string name="shortcut_wishlist_short">Liste d\'envies</string>
+    <string name="shortcut_wishlist_long">Ouvrir votre liste d\'envies</string>
+    <!-- Notification channel for price/sell/retiring alerts. -->
+    <string name="alerts_channel_name">Alertes</string>
+    <string name="alerts_channel_description">Baisses de prix, objectifs de vente, fortes variations et sets bientôt retirés</string>
+</resources>

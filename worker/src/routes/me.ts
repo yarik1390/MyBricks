@@ -24,6 +24,55 @@ function seedName(userId: string) {
 
 app.use('*', requireMember);
 
+// ---- Notification preferences (Notifications screen) ----------------------
+// Category switches are nullable: NULL inherits notify_price_drops, the
+// original master switch, so a user who paused alerts before this screen
+// existed stays paused until they choose otherwise.
+const NOTIFY_CATEGORY_COLS = ['notify_sell_targets', 'notify_big_moves', 'notify_retiring', 'notify_back_in_stock'] as const;
+type NotificationPrefsPatch = Partial<Record<typeof NOTIFY_CATEGORY_COLS[number] | 'quiet_hours', boolean>>
+  & { quiet_start?: number; quiet_end?: number; timezone?: string | null };
+
+function notificationPrefsOut(p: Record<string, unknown>) {
+  const master = p.notify_price_drops !== 0;
+  const out: Record<string, unknown> = {};
+  for (const col of NOTIFY_CATEGORY_COLS) out[col] = p[col] == null ? master : p[col] !== 0;
+  const hour = (v: unknown, fallback: number) => {
+    const n = Number(v);
+    return Number.isInteger(n) && n >= 0 && n <= 23 ? n : fallback;
+  };
+  out.quiet_hours = p.quiet_hours === 1;
+  out.quiet_start = hour(p.quiet_start, 22);
+  out.quiet_end = hour(p.quiet_end, 8);
+  out.timezone = (p.timezone as string | null) ?? null;
+  return out;
+}
+
+export function isValidTimeZone(tz: string): boolean {
+  if (!tz || tz.length > 64) return false;
+  try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return true; } catch { return false; }
+}
+
+function parseNotificationPrefs(body: NotificationPrefsPatch): { values: Record<string, number | string | null> } | { error: string } {
+  const values: Record<string, number | string | null> = {};
+  for (const col of [...NOTIFY_CATEGORY_COLS, 'quiet_hours'] as const) {
+    const v = body[col];
+    if (v === undefined) continue;
+    if (typeof v !== 'boolean') return { error: `${col} must be a boolean` };
+    values[col] = v ? 1 : 0;
+  }
+  for (const col of ['quiet_start', 'quiet_end'] as const) {
+    const v = body[col];
+    if (v === undefined) continue;
+    if (!Number.isInteger(v) || v < 0 || v > 23) return { error: `${col} must be an hour 0-23` };
+    values[col] = v;
+  }
+  if (body.timezone !== undefined) {
+    if (body.timezone !== null && !isValidTimeZone(String(body.timezone))) return { error: 'timezone must be an IANA time zone' };
+    values.timezone = body.timezone;
+  }
+  return { values };
+}
+
 app.get('/', async (c) => {
   const userId = c.get('userId');
   const userEmail = c.get('userEmail');
@@ -36,6 +85,8 @@ app.get('/', async (c) => {
     db.prepare(
       `SELECT display_name, handle, is_public, expose_public_value, currency, retail_market,
               notify_price_drops, notify_weekly_digest, discord_webhook_url, brickset_user_hash, email, is_supporter,
+              notify_sell_targets, notify_big_moves, notify_retiring, notify_back_in_stock,
+              quiet_hours, quiet_start, quiet_end, timezone,
               kids_pin_hash, kids_xp, kids_level
        FROM user_prefs WHERE user_id=?`
     ).bind(userId).first<Record<string, unknown>>(),
@@ -96,11 +147,14 @@ app.get('/', async (c) => {
     retail_market: (p.retail_market as string) || 'FR',
     notify_price_drops: p.notify_price_drops !== 0,
     notify_weekly_digest: p.notify_weekly_digest === 1,
+    ...notificationPrefsOut(p),
     ebay_configured: ebayConfigured,
     bricklink_configured: bricklinkConfigured,
     brickeconomy_configured: brickeconomyConfigured,
     is_admin: userId === c.env.ADMIN_USER_ID,
     discord_webhook_url: (p.discord_webhook_url as string | null) ?? null,
+    // The address alert emails go to (the user's own; shown on Notifications).
+    email: (p.email as string | null) ?? userEmail ?? null,
     brickset_connected: !!(p.brickset_user_hash),
     is_supporter: p.is_supporter === 1,
     has_kids_pin: !!(p.kids_pin_hash),
@@ -122,7 +176,7 @@ app.patch('/', async (c) => {
     notify_weekly_digest?: boolean;
     handle?: string; is_public?: boolean; expose_public_value?: boolean;
     discord_webhook_url?: string | null;
-  }>();
+  } & NotificationPrefsPatch>();
   const { display_name, currency, retail_market, notify_price_drops, notify_weekly_digest, handle, is_public, expose_public_value, discord_webhook_url } = body;
   if (display_name && display_name.length > 40) return c.json({ error: 'display_name max 40 chars' }, 400);
   // Whitelist currency (mirrors CURRENCY_SYMBOLS in public/js/utils.js) — it
@@ -150,6 +204,9 @@ app.patch('/', async (c) => {
   if (discord_webhook_url && !/^https:\/\/discord(app)?\.com\/api\/webhooks\//.test(discord_webhook_url)) {
     return c.json({ error: 'discord_webhook_url must be a valid Discord webhook URL' }, 400);
   }
+
+  const notifyPatch = parseNotificationPrefs(body);
+  if ('error' in notifyPatch) return c.json({ error: notifyPatch.error }, 400);
 
   const epv = expose_public_value != null ? (expose_public_value ? 1 : 0) : 1;
   await c.env.DB.prepare(`
@@ -188,6 +245,14 @@ app.patch('/', async (c) => {
     discord_webhook_url !== undefined ? 1 : null,
     discord_webhook_url !== undefined ? (discord_webhook_url || null) : null,
   ).run();
+  // Alert categories / quiet hours: the upsert above guarantees the row, so a
+  // plain UPDATE of just the provided columns is enough.
+  const cols = Object.keys(notifyPatch.values);
+  if (cols.length) {
+    await c.env.DB.prepare(
+      `UPDATE user_prefs SET ${cols.map(col => `${col} = ?`).join(', ')}, updated_at = datetime('now') WHERE user_id = ?`,
+    ).bind(...cols.map(col => notifyPatch.values[col]), userId).run();
+  }
   return c.json({ ok: true });
 });
 
@@ -496,8 +561,8 @@ app.post('/backups/:date/restore', async (c) => {
         user_id, set_num, quantity, condition, purchase_price, notes,
         purchased_at, deleted_at, storage_location, acquisition_source,
         is_complete, missing_pieces, custom_image_url, sold_price, sold_at,
-        last_modified
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        sold_fees, sell_target, last_modified
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       ON CONFLICT (user_id, set_num) DO UPDATE SET
         quantity=excluded.quantity, condition=excluded.condition,
         purchase_price=excluded.purchase_price, notes=excluded.notes,
@@ -507,6 +572,7 @@ app.post('/backups/:date/restore', async (c) => {
         is_complete=excluded.is_complete, missing_pieces=excluded.missing_pieces,
         custom_image_url=excluded.custom_image_url,
         sold_price=excluded.sold_price, sold_at=excluded.sold_at,
+        sold_fees=excluded.sold_fees, sell_target=excluded.sell_target,
         last_modified=datetime('now')
     `).bind(
       userId, r.set_num, r.quantity ?? 1, r.condition ?? 'new',
@@ -514,6 +580,7 @@ app.post('/backups/:date/restore', async (c) => {
       r.deleted_at ?? null, r.storage_location ?? null,
       r.acquisition_source ?? null, r.is_complete ?? 1, r.missing_pieces ?? 0,
       r.custom_image_url ?? null, r.sold_price ?? null, r.sold_at ?? null,
+      r.sold_fees ?? null, r.sell_target ?? null,
     ));
   for (let i = 0; i < stmts.length; i += 90) await c.env.DB.batch(stmts.slice(i, i + 90));
   return c.json({ ok: true, restored: stmts.length, date });
@@ -539,7 +606,8 @@ app.get('/wrapped', async (c) => {
 
   const sold = await c.env.DB.prepare(`
     SELECT COUNT(*) AS sets_sold, COALESCE(SUM(sold_price), 0) AS sale_total,
-           COALESCE(SUM(sold_price - COALESCE(purchase_price, 0)), 0) AS realized_gain
+           -- sold_price is what the whole holding fetched, so every copy's cost comes off.
+           COALESCE(SUM(sold_price - COALESCE(sold_fees, 0) - COALESCE(purchase_price, 0) * COALESCE(quantity, 1)), 0) AS realized_gain
     FROM user_collection
     WHERE user_id=? AND sold_at >= ? AND sold_at < ?
   `).bind(userId, y0, y1).first<{ sets_sold: number; sale_total: number; realized_gain: number }>();
