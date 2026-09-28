@@ -66,7 +66,8 @@ test('room entry uses a finite native door animation without changing the saved 
   assert.match(source, /const introZ = startZ \+ approach \* \(-1\.6 - startZ\) \+ enter \* \(pose\.z \+ 1\.6\)/);
   assert.match(source, /stage\.dataset\.introThreshold = introZ >= 0 \? 'inside' : 'outside'/);
   assert.match(source, /camera\.updateMatrixWorld\(\)/);
-  assert.match(source, /const centerY = 2\.64 - 0\.18 \* \(1 - enter\)/);
+  assert.match(source, /const centerY = 2\.46 \+ \(ROOM_LAYOUT\.eyeHeight - 2\.46\) \* enter/);
+  assert.match(source, /camera\.position\.set\(introX, centerY, introZ\)/);
   assert.match(source, /introProgress < 1 \|\| hasMovement\(\)/);
   assert.doesNotMatch(source, /pose\.yaw\s*=.*introYaw/);
 });

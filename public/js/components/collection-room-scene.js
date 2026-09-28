@@ -1044,10 +1044,13 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     // shelves, so the swung-open leaf beside the threshold never fills the view.
     const turn = smoothstep(Math.max(0, (enter - 0.35) / 0.65));
     const introPitch = pose.pitch * turn;
-    const centerY = 2.64 - 0.18 * (1 - enter);
-    camera.position.set(0, centerY, introZ);
+    // Land exactly on the navigation eye (height and aisle offset) so the
+    // hand-off to updateCamera() never snaps.
+    const centerY = 2.46 + (ROOM_LAYOUT.eyeHeight - 2.46) * enter;
+    const introX = pose.x * enter;
+    camera.position.set(introX, centerY, introZ);
     camera.lookAt(
-      Math.sin(pose.yaw) * Math.cos(introPitch) * turn,
+      introX + Math.sin(pose.yaw) * Math.cos(introPitch) * turn,
       centerY + Math.sin(introPitch) * turn,
       camera.position.z + (1 - turn) + Math.cos(pose.yaw) * Math.cos(introPitch) * turn,
     );
