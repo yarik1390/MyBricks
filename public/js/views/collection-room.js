@@ -189,13 +189,19 @@ export async function renderCollectionRoom() {
     });
     const imgEl = $('#roomInspectImg');
     const canvasEl = $('#roomInspectCanvas');
+    const copy = (source, target) => {
+      target.width = source.width;
+      target.height = source.height;
+      target.getContext('2d')?.drawImage(source, 0, 0);
+      return target;
+    };
+    const backFaceEl = box.querySelector('.showroom-inspect-back');
+    // Print the back even when the room has no resident artwork for this set;
+    // the raw photo stays only until (or unless) the printed back is ready.
+    activeRoom?.boxBack?.(item.set_num, { backUrl: backUrl ? proxyImg(backUrl) : '', modelUrl: item.image_url, box: item, aspect }).then(back => {
+      if (back && backFaceEl.isConnected) backFaceEl.replaceChildren(copy(back, document.createElement('canvas')));
+    });
     if (printed && imgEl && canvasEl) {
-      const copy = (source, target) => {
-        target.width = source.width;
-        target.height = source.height;
-        target.getContext('2d')?.drawImage(source, 0, 0);
-        return target;
-      };
       copy(printed.front, canvasEl);
       canvasEl.hidden = false;
       imgEl.hidden = true;
@@ -206,11 +212,7 @@ export async function renderCollectionRoom() {
       if (printed.lid) {
         for (const face of box.querySelectorAll('.showroom-inspect-top, .showroom-inspect-bottom')) face.style.background = printed.lid;
       }
-      const backFaceEl = box.querySelector('.showroom-inspect-back');
       if (printed.lid) backFaceEl.style.background = printed.lid;
-      activeRoom.boxBack?.(item.set_num, { backUrl: backUrl ? proxyImg(backUrl) : '', modelUrl: item.image_url }).then(back => {
-        if (back && backFaceEl.isConnected) backFaceEl.replaceChildren(copy(back, document.createElement('canvas')));
-      });
     } else if (quad && imgEl && canvasEl) {
       const applyUnwarp = () => {
         if (!imgEl.naturalWidth || !imgEl.naturalHeight) return;

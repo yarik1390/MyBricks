@@ -547,14 +547,13 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     }
   }
 
-  async function paintBack(record, backUrl, modelUrl) {
+  async function paintBackCanvas(box, width, height, lid, backUrl, modelUrl) {
     // The back of a LEGO carton shows the model again. Use the photographed
     // back (straightened like the front when it is an angled shot), else the
     // model render on a carton-style face, else the lid colour with the name.
-    const { box, canvas: card } = record;
     const back = document.createElement('canvas');
-    back.width = card.width;
-    back.height = card.height;
+    back.width = width;
+    back.height = height;
     const context = back.getContext('2d');
     if (!context) return null;
     const w = back.width;
@@ -587,7 +586,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       }
     }
     if (!drawn) {
-      context.fillStyle = record.lidMaterial ? `#${record.lidMaterial.color.getHexString(THREE.SRGBColorSpace)}` : '#1c2025';
+      context.fillStyle = lid || '#1c2025';
       context.fillRect(0, 0, w, h);
       context.fillStyle = 'rgba(255,255,255,0.86)';
       context.font = '700 26px system-ui, sans-serif';
@@ -599,6 +598,17 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       context.fillText(box.set_num, w / 2, h / 2 + 20);
     }
     drawFoldHighlights(context, w, h, 1.5);
+    return back;
+  }
+
+  function lidColor(record) {
+    return record.lidMaterial ? `#${record.lidMaterial.color.getHexString(THREE.SRGBColorSpace)}` : '';
+  }
+
+  async function paintBack(record, backUrl, modelUrl) {
+    const { box, canvas: card } = record;
+    const back = await paintBackCanvas(box, card.width, card.height, lidColor(record), backUrl, modelUrl);
+    if (!back) return null;
     if (destroyed || residentBoxes.get(box.index) !== record || !record.texture) return back;
     // Print it on the carton too, so turning the held box shows the same back.
     const texture = new THREE.CanvasTexture(back);
@@ -1461,14 +1471,20 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       return {
         front: record.canvas,
         side: record.sideCanvas || null,
-        lid: record.lidMaterial ? `#${record.lidMaterial.color.getHexString(THREE.SRGBColorSpace)}` : '',
+        lid: lidColor(record),
         aspect: width / height,
         depthRatio: box.boxDepth / width,
       };
     },
-    boxBack(setNum, { backUrl = '', modelUrl = '' } = {}) {
+    boxBack(setNum, { backUrl = '', modelUrl = '', box = null, aspect = 1.35 } = {}) {
       const record = [...residentBoxes.values()].find(entry => entry.box.set_num === setNum && entry.canvas);
-      if (!record) return Promise.resolve(null);
+      if (!record) {
+        // Not on a resident shelf yet (opened from the list, or its texture is
+        // still unallocated): print a standalone back from the catalogue row.
+        if (!box) return Promise.resolve(null);
+        const height = Math.max(256, Math.min(1024, Math.round(512 / Math.max(0.2, aspect))));
+        return paintBackCanvas({ set_num: setNum, name: box.name || setNum, theme: box.theme || '' }, 512, height, '', backUrl, modelUrl).catch(() => null);
+      }
       record.backPromise ||= paintBack(record, backUrl, modelUrl).catch(() => null);
       return record.backPromise;
     },
