@@ -48,7 +48,7 @@ test('room entry uses a finite native door animation without changing the saved 
   assert.match(source, /const deferDoorIntro = shouldPlayDoorIntro && doorIntroMode === 'deferred'/);
   assert.match(source, /function finishDoorIntro\(\)/);
   assert.match(source, /function playDoorIntro\(\)/);
-  assert.match(source, /const elapsedProgress = Math\.max\(0, Math\.min\(1, \(time - introStartedAt\) \/ DOOR_INTRO_DURATION_MS\)\)/);
+  assert.match(source, /const elapsedProgress = Math\.max\(0, Math\.min\(1, introFrom \+ \(1 - introFrom\) \* \(\(time - introStartedAt\) \/ introDurationMs\)\)\)/);
   assert.match(source, /Math\.min\(elapsedProgress, introProgress \+ DOOR_INTRO_MAX_FRAME_STEP\)/);
   assert.doesNotMatch(source, /introProgress === 0 && elapsedProgress >= 1 \? 0\.5/);
   assert.match(source, /if \(introProgress < 1\) \{/);
@@ -69,6 +69,14 @@ test('room entry uses a finite native door animation without changing the saved 
   assert.match(source, /const centerY = 2\.64 - 0\.18 \* \(1 - enter\)/);
   assert.match(source, /introProgress < 1 \|\| hasMovement\(\)/);
   assert.doesNotMatch(source, /pose\.yaw\s*=.*introYaw/);
+});
+
+test('video hand-off walks through the open door before turning to the shelves', () => {
+  assert.match(source, /const DOOR_ENTRY_FROM = 0\.86/);
+  assert.match(source, /function enterThroughDoor\(durationMs = 1500\)/);
+  assert.match(source, /introFrom = DOOR_ENTRY_FROM/);
+  assert.match(source, /const turn = smoothstep\(Math\.max\(0, \(enter - 0\.35\) \/ 0\.65\)\)/);
+  assert.match(source, /if \(document\.hidden \|\| manuallyPaused\) \{\n\s+finishDoorIntro\(\);/);
 });
 
 test('box pickup is finite, eased, and returns before normal room control resumes', () => {
