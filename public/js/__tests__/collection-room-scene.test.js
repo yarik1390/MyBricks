@@ -7,7 +7,10 @@ const viewSource = readFileSync(new URL('../views/collection-room.js', import.me
 
 test('room scene keeps physical surfaces and mobile aisle lighting readable', () => {
   assert.match(source, /toneMappingExposure = 1\.18/);
-  assert.match(source, /new THREE\.PMREMGenerator\(renderer\)/);
+  // The environment bake must stay cheap under software WebGL: a tiny painted
+  // panorama, never a full scene capture.
+  assert.match(source, /environmentTarget = pmrem\.fromEquirectangular\(studio\)/);
+  assert.doesNotMatch(source, /pmrem\.fromScene/);
   assert.match(source, /scene\.environment = environmentTarget\.texture/);
   assert.match(source, /environmentTarget\?\.dispose\(\)/);
   // Decks follow the 1.58 m carton row pitch so middle/upper rows rest on steel.

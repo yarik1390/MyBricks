@@ -88,36 +88,33 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x1d2124);
   scene.fog = new THREE.Fog(0x1d2124, 26, 50);
-  // A one-off prefiltered studio environment gives coated cartons, painted
-  // steel and the sealed floor real reflections. It is baked once at start,
-  // so walking still costs a plain forward render with no extra lights.
+  // A tiny prefiltered studio environment gives coated cartons, painted steel
+  // and the sealed floor real reflections. It is painted as a 64x32 panorama
+  // (two warm ceiling strips over a dim shell) so the one-off PMREM bake stays
+  // cheap even under software WebGL; walking still costs no extra lights.
   let environmentTarget = null;
   try {
+    const panorama = document.createElement('canvas');
+    panorama.width = 64;
+    panorama.height = 32;
+    const context = panorama.getContext('2d');
+    if (!context) throw new Error('canvas-2d');
+    const shell = context.createLinearGradient(0, 0, 0, 32);
+    shell.addColorStop(0, '#6a6660');
+    shell.addColorStop(0.5, '#3a3d40');
+    shell.addColorStop(1, '#4a4540');
+    context.fillStyle = shell;
+    context.fillRect(0, 0, 64, 32);
+    context.fillStyle = '#fff6e8';
+    for (const x of [6, 26, 38, 58]) context.fillRect(x - 2, 1, 4, 7);
+    const studio = new THREE.CanvasTexture(panorama);
+    studio.mapping = THREE.EquirectangularReflectionMapping;
+    studio.colorSpace = THREE.SRGBColorSpace;
     const pmrem = new THREE.PMREMGenerator(renderer);
-    const studio = new THREE.Scene();
-    const studioGeometries = [new THREE.BoxGeometry(12, 7, 26), new THREE.PlaneGeometry(1.6, 7)];
-    const shell = new THREE.MeshBasicMaterial({ color: 0x3a3f43, side: THREE.BackSide });
-    const panel = new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(5.2, 4.8, 4.2), side: THREE.DoubleSide });
-    const floorBounce = new THREE.MeshBasicMaterial({ color: 0x5a5550, side: THREE.DoubleSide });
-    studio.add(new THREE.Mesh(studioGeometries[0], shell));
-    for (const x of [-2.4, 2.4]) {
-      const strip = new THREE.Mesh(studioGeometries[1], panel);
-      strip.rotation.x = Math.PI / 2;
-      strip.position.set(x, 3.4, 0);
-      studio.add(strip);
-    }
-    const bounce = new THREE.Mesh(studioGeometries[1], floorBounce);
-    bounce.rotation.x = -Math.PI / 2;
-    bounce.scale.set(4, 3, 1);
-    bounce.position.y = -3.4;
-    studio.add(bounce);
-    environmentTarget = pmrem.fromScene(studio, 0.035);
+    environmentTarget = pmrem.fromEquirectangular(studio);
     scene.environment = environmentTarget.texture;
     scene.environmentIntensity = 0.75;
-    for (const geometry of studioGeometries) geometry.dispose();
-    shell.dispose();
-    panel.dispose();
-    floorBounce.dispose();
+    studio.dispose();
     pmrem.dispose();
   } catch {
     environmentTarget = null;
