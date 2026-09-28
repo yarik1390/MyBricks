@@ -27,6 +27,14 @@ test('video eligibility respects reduced motion, save-data and slow networks', (
   assert.match(view, /controller\.playDoorIntro\(\)/);
 });
 
+test('a movie that ends walks through its aperture into the room; skip still fades', () => {
+  assert.match(source, /export const VIDEO_ENTRY_MS = 1300/);
+  assert.match(source, /if \(kind === 'ended' && walkThrough\(\)\) return;/);
+  assert.match(source, /radial-gradient\(circle at/);
+  assert.match(source, /if \(entryFrame\) cancelAnimationFrame\(entryFrame\)/);
+  assert.match(view, /kind !== 'ended' \|\| !controller\.enterThroughDoor\?\.\(VIDEO_ENTRY_MS \+ 500\)/);
+});
+
 test('service worker neither precaches nor runtime-caches the intro movie', () => {
   const staticAssets = sw.slice(sw.indexOf('const STATIC_ASSETS'), sw.indexOf('self.addEventListener(\'install\''));
   assert.doesNotMatch(staticAssets, /vault-door-intro\.mp4/);

@@ -4,6 +4,11 @@ const START_TIMEOUT_MS = 3500;
 const STALL_TIMEOUT_MS = 2200;
 const HARD_TIMEOUT_MS = 8500;
 const FADE_MS = 360;
+// Walking through the door at the end of the movie: the open aperture grows
+// into a window onto the 3D room while the camera there crosses the threshold.
+export const VIDEO_ENTRY_MS = 1300;
+// The open vault aperture in the movie's last frame, as fractions of the frame.
+const APERTURE = { x: 0.35, y: 0.53, r: 0.19 };
 
 function isConnectionConstrained(connection = navigator.connection || navigator.webkitConnection) {
   if (!connection) return false;
@@ -40,10 +45,12 @@ export function startRoomVideoIntro(stage, options = {}) {
   let hardTimer = 0;
   let fadeTimer = 0;
   let hardDeadline = 0;
+  let entryFrame = 0;
 
   const clearTimers = () => {
     for (const timer of [startTimer, stallTimer, hardTimer, fadeTimer]) if (timer) clearTimeout(timer);
-    startTimer = stallTimer = hardTimer = fadeTimer = 0;
+    if (entryFrame) cancelAnimationFrame(entryFrame);
+    startTimer = stallTimer = hardTimer = fadeTimer = entryFrame = 0;
   };
   const detach = () => {
     video.removeEventListener('playing', handlePlaying);
@@ -68,11 +75,50 @@ export function startRoomVideoIntro(stage, options = {}) {
     detach();
     overlay.dataset.videoIntroState = kind;
     onComplete(kind);
+    if (kind === 'ended' && walkThrough()) return;
     overlay.classList.add('is-leaving');
     fadeTimer = window.setTimeout(() => {
       fadeTimer = 0;
       if (!destroyed) removeMedia();
     }, FADE_MS);
+  };
+  const walkThrough = () => {
+    const rect = overlay.getBoundingClientRect();
+    const vw = video.videoWidth || 720;
+    const vh = video.videoHeight || 720;
+    if (!rect.width || !rect.height) return false;
+    // Map the aperture through object-fit: cover into overlay pixels.
+    const k = Math.max(rect.width / vw, rect.height / vh);
+    const ax = (rect.width - vw * k) / 2 + APERTURE.x * vw * k;
+    const ay = (rect.height - vh * k) / 2 + APERTURE.y * vh * k;
+    const r0 = APERTURE.r * vw * k;
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    const far = Math.hypot(Math.max(cx, rect.width - cx), Math.max(cy, rect.height - cy));
+    const maxScale = Math.max(2, (far * 1.25) / r0);
+    overlay.classList.add('is-entering');
+    video.style.transformOrigin = `${ax}px ${ay}px`;
+    let startedAt = 0;
+    const step = time => {
+      entryFrame = 0;
+      if (destroyed) return;
+      if (!startedAt) startedAt = time;
+      const u = Math.min(1, (time - startedAt) / VIDEO_ENTRY_MS);
+      const e = u * u * (3 - 2 * u);
+      const scale = 1 + e * (maxScale - 1);
+      const hx = ax + (cx - ax) * e;
+      const hy = ay + (cy - ay) * e;
+      const open = Math.min(1, u / 0.4);
+      const radius = r0 * scale * open * open * (3 - 2 * open);
+      video.style.transform = `translate(${(hx - ax).toFixed(1)}px, ${(hy - ay).toFixed(1)}px) scale(${scale.toFixed(3)})`;
+      const mask = `radial-gradient(circle at ${hx.toFixed(1)}px ${hy.toFixed(1)}px, transparent ${(radius * 0.72).toFixed(1)}px, #000 ${radius.toFixed(1)}px)`;
+      overlay.style.webkitMaskImage = mask;
+      overlay.style.maskImage = mask;
+      if (u < 1) entryFrame = requestAnimationFrame(step);
+      else removeMedia();
+    };
+    entryFrame = requestAnimationFrame(step);
+    return true;
   };
   const fallback = (reason) => {
     if (settled || destroyed) return;

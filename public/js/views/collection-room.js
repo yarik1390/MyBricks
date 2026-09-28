@@ -311,7 +311,7 @@ export async function renderCollectionRoom() {
   };
   try {
     const { createCollectionRoom } = await import('../components/collection-room-scene.js');
-    const { shouldUseRoomVideoIntro, startRoomVideoIntro } = await import('../components/collection-room-video-intro.js');
+    const { shouldUseRoomVideoIntro, startRoomVideoIntro, VIDEO_ENTRY_MS } = await import('../components/collection-room-video-intro.js');
     if (!current() || !stage.isConnected) return;
     const useVideoIntro = shouldUseRoomVideoIntro();
     const controller = await createCollectionRoom(stage, catalog.map(item => ({
@@ -334,9 +334,11 @@ export async function renderCollectionRoom() {
       activeIntro = startRoomVideoIntro(stage, {
         isCurrent: () => current() && stage.isConnected && activeRoom === controller,
         skipLabel: t('room.skipIntro'),
-        onComplete: () => {
+        onComplete: kind => {
           activeIntro = null;
-          controller.finishDoorIntro();
+          // A movie that played to the end walks on through the doorway; a
+          // skip lands straight on the final pose.
+          if (kind !== 'ended' || !controller.enterThroughDoor?.(VIDEO_ENTRY_MS + 500)) controller.finishDoorIntro();
           if (current() && !roomSheet) stage.focus({ preventScroll: true });
         },
         onFallback: () => {

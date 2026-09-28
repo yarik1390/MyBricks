@@ -17,6 +17,8 @@ import {
 
 const DOOR_INTRO_DURATION_MS = 3600;
 const DOOR_INTRO_MAX_FRAME_STEP = 0.12;
+// Where the video hand-off picks up: leaf open, camera just outside the ring.
+const DOOR_ENTRY_FROM = 0.86;
 const PICKUP_DURATION_MS = 480;
 const PICKUP_RETURN_DURATION_MS = 360;
 const PICKUP_VIEW_DISTANCE = 2.2;
@@ -150,6 +152,8 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   let lastFrameTime = 0;
   let introFrame = 0;
   let introStartedAt = 0;
+  let introFrom = 0;
+  let introDurationMs = DOOR_INTRO_DURATION_MS;
   let introProgress = 1;
   let pickupFrame = 0;
   let pickupStartedAt = 0;
@@ -1036,13 +1040,19 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     const approach = smoothstep(Math.max(0, (progress - 0.7) / 0.2));
     const enter = smoothstep(Math.max(0, (progress - 0.9) / 0.1));
     const introZ = startZ + approach * (-1.6 - startZ) + enter * (pose.z + 1.6);
-    const introPitch = pose.pitch * enter;
-    const centerY = 2.64 - 0.18 * (1 - enter);
-    camera.position.set(0, centerY, introZ);
+    // Walk straight through the ring first and only then turn toward the
+    // shelves, so the swung-open leaf beside the threshold never fills the view.
+    const turn = smoothstep(Math.max(0, (enter - 0.35) / 0.65));
+    const introPitch = pose.pitch * turn;
+    // Land exactly on the navigation eye (height and aisle offset) so the
+    // hand-off to updateCamera() never snaps.
+    const centerY = 2.46 + (ROOM_LAYOUT.eyeHeight - 2.46) * enter;
+    const introX = pose.x * enter;
+    camera.position.set(introX, centerY, introZ);
     camera.lookAt(
-      Math.sin(pose.yaw) * Math.cos(introPitch) * enter,
-      centerY + Math.sin(introPitch) * enter,
-      camera.position.z + Math.cos(pose.yaw) * Math.cos(introPitch),
+      introX + Math.sin(pose.yaw) * Math.cos(introPitch) * turn,
+      centerY + Math.sin(introPitch) * turn,
+      camera.position.z + (1 - turn) + Math.cos(pose.yaw) * Math.cos(introPitch) * turn,
     );
     camera.updateMatrixWorld();
     stage.dataset.introCameraZ = introZ.toFixed(3);
@@ -1059,7 +1069,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     introFrame = 0;
     if (!active()) return;
     if (!introStartedAt) introStartedAt = time;
-    const elapsedProgress = Math.max(0, Math.min(1, (time - introStartedAt) / DOOR_INTRO_DURATION_MS));
+    const elapsedProgress = Math.max(0, Math.min(1, introFrom + (1 - introFrom) * ((time - introStartedAt) / introDurationMs)));
     // Cap each rendered step so a long software-WebGL frame still advances
     // through genuine door and camera poses rather than jumping to completion.
     updateDoorIntro(Math.min(elapsedProgress, introProgress + DOOR_INTRO_MAX_FRAME_STEP));
@@ -1089,7 +1099,29 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   function playDoorIntro() {
     if (destroyed || !shouldPlayDoorIntro || introFrame || introProgress >= 1) return false;
     introStartedAt = 0;
+    introFrom = 0;
+    introDurationMs = DOOR_INTRO_DURATION_MS;
     if (!document.hidden && !manuallyPaused) introFrame = requestAnimationFrame(doorIntroFrame);
+    return true;
+  }
+
+  function enterThroughDoor(durationMs = 1500) {
+    // Continue the intro movie's last shot: the vault door already stands
+    // open, so start at the threshold and walk the camera through it.
+    if (destroyed || !shouldPlayDoorIntro || introProgress >= 1) return false;
+    if (introFrame) cancelAnimationFrame(introFrame);
+    introFrame = 0;
+    introStartedAt = 0;
+    introFrom = DOOR_ENTRY_FROM;
+    introDurationMs = Math.max(200, durationMs);
+    updateDoorIntro(introFrom);
+    applyIntroCamera(introProgress);
+    renderer.render(scene, camera);
+    if (document.hidden || manuallyPaused) {
+      finishDoorIntro();
+      return false;
+    }
+    introFrame = requestAnimationFrame(doorIntroFrame);
     return true;
   }
 
@@ -1440,6 +1472,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     },
     finishDoorIntro,
     playDoorIntro,
+    enterThroughDoor,
     reset() {
       if (destroyed) return;
       cancelDoorIntro({ finish: true });
