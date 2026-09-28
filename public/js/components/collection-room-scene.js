@@ -447,7 +447,14 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     // Estimated cartons borrow their width:height from the straightened
     // front, so the print is not stretched. Measured cartons keep their data.
     const { box, body } = record;
-    if (box.dimensionBasis === 'measured' || activePickup?.mesh === body) return;
+    if (box.dimensionBasis === 'measured') return;
+    // A held box is restored to its original scale when it goes back on the
+    // shelf, so apply the new proportions once it is resting again.
+    if (activePickup?.mesh === body) {
+      body.userData.pendingProportions = () => applyFrontProportions(record, quad, image);
+      return;
+    }
+    body.userData.pendingProportions = null;
     const [topLeft, topRight, , bottomLeft] = quad;
     const faceWidth = Math.hypot((topRight[0] - topLeft[0]) * image.naturalWidth, (topRight[1] - topLeft[1]) * image.naturalHeight);
     const faceHeight = Math.hypot((bottomLeft[0] - topLeft[0]) * image.naturalWidth, (bottomLeft[1] - topLeft[1]) * image.naturalHeight);
@@ -1099,7 +1106,9 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     if (progress < 1) pickupFrame = requestAnimationFrame(pickupAnimationFrame);
     else if (activePickup.returning) {
       const onComplete = activePickup.onReturnComplete;
+      const { mesh } = activePickup;
       activePickup = null;
+      mesh.userData.pendingProportions?.();
       stage.dataset.pickupState = 'idle';
       delete stage.dataset.pickupSet;
       onComplete?.();
@@ -1153,7 +1162,9 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       activePickup.mesh.rotation.y = activePickup.origRotY;
       activePickup.mesh.scale.set(activePickup.origScaleX, activePickup.origScaleY, activePickup.origScaleZ);
       stage.dataset.pickupTransform = stage.dataset.pickupOrigin;
+      const { mesh } = activePickup;
       activePickup = null;
+      mesh.userData.pendingProportions?.();
       stage.dataset.pickupState = 'idle';
       stage.dataset.pickupProgress = '0.000';
       delete stage.dataset.pickupSet;

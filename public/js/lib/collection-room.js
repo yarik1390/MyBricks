@@ -265,8 +265,8 @@ export function artworkContentBounds(pixels, width, height, { tolerance = 34 } =
   if (!pixels || width < 4 || height < 4 || pixels.length < width * height * 4) return full;
   const at = (x, y) => (y * width + x) * 4;
   const corners = [at(0, 0), at(width - 1, 0), at(0, height - 1), at(width - 1, height - 1)];
-  const background = [0, 1, 2].map(channel => corners.reduce((sum, index) => sum + pixels[index + channel], 0) / 4);
-  const differs = index => Math.abs(pixels[index] - background[0]) + Math.abs(pixels[index + 1] - background[1]) + Math.abs(pixels[index + 2] - background[2]) > tolerance;
+  const background = [0, 1, 2, 3].map(channel => corners.reduce((sum, index) => sum + pixels[index + channel], 0) / 4);
+  const differs = index => [0, 1, 2, 3].reduce((sum, channel) => sum + Math.abs(pixels[index + channel] - background[channel]), 0) > tolerance;
   if (corners.some(differs)) return full;
   let minX = width;
   let minY = height;
@@ -364,8 +364,10 @@ export function detectBoxFaces(pixels, width, height, { tolerance = 34 } = {}) {
   if (!pixels || width < 24 || height < 24 || pixels.length < width * height * 4) return null;
   const at = (x, y) => (y * width + x) * 4;
   const corners = [at(0, 0), at(width - 1, 0), at(0, height - 1), at(width - 1, height - 1)];
-  const background = [0, 1, 2].map(channel => corners.reduce((sum, index) => sum + pixels[index + channel], 0) / 4);
-  const differs = index => Math.abs(pixels[index] - background[0]) + Math.abs(pixels[index + 1] - background[1]) + Math.abs(pixels[index + 2] - background[2]) > tolerance;
+  // Alpha counts too: a transparent PNG's backdrop is transparent black, and
+  // an opaque black box edge must not blend into it.
+  const background = [0, 1, 2, 3].map(channel => corners.reduce((sum, index) => sum + pixels[index + channel], 0) / 4);
+  const differs = index => [0, 1, 2, 3].reduce((sum, channel) => sum + Math.abs(pixels[index + channel] - background[channel]), 0) > tolerance;
   if (corners.some(differs)) return null;
 
   const detect = mirrored => {

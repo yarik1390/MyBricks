@@ -99,7 +99,8 @@ test('cartons print sides from their artwork and keep shadows bounded to residen
   assert.match(source, /const quad = unwarped \|\| productOnly \? null : getBoxFrontQuad\(box\.set_num\)/);
   assert.match(source, /unwarpQuadToCanvas\(sideArt\.image, sideArt\.quad, sideCanvas\)/);
   // Estimated cartons take their proportions from the straightened front.
-  assert.match(source, /if \(box\.dimensionBasis === 'measured' \|\| activePickup\?\.mesh === body\) return;/);
+  assert.match(source, /if \(activePickup\?\.mesh === body\) \{\s*body\.userData\.pendingProportions = \(\) => applyFrontProportions\(record, quad, image\);/);
+  assert.equal((source.match(/mesh\.userData\.pendingProportions\?\.\(\)/g) || []).length, 2);
   // Model renders are printed on a carton-style face, not stretched edge to edge.
   assert.match(source, /if \(productOnly\) \{\s*drawProductFace\(context, w, h, image, box\);/);
   assert.match(source, /record\.lidMaterial\?\.dispose\(\)/);

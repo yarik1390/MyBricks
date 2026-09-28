@@ -327,3 +327,16 @@ test('measured packaging dimensions win over photo-calibrated ratios', () => {
   assert.equal(measured.dimensionBasis, 'measured');
   assert.ok(Math.abs(measured.boxWidth / measured.boxHeight - 38 / 26) < 1e-6);
 });
+
+test('box face detection separates an opaque black box from a transparent backdrop', () => {
+  const opaque = threeQuarterBox(128, 90);
+  for (let i = 0; i < opaque.length; i += 4) {
+    const backdrop = opaque[i] === 255;
+    opaque.set(backdrop ? [0, 0, 0, 0] : [0, 0, 0, 255], i);
+  }
+  const faces = detectBoxFaces(opaque, 128, 90);
+  assert.ok(faces);
+  assert.ok(Math.abs(faces.front[3][0] * 128 - 30) <= 3);
+  const bounds = artworkContentBounds(opaque, 128, 90);
+  assert.ok(bounds.x0 > 0.05 && bounds.x1 < 0.9, `bounds ${JSON.stringify(bounds)}`);
+});
