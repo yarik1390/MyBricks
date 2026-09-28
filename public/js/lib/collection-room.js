@@ -262,6 +262,111 @@ export function unwarpQuadToCanvas(srcImage, normQuad, targetCanvas) {
   return true;
 }
 
+// Box photographs usually sit on a flat studio backdrop. Printing that
+// backdrop onto a carton face makes the box read as a framed photo, so find
+// the artwork's content rectangle from a small RGBA sample. Returns normalized
+// bounds, or the full frame when the corners do not share one backdrop.
+export function artworkContentBounds(pixels, width, height, { tolerance = 34 } = {}) {
+  const full = { x0: 0, y0: 0, x1: 1, y1: 1 };
+  if (!pixels || width < 4 || height < 4 || pixels.length < width * height * 4) return full;
+  const at = (x, y) => (y * width + x) * 4;
+  const corners = [at(0, 0), at(width - 1, 0), at(0, height - 1), at(width - 1, height - 1)];
+  const background = [0, 1, 2].map(channel => corners.reduce((sum, index) => sum + pixels[index + channel], 0) / 4);
+  const differs = index => Math.abs(pixels[index] - background[0]) + Math.abs(pixels[index + 1] - background[1]) + Math.abs(pixels[index + 2] - background[2]) > tolerance;
+  if (corners.some(differs)) return full;
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (!differs(at(x, y))) continue;
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  if (maxX < 0) return full;
+  // A tiny subject is a product render, not a package: keep the full frame.
+  if (((maxX + 1 - minX) * (maxY + 1 - minY)) / (width * height) < 0.3) return full;
+  // Packaging photos are often three-quarter views, so the silhouette's
+  // corners are cut diagonally. Shrink to the rectangle every central row and
+  // column fully covers, which drops the backdrop wedges at those corners.
+  let innerX0 = minX;
+  let innerX1 = maxX;
+  let innerY0 = minY;
+  let innerY1 = maxY;
+  const rowStart = minY + Math.floor((maxY - minY) * 0.1);
+  const rowEnd = maxY - Math.floor((maxY - minY) * 0.1);
+  for (let y = rowStart; y <= rowEnd; y++) {
+    let left = minX;
+    while (left < maxX && !differs(at(left, y))) left++;
+    let right = maxX;
+    while (right > minX && !differs(at(right, y))) right--;
+    innerX0 = Math.max(innerX0, left);
+    innerX1 = Math.min(innerX1, right);
+  }
+  const columnStart = minX + Math.floor((maxX - minX) * 0.1);
+  const columnEnd = maxX - Math.floor((maxX - minX) * 0.1);
+  for (let x = columnStart; x <= columnEnd; x++) {
+    let top = minY;
+    while (top < maxY && !differs(at(x, top))) top++;
+    let bottom = maxY;
+    while (bottom > minY && !differs(at(x, bottom))) bottom--;
+    innerY0 = Math.max(innerY0, top);
+    innerY1 = Math.min(innerY1, bottom);
+  }
+  // Holes inside the artwork (white skies, logos) can collapse the scan; fall
+  // back to the outer silhouette rather than a sliver.
+  if ((innerX1 - innerX0) < (maxX - minX) * 0.7 || (innerY1 - innerY0) < (maxY - minY) * 0.7) {
+    innerX0 = minX;
+    innerX1 = maxX;
+    innerY0 = minY;
+    innerY1 = maxY;
+  }
+  return { x0: innerX0 / width, y0: innerY0 / height, x1: (innerX1 + 1) / width, y1: (innerY1 + 1) / height };
+}
+
+// Real cartons continue the front design around their folds. Average the
+// artwork's outer ring into a few bands so procedural side panels can carry
+// the same colours instead of a generic black shell.
+export function artworkEdgePalette(pixels, width, height, bounds = { x0: 0, y0: 0, x1: 1, y1: 1 }, bands = 6) {
+  const fallback = { bands: Array.from({ length: bands }, () => [58, 64, 72]), average: [58, 64, 72], light: false };
+  if (!pixels || width < 2 || height < 2) return fallback;
+  const left = Math.max(0, Math.floor(bounds.x0 * width));
+  const right = Math.min(width, Math.ceil(bounds.x1 * width));
+  const top = Math.max(0, Math.floor(bounds.y0 * height));
+  const bottom = Math.min(height, Math.ceil(bounds.y1 * height));
+  if (right - left < 2 || bottom - top < 2) return fallback;
+  const ring = Math.max(1, Math.round((right - left) * 0.06));
+  const result = [];
+  const total = [0, 0, 0];
+  let totalCount = 0;
+  for (let band = 0; band < bands; band++) {
+    const y0 = top + Math.floor(((bottom - top) * band) / bands);
+    const y1 = Math.max(y0 + 1, top + Math.floor(((bottom - top) * (band + 1)) / bands));
+    const sum = [0, 0, 0];
+    let count = 0;
+    for (let y = y0; y < y1; y++) {
+      for (let x = left; x < Math.min(right, left + ring); x++) {
+        const index = (y * width + x) * 4;
+        sum[0] += pixels[index];
+        sum[1] += pixels[index + 1];
+        sum[2] += pixels[index + 2];
+        count++;
+      }
+    }
+    const color = sum.map(value => Math.round(value / Math.max(1, count)));
+    result.push(color);
+    for (let channel = 0; channel < 3; channel++) total[channel] += sum[channel];
+    totalCount += count;
+  }
+  const average = total.map(value => Math.round(value / Math.max(1, totalCount)));
+  const luminance = 0.2126 * average[0] + 0.7152 * average[1] + 0.0722 * average[2];
+  return { bands: result, average, light: luminance > 150 };
+}
+
 export function classifyBoxArtworkUrl(value, { packaging = true } = {}) {
   const url = roomImageUrl(value);
   if (!url) return '';
@@ -412,7 +517,7 @@ export function createRoomLayout(catalog = []) {
           shelfIndex,
           side,
           x: side * ROOM_LAYOUT.shelfCenterX,
-          // Centers sit on the structural shelf decks at 0.35/1.67/3.25 m,
+          // Centers sit on the structural shelf decks at 0.35/1.93/3.51 m,
           // with a small clearance. This keeps cartons grounded and leaves
           // believable air above them instead of filling each bay wall-to-wall.
           y: 0.35 + dimensions.boxHeight / 2 + 0.08 + row * 1.58,

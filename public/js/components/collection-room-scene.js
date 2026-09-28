@@ -2,6 +2,8 @@ import {
   ROOM_LAYOUT,
   ROOM_RESIDENT_BOX_LIMIT,
   ROOM_TEXTURE_LIMIT,
+  artworkContentBounds,
+  artworkEdgePalette,
   boxArtworkPresentation,
   createRoomLayout,
   getBoxFrontQuad,
@@ -23,6 +25,10 @@ const DOOR_OPEN_ANGLE = Math.PI * 0.5;
 const IMAGE_TEXTURE_LIMIT = ROOM_TEXTURE_LIMIT;
 const LOOK_SPEED = 0.0032;
 const RESIDENT_SEGMENT_RADIUS = 4;
+// Carton end/top panels are small; this keeps 60 textured boxes near 6 MB.
+const SIDE_PANEL_WIDTH = 96;
+const SIDE_PANEL_HEIGHT = 256;
+const ARTWORK_SAMPLE_SIZE = 48;
 
 function smoothstep(value) {
   const clamped = Math.max(0, Math.min(1, value));
@@ -74,13 +80,48 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.38;
-  renderer.setClearColor(0x1b2227);
+  renderer.toneMappingExposure = 1.18;
+  renderer.setClearColor(0x1d2124);
   stage.append(canvas);
+  const anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy?.() || 1);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x1b2227);
-  scene.fog = new THREE.Fog(0x1b2227, 30, 52);
+  scene.background = new THREE.Color(0x1d2124);
+  scene.fog = new THREE.Fog(0x1d2124, 26, 50);
+  // A one-off prefiltered studio environment gives coated cartons, painted
+  // steel and the sealed floor real reflections. It is baked once at start,
+  // so walking still costs a plain forward render with no extra lights.
+  let environmentTarget = null;
+  try {
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const studio = new THREE.Scene();
+    const studioGeometries = [new THREE.BoxGeometry(12, 7, 26), new THREE.PlaneGeometry(1.6, 7)];
+    const shell = new THREE.MeshBasicMaterial({ color: 0x3a3f43, side: THREE.BackSide });
+    const panel = new THREE.MeshBasicMaterial({ color: new THREE.Color().setRGB(5.2, 4.8, 4.2), side: THREE.DoubleSide });
+    const floorBounce = new THREE.MeshBasicMaterial({ color: 0x5a5550, side: THREE.DoubleSide });
+    studio.add(new THREE.Mesh(studioGeometries[0], shell));
+    for (const x of [-2.4, 2.4]) {
+      const strip = new THREE.Mesh(studioGeometries[1], panel);
+      strip.rotation.x = Math.PI / 2;
+      strip.position.set(x, 3.4, 0);
+      studio.add(strip);
+    }
+    const bounce = new THREE.Mesh(studioGeometries[1], floorBounce);
+    bounce.rotation.x = -Math.PI / 2;
+    bounce.scale.set(4, 3, 1);
+    bounce.position.y = -3.4;
+    studio.add(bounce);
+    environmentTarget = pmrem.fromScene(studio, 0.035);
+    scene.environment = environmentTarget.texture;
+    scene.environmentIntensity = 0.75;
+    for (const geometry of studioGeometries) geometry.dispose();
+    shell.dispose();
+    panel.dispose();
+    floorBounce.dispose();
+    pmrem.dispose();
+  } catch {
+    environmentTarget = null;
+  }
   const camera = new THREE.PerspectiveCamera(58, 1, 0.08, 46);
   const raycaster = new THREE.Raycaster();
   // Keep boxes selectable from the aisle and from the room entrance. The
@@ -144,6 +185,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   };
   const steelTexture = loadVaultTexture('/img/vault-steel.webp', 2, 4);
   const floorTexture = loadVaultTexture('/img/vault-floor.webp', 3, 10);
+  if (floorTexture) floorTexture.anisotropy = anisotropy;
   const doorTexture = loadVaultTexture('/img/vault-door.webp', 1, 1);
 
   const material = parameters => {
@@ -151,25 +193,32 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     sharedMaterials.add(value);
     return value;
   };
-  const wallSteel = material({ color: 0x66737a, map: steelTexture, metalness: 0.64, roughness: 0.5 });
-  const ceiling = material({ color: 0x737f85, map: steelTexture, metalness: 0.48, roughness: 0.58 });
-  const floor = material({ color: 0x5c666b, map: floorTexture, metalness: 0.2, roughness: 0.72 });
-  const aisle = material({ color: 0x78838a, map: floorTexture, metalness: 0.16, roughness: 0.78 });
-  const shelfSteel = material({ color: 0x5c686e, map: steelTexture, metalness: 0.62, roughness: 0.48 });
+  const wallSteel = material({ color: 0x7b858a, map: steelTexture, metalness: 0.38, roughness: 0.56 });
+  const ceiling = material({ color: 0x6c757a, map: steelTexture, metalness: 0.3, roughness: 0.66 });
+  // Sealed concrete: low metalness with enough gloss to catch the ceiling panels.
+  const floor = material({ color: 0x5c666b, map: floorTexture, metalness: 0.04, roughness: 0.46 });
+  const aisle = material({ color: 0x2e3338, roughness: 0.94, metalness: 0 });
+  const shelfSteel = material({ color: 0x5c686e, map: steelTexture, metalness: 0.5, roughness: 0.4 });
   const shelfEdge = material({ color: 0x3e474c, metalness: 0.66, roughness: 0.42 });
-  // Authentic coated packaging: cardboard tones with subtle specular sheen
-  const boxSide = material({ color: 0x22262a, roughness: 0.42, metalness: 0.12 });
-  const boxFront = material({ color: 0x1c1f24, roughness: 0.24, metalness: 0.08 });
-  const boxEdge = material({ color: 0x141618, roughness: 0.5 });
-  const shadowMaterial = material({ color: 0x0a0c0e, roughness: 0.95, metalness: 0.0, transparent: true, opacity: 0.45 });
+  const shelfBack = material({ color: 0x6d675f, metalness: 0.05, roughness: 0.82 });
+  const lightPanel = material({ color: 0xfff1dc, emissive: 0xfff1dc, emissiveIntensity: 1.6, roughness: 1 });
+  const ledStrip = material({ color: 0xffe2b8, emissive: 0xffe2b8, emissiveIntensity: 1.4, roughness: 1 });
+  // Printed carton board: untextured cartons keep a neutral coated shell; the
+  // textured window swaps in per-box panels sampled from the front artwork.
+  const boxSide = material({ color: 0x3a4046, roughness: 0.42, metalness: 0 });
+  const boxFront = material({ color: 0x2a2f35, roughness: 0.3, metalness: 0 });
+  const shadowTexture = softShadowTexture();
+  const shadowMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, map: shadowTexture, transparent: true, opacity: 0.72, depthWrite: false });
+  sharedMaterials.add(shadowMaterial);
   const accentMaterials = new Map();
   const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
-  const boxEdgeGeometry = new THREE.EdgesGeometry(boxGeometry);
+  const shadowGeometry = new THREE.PlaneGeometry(1, 1);
+  shadowGeometry.rotateX(-Math.PI / 2);
   sharedGeometries.add(boxGeometry);
-  sharedGeometries.add(boxEdgeGeometry);
+  sharedGeometries.add(shadowGeometry);
 
-  scene.add(new THREE.HemisphereLight(0xe6f4fa, 0x343b3e, 2.15));
-  const keyLight = new THREE.DirectionalLight(0xf2f8fb, 2.65);
+  scene.add(new THREE.HemisphereLight(0xf3eee6, 0x3b3530, 1.55));
+  const keyLight = new THREE.DirectionalLight(0xfff4e6, 1.9);
   keyLight.position.set(-3, 5.8, 4);
   scene.add(keyLight);
   const warmLight = new THREE.PointLight(0xffd9a6, 4.2, 24, 1.45);
@@ -178,6 +227,24 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   const aisleLight = new THREE.PointLight(0xd9efff, 3.2, 22, 1.55);
   aisleLight.position.set(0, 3.2, pose.z + 6);
   scene.add(aisleLight);
+
+  function softShadowTexture() {
+    const shadowCanvas = document.createElement('canvas');
+    shadowCanvas.width = 64;
+    shadowCanvas.height = 64;
+    const context = shadowCanvas.getContext('2d');
+    if (context) {
+      const gradient = context.createRadialGradient(32, 32, 10, 32, 32, 32);
+      gradient.addColorStop(0, 'rgba(255,255,255,1)');
+      gradient.addColorStop(0.55, 'rgba(255,255,255,0.55)');
+      gradient.addColorStop(1, 'rgba(255,255,255,0)');
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, 64, 64);
+    }
+    const texture = new THREE.CanvasTexture(shadowCanvas);
+    // The map drives alpha only; black material colour keeps it a shadow.
+    return texture;
+  }
 
   function accent(theme) {
     const color = themeColor(theme);
@@ -223,14 +290,24 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2 - 0.24, 0.055, 0.055], [0, 0.04, z], shelfEdge, true);
       meshBox(group, [ROOM_LAYOUT.roomHalfWidth * 2 - 0.24, 0.045, 0.045], [0, ROOM_LAYOUT.ceilingHeight - 0.04, z], shelfEdge, true);
     }
+    // Recessed ceiling panels give the bay a visible light source that the
+    // baked environment reflections line up with.
+    for (const x of [-2.4, 2.4]) {
+      meshBox(group, [1.1, 0.03, ROOM_LAYOUT.segmentLength - 1.4], [x, ROOM_LAYOUT.ceilingHeight - 0.085, center], lightPanel);
+    }
 
     for (const shelf of layout.shelves.filter(entry => entry.segmentIndex === index)) {
       const side = shelf.side;
       const shelfX = side * 4.48;
       const shelfMaterial = accent(shelf.theme);
-      meshBox(group, [0.18, 5.22, ROOM_LAYOUT.segmentLength - 0.34], [side * 4.9, 2.61, center], shelfEdge, true);
-      for (const y of [0.35, 1.67, 3.25, 4.83]) {
+      meshBox(group, [0.18, 5.22, ROOM_LAYOUT.segmentLength - 0.34], [side * 4.9, 2.61, center], shelfBack, true);
+      // Decks follow the carton rows (0.35 m + 1.58 m pitch) so every carton
+      // rests on steel instead of hovering above the middle and upper decks.
+      for (const y of [0.35, 1.93, 3.51, 4.83]) {
         meshBox(group, [1.25, 0.13, ROOM_LAYOUT.segmentLength - 0.34], [shelfX, y, center], shelfSteel, true);
+        // Warm LED strip tucked under each deck's front lip washes the
+        // cartons below, like a retail display shelf.
+        if (y > 1) meshBox(group, [0.05, 0.018, ROOM_LAYOUT.segmentLength - 0.6], [shelfX - side * 0.56, y - 0.074, center], ledStrip);
       }
       for (const z of [start + 0.18, start + ROOM_LAYOUT.segmentLength - 0.18]) {
         meshBox(group, [1.16, 4.62, 0.12], [shelfX, 2.59, z], shelfEdge, true);
@@ -323,8 +400,70 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     }
     record.texture?.dispose();
     record.frontMaterial?.dispose();
+    record.sideTexture?.dispose();
+    record.sideMaterial?.dispose();
+    record.shadow?.removeFromParent();
     pickTargets.delete(record.body);
     record.body.removeFromParent();
+  }
+
+  function sampleArtwork(image) {
+    // Analyse a thumbnail rather than the full photograph: 48 px is enough to
+    // find a studio backdrop and the colours along the carton's edge.
+    const sample = document.createElement('canvas');
+    const aspect = image.naturalWidth / image.naturalHeight;
+    sample.width = aspect >= 1 ? ARTWORK_SAMPLE_SIZE : Math.max(4, Math.round(ARTWORK_SAMPLE_SIZE * aspect));
+    sample.height = aspect >= 1 ? Math.max(4, Math.round(ARTWORK_SAMPLE_SIZE / aspect)) : ARTWORK_SAMPLE_SIZE;
+    const context = sample.getContext('2d', { willReadFrequently: true });
+    if (!context) return null;
+    try {
+      context.drawImage(image, 0, 0, sample.width, sample.height);
+      const { data } = context.getImageData(0, 0, sample.width, sample.height);
+      const bounds = artworkContentBounds(data, sample.width, sample.height);
+      return { bounds, palette: artworkEdgePalette(data, sample.width, sample.height, bounds) };
+    } catch {
+      return null;
+    }
+  }
+
+  function drawFoldHighlights(context, w, h, scale = 1) {
+    // Carton folds are slightly rounded and catch the ceiling light; the
+    // bottom fold sits in shadow. A few pixels sell the bevel without geometry.
+    context.fillStyle = 'rgba(255,255,255,0.32)';
+    context.fillRect(0, 0, w, 2 * scale);
+    context.fillStyle = 'rgba(255,255,255,0.14)';
+    context.fillRect(0, 0, 2 * scale, h);
+    context.fillRect(w - 2 * scale, 0, 2 * scale, h);
+    context.fillStyle = 'rgba(0,0,0,0.28)';
+    context.fillRect(0, h - 2 * scale, w, 2 * scale);
+  }
+
+  function drawSidePanel(record, palette) {
+    const { box, sideContext: context } = record;
+    if (!context) return;
+    const w = SIDE_PANEL_WIDTH;
+    const h = SIDE_PANEL_HEIGHT;
+    const colors = palette?.bands?.length ? palette.bands : [[58, 64, 72]];
+    const gradient = context.createLinearGradient(0, 0, 0, h);
+    colors.forEach((color, index) => gradient.addColorStop(colors.length === 1 ? 0 : index / (colors.length - 1), `rgb(${color.join(',')})`));
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, w, h);
+    // Printed end panels carry the set number and name, running up the fold.
+    const light = Boolean(palette?.light);
+    context.save();
+    context.translate(w / 2, h / 2);
+    context.rotate(-Math.PI / 2);
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillStyle = light ? 'rgba(20,22,26,0.88)' : 'rgba(255,255,255,0.92)';
+    context.font = '800 30px system-ui, sans-serif';
+    context.fillText(shorten(context, String(box.set_num).replace(/-1$/, ''), h - 24), 0, -18);
+    context.font = '600 15px system-ui, sans-serif';
+    context.fillStyle = light ? 'rgba(20,22,26,0.7)' : 'rgba(255,255,255,0.74)';
+    context.fillText(shorten(context, box.name, h - 24), 0, 16);
+    context.restore();
+    drawFoldHighlights(context, w, h);
+    record.sideTexture.needsUpdate = true;
   }
 
   function drawCard(record, image = null) {
@@ -336,27 +475,37 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     context.fillStyle = '#1e2226';
     context.fillRect(0, 0, w, h);
 
+    let palette = null;
     if (image?.naturalWidth && image?.naturalHeight) {
       const quad = getBoxFrontQuad(box.set_num);
       let unwarped = false;
       if (quad) {
         unwarped = unwarpQuadToCanvas(image, quad, card);
       }
+      const sample = sampleArtwork(image);
+      palette = sample?.palette || null;
 
       if (!unwarped) {
         const artwork = boxArtworkPresentation(box);
+        // Crop the studio backdrop so the print runs to every fold.
+        const bounds = sample?.bounds || { x0: 0, y0: 0, x1: 1, y1: 1 };
+        const sx = bounds.x0 * image.naturalWidth;
+        const sy = bounds.y0 * image.naturalHeight;
+        const sw = Math.max(1, (bounds.x1 - bounds.x0) * image.naturalWidth);
+        const sh = Math.max(1, (bounds.y1 - bounds.y0) * image.naturalHeight);
         if (artwork.kind === 'flat-package-face') {
-          context.drawImage(image, 0, 0, w, h);
+          context.drawImage(image, sx, sy, sw, sh, 0, 0, w, h);
         } else {
           // Fill edge to edge to avoid framed picture card effect
-          const scale = Math.max(w / image.naturalWidth, h / image.naturalHeight);
-          const imgW = Math.round(image.naturalWidth * scale);
-          const imgH = Math.round(image.naturalHeight * scale);
+          const scale = Math.max(w / sw, h / sh);
+          const imgW = Math.round(sw * scale);
+          const imgH = Math.round(sh * scale);
           const imgX = Math.round((w - imgW) / 2);
           const imgY = Math.round((h - imgH) / 2);
-          context.drawImage(image, imgX, imgY, imgW, imgH);
+          context.drawImage(image, sx, sy, sw, sh, imgX, imgY, imgW, imgH);
         }
       }
+      drawFoldHighlights(context, w, h, 1.5);
     } else {
       context.fillStyle = '#1c2025';
       context.fillRect(16, 16, w - 32, h - 32);
@@ -369,6 +518,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       context.fillStyle = '#9ca3af';
       context.fillText(box.set_num, w / 2, h / 2 + 38);
     }
+    drawSidePanel(record, palette);
     record.texture.needsUpdate = true;
   }
 
@@ -384,18 +534,31 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     card.height = cardH;
     const context = card.getContext('2d');
     if (!context) return;
+    const side = document.createElement('canvas');
+    side.width = SIDE_PANEL_WIDTH;
+    side.height = SIDE_PANEL_HEIGHT;
+    const sideContext = side.getContext('2d');
     const texture = new THREE.CanvasTexture(card);
     texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = anisotropy;
     const frontMaterial = new THREE.MeshStandardMaterial({
       map: texture,
       roughness: 0.28,
-      metalness: 0.06,
+      metalness: 0,
     });
     record.canvas = card;
     record.context = context;
     record.frontMaterial = frontMaterial;
     record.texture = texture;
-    record.body.material[record.frontIndex] = frontMaterial;
+    if (sideContext) {
+      const sideTexture = new THREE.CanvasTexture(side);
+      sideTexture.colorSpace = THREE.SRGBColorSpace;
+      sideTexture.anisotropy = anisotropy;
+      record.sideContext = sideContext;
+      record.sideTexture = sideTexture;
+      record.sideMaterial = new THREE.MeshStandardMaterial({ map: sideTexture, roughness: 0.36, metalness: 0 });
+    }
+    record.body.material = record.body.material.map((_, index) => (index === record.frontIndex ? frontMaterial : record.sideMaterial || boxSide));
     drawCard(record);
 
     const artwork = boxArtworkPresentation(record.box);
@@ -439,12 +602,17 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     record.image = null;
     record.texture.dispose();
     record.frontMaterial.dispose();
+    record.sideTexture?.dispose();
+    record.sideMaterial?.dispose();
     record.texture = null;
     record.frontMaterial = null;
+    record.sideTexture = null;
+    record.sideMaterial = null;
+    record.sideContext = null;
     record.canvas = null;
     record.context = null;
     pendingTextureLoads.delete(record.box.index);
-    record.body.material[record.frontIndex] = boxFront;
+    record.body.material = record.body.material.map((_, index) => (index === record.frontIndex ? boxFront : boxSide));
   }
 
   function requestTextureRender() {
@@ -503,20 +671,18 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     body.scale.set(box.boxDepth, box.boxHeight, box.boxWidth);
     body.userData.setNum = box.set_num;
     body.userData.dimensionBasis = box.dimensionBasis;
-    const edges = new THREE.LineSegments(boxEdgeGeometry, boxEdge);
-    edges.scale.set(1.002, 1.002, 1.002);
-    body.add(edges);
 
-    // Contact drop shadow anchoring box to the shelf surface
-    const shadowGeo = new THREE.PlaneGeometry(box.boxDepth * 1.08, box.boxWidth * 1.04);
-    const shadow = new THREE.Mesh(shadowGeo, shadowMaterial);
-    shadow.rotation.x = Math.PI / 2;
-    shadow.position.set(box.x, box.y - box.boxHeight / 2 + 0.005, box.z);
+    // Soft contact shadow anchoring the carton to the shelf deck. It stays on
+    // the shelf when the box is lifted, like the real footprint would.
+    const shadow = new THREE.Mesh(shadowGeometry, shadowMaterial);
+    shadow.scale.set(box.boxDepth * 1.3, 1, box.boxWidth * 1.12);
+    shadow.position.set(box.x, box.y - box.boxHeight / 2 + 0.006, box.z);
+    shadow.renderOrder = 1;
     scene.add(shadow);
 
     scene.add(body);
     pickTargets.add(body);
-    const record = { body, box, frontIndex, frontMaterial: null, image: null, texture: null };
+    const record = { body, box, frontIndex, frontMaterial: null, image: null, shadow, sideMaterial: null, sideTexture: null, texture: null };
     residentBoxes.set(box.index, record);
     return record;
   }
@@ -1011,6 +1177,8 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       steelTexture?.dispose();
       floorTexture?.dispose();
       doorTexture?.dispose();
+      shadowTexture?.dispose();
+      environmentTarget?.dispose();
       if (textureRenderTimer) clearTimeout(textureRenderTimer);
       textureRenderTimer = 0;
       resetInputs();

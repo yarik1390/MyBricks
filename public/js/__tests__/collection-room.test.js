@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ROOM_LAYOUT,
+  artworkContentBounds,
+  artworkEdgePalette,
   boxArtworkPresentation,
   classifyBoxArtworkUrl,
   collectionRoomCatalog,
@@ -232,4 +234,48 @@ test('right strafe follows camera right for both aisle directions', () => {
     const right = moveRoomPose(layout, start, { strafe: 1 }, 0.1);
     assert.ok((right.x - start.x) * -Math.cos(yaw) > 0);
   }
+});
+
+function paintedImage(width, height, paint) {
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const [r, g, b] = paint(x, y);
+      const index = (y * width + x) * 4;
+      pixels.set([r, g, b, 255], index);
+    }
+  }
+  return pixels;
+}
+
+test('artwork bounds crop a studio backdrop, including three-quarter corner wedges', () => {
+  // A 40x40 photo: white backdrop, dark carton at x 5..34, y 8..31.
+  const flat = paintedImage(40, 40, (x, y) => (x >= 5 && x < 35 && y >= 8 && y < 32 ? [20, 30, 40] : [255, 255, 255]));
+  assert.deepEqual(artworkContentBounds(flat, 40, 40), { x0: 5 / 40, y0: 8 / 40, x1: 35 / 40, y1: 32 / 40 });
+
+  // Clip the top-left corner diagonally like an angled box photo: the inner
+  // rectangle moves right/down so no backdrop wedge is printed on the face.
+  const angled = paintedImage(40, 40, (x, y) => (x >= 5 && x < 35 && y >= 8 && y < 32 && x + y >= 17 ? [20, 30, 40] : [255, 255, 255]));
+  const bounds = artworkContentBounds(angled, 40, 40);
+  assert.ok(bounds.x0 > 5 / 40 && bounds.y0 > 8 / 40);
+  assert.equal(bounds.x1, 35 / 40);
+  assert.equal(bounds.y1, 32 / 40);
+});
+
+test('artwork bounds keep the full frame for full-bleed art and tiny product renders', () => {
+  const fullBleed = paintedImage(20, 20, (x, y) => (x < 10 ? [200, 20, 20] : [20, 20, 200]));
+  assert.deepEqual(artworkContentBounds(fullBleed, 20, 20), { x0: 0, y0: 0, x1: 1, y1: 1 });
+  const tiny = paintedImage(40, 40, (x, y) => (x >= 18 && x < 22 && y >= 18 && y < 22 ? [0, 0, 0] : [250, 250, 250]));
+  assert.deepEqual(artworkContentBounds(tiny, 40, 40), { x0: 0, y0: 0, x1: 1, y1: 1 });
+  assert.deepEqual(artworkContentBounds(null, 0, 0), { x0: 0, y0: 0, x1: 1, y1: 1 });
+});
+
+test('edge palette follows the artwork colours down the fold and flags light prints', () => {
+  const split = paintedImage(20, 20, (x, y) => (y < 10 ? [200, 30, 30] : [30, 30, 200]));
+  const palette = artworkEdgePalette(split, 20, 20, { x0: 0, y0: 0, x1: 1, y1: 1 }, 2);
+  assert.deepEqual(palette.bands, [[200, 30, 30], [30, 30, 200]]);
+  assert.equal(palette.light, false);
+  const white = paintedImage(10, 10, () => [240, 240, 240]);
+  assert.equal(artworkEdgePalette(white, 10, 10).light, true);
+  assert.equal(artworkEdgePalette(null, 0, 0).bands.length, 6);
 });

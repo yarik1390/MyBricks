@@ -6,7 +6,12 @@ const source = readFileSync(new URL('../components/collection-room-scene.js', im
 const viewSource = readFileSync(new URL('../views/collection-room.js', import.meta.url), 'utf8');
 
 test('room scene keeps physical surfaces and mobile aisle lighting readable', () => {
-  assert.match(source, /toneMappingExposure = 1\.38/);
+  assert.match(source, /toneMappingExposure = 1\.18/);
+  assert.match(source, /new THREE\.PMREMGenerator\(renderer\)/);
+  assert.match(source, /scene\.environment = environmentTarget\.texture/);
+  assert.match(source, /environmentTarget\?\.dispose\(\)/);
+  // Decks follow the 1.58 m carton row pitch so middle/upper rows rest on steel.
+  assert.match(source, /for \(const y of \[0\.35, 1\.93, 3\.51, 4\.83\]\)/);
   assert.match(source, /MeshStandardMaterial/);
   assert.match(source, /const aisleLight = new THREE\.PointLight\(0xd9efff, 3\.2, 22, 1\.55\)/);
   assert.match(source, /const floor = material\(\{ color: 0x5c666b/);
@@ -18,7 +23,8 @@ test('room scene keeps physical surfaces and mobile aisle lighting readable', ()
 test('room scene shares box artwork classification and preserves source photography', () => {
   assert.match(source, /boxArtworkPresentation/);
   assert.match(source, /artwork\.kind === 'flat-package-face'/);
-  assert.match(source, /const scale = Math\.max\(w \/ image\.naturalWidth, h \/ image\.naturalHeight\)/);
+  assert.match(source, /const scale = Math\.max\(w \/ sw, h \/ sh\)/);
+  assert.match(source, /context\.drawImage\(image, sx, sy, sw, sh, imgX, imgY, imgW, imgH\)/);
   assert.doesNotMatch(source, /!\/ItemImage\\\/ON\\\/0/);
   assert.doesNotMatch(source, /Authentic LEGO Collector Edition packaging design/);
   assert.doesNotMatch(source, /Official LEGO logo emblem/);
@@ -78,11 +84,18 @@ test('box pickup is finite, eased, and returns before normal room control resume
   assert.doesNotMatch(source, /mesh\.position\.y \+= 0\.22/);
 });
 
-test('procedural cartons have neutral sides, readable thickness, and shared edge geometry', () => {
-  assert.match(source, /const boxSide = material\(\{ color: 0x22262a, roughness: 0\.42, metalness: 0\.12 \}\)/);
-  assert.match(source, /const boxEdgeGeometry = new THREE\.EdgesGeometry\(boxGeometry\)/);
-  assert.match(source, /const edges = new THREE\.LineSegments\(boxEdgeGeometry, boxEdge\)/);
-  assert.doesNotMatch(source, /boxSide.*map:/);
+test('cartons print sides from their artwork and keep shadows bounded to resident boxes', () => {
+  assert.match(source, /const boxSide = material\(\{ color: 0x3a4046, roughness: 0\.42, metalness: 0 \}\)/);
+  assert.doesNotMatch(source, /EdgesGeometry|LineSegments/);
+  assert.match(source, /artworkContentBounds\(data, sample\.width, sample\.height\)/);
+  assert.match(source, /artworkEdgePalette\(data, sample\.width, sample\.height, bounds\)/);
+  assert.match(source, /function drawSidePanel\(record, palette\)/);
+  assert.match(source, /record\.sideMaterial = new THREE\.MeshStandardMaterial\(\{ map: sideTexture/);
+  assert.match(source, /record\.sideTexture\?\.dispose\(\)/);
+  // Contact shadows share one geometry/material and leave with their carton.
+  assert.match(source, /new THREE\.Mesh\(shadowGeometry, shadowMaterial\)/);
+  assert.match(source, /record\.shadow\?\.removeFromParent\(\)/);
+  assert.doesNotMatch(source, /new THREE\.PlaneGeometry\(box\.boxDepth/);
 });
 
 test('door intro respects reduced motion and is cancelled by lifecycle boundaries', () => {
