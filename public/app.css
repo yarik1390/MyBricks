@@ -8390,7 +8390,7 @@ body[data-route="collection-room"] #nav { display:none !important; }
   transform: rotateY(90deg) translateZ(calc(var(--inspect-width) / 2));
   background: linear-gradient(to left, #1c2025, #141619);
 }
-.showroom-inspect-left canvas, .showroom-inspect-right canvas { display:block; width:100%; height:100%; }
+.showroom-inspect-back canvas, .showroom-inspect-left canvas, .showroom-inspect-right canvas { display:block; width:100%; height:100%; }
 .showroom-inspect-top, .showroom-inspect-bottom {
   left: 0;
   top: 50%;
