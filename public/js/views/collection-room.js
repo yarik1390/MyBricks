@@ -148,7 +148,7 @@ export async function renderCollectionRoom() {
     // Fallback classification pattern for compatibility:
     // artwork.kind === 'flat-package-face' ? 'is-flat-package-face' : 'is-source-photo'
     const frontFace = `<div class="showroom-inspect-face showroom-inspect-front ${faceClass}"><canvas class="showroom-inspect-canvas" id="roomInspectCanvas" hidden></canvas><img id="roomInspectImg" src="${imageUrl(item)}" alt="${escapeHtml(item.name)}"></div>`;
-    const backFace = `<div class=\"showroom-inspect-face showroom-inspect-back\">${backUrl ? `<img src=\"${proxyImg(backUrl)}\" alt=\"\">` : ''}</div>`;
+    const backFace = `<div class=\"showroom-inspect-face showroom-inspect-back\">${backUrl && !printed ? `<img src=\"${proxyImg(backUrl)}\" alt=\"\">` : ''}</div>`;
     const neutralSide = '<div class="showroom-inspect-face showroom-inspect-side"></div>';
 
     modal(`<section class="showroom-inspect" aria-describedby="roomInspectHelp"><h2 id="roomSheetTitle">${escapeHtml(item.name)}</h2><p class="showroom-inspect-kicker">${t('room.inspecting')}</p><div class="showroom-inspect-turntable" id="roomTurntable" tabindex="0" role="img" aria-label="${escapeHtml(t('room.inspectLabel', { name: item.name }))}"><div class="showroom-inspect-box" id="roomInspectBox" style="--inspect-width:min(64vw, 320px, ${Math.round(220 * aspect)}px); --inspect-height:calc(var(--inspect-width) / ${aspect.toFixed(3)}); --inspect-depth:calc(var(--inspect-width) * ${depthRatio.toFixed(3)});">${frontFace}${backFace}${neutralSide.replace('showroom-inspect-side', 'showroom-inspect-left')}${neutralSide.replace('showroom-inspect-side', 'showroom-inspect-right')}${neutralSide.replace('showroom-inspect-side', 'showroom-inspect-top')}${neutralSide.replace('showroom-inspect-side', 'showroom-inspect-bottom')}</div></div><p id="roomInspectHelp" class="showroom-inspect-help">${t('room.rotateHint')}</p><div class="showroom-inspect-rotate" aria-label="${escapeHtml(t('room.rotateControls'))}"><button type="button" id="roomRotateLeft" aria-label="${escapeHtml(t('room.rotateLeft'))}">↶</button><button type="button" id="roomRotateRight" aria-label="${escapeHtml(t('room.rotateRight'))}">↷</button></div><dl class="showroom-inspect-facts"><div><dt>${t('room.setNumber')}</dt><dd>${escapeHtml(item.set_num)}</dd></div><div><dt>${t('room.theme')}</dt><dd>${escapeHtml(themeName(item))}</dd></div><div><dt>${t('room.owned')}</dt><dd>${escapeHtml(tPlural('room.copies', item.quantity, { quantity: item.quantity }))}</dd></div></dl><a class="btn-primary" id="roomFullDetails" href="#/set/${encodeURIComponent(item.set_num)}">${t('room.fullDetails')}</a></section>`, null, { preservePickup: true });
@@ -206,6 +206,11 @@ export async function renderCollectionRoom() {
       if (printed.lid) {
         for (const face of box.querySelectorAll('.showroom-inspect-top, .showroom-inspect-bottom')) face.style.background = printed.lid;
       }
+      const backFaceEl = box.querySelector('.showroom-inspect-back');
+      if (printed.lid) backFaceEl.style.background = printed.lid;
+      activeRoom.boxBack?.(item.set_num, { backUrl: backUrl ? proxyImg(backUrl) : '', modelUrl: item.image_url }).then(back => {
+        if (back && backFaceEl.isConnected) backFaceEl.replaceChildren(copy(back, document.createElement('canvas')));
+      });
     } else if (quad && imgEl && canvasEl) {
       const applyUnwarp = () => {
         if (!imgEl.naturalWidth || !imgEl.naturalHeight) return;

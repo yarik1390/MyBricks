@@ -401,6 +401,8 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     record.sideTexture?.dispose();
     record.sideMaterial?.dispose();
     record.lidMaterial?.dispose();
+    record.backTexture?.dispose();
+    record.backMaterial?.dispose();
     record.shadow?.removeFromParent();
     pickTargets.delete(record.body);
     record.body.removeFromParent();
@@ -513,6 +515,101 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     context.fillStyle = 'rgba(255,255,255,0.8)';
     context.textAlign = 'right';
     context.fillText(shorten(context, box.name, w * 0.9 - numberWidth - w * 0.06), w * 0.96, h - band / 2);
+  }
+
+  function loadArtwork(url) {
+    return new Promise(resolve => {
+      if (!url) {
+        resolve(null);
+        return;
+      }
+      const image = new Image();
+      image.crossOrigin = 'anonymous';
+      image.onload = () => resolve(image.naturalWidth ? image : null);
+      image.onerror = () => resolve(null);
+      image.src = url;
+    });
+  }
+
+  function studioCorners(image) {
+    // How many corners sit on a near-white studio backdrop.
+    const probe = document.createElement('canvas');
+    probe.width = 16;
+    probe.height = 16;
+    const context = probe.getContext('2d', { willReadFrequently: true });
+    if (!context) return 0;
+    try {
+      context.drawImage(image, 0, 0, 16, 16);
+      const { data } = context.getImageData(0, 0, 16, 16);
+      return [0, 15, 240, 255].filter(pixel => Math.min(data[pixel * 4], data[pixel * 4 + 1], data[pixel * 4 + 2]) > 232).length;
+    } catch {
+      return 0;
+    }
+  }
+
+  async function paintBack(record, backUrl, modelUrl) {
+    // The back of a LEGO carton shows the model again. Use the photographed
+    // back (straightened like the front when it is an angled shot), else the
+    // model render on a carton-style face, else the lid colour with the name.
+    const { box, canvas: card } = record;
+    const back = document.createElement('canvas');
+    back.width = card.width;
+    back.height = card.height;
+    const context = back.getContext('2d');
+    if (!context) return null;
+    const w = back.width;
+    const h = back.height;
+    let drawn = false;
+    const photo = await loadArtwork(backUrl);
+    if (photo) {
+      const sample = sampleArtwork(photo);
+      if (sample?.faces) drawn = unwarpQuadToCanvas(photo, sample.faces.front, back);
+      const bounds = sample?.bounds || { x0: 0, y0: 0, x1: 1, y1: 1 };
+      if (!drawn && ((bounds.x1 - bounds.x0) * (bounds.y1 - bounds.y0) < 0.98 || studioCorners(photo) >= 2)) {
+        // A render on a studio backdrop (often the model from behind), not a
+        // scan of the carton: present it like a model render.
+        drawProductFace(context, w, h, photo, box);
+        drawn = true;
+      }
+      if (!drawn) {
+        const sw = Math.max(1, (bounds.x1 - bounds.x0) * photo.naturalWidth);
+        const sh = Math.max(1, (bounds.y1 - bounds.y0) * photo.naturalHeight);
+        const scale = Math.max(w / sw, h / sh);
+        context.drawImage(photo, bounds.x0 * photo.naturalWidth, bounds.y0 * photo.naturalHeight, sw, sh, (w - sw * scale) / 2, (h - sh * scale) / 2, sw * scale, sh * scale);
+        drawn = true;
+      }
+    }
+    if (!drawn) {
+      const model = await loadArtwork(modelUrl);
+      if (model) {
+        drawProductFace(context, w, h, model, box);
+        drawn = true;
+      }
+    }
+    if (!drawn) {
+      context.fillStyle = record.lidMaterial ? `#${record.lidMaterial.color.getHexString(THREE.SRGBColorSpace)}` : '#1c2025';
+      context.fillRect(0, 0, w, h);
+      context.fillStyle = 'rgba(255,255,255,0.86)';
+      context.font = '700 26px system-ui, sans-serif';
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillText(shorten(context, box.name, w - 64), w / 2, h / 2 - 14);
+      context.font = '600 18px system-ui, sans-serif';
+      context.fillStyle = 'rgba(255,255,255,0.6)';
+      context.fillText(box.set_num, w / 2, h / 2 + 20);
+    }
+    drawFoldHighlights(context, w, h, 1.5);
+    if (destroyed || residentBoxes.get(box.index) !== record || !record.texture) return back;
+    // Print it on the carton too, so turning the held box shows the same back.
+    const texture = new THREE.CanvasTexture(back);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = anisotropy;
+    record.backTexture = texture;
+    record.backMaterial = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.28, metalness: 0 });
+    const backIndex = record.frontIndex ^ 1;
+    record.body.material = record.body.material.map((material, index) => (index === backIndex ? record.backMaterial : material));
+    requestTextureRender();
+    return back;
   }
 
   function drawFoldHighlights(context, w, h, scale = 1) {
@@ -721,8 +818,13 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     record.sideTexture?.dispose();
     record.sideMaterial?.dispose();
     record.lidMaterial?.dispose();
+    record.backTexture?.dispose();
+    record.backMaterial?.dispose();
     record.lidMaterial = null;
     record.sideCanvas = null;
+    record.backPromise = null;
+    record.backTexture = null;
+    record.backMaterial = null;
     record.texture = null;
     record.frontMaterial = null;
     record.sideTexture = null;
@@ -1363,6 +1465,12 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
         aspect: width / height,
         depthRatio: box.boxDepth / width,
       };
+    },
+    boxBack(setNum, { backUrl = '', modelUrl = '' } = {}) {
+      const record = [...residentBoxes.values()].find(entry => entry.box.set_num === setNum && entry.canvas);
+      if (!record) return Promise.resolve(null);
+      record.backPromise ||= paintBack(record, backUrl, modelUrl).catch(() => null);
+      return record.backPromise;
     },
     rotateInspection(delta) {
       if (!inspecting || !Number.isFinite(delta)) return;
