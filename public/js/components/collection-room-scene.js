@@ -468,6 +468,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     width *= fit;
     const bottomY = box.y - box.boxHeight / 2;
     body.scale.set(box.boxDepth, height, width);
+    record.frontSize = { width, height };
     body.position.y = bottomY + height / 2;
     record.shadow?.scale.set(box.boxDepth * 1.3, 1, width * 1.12);
   }
@@ -1346,6 +1347,22 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
         restoreBoxPickup();
         renderNow();
       }
+    },
+    boxArtwork(setNum) {
+      // The inspection sheet shows the same printed carton as the shelf: the
+      // straightened front, the end-panel print, the lid colour and the
+      // proportions the room settled on.
+      const record = [...residentBoxes.values()].find(entry => entry.box.set_num === setNum && entry.canvas);
+      if (!record) return null;
+      const { box } = record;
+      const { width, height } = record.frontSize || { width: box.boxWidth, height: box.boxHeight };
+      return {
+        front: record.canvas,
+        side: record.sideCanvas || null,
+        lid: record.lidMaterial ? `#${record.lidMaterial.color.getHexString(THREE.SRGBColorSpace)}` : '',
+        aspect: width / height,
+        depthRatio: box.boxDepth / width,
+      };
     },
     rotateInspection(delta) {
       if (!inspecting || !Number.isFinite(delta)) return;

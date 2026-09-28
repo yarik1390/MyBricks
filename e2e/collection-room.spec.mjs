@@ -183,7 +183,10 @@ test('find reaches distant sets with bounded rendering and detail sheets preserv
   await expect(inspectBox).toHaveAttribute('style', /20deg/);
   await page.getByRole('button', { name: 'Rotate box left' }).click();
   await expect(inspectBox).toHaveAttribute('style', /0deg/);
-  await expect(page.locator('#roomInspectHelp')).toContainText('Sides are neutral');
+  await expect(page.locator('#roomInspectHelp')).toContainText('Drag the box');
+  // The sheet shows the carton the room printed, not the raw source photo.
+  await expect(page.locator('#roomInspectCanvas')).toBeVisible();
+  await expect(page.locator('#roomInspectImg')).toBeHidden();
   const inspectingPose = await pose(page);
   await page.keyboard.down('w');
   await page.waitForTimeout(200);
