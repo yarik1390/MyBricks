@@ -4,6 +4,7 @@ import {
   ROOM_TEXTURE_LIMIT,
   artworkContentBounds,
   artworkEdgePalette,
+  detectBoxFaces,
   boxArtworkPresentation,
   createRoomLayout,
   getBoxFrontQuad,
@@ -28,7 +29,7 @@ const RESIDENT_SEGMENT_RADIUS = 4;
 // Carton end/top panels are small; this keeps 60 textured boxes near 6 MB.
 const SIDE_PANEL_WIDTH = 96;
 const SIDE_PANEL_HEIGHT = 256;
-const ARTWORK_SAMPLE_SIZE = 48;
+const ARTWORK_SAMPLE_SIZE = 128;
 
 function smoothstep(value) {
   const clamped = Math.max(0, Math.min(1, value));
@@ -399,14 +400,15 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     record.frontMaterial?.dispose();
     record.sideTexture?.dispose();
     record.sideMaterial?.dispose();
+    record.lidMaterial?.dispose();
     record.shadow?.removeFromParent();
     pickTargets.delete(record.body);
     record.body.removeFromParent();
   }
 
   function sampleArtwork(image) {
-    // Analyse a thumbnail rather than the full photograph: 48 px is enough to
-    // find a studio backdrop and the colours along the carton's edge.
+    // Analyse a thumbnail rather than the full photograph: 128 px is enough to
+    // find a studio backdrop and the carton's corners within a pixel or two.
     const sample = document.createElement('canvas');
     const aspect = image.naturalWidth / image.naturalHeight;
     sample.width = aspect >= 1 ? ARTWORK_SAMPLE_SIZE : Math.max(4, Math.round(ARTWORK_SAMPLE_SIZE * aspect));
@@ -416,11 +418,93 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     try {
       context.drawImage(image, 0, 0, sample.width, sample.height);
       const { data } = context.getImageData(0, 0, sample.width, sample.height);
-      const bounds = artworkContentBounds(data, sample.width, sample.height);
-      return { bounds, palette: artworkEdgePalette(data, sample.width, sample.height, bounds) };
+      return {
+        bounds: artworkContentBounds(data, sample.width, sample.height),
+        faces: detectBoxFaces(data, sample.width, sample.height),
+      };
     } catch {
       return null;
     }
+  }
+
+  function cardPalette(card) {
+    // Side panels without photographed art take their colours from the
+    // finished front, so they match whichever path drew it.
+    const sample = document.createElement('canvas');
+    sample.width = 32;
+    sample.height = Math.max(8, Math.round((32 * card.height) / card.width));
+    const context = sample.getContext('2d', { willReadFrequently: true });
+    if (!context) return null;
+    try {
+      context.drawImage(card, 0, 0, sample.width, sample.height);
+      return artworkEdgePalette(context.getImageData(0, 0, sample.width, sample.height).data, sample.width, sample.height);
+    } catch {
+      return null;
+    }
+  }
+
+  function applyFrontProportions(record, quad, image) {
+    // Estimated cartons borrow their width:height from the straightened
+    // front, so the print is not stretched. Measured cartons keep their data.
+    const { box, body } = record;
+    if (box.dimensionBasis === 'measured' || activePickup?.mesh === body) return;
+    const [topLeft, topRight, , bottomLeft] = quad;
+    const faceWidth = Math.hypot((topRight[0] - topLeft[0]) * image.naturalWidth, (topRight[1] - topLeft[1]) * image.naturalHeight);
+    const faceHeight = Math.hypot((bottomLeft[0] - topLeft[0]) * image.naturalWidth, (bottomLeft[1] - topLeft[1]) * image.naturalHeight);
+    const aspect = faceWidth / Math.max(1, faceHeight);
+    if (!Number.isFinite(aspect) || aspect < 0.5 || aspect > 3) return;
+    const area = box.boxWidth * box.boxHeight;
+    let height = Math.sqrt(area / aspect);
+    let width = height * aspect;
+    const fit = Math.min(1, ROOM_LAYOUT.boxWidth / width, ROOM_LAYOUT.boxHeight / height);
+    height *= fit;
+    width *= fit;
+    const bottomY = box.y - box.boxHeight / 2;
+    body.scale.set(box.boxDepth, height, width);
+    body.position.y = bottomY + height / 2;
+    record.shadow?.scale.set(box.boxDepth * 1.3, 1, width * 1.12);
+  }
+
+  function drawProductFace(context, w, h, image, box) {
+    // A model render is not packaging. Print it on a carton-style face: a
+    // theme-coloured backdrop, the model contained with a soft shadow, and a
+    // name band, instead of stretching a photo of bricks across the box.
+    const base = `#${themeColor(box.theme).toString(16).padStart(6, '0')}`;
+    const backdrop = context.createLinearGradient(0, 0, 0, h);
+    backdrop.addColorStop(0, base);
+    backdrop.addColorStop(1, '#111418');
+    context.fillStyle = backdrop;
+    context.fillRect(0, 0, w, h);
+    const glow = context.createRadialGradient(w * 0.55, h * 0.45, 0, w * 0.55, h * 0.45, w * 0.6);
+    glow.addColorStop(0, 'rgba(255,255,255,0.28)');
+    glow.addColorStop(1, 'rgba(255,255,255,0)');
+    context.fillStyle = glow;
+    context.fillRect(0, 0, w, h);
+    const band = Math.round(h * 0.16);
+    const areaW = w * 0.86;
+    const areaH = (h - band) * 0.84;
+    const scale = Math.min(areaW / image.naturalWidth, areaH / image.naturalHeight);
+    const imgW = image.naturalWidth * scale;
+    const imgH = image.naturalHeight * scale;
+    context.save();
+    context.shadowColor = 'rgba(0,0,0,0.45)';
+    context.shadowBlur = 18;
+    context.shadowOffsetY = 8;
+    context.drawImage(image, (w - imgW) / 2, (h - band - imgH) / 2 + h * 0.02, imgW, imgH);
+    context.restore();
+    context.fillStyle = 'rgba(0,0,0,0.55)';
+    context.fillRect(0, h - band, w, band);
+    context.fillStyle = '#ffffff';
+    context.textBaseline = 'middle';
+    context.textAlign = 'left';
+    context.font = `800 ${Math.round(band * 0.46)}px system-ui, sans-serif`;
+    const number = String(box.set_num).replace(/-1$/, '');
+    context.fillText(number, w * 0.04, h - band / 2);
+    const numberWidth = context.measureText(number).width;
+    context.font = `600 ${Math.round(band * 0.3)}px system-ui, sans-serif`;
+    context.fillStyle = 'rgba(255,255,255,0.8)';
+    context.textAlign = 'right';
+    context.fillText(shorten(context, box.name, w * 0.9 - numberWidth - w * 0.06), w * 0.96, h - band / 2);
   }
 
   function drawFoldHighlights(context, w, h, scale = 1) {
@@ -435,11 +519,18 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     context.fillRect(0, h - 2 * scale, w, 2 * scale);
   }
 
-  function drawSidePanel(record, palette) {
-    const { box, sideContext: context } = record;
+  function drawSidePanel(record, palette, sideArt = null) {
+    const { box, sideContext: context, sideCanvas } = record;
     if (!context) return;
     const w = SIDE_PANEL_WIDTH;
     const h = SIDE_PANEL_HEIGHT;
+    // The photographed end panel is the real print; use it when the photo
+    // showed one clearly enough to straighten.
+    if (sideArt && unwarpQuadToCanvas(sideArt.image, sideArt.quad, sideCanvas)) {
+      drawFoldHighlights(context, w, h);
+      record.sideTexture.needsUpdate = true;
+      return;
+    }
     const colors = palette?.bands?.length ? palette.bands : [[58, 64, 72]];
     const gradient = context.createLinearGradient(0, 0, 0, h);
     colors.forEach((color, index) => gradient.addColorStop(colors.length === 1 ? 0 : index / (colors.length - 1), `rgb(${color.join(',')})`));
@@ -463,7 +554,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     record.sideTexture.needsUpdate = true;
   }
 
-  function drawCard(record, image = null) {
+  function drawCard(record, image = null, isPackage = true) {
     const { box, context, canvas: card } = record;
     const w = card.width;
     const h = card.height;
@@ -472,18 +563,29 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     context.fillStyle = '#1e2226';
     context.fillRect(0, 0, w, h);
 
-    let palette = null;
+    let sideArt = null;
     if (image?.naturalWidth && image?.naturalHeight) {
-      const quad = getBoxFrontQuad(box.set_num);
+      const artwork = boxArtworkPresentation(box);
+      const productOnly = !isPackage || artwork.kind === 'product-image';
+      const sample = productOnly ? null : sampleArtwork(image);
       let unwarped = false;
-      if (quad) {
-        unwarped = unwarpQuadToCanvas(image, quad, card);
+      // Three-quarter packaging photos: straighten the front face found in
+      // this very image so the end panel and lid no longer squeeze onto the
+      // front. Hand-calibrated quads only describe one historical photo, so
+      // they are the fallback when the silhouette is not a clear 3/4 view.
+      if (sample?.faces && artwork.kind !== 'flat-package-face') {
+        unwarped = unwarpQuadToCanvas(image, sample.faces.front, card);
+        if (unwarped) {
+          applyFrontProportions(record, sample.faces.front, image);
+          if (sample.faces.side) sideArt = { image, quad: sample.faces.side };
+        }
       }
-      const sample = sampleArtwork(image);
-      palette = sample?.palette || null;
+      const quad = unwarped || productOnly ? null : getBoxFrontQuad(box.set_num);
+      if (quad) unwarped = unwarpQuadToCanvas(image, quad, card);
 
-      if (!unwarped) {
-        const artwork = boxArtworkPresentation(box);
+      if (productOnly) {
+        drawProductFace(context, w, h, image, box);
+      } else if (!unwarped) {
         // Crop the studio backdrop so the print runs to every fold.
         const bounds = sample?.bounds || { x0: 0, y0: 0, x1: 1, y1: 1 };
         const sx = bounds.x0 * image.naturalWidth;
@@ -515,7 +617,9 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       context.fillStyle = '#9ca3af';
       context.fillText(box.set_num, w / 2, h / 2 + 38);
     }
-    drawSidePanel(record, palette);
+    const palette = image ? cardPalette(card) : null;
+    drawSidePanel(record, palette, sideArt);
+    if (record.lidMaterial && palette) record.lidMaterial.color.setRGB(...palette.average.map(value => value / 255), THREE.SRGBColorSpace);
     record.texture.needsUpdate = true;
   }
 
@@ -551,11 +655,18 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       const sideTexture = new THREE.CanvasTexture(side);
       sideTexture.colorSpace = THREE.SRGBColorSpace;
       sideTexture.anisotropy = anisotropy;
+      record.sideCanvas = side;
       record.sideContext = sideContext;
       record.sideTexture = sideTexture;
       record.sideMaterial = new THREE.MeshStandardMaterial({ map: sideTexture, roughness: 0.36, metalness: 0 });
     }
-    record.body.material = record.body.material.map((_, index) => (index === record.frontIndex ? frontMaterial : record.sideMaterial || boxSide));
+    // Lid, base and back take one printed colour from the front; the end
+    // panels (+z/-z) carry the photographed or generated side print.
+    record.lidMaterial = new THREE.MeshStandardMaterial({ color: 0x3a4046, roughness: 0.4, metalness: 0 });
+    record.body.material = record.body.material.map((_, index) => {
+      if (index === record.frontIndex) return frontMaterial;
+      return index >= 4 ? record.sideMaterial || boxSide : record.lidMaterial;
+    });
     drawCard(record);
 
     const artwork = boxArtworkPresentation(record.box);
@@ -601,6 +712,9 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     record.frontMaterial.dispose();
     record.sideTexture?.dispose();
     record.sideMaterial?.dispose();
+    record.lidMaterial?.dispose();
+    record.lidMaterial = null;
+    record.sideCanvas = null;
     record.texture = null;
     record.frontMaterial = null;
     record.sideTexture = null;

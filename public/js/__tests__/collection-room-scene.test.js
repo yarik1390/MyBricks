@@ -90,9 +90,19 @@ test('box pickup is finite, eased, and returns before normal room control resume
 test('cartons print sides from their artwork and keep shadows bounded to resident boxes', () => {
   assert.match(source, /const boxSide = material\(\{ color: 0x3a4046, roughness: 0\.42, metalness: 0 \}\)/);
   assert.doesNotMatch(source, /EdgesGeometry|LineSegments/);
-  assert.match(source, /artworkContentBounds\(data, sample\.width, sample\.height\)/);
-  assert.match(source, /artworkEdgePalette\(data, sample\.width, sample\.height, bounds\)/);
-  assert.match(source, /function drawSidePanel\(record, palette\)/);
+  assert.match(source, /bounds: artworkContentBounds\(data, sample\.width, sample\.height\)/);
+  assert.match(source, /function drawSidePanel\(record, palette, sideArt = null\)/);
+  // Angled box photos: the front and the photographed end panel are
+  // straightened from this image before any hand-calibrated quad is tried.
+  assert.match(source, /faces: detectBoxFaces\(data, sample\.width, sample\.height\)/);
+  assert.match(source, /unwarped = unwarpQuadToCanvas\(image, sample\.faces\.front, card\)/);
+  assert.match(source, /const quad = unwarped \|\| productOnly \? null : getBoxFrontQuad\(box\.set_num\)/);
+  assert.match(source, /unwarpQuadToCanvas\(sideArt\.image, sideArt\.quad, sideCanvas\)/);
+  // Estimated cartons take their proportions from the straightened front.
+  assert.match(source, /if \(box\.dimensionBasis === 'measured' \|\| activePickup\?\.mesh === body\) return;/);
+  // Model renders are printed on a carton-style face, not stretched edge to edge.
+  assert.match(source, /if \(productOnly\) \{\s*drawProductFace\(context, w, h, image, box\);/);
+  assert.match(source, /record\.lidMaterial\?\.dispose\(\)/);
   assert.match(source, /record\.sideMaterial = new THREE\.MeshStandardMaterial\(\{ map: sideTexture/);
   assert.match(source, /record\.sideTexture\?\.dispose\(\)/);
   // Contact shadows share one geometry/material and leave with their carton.

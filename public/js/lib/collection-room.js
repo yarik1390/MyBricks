@@ -71,27 +71,21 @@ export function displayCartonDimensions(item) {
   let aspectDepth;
   let basis;
 
-  if (quad) {
-    // Exact calibrated packaging artwork quad geometry
-    const quadW = Math.hypot(quad[1][0] - quad[0][0], quad[1][1] - quad[0][1]);
-    const quadH = Math.hypot(quad[3][0] - quad[0][0], quad[3][1] - quad[0][1]);
-    const quadRatio = Math.max(0.6, Math.min(3.0, quadW / Math.max(0.001, quadH)));
-    if (measured) {
-      aspectHeight = measured.height;
-      aspectWidth = measured.height * quadRatio;
-      aspectDepth = measured.depth;
-      basis = 'measured';
-    } else {
-      aspectHeight = 1.0;
-      aspectWidth = quadRatio;
-      aspectDepth = 0.32;
-      basis = 'estimated';
-    }
-  } else if (measured) {
+  if (measured) {
+    // Physical packaging measurements win over any photo-derived ratio: the
+    // calibrated quads describe one particular image, not the carton.
     aspectWidth = measured.width;
     aspectHeight = measured.height;
     aspectDepth = measured.depth;
     basis = 'measured';
+  } else if (quad) {
+    const quadW = Math.hypot(quad[1][0] - quad[0][0], quad[1][1] - quad[0][1]);
+    const quadH = Math.hypot(quad[3][0] - quad[0][0], quad[3][1] - quad[0][1]);
+    const quadRatio = Math.max(0.6, Math.min(3.0, quadW / Math.max(0.001, quadH)));
+    aspectHeight = 1.0;
+    aspectWidth = quadRatio;
+    aspectDepth = 0.32;
+    basis = 'estimated';
   } else {
     // Catalog product imagery is not treated as a package scan. When physical
     // measurements are absent, piece count and packaging type only choose one
@@ -326,6 +320,164 @@ export function artworkContentBounds(pixels, width, height, { tolerance = 34 } =
     innerY1 = maxY;
   }
   return { x0: innerX0 / width, y0: innerY0 / height, x1: (innerX1 + 1) / width, y1: (innerY1 + 1) / height };
+}
+
+function fitLine(points, { robust = false } = {}) {
+  // Least-squares v = slope * u + intercept over [u, v] pairs. The robust
+  // variant refits once without outliers (antialiased corners, shadows).
+  const solve = subset => {
+    const count = subset.length;
+    if (count < 2) return null;
+    let su = 0;
+    let sv = 0;
+    let suu = 0;
+    let suv = 0;
+    for (const [u, v] of subset) {
+      su += u;
+      sv += v;
+      suu += u * u;
+      suv += u * v;
+    }
+    const denominator = count * suu - su * su;
+    if (Math.abs(denominator) < 1e-9) return null;
+    const slope = (count * suv - su * sv) / denominator;
+    return { slope, intercept: (sv - slope * su) / count };
+  };
+  const first = solve(points);
+  if (!first) return null;
+  const residual = ([u, v], line) => Math.abs(v - (line.slope * u + line.intercept));
+  const inliers = robust ? points.filter(point => residual(point, first) <= 2.5) : points;
+  const line = (robust && inliers.length >= Math.max(2, points.length * 0.6) && solve(inliers)) || first;
+  let error = 0;
+  for (const point of points) error += residual(point, line) ** 2;
+  return { ...line, error };
+}
+
+// Box photographs from BrickLink and LEGO are usually three-quarter renders:
+// the front face plus one end panel and a sliver of the lid. Printing the
+// whole silhouette on a flat carton face squeezes those extra panels onto the
+// front. From the backdrop-separated silhouette, find the front face's four
+// corners (TL, TR, BR, BL, normalized) and the visible end panel's quad, so
+// both can be rectified. Returns null when the photo is not a clear
+// three-quarter view, in which case callers keep the plain crop.
+export function detectBoxFaces(pixels, width, height, { tolerance = 34 } = {}) {
+  if (!pixels || width < 24 || height < 24 || pixels.length < width * height * 4) return null;
+  const at = (x, y) => (y * width + x) * 4;
+  const corners = [at(0, 0), at(width - 1, 0), at(0, height - 1), at(width - 1, height - 1)];
+  const background = [0, 1, 2].map(channel => corners.reduce((sum, index) => sum + pixels[index + channel], 0) / 4);
+  const differs = index => Math.abs(pixels[index] - background[0]) + Math.abs(pixels[index + 1] - background[1]) + Math.abs(pixels[index + 2] - background[2]) > tolerance;
+  if (corners.some(differs)) return null;
+
+  const detect = mirrored => {
+    const content = (x, y) => differs(at(mirrored ? width - 1 - x : x, y));
+    const bottom = new Array(width).fill(-1);
+    const top = new Array(width).fill(-1);
+    const left = new Array(height).fill(-1);
+    const right = new Array(height).fill(-1);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        if (!content(x, y)) continue;
+        if (left[y] < 0) left[y] = x;
+        right[y] = x;
+        if (top[x] < 0) top[x] = y;
+        bottom[x] = y;
+      }
+    }
+    const columns = [];
+    for (let x = 0; x < width; x++) if (bottom[x] >= 0) columns.push(x);
+    const rows = [];
+    for (let y = 0; y < height; y++) if (right[y] >= 0) rows.push(y);
+    if (columns.length < width * 0.3 || rows.length < height * 0.3) return null;
+    const minX = columns[0];
+    const maxX = columns[columns.length - 1];
+    const minY = rows[0];
+    const maxY = rows[rows.length - 1];
+    const silhouetteWidth = maxX - minX + 1;
+    const silhouetteHeight = maxY - minY + 1;
+
+    // The bottom contour kinks where the end panel meets the front: a
+    // two-segment fit finds that front-bottom-left corner.
+    let best = null;
+    const minimumSegment = Math.max(3, Math.round(silhouetteWidth * 0.03));
+    // Skip the extreme columns: the silhouette's own corners round off there.
+    const inner = columns.filter(x => x > minX + 1 && x < maxX - Math.max(2, Math.round(silhouetteWidth * 0.04)));
+    for (let k = minX + minimumSegment; k <= minX + Math.round(silhouetteWidth * 0.4); k++) {
+      const sidePoints = [];
+      const frontPoints = [];
+      for (const x of inner) {
+        if (x <= k) sidePoints.push([x, bottom[x]]);
+        if (x >= k) frontPoints.push([x, bottom[x]]);
+      }
+      if (sidePoints.length < 3) continue;
+      const sideFit = fitLine(sidePoints);
+      const frontFit = fitLine(frontPoints);
+      if (!sideFit || !frontFit) continue;
+      const error = sideFit.error + frontFit.error;
+      if (!best || error < best.error) best = { error, k, sidePoints, frontPoints };
+    }
+    if (!best) return null;
+    const { k } = best;
+    const side = fitLine(best.sidePoints, { robust: true });
+    const front = fitLine(best.frontPoints, { robust: true });
+    if (!side || !front) return null;
+    // An end panel reads as a steep rise toward the outer edge; a straight-on
+    // photo has one flat bottom edge and no panel to remove.
+    if (side.slope < 0.12 || Math.abs(front.slope) > 0.35 || side.slope < Math.abs(front.slope) * 1.8) return null;
+    if (best.error / columns.length > 1.5) return null;
+
+    // The far vertical silhouette edge is the front's other side.
+    const edgeRows = rows.filter(y => y > minY + silhouetteHeight * 0.3 && y < minY + silhouetteHeight * 0.75);
+    const edge = fitLine(edgeRows.map(y => [y, right[y]]));
+    if (!edge || Math.abs(edge.slope) > 0.15) return null;
+    const onEdge = y => right[y] >= 0 && Math.abs(right[y] - (edge.slope * y + edge.intercept)) <= Math.max(1.5, width * 0.012);
+    let topY = -1;
+    for (let y = minY; y <= maxY - 3; y++) {
+      if (onEdge(y) && onEdge(y + 1) && onEdge(y + 2)) {
+        topY = y;
+        break;
+      }
+    }
+    if (topY < 0) return null;
+    // Front bottom-right: intersection of the front bottom line and the edge.
+    const bottomRightY = (front.slope * edge.intercept + front.intercept) / (1 - front.slope * edge.slope);
+    const bottomRight = [edge.slope * bottomRightY + edge.intercept + 1, bottomRightY + 1];
+    const topRight = [edge.slope * topY + edge.intercept + 1, topY];
+    const bottomLeft = [k, front.slope * k + front.intercept + 1];
+    const topLeft = [bottomLeft[0] + topRight[0] - bottomRight[0], bottomLeft[1] + topRight[1] - bottomRight[1]];
+    const faceWidth = bottomRight[0] - bottomLeft[0];
+    const faceHeight = bottomRight[1] - topRight[1];
+    if (faceWidth < silhouetteWidth * 0.55 || faceHeight < silhouetteHeight * 0.55) return null;
+    if (topLeft[1] < minY - silhouetteHeight * 0.05) return null;
+
+    // The end panel's outer edge is the near vertical silhouette edge; its
+    // depth vector runs from the front-bottom-left corner to where the side's
+    // bottom line meets that edge.
+    const outerRows = rows.filter(y => y > minY + silhouetteHeight * 0.3 && y < minY + silhouetteHeight * 0.75);
+    const outer = fitLine(outerRows.map(y => [y, left[y]]));
+    let sideQuad = null;
+    if (outer && Math.abs(outer.slope) < 0.15) {
+      const backY = (side.slope * outer.intercept + side.intercept) / (1 - side.slope * outer.slope);
+      const backBottom = [outer.slope * backY + outer.intercept, backY + 1];
+      const depth = [backBottom[0] - bottomLeft[0], backBottom[1] - bottomLeft[1]];
+      if (depth[0] < -silhouetteWidth * 0.015) {
+        const backTop = [topLeft[0] + depth[0], topLeft[1] + depth[1]];
+        sideQuad = [backTop, topLeft, bottomLeft, backBottom];
+      }
+    }
+    const normalize = ([x, y]) => [Math.max(0, Math.min(1, (mirrored ? width - x : x) / width)), Math.max(0, Math.min(1, y / height))];
+    const frontQuad = [topLeft, topRight, bottomRight, bottomLeft].map(normalize);
+    const panel = sideQuad ? sideQuad.map(normalize) : null;
+    // Mirroring swaps left and right; restore TL, TR, BR, BL order.
+    return mirrored
+      ? { front: [frontQuad[1], frontQuad[0], frontQuad[3], frontQuad[2]], side: panel && [panel[1], panel[0], panel[3], panel[2]], error: best.error }
+      : { front: frontQuad, side: panel, error: best.error };
+  };
+
+  // The end panel may be on either side; keep the better-fitting reading.
+  const direct = detect(false);
+  const mirrored = detect(true);
+  if (direct && mirrored) return direct.error <= mirrored.error ? direct : mirrored;
+  return direct || mirrored;
 }
 
 // Real cartons continue the front design around their folds. Average the

@@ -4,6 +4,8 @@ import {
   ROOM_LAYOUT,
   artworkContentBounds,
   artworkEdgePalette,
+  detectBoxFaces,
+  displayCartonDimensions,
   boxArtworkPresentation,
   classifyBoxArtworkUrl,
   collectionRoomCatalog,
@@ -278,4 +280,50 @@ test('edge palette follows the artwork colours down the fold and flags light pri
   const white = paintedImage(10, 10, () => [240, 240, 240]);
   assert.equal(artworkEdgePalette(white, 10, 10).light, true);
   assert.equal(artworkEdgePalette(null, 0, 0).bands.length, 6);
+});
+
+function threeQuarterBox(width, height, { mirrored = false } = {}) {
+  // White backdrop; a front face (x 30..110, y 20..70) whose bottom edge rises
+  // gently to the right, and an end panel (x 10..30) whose bottom rises
+  // steeply toward its back edge, like a LEGO three-quarter box render.
+  return paintedImage(width, height, (px, y) => {
+    const x = mirrored ? width - 1 - px : px;
+    const frontBottom = 70 - (x - 30) * 0.05;
+    const sideBottom = 60 + (x - 10) * 0.5;
+    const inFront = x >= 30 && x <= 110 && y >= 20 - (x - 30) * 0.02 && y <= frontBottom;
+    const inSide = x >= 10 && x < 30 && y >= 12 + (x - 10) * 0.4 && y <= sideBottom;
+    return inFront || inSide ? [30, 40, 90] : [255, 255, 255];
+  });
+}
+
+test('box face detection finds the front and end panel of a three-quarter photo', () => {
+  const faces = detectBoxFaces(threeQuarterBox(128, 90), 128, 90);
+  assert.ok(faces);
+  const [topLeft, topRight, bottomRight, bottomLeft] = faces.front;
+  // Front-bottom-left sits at the kink, not at the silhouette's outer edge.
+  assert.ok(Math.abs(bottomLeft[0] * 128 - 30) <= 3, `bottomLeft ${bottomLeft}`);
+  assert.ok(Math.abs(bottomRight[0] * 128 - 111) <= 3, `bottomRight ${bottomRight}`);
+  assert.ok(topLeft[0] > 0.18 && topRight[0] > 0.8 && topRight[1] < bottomRight[1]);
+  assert.ok(faces.side);
+  assert.ok(faces.side[0][0] < bottomLeft[0]);
+
+  const mirrored = detectBoxFaces(threeQuarterBox(128, 90, { mirrored: true }), 128, 90);
+  assert.ok(mirrored);
+  // Mirrored photos keep TL, TR, BR, BL order in image space.
+  assert.ok(mirrored.front[0][0] < mirrored.front[1][0]);
+  assert.ok(Math.abs(mirrored.front[2][0] * 128 - (128 - 30)) <= 3);
+});
+
+test('box face detection declines straight-on art, full-bleed images and missing data', () => {
+  const straight = paintedImage(128, 90, (x, y) => (x >= 10 && x < 118 && y >= 10 && y < 80 ? [30, 40, 90] : [255, 255, 255]));
+  assert.equal(detectBoxFaces(straight, 128, 90), null);
+  const fullBleed = paintedImage(64, 64, x => (x < 32 ? [200, 20, 20] : [20, 20, 200]));
+  assert.equal(detectBoxFaces(fullBleed, 64, 64), null);
+  assert.equal(detectBoxFaces(null, 0, 0), null);
+});
+
+test('measured packaging dimensions win over photo-calibrated ratios', () => {
+  const measured = displayCartonDimensions({ set_num: '72537-1', brickset_dimensions: { width: 38, height: 26, depth: 7 } });
+  assert.equal(measured.dimensionBasis, 'measured');
+  assert.ok(Math.abs(measured.boxWidth / measured.boxHeight - 38 / 26) < 1e-6);
 });
