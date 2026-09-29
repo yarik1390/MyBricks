@@ -165,6 +165,49 @@ function getEvidenceQuality(headline: ValuationBasis[], soldSampleCount: number)
   return 'insufficient';
 }
 
+const SOLD_OUTLIER_RATIO = 2.5;
+const SOLD_AGREE_RATIO = 1.6;
+
+const spread = (a: number, b: number): number => Math.max(a, b) / Math.min(a, b);
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/**
+ * Drop a sold comp that is grossly out of line with everything else we know,
+ * but only when ANOTHER sold comp agrees with that consensus. Families collapse
+ * by weighted median, so with two sold comps in one family the higher-volume one
+ * wins outright: a mismatched PriceCharting product put a $170 BrickLink
+ * Designer set at $23.83 over ten eBay sales at $232.50 (and a modeled $258.91),
+ * while three contaminated eBay "new" sales at $375 disagreed with $1,800-$2,000
+ * everywhere else for the Imperial Shuttle. With no agreeing sold comp there is
+ * no way to tell which side is wrong, so nothing is dropped (see the conflict
+ * cap in valueSignalsV3).
+ */
+function rejectSoldOutliers(signals: PricingSignal[], flags: Set<string>): PricingSignal[] {
+  const sold = signals.filter(signal => signal.signal_type === 'sold');
+  if (sold.length < 2 || signals.length < 3) return signals;
+  const rejected = new Set<PricingSignal>();
+  for (const candidate of sold) {
+    // Market evidence only: a formula/AI estimate is not a witness.
+    const others = signals.filter(signal => signal !== candidate && signal.signal_type !== 'estimate');
+    if (others.length < 2) continue;
+    const reference = median(others.map(signal => signal.value));
+    if (spread(candidate.value, reference) <= SOLD_OUTLIER_RATIO) continue;
+    const corroborated = sold.some(other => other !== candidate
+      && spread(other.value, reference) <= SOLD_AGREE_RATIO);
+    if (corroborated) rejected.add(candidate);
+  }
+  // Never empty the sold evidence: if every sold comp looks like an outlier the
+  // reference itself is the problem.
+  if (!rejected.size || rejected.size >= sold.length) return signals;
+  flags.add('sold_outlier_rejected');
+  return signals.filter(signal => !rejected.has(signal));
+}
+
 function collapseFamilies(signals: PricingSignal[], now: number): ValuationBasis[] {
   const families = new Map<string, PricingSignal[]>();
   for (const signal of signals) {
@@ -249,7 +292,8 @@ export function valueSignalsV3(
     }
     return true;
   });
-  const families = collapseFamilies(eligible, now);
+  const screened = rejectSoldOutliers(eligible, flags);
+  const families = collapseFamilies(screened, now);
   const sold = families.filter(f => f.signal_type === 'sold');
   const supporting = families.filter(f => f.signal_type === 'modeled' || f.signal_type === 'asking');
   const estimates = families.filter(f => f.signal_type === 'estimate');
@@ -303,6 +347,15 @@ export function valueSignalsV3(
     flags.add('source_conflict');
   } else if (sold.length && !allSoldFresh) {
     confidence = 'low';
+  }
+  // Sold comps that disagree grossly INSIDE one family (eBay sold vs
+  // PriceCharting, which collapse together) are invisible to the cross-family
+  // dispersion check above, yet the family median then silently picks one.
+  // When the screen could not settle which is right, say so.
+  const soldSignalValues = screened.filter(signal => signal.signal_type === 'sold').map(signal => signal.value);
+  if (soldSignalValues.length > 1 && Math.max(...soldSignalValues) / Math.min(...soldSignalValues) > SOLD_OUTLIER_RATIO) {
+    confidence = 'low';
+    flags.add('source_conflict');
   }
 
   const halfWidth = confidence === 'high' ? 0.06 : confidence === 'medium' ? 0.15 : confidence === 'low' ? 0.30 : 0.35;
