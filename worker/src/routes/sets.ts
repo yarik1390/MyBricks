@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono';
 import { optionalMember, requireMember } from '../auth';
 import { edgeCached, invalidateSetDetail, setDetailCacheKey } from '../lib/edge-cache';
-import { formulaValuation, valuationExpiryModifier, isPlausibleMarketValue } from '../lib/valuation';
+import { formulaValuation, valuationExpiryModifier, isPlausibleMarketValue, independentRetailAnchor, plausibleAskValue } from '../lib/valuation';
 import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
 import { SORTS, NON_SET_DEMOTION, CATALOG_COLS, MARKET_EXT_JOIN, attachCatalogValuationState, toFtsPrefixQuery } from './sets-sql';
 import { scheduleSetDetailRefresh, pushEbaySoldUpdate } from './set-detail-refresh';
@@ -199,15 +199,16 @@ const searchHandler = async (c: Context<{ Bindings: Env; Variables: Variables }>
     const v = parseInt(c.req.query(key) || '', 10);
     if (!isNaN(v)) {
       const op = key.startsWith('min_') ? '>=' : '<=';
-      addFilter(`s.${col} ${op} ?`, v);
+      addFilter(`${col.includes('(') ? col : `s.${col}`} ${op} ?`, v);
     }
   };
   rangeFilter('min_year', 'year');
   rangeFilter('max_year', 'year');
   rangeFilter('min_pieces', 'pieces');
   rangeFilter('max_pieces', 'pieces');
-  rangeFilter('min_value', 'current_value');
-  rangeFilter('max_value', 'current_value');
+  // Value bounds filter on the value the cards display (blend, then legacy).
+  rangeFilter('min_value', 'COALESCE(NULLIF(s.blended_value, 0), s.current_value)');
+  rangeFilter('max_value', 'COALESCE(NULLIF(s.blended_value, 0), s.current_value)');
 
   const whereSQL = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
@@ -1035,7 +1036,7 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
     usedPricing = u || (beDetails.current_value_used ? { used_value: beDetails.current_value_used } : null);
     ebayPrices = e;
 
-    if (isPlausibleMarketValue(beDetails.current_value_new, { retailPrice: set.retail_price as number, pieces: set.pieces as number, corroborators: [set.ebay_ask_value as number, blPricing?.current_value, set.bl_new_value as number] })) {
+    if (isPlausibleMarketValue(beDetails.current_value_new, { retailPrice: independentRetailAnchor(set), pieces: set.pieces as number, corroborators: [plausibleAskValue(set), blPricing?.current_value, set.bl_new_value as number] })) {
       pricing = { current_value: beDetails.current_value_new };
       valMethod = 'brickeconomy';
     }

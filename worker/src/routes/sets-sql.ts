@@ -14,8 +14,11 @@ export const SORTS: Record<string, string> = {
   // Ascending mirrors: keep formula/local rows last and NULL ROI/years last in
   // both directions so the reversed sort still surfaces real data first.
   value_asc:  "(CASE WHEN valuation_method IN ('formula_bulk', 'local') THEN 1 ELSE 0 END), COALESCE(NULLIF(blended_value, 0), current_value) ASC",
-  roi_desc:   '(current_value / NULLIF(retail_price, 0)) DESC',
-  roi_asc:    '(CASE WHEN retail_price IS NULL OR retail_price = 0 THEN 1 ELSE 0 END), (current_value / NULLIF(retail_price, 0)) ASC',
+  // ROI ranks on the same value the cards show (blend first, then the legacy
+  // current_value) — ranking on current_value alone ordered cards by a number
+  // they don't display (e.g. a $146 legacy value under a $1,533 blend).
+  roi_desc:   '(COALESCE(NULLIF(blended_value, 0), current_value) / NULLIF(retail_price, 0)) DESC',
+  roi_asc:    '(CASE WHEN retail_price IS NULL OR retail_price = 0 THEN 1 ELSE 0 END), (COALESCE(NULLIF(blended_value, 0), current_value) / NULLIF(retail_price, 0)) ASC',
   // Newest/oldest lead with real sets: merch (Gear, Books), promo polybags and
   // placeholder rows with no piece count sink below them. "Newest" is the
   // catalog default, and without this it opened on a page of 2027 bag tags,

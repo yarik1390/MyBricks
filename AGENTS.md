@@ -206,6 +206,14 @@ filter/sort set added during the audit: `theme_group`, `category`, `year`,
   `_confidence` / `_basis` from the row's per-source columns. `blended_value` is
   **persisted** (so SQL portfolio sums can `COALESCE(blended_value, current_value)`),
   recomputed by `persistBlendedValue` / `recomputeBlendedValues`.
+- **eBay asks are screened** before any use: `plausibleAskValue` (`lib/valuation.ts`)
+  drops an ask below 0.35x / above 5x the median of the row's sold/listing comps
+  (or below 0.35x an independent RRP when no comps exist). Keyword searches for
+  popular sets return accessory listings (LED kits, stands), so raw
+  `ebay_ask_value` must never feed the deal signal, the source list, v3 or a
+  plausibility gate directly. `computeDealSignal` also refuses any "buy" more
+  than 60% under market, and the hourly `pricing-v3-shadow` run re-checks a page
+  of persisted `deal_signal='buy'` rows on its own cursor.
 - API budgets are tracked in **`api_quota`** (`lib/api-quota.ts`:
   `spendQuota`/`reserveQuota`; e.g. Brickset cap ~90/day, BrickEconomy ~80/day),
   and per-source health in **`integration_health`**.
