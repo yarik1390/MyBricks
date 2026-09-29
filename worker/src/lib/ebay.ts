@@ -189,6 +189,22 @@ const BAD_TITLE_PATTERNS = [
   /\blot\s+of\b/i,
   /\bdisplay\s+case\b/i,
   /\bcase\s+only\b/i,
+  // Accessory listings that quote the set number they fit. A keyword search
+  // for a popular set is dominated by these (the UCS Falcon's "asking price"
+  // came out at $89.95 from LED kits), so they must never count as the set.
+  // "light-up" / "light up" stay allowed: several real set names contain them.
+  /\bled\b/i,
+  /\blight(?:ing)?\s+(?:kit|set)\b/i,
+  /\blighting\b/i,
+  /\b(?:display|wall)\s+(?:stand|mount|frame|shelf)\b/i,
+  /\bstand\s+(?:for|only)\b/i,
+  /\bacrylic\b/i,
+  /\bdust\s*(?:proof|cover)\b/i,
+  /\bcompatible\b/i,
+  /\b(?:kit|stand|case|lights?|upgrade)\s+for\b/i,
+  /\bupgrade\s+(?:kit|pack)\b/i,
+  /\bnot\s+included\b/i,
+  /\bposter\b/i,
 ];
 
 export function isValidLegoSetSaleTitle(title: string, setNum: string): boolean {

@@ -9,7 +9,7 @@ import {
   type EbaySoldPrices,
 } from '../lib/ebay';
 import { beDetailsFromRow } from '../lib/brickeconomy-firecrawl';
-import { isPlausibleMarketValue } from '../lib/valuation';
+import { independentRetailAnchor, isPlausibleMarketValue, plausibleAskValue } from '../lib/valuation';
 import { persistBlendedValue } from '../lib/market-sources';
 import { callGeminiValuation } from '../lib/gemini';
 
@@ -72,7 +72,7 @@ export function scheduleSetDetailRefresh(c: RefreshCtx, activeSet: Record<string
           if (askStmt) supplementStmts.push(askStmt);
 
           if (be && be.current_value_new !== null
-              && isPlausibleMarketValue(be.current_value_new, { retailPrice: activeSet.retail_price as number, pieces: activeSet.pieces as number, corroborators: [activeSet.ebay_ask_value as number, blp?.current_value, activeSet.bl_new_value as number] })) {
+              && isPlausibleMarketValue(be.current_value_new, { retailPrice: independentRetailAnchor(activeSet), pieces: activeSet.pieces as number, corroborators: [plausibleAskValue(activeSet), blp?.current_value, activeSet.bl_new_value as number] })) {
             const defaultYr = activeSet.retired ? 0.15 : 0.10;
             const yr = (be.rolling_growth_12months != null)
               ? Math.min(0.25, Math.max(0.02, be.rolling_growth_12months / 100))
@@ -168,7 +168,7 @@ export function scheduleSetDetailRefresh(c: RefreshCtx, activeSet: Record<string
           const supplementStmts: D1PreparedStatement[] = [];
           pushEbaySoldUpdate(supplementStmts, c.env.DB, activeSet.set_num as string, ebayPrices);
           const ebayVal = ebaySoldNewValue(ebayPrices);
-          if (gemVal && isPlausibleMarketValue(gemVal.current_value, { retailPrice: activeSet.retail_price as number, pieces: activeSet.pieces as number, corroborators: [activeSet.ebay_ask_value as number, ebayVal, activeSet.bl_new_value as number] })) {
+          if (gemVal && isPlausibleMarketValue(gemVal.current_value, { retailPrice: independentRetailAnchor(activeSet), pieces: activeSet.pieces as number, corroborators: [plausibleAskValue(activeSet), ebayVal, activeSet.bl_new_value as number] })) {
             const yr = activeSet.retired ? 0.15 : 0.10;
             const forecast_2y = Math.round(gemVal.current_value * Math.pow(1 + yr, 2) * 100) / 100;
             const forecast_5y = Math.round(gemVal.current_value * Math.pow(1 + yr, 5) * 100) / 100;

@@ -250,3 +250,50 @@ const VALUATION_TTL: Record<string, string> = {
 export function valuationExpiryModifier(method: string): string {
   return VALUATION_TTL[method] ?? '+1 day';
 }
+
+// An eBay "asking" median is only a price for THIS set when it sits in a sane
+// band around the set's own sold evidence. The Browse search is keyword-based,
+// so a popular set's results are dominated by accessories that quote its number
+// (LED kits, display stands, instructions): the stored ask for the UCS
+// Millennium Falcon was $89.95 against ~$750 sold, and ~6% of catalog asks sat
+// below a third of their market value. Those junk asks then reached the deal
+// signal ("selling 93% below market"), the blend, and the plausibility gate as
+// "corroborators" (where a $30 ask can veto a real $400 value).
+const ASK_MIN_RATIO = 0.35;
+const ASK_MAX_RATIO = 5;
+
+function positiveNum(value: unknown): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
+ * The stored eBay asking median when it is plausible for this set, else null.
+ *
+ * The reference is the median of the row's SOLD/listing comps (BrickLink,
+ * eBay sold, PriceCharting, StockX). BrickEconomy is deliberately excluded:
+ * the ask is one of the corroborators that judge a BrickEconomy figure, so
+ * letting that figure judge the ask would be circular. With no comps, an
+ * independent retail anchor supplies only the floor (retired sets legitimately
+ * list at many times their RRP, so retail cannot bound the top).
+ */
+export function plausibleAskValue(row: Record<string, unknown>): number | null {
+  const ask = positiveNum(row.ebay_ask_value);
+  if (ask == null) return null;
+  const comps = [row.bl_new_value, row.ebay_new_value, row.pc_new_value, row.stockx_ask]
+    .map(positiveNum)
+    .filter((n): n is number => n != null)
+    .sort((a, b) => a - b);
+  if (comps.length) {
+    const mid = Math.floor(comps.length / 2);
+    const ref = comps.length % 2 ? comps[mid] : (comps[mid - 1] + comps[mid]) / 2;
+    return ask >= ASK_MIN_RATIO * ref && ask <= ASK_MAX_RATIO * ref ? ask : null;
+  }
+  const retail = independentRetailAnchor({
+    brickset_msrp: positiveNum(row.brickset_msrp),
+    retail_price: positiveNum(row.retail_price),
+    be_retail: positiveNum(row.be_retail),
+  });
+  if (retail != null) return ask >= ASK_MIN_RATIO * retail ? ask : null;
+  return ask;
+}

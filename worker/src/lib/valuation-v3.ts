@@ -1,4 +1,4 @@
-import { independentRetailAnchor, isPlausibleMarketValue } from './valuation';
+import { independentRetailAnchor, isPlausibleMarketValue, plausibleAskValue } from './valuation';
 
 export type PricingCondition = 'new_sealed' | 'used_complete' | 'loose';
 export type PricingCompleteness = 'sealed' | 'complete' | 'incomplete' | 'unknown';
@@ -412,11 +412,11 @@ export function legacySignalsFor(row: Record<string, unknown>): PricingSignal[] 
   const beTrusted = beNew == null ? false : isPlausibleMarketValue(beNew, {
     retailPrice: independentRetailAnchor({ brickset_msrp: positive(row.brickset_msrp), retail_price: positive(row.retail_price), be_retail: positive(row.be_retail) }),
     pieces: Number(row.pieces) || null,
-    corroborators: [positive(row.bl_new_value), positive(row.ebay_new_value), positive(row.ebay_ask_value)],
+    corroborators: [positive(row.bl_new_value), positive(row.ebay_new_value), plausibleAskValue(row)],
   });
   add({ source: 'brickeconomy_new', provider_family: 'brickeconomy', condition: 'new_sealed', signal_type: 'modeled', value: beNew, checked_at: iso(row.be_cached_at) || cached, match_status: beTrusted ? 'verified' : 'quarantined' });
   add({ source: 'brickeconomy_used', provider_family: 'brickeconomy', condition: 'used_complete', signal_type: 'modeled', value: positive(row.be_value_used), checked_at: iso(row.be_cached_at) || cached });
-  add({ source: 'ebay_asking', provider_family: 'ebay_market', condition: 'new_sealed', signal_type: 'asking', value: positive(row.ebay_ask_value), sample_count: positive(row.ebay_ask_qty), checked_at: iso(row.ebay_ask_cached_at) || cached });
+  add({ source: 'ebay_asking', provider_family: 'ebay_market', condition: 'new_sealed', signal_type: 'asking', value: plausibleAskValue(row), sample_count: positive(row.ebay_ask_qty), checked_at: iso(row.ebay_ask_cached_at) || cached });
   // StockX lowest ask — a single new/sealed listing ceiling from an INDEPENDENT
   // marketplace (its own provider_family, so it corroborates rather than collapsing
   // into ebay_market). Asking signal (0.35 weight): with any sold family it can only

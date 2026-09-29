@@ -8,6 +8,7 @@ import {
 } from './valuation-v3';
 import { recordPricingWrites } from './pricing-budget';
 import { invalidateSetDetailMany } from './edge-cache';
+import { plausibleAskValue } from './valuation';
 
 export type MarketConfidence = 'high' | 'medium' | 'low' | 'estimated';
 export type MarketFreshness = 'fresh' | 'stale' | 'expired' | 'missing';
@@ -200,11 +201,14 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
     });
   }
 
-  if (num(row.ebay_ask_value)) {
+  // Only an ask that is plausible for this set is shown; a keyword search that
+  // mostly matched accessories (LED kits, stands) is not this set's price.
+  const plausibleAsk = plausibleAskValue(row);
+  if (plausibleAsk) {
     sources.push({
       id: 'ebay_ask',
       name: 'eBay asking',
-      value: num(row.ebay_ask_value),
+      value: plausibleAsk,
       condition: 'new',
       sample_count: num(row.ebay_ask_qty),
       last_updated: text(row.ebay_ask_cached_at) || cachedAt,
@@ -732,6 +736,7 @@ export interface DealSignal {
 // the call while still catching genuine deals.
 const DEAL_BUY_THRESHOLD = 0.10;
 const DEAL_PREMIUM_THRESHOLD = 0.10;
+const DEAL_MAX_CREDIBLE_DISCOUNT = 0.6;
 
 /**
  * Compare the authoritative market value against the cheapest price the user
@@ -766,8 +771,10 @@ export function computeDealSignal(
   if (legoRetail != null && (paOffer == null || legoRetail <= paOffer)) { retail = legoRetail; retailMerchant = null; }
   else if (paOffer != null) { retail = paOffer; retailMerchant = paMerchant; }
 
-  // …vs current resale asking; take the lower across retail and resale.
-  const ask = num(row.ebay_ask_value);
+  // …vs current resale asking; take the lower across retail and resale. Only
+  // a plausible ask counts: accessory listings quoting the set number once
+  // produced "selling 96% below market" buy calls on sets nobody sells cheap.
+  const ask = plausibleAskValue(row);
   let availablePrice: number | null = null;
   let channel: 'retail' | 'resale' | null = null;
   let merchant: string | null = null;
@@ -776,6 +783,9 @@ export function computeDealSignal(
   if (availablePrice == null) return none;
 
   const discount = (mv - availablePrice) / mv;          // >0 → below market
+  // A buyable price under ~40% of a corroborated market value is a data
+  // mismatch (wrong item, stale value), not a deal — never badge or alert it.
+  if (discount > DEAL_MAX_CREDIBLE_DISCOUNT) return none;
   const discountPct = Math.round(discount * 1000) / 10; // one decimal
   const retiring = Number(row.retirement_risk_score) >= 70 || !!row.lego_retiring_soon;
 

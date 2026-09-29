@@ -3,6 +3,8 @@ import { recomputeBlendedValues } from '../lib/market-sources';
 import { pricingWritesAllowed } from '../lib/pricing-budget';
 
 const CURSOR_KEY = 'blend_recompute_cursor_v1';
+const DEAL_CURSOR_KEY = 'deal_recheck_cursor_v1';
+const DEAL_RECHECK_LIMIT = 100;
 
 // Observe D1 failures even when the shared request-path helper swallows them.
 // Zero changed rows can mean success, so it cannot gate checkpoint advancement.
@@ -77,7 +79,22 @@ export async function runBlendRecomputeBackfill(
   const setNums = results.map(row => row.set_num);
   if (!setNums.length) return { candidates: 0, recomputed: 0, limit };
 
-  const recomputed = await recomputeBlendedValues(db, setNums);
+  // Persisted "buy" calls drive the catalog Deals filter and deal alerts, but
+  // the full rotation above takes days to come back round to a row. Re-derive
+  // a page of current buy rows every run on their own cursor, so a buy call
+  // whose evidence no longer holds (e.g. an accessory-contaminated ask) drops
+  // out within hours instead of lingering in the Deals list.
+  const dealCheckpoint = await db.prepare('SELECT value FROM app_settings WHERE key=?')
+    .bind(DEAL_CURSOR_KEY).first<{ value: string | null }>();
+  const dealCursor = dealCheckpoint?.value || '';
+  const { results: dealRows } = await db.prepare(`
+    SELECT set_num FROM lego_sets WHERE deal_signal = 'buy' AND set_num > ? ORDER BY set_num LIMIT ?
+  `).bind(dealCursor, DEAL_RECHECK_LIMIT).all<{ set_num: string }>();
+  const dealNums = dealRows.map(row => row.set_num);
+  // A short page means the end of the buy list: restart from the top next run.
+  const nextDealCursor = dealNums.length < DEAL_RECHECK_LIMIT ? '' : dealNums[dealNums.length - 1];
+
+  const recomputed = await recomputeBlendedValues(db, [...new Set([...setNums, ...dealNums])]);
   observed.assertSuccess();
   // Partial writes are idempotent: any failure retries this page next time.
   // CAS prevents an overlapping run from overwriting a newer checkpoint.
@@ -89,5 +106,9 @@ export async function runBlendRecomputeBackfill(
       VALUES (?, ?, datetime('now')) ON CONFLICT(key) DO NOTHING`)
       .bind(CURSOR_KEY, setNums[setNums.length - 1]).run();
   }
+  await db.prepare(`INSERT INTO app_settings (key, value, updated_at)
+    VALUES (?, ?, datetime('now'))
+    ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`)
+    .bind(DEAL_CURSOR_KEY, nextDealCursor).run();
   return { candidates: setNums.length, recomputed, limit };
 }
