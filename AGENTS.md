@@ -214,6 +214,12 @@ filter/sort set added during the audit: `theme_group`, `category`, `year`,
   plausibility gate directly. `computeDealSignal` also refuses any "buy" more
   than 60% under market, and the hourly `pricing-v3-shadow` run re-checks a page
   of persisted `deal_signal='buy'` rows on its own cursor.
+- **Sold-comp outlier screen** (`rejectSoldOutliers`, `lib/valuation-v3.ts`): eBay
+  sold and PriceCharting collapse into one `ebay_market` family, so a grossly
+  wrong one of them used to win the family median silently. A sold comp >2.5x
+  off the median of the other market evidence is dropped when another sold comp
+  agrees with that median (within 1.6x); an unresolvable >2.5x split reads
+  `low` + `source_conflict`.
 - API budgets are tracked in **`api_quota`** (`lib/api-quota.ts`:
   `spendQuota`/`reserveQuota`; e.g. Brickset cap ~90/day, BrickEconomy ~80/day),
   and per-source health in **`integration_health`**.

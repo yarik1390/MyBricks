@@ -97,13 +97,23 @@ describe('investment-grade valuation v3', () => {
     expect(result.flags).toContain('asking_only');
   });
 
-  it('uses a robust family median and flags extreme disagreement', () => {
+  it('drops a sold outlier that two agreeing sold comps contradict', () => {
     const result = valueSignalsV3('new_sealed', [
       sold('bricklink_new', 'bricklink', 100, 8),
       sold('ebay_sold_new', 'ebay_market', 110, 8),
       sold('other_sold', 'other_market', 1000, 8),
     ]);
-    expect(result.fair_value).toBe(110);
+    expect(result.fair_value).toBeGreaterThanOrEqual(100);
+    expect(result.fair_value).toBeLessThanOrEqual(110);
+    expect(result.flags).toContain('sold_outlier_rejected');
+    expect(result.basis.some(family => family.provider_family === 'other_market')).toBe(false);
+  });
+
+  it('flags extreme disagreement it cannot resolve', () => {
+    const result = valueSignalsV3('new_sealed', [
+      sold('bricklink_new', 'bricklink', 100, 8),
+      sold('other_sold', 'other_market', 1000, 8),
+    ]);
     expect(result.confidence).toBe('low');
     expect(result.flags).toContain('source_conflict');
   });
