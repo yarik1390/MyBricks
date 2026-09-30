@@ -99,7 +99,23 @@ export async function runEbaySoldScrape(
   const CONFLICT_DUE = `(${CONFLICT_PREDICATE}
         AND (ls.ebay_new_cached_at IS NULL OR ls.ebay_new_cached_at < datetime('now', '-7 days'))
         AND (ext.ebay_sold_attempted_at IS NULL OR ext.ebay_sold_attempted_at < datetime('now', '-7 days')))`;
-  const { results: candidates } = await env.DB.prepare(`
+  type Candidate = {
+    set_num: string;
+    name: string;
+    bl_new_value: number | null;
+    bl_used_qty: number | null;
+    used_value: number | null;
+    be_value_new: number | null;
+    be_value_used: number | null;
+    bl_cached_at: string | null;
+    be_cached_at: string | null;
+    current_value: number | null;
+    cached_at: string | null;
+    valuation_method: string | null;
+    new_due: number;
+    used_due: number;
+  };
+  const selectSql = `
     SELECT ls.set_num, ls.name, ls.bl_new_value, ls.bl_used_qty, ls.used_value,
       ls.be_value_new, ls.be_value_used, ls.bl_cached_at, ls.be_cached_at,
       ls.current_value, ls.cached_at, ls.valuation_method,
@@ -123,10 +139,9 @@ export async function runEbaySoldScrape(
         ((ls.ebay_used_cached_at IS NULL OR ls.ebay_used_cached_at < datetime('now', '-30 days'))
           AND (ext.ebay_used_attempted_at IS NULL OR ext.ebay_used_attempted_at < datetime('now', '-14 days')))
       )
+`;
+  const orderSql = `
     ORDER BY
-      -- Unresolved source conflicts first: fresh eBay sold comps are the
-      -- evidence the v3 outlier screen needs to settle them.
-      CASE WHEN ${CONFLICT_DUE} THEN 0 ELSE 1 END,
       -- Uncorrelated IN rather than two correlated EXISTS: one materialized
       -- subquery instead of two lookups per candidate row. Same result set.
       CASE WHEN ls.set_num IN (
@@ -138,23 +153,19 @@ export async function runEbaySoldScrape(
       -- the scrape (Firecrawl credits) on guaranteed no-data misses.
       COALESCE(ls.bl_new_value, ls.current_value) DESC,
       ls.set_num ASC
-    LIMIT ?
-  `).bind(capLimit).all<{
-    set_num: string;
-    name: string;
-    bl_new_value: number | null;
-    bl_used_qty: number | null;
-    used_value: number | null;
-    be_value_new: number | null;
-    be_value_used: number | null;
-    bl_cached_at: string | null;
-    be_cached_at: string | null;
-    current_value: number | null;
-    cached_at: string | null;
-    valuation_method: string | null;
-    new_due: number;
-    used_due: number;
-  }>();
+`;
+  // Unresolved source conflicts take up to half of each run: fresh eBay sold
+  // comps are the evidence the v3 outlier screen needs to settle them, but the
+  // regular monthly refresh must not starve behind a long conflict backlog.
+  const conflictLimit = Math.ceil(capLimit / 2);
+  const conflicted = conflictLimit > 0
+    ? (await env.DB.prepare(`${selectSql} AND ${CONFLICT_DUE} ${orderSql} LIMIT ?`)
+        .bind(conflictLimit).all<Candidate>()).results
+    : [];
+  const { results: regular } = await env.DB.prepare(`${selectSql} ${orderSql} LIMIT ?`)
+    .bind(capLimit).all<Candidate>();
+  const picked = new Set(conflicted.map((c) => c.set_num));
+  const candidates = [...conflicted, ...regular.filter((c) => !picked.has(c.set_num))].slice(0, capLimit);
   if (!candidates.length) return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: undefined };
 
   const results = candidates;

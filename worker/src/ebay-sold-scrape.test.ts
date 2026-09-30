@@ -106,6 +106,24 @@ describe('runEbaySoldScrape', () => {
     expect(mockFetcher.mock.calls.map((c) => c[0])).toEqual(['CF-1']);
   });
 
+  it('caps conflicted sets at half a run so the regular refresh keeps moving', async () => {
+    const stmts = [];
+    for (const n of ['C1', 'C2', 'C3']) {
+      stmts.push(db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value, ebay_new_cached_at, ebay_used_cached_at)
+        VALUES (?1, ?1, 50, datetime('now','-10 days'), datetime('now','-10 days'))`).bind(n));
+      stmts.push(db.prepare(`INSERT INTO set_valuation_state (set_num, condition, flags_json) VALUES (?1,'new_sealed','["source_conflict"]')`).bind(n));
+    }
+    stmts.push(db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('R1','Regular', 10)`));
+    await db.batch(stmts);
+    mockFetcher.mockResolvedValue({ status: 'no_data', new_value: null, new_count: 0 } as any);
+
+    await runEbaySoldScrape({ ...live } as any, { limit: 4 });
+
+    const called = mockFetcher.mock.calls.map((c) => c[0]);
+    expect(called).toContain('R1');
+    expect(called.filter((n) => String(n).startsWith('C'))).toHaveLength(3);
+  });
+
   it('provider error stamps the attempt marker', async () => {
     await db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('ER-1','Err Set', 100)`).run();
     mockFetcher.mockResolvedValue({ status: 'error', new_value: null, new_count: 0, error: 'boom' } as any);

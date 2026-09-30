@@ -229,7 +229,7 @@ filter/sort set added during the audit: `theme_group`, `category`, `year`,
   the eBay/PriceCharting family with no BrickLink guide. The `45 * * * *` slot
   first runs `valuate-conflict-tiebreak` (8 sets/h, BrickLink-only, from the
   same allowance as `valuate-bl-refresh`, now 16/h), and `ebay-sold-scrape`
-  puts conflicted sets first with a 7-day retry, so a third witness can
+  gives conflicted sets up to half of each run (7-day retry), so a third witness can
   outvote the outlier (`CONFLICT_PREDICATE` in `jobs/valuate-select.ts`).
 - **One headline value**: user-facing reads use the set page's headline, not
   raw `current_value`. SQL: `COALESCE(NULLIF(blended_value, 0), current_value)`
