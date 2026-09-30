@@ -5,6 +5,26 @@ import { pricingWritesAllowed } from '../lib/pricing-budget';
 const CURSOR_KEY = 'blend_recompute_cursor_v1';
 const DEAL_CURSOR_KEY = 'deal_recheck_cursor_v1';
 const DEAL_RECHECK_LIMIT = 100;
+const SUSPECT_CURSOR_KEY = 'suspect_recheck_cursor_v1';
+const SUSPECT_RECHECK_LIMIT = 100;
+const SUSPECT_MIN_VALUE = 500;
+
+// One page of a priority lane walked on its own cursor. A short page means the
+// end of the list: the lane restarts from the top next run.
+async function lanePage(db: D1Database, key: string, sql: string, limit: number) {
+  const checkpoint = await db.prepare('SELECT value FROM app_settings WHERE key=?')
+    .bind(key).first<{ value: string | null }>();
+  const { results } = await db.prepare(sql).bind(checkpoint?.value || '', limit).all<{ set_num: string }>();
+  const setNums = results.map(row => row.set_num);
+  const next = setNums.length < limit ? '' : setNums[setNums.length - 1];
+  return {
+    setNums,
+    commit: () => db.prepare(`INSERT INTO app_settings (key, value, updated_at)
+      VALUES (?, ?, datetime('now'))
+      ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`)
+      .bind(key, next).run(),
+  };
+}
 
 // Observe D1 failures even when the shared request-path helper swallows them.
 // Zero changed rows can mean success, so it cannot gate checkpoint advancement.
@@ -84,17 +104,20 @@ export async function runBlendRecomputeBackfill(
   // a page of current buy rows every run on their own cursor, so a buy call
   // whose evidence no longer holds (e.g. an accessory-contaminated ask) drops
   // out within hours instead of lingering in the Deals list.
-  const dealCheckpoint = await db.prepare('SELECT value FROM app_settings WHERE key=?')
-    .bind(DEAL_CURSOR_KEY).first<{ value: string | null }>();
-  const dealCursor = dealCheckpoint?.value || '';
-  const { results: dealRows } = await db.prepare(`
-    SELECT set_num FROM lego_sets WHERE deal_signal = 'buy' AND set_num > ? ORDER BY set_num LIMIT ?
-  `).bind(dealCursor, DEAL_RECHECK_LIMIT).all<{ set_num: string }>();
-  const dealNums = dealRows.map(row => row.set_num);
-  // A short page means the end of the buy list: restart from the top next run.
-  const nextDealCursor = dealNums.length < DEAL_RECHECK_LIMIT ? '' : dealNums[dealNums.length - 1];
+  const deal = await lanePage(db, DEAL_CURSOR_KEY,
+    `SELECT set_num FROM lego_sets WHERE deal_signal = 'buy' AND set_num > ? ORDER BY set_num LIMIT ?`,
+    DEAL_RECHECK_LIMIT);
+  // Same idea for valuations most likely to be wrong or most costly when they
+  // are: low confidence, conflicting sources, or a high headline. A pricing
+  // fix then reaches them within a day instead of waiting a full rotation.
+  const suspect = await lanePage(db, SUSPECT_CURSOR_KEY,
+    `SELECT set_num FROM set_valuation_state
+     WHERE condition = 'new_sealed'
+       AND (confidence = 'low' OR flags_json LIKE '%source_conflict%' OR fair_value >= ${SUSPECT_MIN_VALUE})
+       AND set_num > ? ORDER BY set_num LIMIT ?`,
+    SUSPECT_RECHECK_LIMIT);
 
-  const recomputed = await recomputeBlendedValues(db, [...new Set([...setNums, ...dealNums])]);
+  const recomputed = await recomputeBlendedValues(db, [...new Set([...setNums, ...deal.setNums, ...suspect.setNums])]);
   observed.assertSuccess();
   // Partial writes are idempotent: any failure retries this page next time.
   // CAS prevents an overlapping run from overwriting a newer checkpoint.
@@ -106,9 +129,7 @@ export async function runBlendRecomputeBackfill(
       VALUES (?, ?, datetime('now')) ON CONFLICT(key) DO NOTHING`)
       .bind(CURSOR_KEY, setNums[setNums.length - 1]).run();
   }
-  await db.prepare(`INSERT INTO app_settings (key, value, updated_at)
-    VALUES (?, ?, datetime('now'))
-    ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`)
-    .bind(DEAL_CURSOR_KEY, nextDealCursor).run();
+  await deal.commit();
+  await suspect.commit();
   return { candidates: setNums.length, recomputed, limit };
 }

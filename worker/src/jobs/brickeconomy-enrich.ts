@@ -172,7 +172,11 @@ export async function runBrickEconomyEnrich(
       maybe('be_value_used', scrape.current_value_used);
       maybe('be_forecast_2y', scrape.forecast_value_new_2_years);
       maybe('be_forecast_5y', scrape.forecast_value_new_5_years);
-      maybe('be_retail', scrape.retail_price_us);
+      // Magazine gifts have no retail; the scrape reports the cover price.
+      if (scrape.retail_price_us != null) {
+        fields.push(`be_retail=CASE WHEN LOWER(COALESCE(subtheme, '')) = 'magazine gift' THEN be_retail ELSE ? END`);
+        binds.push(scrape.retail_price_us);
+      }
       maybe('be_growth_12m', scrape.rolling_growth_12months);
 
       stmts.push(env.DB.prepare(

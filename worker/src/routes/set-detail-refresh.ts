@@ -89,7 +89,7 @@ export function scheduleSetDetailRefresh(c: RefreshCtx, activeSet: Record<string
                 bl_new_qty=COALESCE(?, bl_new_qty),
                 bl_used_qty=COALESCE(?, bl_used_qty),
                 bl_cached_at=CASE WHEN ? IS NOT NULL THEN datetime('now') ELSE bl_cached_at END,
-                retail_price=COALESCE(?, retail_price),
+                retail_price=CASE WHEN LOWER(COALESCE(subtheme, '')) = 'magazine gift' THEN retail_price ELSE COALESCE(?, retail_price) END,
                 forecast_2y=?, forecast_5y=?,
                 valuation_method='brickeconomy',
                 valuation_expires_at=datetime('now', '+1 day'),
