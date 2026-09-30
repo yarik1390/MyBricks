@@ -403,7 +403,7 @@ export async function runSellTargetAlerts(env: Env): Promise<{ fired: number }> 
 // inserted row is the 30-day cooldown), so no per-row cooldown column is needed.
 async function runRetirementAlerts(env: Env): Promise<{ fired: number }> {
   const { results } = await env.DB.prepare(`
-    SELECT u.user_id, ls.set_num, ls.name AS set_name, ls.current_value, ls.image_url
+    SELECT u.user_id, ls.set_num, ls.name AS set_name, COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) AS current_value, ls.image_url
     FROM lego_sets ls
     JOIN (
       SELECT user_id, set_num FROM user_collection WHERE deleted_at IS NULL
@@ -552,7 +552,7 @@ async function runDealAlerts(env: Env): Promise<{ fired: number }> {
 // new scraping). Deduped via wishlist_alerts (alert_type='preorder', 30 days).
 async function runPreorderAlerts(env: Env): Promise<{ fired: number }> {
   const { results } = await env.DB.prepare(`
-    SELECT w.user_id, ls.set_num, ls.name AS set_name, ls.current_value, ls.image_url, ls.lego_availability
+    SELECT w.user_id, ls.set_num, ls.name AS set_name, COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) AS current_value, ls.image_url, ls.lego_availability
     FROM user_wishlist w
     JOIN lego_sets ls ON ls.set_num = w.set_num
     LEFT JOIN user_prefs up ON up.user_id = w.user_id

@@ -54,6 +54,12 @@ export interface ValuateSetsOptions {
    * pinned by BrickLink age rather than by data availability.
    */
   blStale?: boolean;
+  /**
+   * Tie-break mode: fetch a BrickLink guide for sets whose v3 valuation has an
+   * unresolved source_conflict and no recent BrickLink attempt, most valuable
+   * first, so a third independent source can outvote the outlier.
+   */
+  conflictTiebreak?: boolean;
   minValue?: number;
   includeFresh?: boolean;
   includeSupplemental?: boolean;

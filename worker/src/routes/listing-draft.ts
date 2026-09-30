@@ -32,7 +32,9 @@ export async function generateListingDraft(
     sealed: 'Factory Sealed', new: 'New / Open Box',
     used_good: 'Used - Good', used_acceptable: 'Used - Acceptable',
   };
-  const blPrice = set.current_value ? `$${Number(set.current_value).toFixed(0)}` : 'unknown';
+  // The same headline the set page shows (set is enriched by the caller).
+  const headline = Number(set.market_value) || Number(set.blended_value) || Number(set.current_value) || 0;
+  const blPrice = headline ? `$${headline.toFixed(0)}` : 'unknown';
   const ebayNew = Number(set.ebay_new_value ?? set.ebay_value ?? 0);
   const ebayUsed = Number(set.ebay_used_value ?? 0);
   const ebayPrice = condition.startsWith('used') && ebayUsed > 0

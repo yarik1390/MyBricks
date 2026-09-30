@@ -447,10 +447,22 @@ export default {
       // crons. Measured at the previous 15/h the lane refreshed every set it touched
       // but needed ~8 days for the ~2,550-set stale backlog; this roughly halves it.
       case '45 * * * *':
+        // Tie-breaker first, from the same BrickLink allowance: sets where two
+        // sources disagree get a BrickLink guide as the deciding third source.
+        await run('valuate-conflict-tiebreak', () => runValuateSets(env, {
+          scope: 'all',
+          conflictTiebreak: true,
+          limit: 8,
+          includeSupplemental: false,
+          includeEbay: false,
+          includeEbaySold: false,
+          includeAiFallback: false,
+          subrequestBudget: 100,
+        }));
         await run('valuate-bl-refresh', () => runValuateSets(env, {
           scope: 'all',
           blStale: true,
-          limit: 24,
+          limit: 16,
           includeSupplemental: false,
           includeEbay: false,
           includeEbaySold: false,

@@ -1409,6 +1409,24 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(csv).toContain('Millennium Falcon');
     });
 
+    it('exports the same headline value the set page shows, not the legacy column', async () => {
+      await db.prepare(
+        `INSERT INTO user_prefs (user_id, is_supporter) VALUES (?, 1)
+         ON CONFLICT(user_id) DO UPDATE SET is_supporter=1`
+      ).bind(userId).run();
+      await db.prepare(`UPDATE lego_sets SET current_value = 100, blended_value = 800 WHERE set_num = '75192'`).run();
+      await db.prepare(
+        `INSERT INTO user_collection (user_id, set_num, quantity, condition, purchase_price)
+         VALUES (?, '75192', 1, 'new', 700)`
+      ).bind(userId).run();
+      const csv = await (await app.fetch(new Request('http://localhost/api/collection/export', { headers: auth() }), env)).text();
+      const [header, row] = csv.split('\n');
+      const cols = header.split(',');
+      const cells = row.split(',');
+      expect(Number(cells[cols.indexOf('current_value')])).toBe(800);
+      expect(cells[cols.indexOf('roi_pct')]).toBe('14.29');
+    });
+
     it('free export keeps the entered data but omits the Pro market columns', async () => {
       await db.prepare(
         `INSERT INTO user_collection (user_id, set_num, quantity, condition, purchase_price)

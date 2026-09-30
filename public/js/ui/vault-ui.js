@@ -23,6 +23,8 @@ const esc = (value) => escapeHtml(value == null ? '' : String(value));
  */
 export function holdingValue(x) {
   if (String(x?.condition || '').startsWith('used')) {
+    // v3 used fair value first, exactly as the server's vault total does.
+    if (x?.valuation?.read_enabled && Number(x.valuation?.used?.fair_value)) return Number(x.valuation.used.fair_value);
     return Number(marketValueForCondition(x, x.condition)) || displayValueOf(x);
   }
   return displayValueOf(x);

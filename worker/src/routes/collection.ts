@@ -2,7 +2,7 @@ import { Hono, type Context } from 'hono';
 import { requireMember } from '../auth';
 import { formulaValuation } from '../lib/valuation';
 import { fetchTracked } from '../lib/http';
-import { enrichSetRecord } from '../lib/market-sources';
+import { enrichSetRecord, holdingValueForRollout, type HoldingValuationRow } from '../lib/market-sources';
 import { logEvent } from '../lib/analytics';
 import type { Env, Variables } from '../types';
 import { runSyncProcess } from './google-sync';
@@ -345,9 +345,13 @@ app.get('/export', async (c) => {
       uc.is_complete, uc.missing_pieces, uc.notes, uc.added_at, uc.sell_target,
       s.name, s.theme, s.year, s.pieces, s.minifigs,
       s.brickset_dimensions, s.packaging_type,
-      s.retail_price, s.current_value
+      s.retail_price, s.current_value, s.blended_value, s.used_value, s.ebay_used_value,
+      s.pc_new_value, s.pc_complete_value,
+      svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair
     FROM user_collection uc
     JOIN lego_sets s ON s.set_num = uc.set_num
+    LEFT JOIN set_valuation_state svn ON svn.set_num = s.set_num AND svn.condition = 'new_sealed'
+    LEFT JOIN set_valuation_state svu ON svu.set_num = s.set_num AND svu.condition = 'used_complete'
     WHERE uc.user_id = ? AND uc.deleted_at IS NULL
     ORDER BY uc.added_at DESC
   `).bind(userId).all<Record<string, unknown>>();
@@ -369,14 +373,15 @@ app.get('/export', async (c) => {
 
   const rows = results.map(r => {
     const pp = Number(r.purchase_price);
-    const cv = Number(r.current_value);
+    // Same condition-aware value as the vault total, not the legacy column.
+    const cv = holdingValueForRollout(r as HoldingValuationRow, Number(c.env.PRICING_V3_READ_PERCENT || 0));
     const roi = pp > 0 && cv > 0 ? ((cv - pp) / pp * 100).toFixed(2) : '';
     const pa = r.purchased_at ? String(r.purchased_at).slice(0, 10) : '';
     const aa = r.added_at ? String(r.added_at).slice(0, 10) : '';
     return [
       r.set_num, r.name, r.theme, r.year, r.pieces, r.minifigs,
       r.condition, r.quantity, r.purchase_price ?? '', pa,
-      ...(pro ? [r.current_value ?? '', r.retail_price ?? '', roi] : []),
+      ...(pro ? [cv || '', r.retail_price ?? '', roi] : []),
       r.storage_location ?? '', r.acquisition_source ?? '',
       r.is_complete == null ? 'true' : String(!!r.is_complete), r.missing_pieces ?? 0,
       r.notes ?? '', aa, r.sell_target ?? '',
@@ -584,7 +589,8 @@ app.get('/:id', async (c) => {
 
   const item = await c.env.DB.prepare(`
     SELECT uc.*, s.name, s.theme, s.year, s.pieces, s.minifigs,
-      s.retail_price, s.current_value, s.forecast_2y, s.forecast_5y, s.image_url
+      s.retail_price, COALESCE(NULLIF(s.blended_value, 0), s.current_value) AS current_value,
+      s.forecast_2y, s.forecast_5y, s.image_url
     FROM user_collection uc
     JOIN lego_sets s ON s.set_num = uc.set_num
     WHERE uc.id=? AND uc.user_id=? AND uc.deleted_at IS NULL

@@ -1024,7 +1024,7 @@ function handleBulkExport() {
       item.pieces,
       item.quantity,
       item.purchase_price ?? '',
-      item.current_value || '',
+      holdingValue(item) || '',
       `"${(item.storage_location || '').replace(/"/g, '""')}"`
     ].join(",");
     csvContent += csvRow + "\n";

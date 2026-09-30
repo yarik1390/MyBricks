@@ -108,12 +108,13 @@ export async function runBlendRecomputeBackfill(
     `SELECT set_num FROM lego_sets WHERE deal_signal = 'buy' AND set_num > ? ORDER BY set_num LIMIT ?`,
     DEAL_RECHECK_LIMIT);
   // Same idea for valuations most likely to be wrong or most costly when they
-  // are: low confidence, conflicting sources, or a high headline. A pricing
+  // are: conflicting sources or a high headline (plain 'low' confidence is
+  // most of the catalog, mostly just stale sources, so it isn't a signal). A pricing
   // fix then reaches them within a day instead of waiting a full rotation.
   const suspect = await lanePage(db, SUSPECT_CURSOR_KEY,
     `SELECT set_num FROM set_valuation_state
      WHERE condition = 'new_sealed'
-       AND (confidence = 'low' OR flags_json LIKE '%source_conflict%' OR fair_value >= ${SUSPECT_MIN_VALUE})
+       AND (flags_json LIKE '%source_conflict%' OR fair_value >= ${SUSPECT_MIN_VALUE})
        AND set_num > ? ORDER BY set_num LIMIT ?`,
     SUSPECT_RECHECK_LIMIT);
 

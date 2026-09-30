@@ -4,6 +4,7 @@ import { firecrawlEnabled } from '../lib/pricing-flags';
 import { FIRECRAWL_MAX_CONCURRENCY } from '../lib/firecrawl';
 import { quotaRemaining } from '../lib/api-quota';
 import { recomputeBlendedValues } from '../lib/market-sources';
+import { CONFLICT_PREDICATE } from './valuate-select';
 import { recordPricingWrites } from '../lib/pricing-budget';
 import { ebaySoldLaneEnabled, sourceEnabled } from '../lib/source-config';
 import {
@@ -94,20 +95,28 @@ export async function runEbaySoldScrape(
   // only stamps set_market_ext; it never stamps either blend-facing cached_at
   // column. This lets one scrape fill the much broader used market without an
   // absent condition masquerading as fresh evidence.
+  // Conflicted sets retry sealed comps weekly instead of monthly.
+  const CONFLICT_DUE = `(${CONFLICT_PREDICATE}
+        AND (ls.ebay_new_cached_at IS NULL OR ls.ebay_new_cached_at < datetime('now', '-7 days'))
+        AND (ext.ebay_sold_attempted_at IS NULL OR ext.ebay_sold_attempted_at < datetime('now', '-7 days')))`;
   const { results: candidates } = await env.DB.prepare(`
     SELECT ls.set_num, ls.name, ls.bl_new_value, ls.bl_used_qty, ls.used_value,
       ls.be_value_new, ls.be_value_used, ls.bl_cached_at, ls.be_cached_at,
       ls.current_value, ls.cached_at, ls.valuation_method,
-      CASE WHEN (ls.ebay_new_cached_at IS NULL OR ls.ebay_new_cached_at < datetime('now', '-30 days'))
-        AND (ext.ebay_sold_attempted_at IS NULL OR ext.ebay_sold_attempted_at < datetime('now', '-14 days'))
+      CASE WHEN ((ls.ebay_new_cached_at IS NULL OR ls.ebay_new_cached_at < datetime('now', '-30 days'))
+        AND (ext.ebay_sold_attempted_at IS NULL OR ext.ebay_sold_attempted_at < datetime('now', '-14 days')))
+        OR ${CONFLICT_DUE}
         THEN 1 ELSE 0 END AS new_due,
       CASE WHEN (ls.ebay_used_cached_at IS NULL OR ls.ebay_used_cached_at < datetime('now', '-30 days'))
         AND (ext.ebay_used_attempted_at IS NULL OR ext.ebay_used_attempted_at < datetime('now', '-14 days'))
         THEN 1 ELSE 0 END AS used_due
     FROM lego_sets ls
     LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
-    WHERE (ls.bl_new_value IS NOT NULL OR ls.used_value IS NOT NULL OR ls.valuation_method = 'brickeconomy')
+    WHERE (ls.bl_new_value IS NOT NULL OR ls.used_value IS NOT NULL OR ls.valuation_method = 'brickeconomy'
+           OR ${CONFLICT_PREDICATE})
       AND (
+        ${CONFLICT_DUE}
+        OR
         ((ls.ebay_new_cached_at IS NULL OR ls.ebay_new_cached_at < datetime('now', '-30 days'))
           AND (ext.ebay_sold_attempted_at IS NULL OR ext.ebay_sold_attempted_at < datetime('now', '-14 days')))
         OR
@@ -115,6 +124,9 @@ export async function runEbaySoldScrape(
           AND (ext.ebay_used_attempted_at IS NULL OR ext.ebay_used_attempted_at < datetime('now', '-14 days')))
       )
     ORDER BY
+      -- Unresolved source conflicts first: fresh eBay sold comps are the
+      -- evidence the v3 outlier screen needs to settle them.
+      CASE WHEN ${CONFLICT_DUE} THEN 0 ELSE 1 END,
       -- Uncorrelated IN rather than two correlated EXISTS: one materialized
       -- subquery instead of two lookups per candidate row. Same result set.
       CASE WHEN ls.set_num IN (
