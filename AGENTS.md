@@ -227,9 +227,10 @@ filter/sort set added during the audit: `theme_group`, `category`, `year`,
   cursor, so a pricing fix reaches them within a day.
 - **Magazine gifts have no retail**: nightly `db-hygiene` clears a
   retail_price/be_retail on `subtheme='Magazine Gift'` rows without a Brickset
-  MSRP (scrapes/AI filled in the magazine's cover price), and the AI/BE
-  writers never set one. The same job flags sets 12+ years old with no exit
-  date and no LEGO.com availability as retired.
+  MSRP (scrapes/AI filled in the magazine's cover price); the AI, BrickEconomy
+  and catalog-import writers never set one. The same job flags sets 12+ years
+  old with no exit date and no LEGO.com status (or `sold_out`) as retired;
+  `out_of_stock` is temporary and stock refresh skips retired rows.
 - API budgets are tracked in **`api_quota`** (`lib/api-quota.ts`:
   `spendQuota`/`reserveQuota`; e.g. Brickset cap ~90/day, BrickEconomy ~80/day),
   and per-source health in **`integration_health`**.

@@ -161,7 +161,10 @@ export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, 
         AND year > 0 AND year <= CAST(strftime('%Y', 'now') AS INTEGER) - 12
         AND COALESCE(lego_in_stock, 0) = 0
         AND COALESCE(lego_retiring_soon, 0) = 0
-        AND COALESCE(lego_availability, '') NOT IN ('in_stock', 'pre_order', 'back_order', 'coming_soon', 'retiring')
+        -- Only when LEGO.com never reported it, or reported it sold out:
+        -- out_of_stock is temporary, and the stock refresh skips retired
+        -- rows, so a wrong flag here could never heal.
+        AND COALESCE(lego_availability, 'sold_out') = 'sold_out'
     `).run();
     oldSetsRetired = (fix.meta?.changes as number | undefined) ?? 0;
   } catch (e) {
@@ -226,8 +229,8 @@ async function healImplausibleBeValues(env: Env): Promise<number> {
 // Magazine gifts are never sold by LEGO, so they have no retail price. Scrapes
 // and AI estimates filled in the magazine's cover price ($29.99-$59.99 for a
 // 14-piece polybag), which showed up as a -85% loss on every one of them. Clear
-// it unless Brickset has a real MSRP. Formula rows are left alone: their retail
-// is the piece-count estimate the catalog import rewrites on every run.
+// it unless Brickset has a real MSRP; formula rows lose their synthetic
+// piece-count retail too (the catalog import no longer seeds one for gifts).
 async function scrubGiftRetail(env: Env): Promise<number> {
   try {
     const { results } = await env.DB.prepare(`
@@ -235,7 +238,6 @@ async function scrubGiftRetail(env: Env): Promise<number> {
       WHERE LOWER(COALESCE(subtheme, '')) = 'magazine gift'
         AND brickset_msrp IS NULL
         AND (retail_price IS NOT NULL OR be_retail IS NOT NULL)
-        AND COALESCE(valuation_method, '') NOT LIKE 'formula%'
       LIMIT 500
     `).all<{ set_num: string }>();
     if (!results.length) return 0;

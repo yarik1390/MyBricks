@@ -27,16 +27,16 @@ describe('magazine gift retail', () => {
     expect(row.be_retail).toBeNull();
   });
 
-  it('keeps a Brickset MSRP, formula rows, and ordinary sets', async () => {
+  it('keeps a Brickset MSRP and ordinary sets, and drops a formula gift\'s synthetic retail', async () => {
     await db.batch([
       db.prepare(`INSERT INTO lego_sets (set_num, name, subtheme, retail_price, brickset_msrp, valuation_method) VALUES ('G-1', 'G', 'Magazine Gift', 4.99, 4.99, 'market')`),
       db.prepare(`INSERT INTO lego_sets (set_num, name, subtheme, retail_price, valuation_method) VALUES ('F-1', 'F', 'Magazine Gift', 3.83, 'formula_bulk')`),
       db.prepare(`INSERT INTO lego_sets (set_num, name, subtheme, retail_price, valuation_method) VALUES ('S-1', 'S', 'Modular Buildings', 229.99, 'market')`),
     ]);
     const r = await runDbHygiene(env as any);
-    expect(r.giftRetailScrubbed).toBe(0);
+    expect(r.giftRetailScrubbed).toBe(1);
     const { results } = await db.prepare(`SELECT retail_price FROM lego_sets ORDER BY set_num`).all<any>();
-    expect(results.map((x: any) => x.retail_price)).toEqual([3.83, 4.99, 229.99]);
+    expect(results.map((x: any) => x.retail_price)).toEqual([null, 4.99, 229.99]);
   });
 });
 
@@ -47,12 +47,14 @@ describe('old sets retired', () => {
       db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired) VALUES ('1301-1', 'LEGO Mosaic, Large', 1955, 0)`),
       db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired, lego_in_stock) VALUES ('10179-1', 'Old but reissued', 2007, 0, 1)`),
       db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired) VALUES ('75192-1', 'Millennium Falcon', 2017, 0)`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired, lego_availability) VALUES ('10220-1', 'Temporarily out', 2011, 0, 'out_of_stock')`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired, lego_availability) VALUES ('10030-1', 'Sold out', 2002, 0, 'sold_out')`),
       db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired, exit_date) VALUES ('X-1', 'Dated', ?, 0, '2099-12-31')`).bind(y - 20),
     ]);
     const r = await runDbHygiene(env as any);
-    expect(r.oldSetsRetired).toBe(1);
+    expect(r.oldSetsRetired).toBe(2);
     const { results } = await db.prepare(`SELECT set_num, retired FROM lego_sets ORDER BY set_num`).all<any>();
-    expect(Object.fromEntries(results.map((x: any) => [x.set_num, x.retired]))).toEqual({ '10179-1': 0, '1301-1': 1, '75192-1': 0, 'X-1': 0 });
+    expect(Object.fromEntries(results.map((x: any) => [x.set_num, x.retired]))).toEqual({ '10030-1': 1, '10179-1': 0, '10220-1': 0, '1301-1': 1, '75192-1': 0, 'X-1': 0 });
   });
 });
 

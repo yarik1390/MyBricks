@@ -184,7 +184,11 @@ export async function importSets(db: D1Database, env?: Env, options: CatalogImpo
       name = s.name, year = s.year, theme = s.theme,
       pieces = s.pieces, minifigs = s.minifigs,
       image_url = COALESCE(s.image_url, ls.image_url),
-      retail_price = CASE WHEN ls.valuation_method IN ${PROTECTED} THEN ls.retail_price ELSE s.retail_price END,
+      -- Magazine gifts have no retail beyond a real Brickset MSRP: never
+      -- seed the piece-count estimate.
+      retail_price = CASE WHEN ls.valuation_method IN ${PROTECTED} THEN ls.retail_price
+                          WHEN LOWER(COALESCE(ls.subtheme, '')) = 'magazine gift' THEN ls.brickset_msrp
+                          ELSE s.retail_price END,
       current_value = CASE WHEN ls.valuation_method IN ${PROTECTED} THEN ls.current_value ELSE s.current_value END,
       forecast_2y = CASE WHEN ls.valuation_method IN ${PROTECTED} THEN ls.forecast_2y ELSE s.forecast_2y END,
       forecast_5y = CASE WHEN ls.valuation_method IN ${PROTECTED} THEN ls.forecast_5y ELSE s.forecast_5y END,
@@ -196,7 +200,8 @@ export async function importSets(db: D1Database, env?: Env, options: CatalogImpo
       OR s.pieces IS NOT ls.pieces OR s.minifigs IS NOT ls.minifigs
       OR COALESCE(s.image_url, ls.image_url) IS NOT ls.image_url
       OR (ls.valuation_method NOT IN ${PROTECTED} AND (
-        s.retail_price IS NOT ls.retail_price OR s.current_value IS NOT ls.current_value
+        (CASE WHEN LOWER(COALESCE(ls.subtheme, '')) = 'magazine gift' THEN ls.brickset_msrp ELSE s.retail_price END) IS NOT ls.retail_price
+        OR s.current_value IS NOT ls.current_value
         OR s.forecast_2y IS NOT ls.forecast_2y OR s.forecast_5y IS NOT ls.forecast_5y
         OR ls.valuation_method IS NOT 'formula_bulk'))
     )
