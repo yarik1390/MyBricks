@@ -220,6 +220,16 @@ filter/sort set added during the audit: `theme_group`, `category`, `year`,
   off the median of the other market evidence is dropped when another sold comp
   agrees with that median (within 1.6x); an unresolvable >2.5x split reads
   `low` + `source_conflict`.
+- **Priority re-check lanes** (`jobs/recompute-blends.ts`): besides the full
+  rotation (~3 days), each hourly run re-derives a page of persisted `buy` rows
+  and a page of suspect valuations (new_sealed `low` confidence,
+  `source_conflict`, or fair value >= $500), each on its own `app_settings`
+  cursor, so a pricing fix reaches them within a day.
+- **Magazine gifts have no retail**: nightly `db-hygiene` clears a
+  retail_price/be_retail on `subtheme='Magazine Gift'` rows without a Brickset
+  MSRP (scrapes/AI filled in the magazine's cover price), and the AI/BE
+  writers never set one. The same job flags sets 12+ years old with no exit
+  date and no LEGO.com availability as retired.
 - API budgets are tracked in **`api_quota`** (`lib/api-quota.ts`:
   `spendQuota`/`reserveQuota`; e.g. Brickset cap ~90/day, BrickEconomy ~80/day),
   and per-source health in **`integration_health`**.

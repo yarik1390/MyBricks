@@ -7,7 +7,7 @@ import { recomputeBlendedValues } from '../lib/market-sources';
 // Daily cleanup of unbounded tables. Each table accumulates rows that are only
 // useful for a short window: rate-limit counters, short-lived OAuth nonces, and
 // import job history. Without this, they grow forever on a busy deployment.
-export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, number>; retailBackfilled: number; comingSoonHealed: number; futureRetiredHealed: number; retailEchoScrubbed: number; beValuesHealed: number; staleCronRuns: number; opsAlerts: number }> {
+export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, number>; retailBackfilled: number; comingSoonHealed: number; futureRetiredHealed: number; retailEchoScrubbed: number; beValuesHealed: number; giftRetailScrubbed: number; oldSetsRetired: number; staleCronRuns: number; opsAlerts: number }> {
   // Close out cron_runs rows orphaned at 'running' by a killed invocation, so the
   // admin Activity view doesn't show dead jobs as live indefinitely.
   const staleCronRuns = await sweepStaleCronRuns(env);
@@ -148,8 +148,27 @@ export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, 
   }
 
   const beValuesHealed = await healImplausibleBeValues(env);
+  const giftRetailScrubbed = await scrubGiftRetail(env);
 
-  return { deleted, retailBackfilled, comingSoonHealed, futureRetiredHealed, retailEchoScrubbed, beValuesHealed, staleCronRuns, opsAlerts: ops.alerts.length };
+  // Decades-old sets still flagged in production: no exit date, not on sale,
+  // released 12+ years ago (the Brickset-dated heal above can't reach them).
+  // The 12-year bar clears long-runners like the UCS Falcon (2017, in stock).
+  let oldSetsRetired = 0;
+  try {
+    const fix = await env.DB.prepare(`
+      UPDATE lego_sets SET retired = 1
+      WHERE retired = 0 AND exit_date IS NULL
+        AND year > 0 AND year <= CAST(strftime('%Y', 'now') AS INTEGER) - 12
+        AND COALESCE(lego_in_stock, 0) = 0
+        AND COALESCE(lego_retiring_soon, 0) = 0
+        AND COALESCE(lego_availability, '') NOT IN ('in_stock', 'pre_order', 'back_order', 'coming_soon', 'retiring')
+    `).run();
+    oldSetsRetired = (fix.meta?.changes as number | undefined) ?? 0;
+  } catch (e) {
+    console.warn('[db-hygiene] old-set retire failed:', (e as Error).message);
+  }
+
+  return { deleted, retailBackfilled, comingSoonHealed, futureRetiredHealed, retailEchoScrubbed, beValuesHealed, giftRetailScrubbed, oldSetsRetired, staleCronRuns, opsAlerts: ops.alerts.length };
 }
 
 // Rows whose current_value came from an UNCORROBORATED BrickEconomy scrape that
@@ -200,6 +219,36 @@ async function healImplausibleBeValues(env: Env): Promise<number> {
     return results.length;
   } catch (e) {
     console.warn('[db-hygiene] BE value heal failed:', (e as Error).message);
+    return 0;
+  }
+}
+
+// Magazine gifts are never sold by LEGO, so they have no retail price. Scrapes
+// and AI estimates filled in the magazine's cover price ($29.99-$59.99 for a
+// 14-piece polybag), which showed up as a -85% loss on every one of them. Clear
+// it unless Brickset has a real MSRP. Formula rows are left alone: their retail
+// is the piece-count estimate the catalog import rewrites on every run.
+async function scrubGiftRetail(env: Env): Promise<number> {
+  try {
+    const { results } = await env.DB.prepare(`
+      SELECT set_num FROM lego_sets
+      WHERE LOWER(COALESCE(subtheme, '')) = 'magazine gift'
+        AND brickset_msrp IS NULL
+        AND (retail_price IS NOT NULL OR be_retail IS NOT NULL)
+        AND COALESCE(valuation_method, '') NOT LIKE 'formula%'
+      LIMIT 500
+    `).all<{ set_num: string }>();
+    if (!results.length) return 0;
+    const nums = results.map((r) => r.set_num);
+    const stmts = nums.map((n) => env.DB.prepare(
+      `UPDATE lego_sets SET retail_price = NULL, be_retail = NULL WHERE set_num = ?`,
+    ).bind(n));
+    for (let i = 0; i < stmts.length; i += 90) await env.DB.batch(stmts.slice(i, i + 90));
+    // Re-blend so ROI, deal calls and the v3 state stop using the fake anchor.
+    await recomputeBlendedValues(env.DB, nums);
+    return nums.length;
+  } catch (e) {
+    console.warn('[db-hygiene] gift retail scrub failed:', (e as Error).message);
     return 0;
   }
 }

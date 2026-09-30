@@ -1133,7 +1133,7 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
       c.env.DB.prepare(`
         UPDATE lego_sets SET
           current_value=?, forecast_2y=?, forecast_5y=?,
-          retail_price=COALESCE(?, retail_price),
+          retail_price=CASE WHEN LOWER(COALESCE(subtheme, '')) = 'magazine gift' THEN retail_price ELSE COALESCE(?, retail_price) END,
           valuation_method=?,
           valuation_expires_at=datetime('now', ?),
           cached_at=datetime('now')

@@ -584,7 +584,11 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     }
     await env.DB.prepare(`
       UPDATE lego_sets SET
-        retail_price=?, current_value=?, forecast_2y=?, forecast_5y=?,
+        -- An AI retail guess only fills a gap; it never replaces a real
+        -- figure, and magazine gifts have no retail to guess.
+        retail_price=CASE WHEN LOWER(COALESCE(subtheme, '')) = 'magazine gift' THEN retail_price
+                          ELSE COALESCE(retail_price, ?) END,
+        current_value=?, forecast_2y=?, forecast_5y=?,
         valuation_method='ai',
         valuation_expires_at=datetime('now', ?),
         cached_at=datetime('now')
