@@ -227,13 +227,17 @@ filter/sort set added during the audit: `theme_group`, `category`, `year`,
   them within a day.
 - **Conflict tie-breakers**: most `source_conflict` states are BrickEconomy vs
   the eBay/PriceCharting family with no BrickLink guide. The `45 * * * *` slot
-  first runs `valuate-conflict-tiebreak` (8 sets/h, BrickLink-only, from the
+  first runs `valuate-conflict-tiebreak` (12 sets/h, BrickLink-only, from the
   same allowance as `valuate-bl-refresh`, now 16/h), and `ebay-sold-scrape`
   gives conflicted sets up to half of each run (7-day retry), so a third witness can
   outvote the outlier (`CONFLICT_PREDICATE` in `jobs/valuate-select.ts`).
   Note: the eBay sold-scrape lane is compliance-held in production
   (`ebaySoldLaneEnabled` is test-only), so in practice BrickLink is the
   tie-breaker; existing eBay sold comps are frozen and only age.
+  Both BrickLink lanes (`blStale`, `conflictTiebreak`) force the BrickLink
+  fetch in `runValuateSets` even when a plausible BrickEconomy value already
+  set the headline (before, they reserved quota but never called BrickLink
+  for BrickEconomy-covered sets).
 - **Stale evidence** (`lib/valuation-v3.ts`): a stale family votes at half
   weight (`STALE_FAMILY_WEIGHT`); a stale sold headline corroborated by a
   fresh BrickEconomy guide within 1.25x stays `medium` instead of `low`; sold

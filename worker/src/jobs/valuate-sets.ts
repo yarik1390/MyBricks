@@ -127,6 +127,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   const bricklinkEnabled = await sourceEnabled(env, 'bricklink');
   const brickeconomyEnabled = await sourceEnabled(env, 'brickeconomy');
   const includeSupplemental = options.includeSupplemental === true;
+  const forceBrickLink = options.blStale === true || options.conflictTiebreak === true;
   const bricklinkConfigured = bricklinkEnabled && !!env.BRICKLINK_CONSUMER_KEY;
   const includeEbay = options.includeEbay === true && await sourceEnabled(env, 'ebay')
     && !!env.EBAY_APP_ID && !!env.EBAY_CLIENT_SECRET;
@@ -355,7 +356,10 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       }
     }
 
-    if (includeSupplemental && bricklinkConfigured && !blBackedOff) {
+    // The BrickLink lanes exist to fetch a BrickLink guide, so they must call
+    // BrickLink even when a plausible BrickEconomy value already answered the
+    // headline; selectDueSets reserved BrickLink quota for every row they pick.
+    if ((includeSupplemental || forceBrickLink) && bricklinkConfigured && !blBackedOff) {
       blPricing = await loadBrickLinkNew();
       if (!usedPricing && wantUsed) usedPricing = await loadBrickLinkUsed();
     }

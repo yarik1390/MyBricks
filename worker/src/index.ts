@@ -449,15 +449,20 @@ export default {
       case '45 * * * *':
         // Tie-breaker first, from the same BrickLink allowance: sets where two
         // sources disagree get a BrickLink guide as the deciding third source.
+        // BrickLink is the only sanctioned third witness (the eBay sold lane is
+        // compliance-held), so this lane gets 12/h (+96 calls/day worst case).
+        // The 4,500 ledger fails closed, so any overshoot only trims the last
+        // lanes of the day, never BrickLink's own 5,000 cap.
         await run('valuate-conflict-tiebreak', () => runValuateSets(env, {
           scope: 'all',
           conflictTiebreak: true,
-          limit: 8,
+          limit: 12,
           includeSupplemental: false,
           includeEbay: false,
           includeEbaySold: false,
           includeAiFallback: false,
-          subrequestBudget: 100,
+          // packBatch: (budget - 20) / 7-8 per BrickLink-only set must fit 12.
+          subrequestBudget: 120,
         }));
         await run('valuate-bl-refresh', () => runValuateSets(env, {
           scope: 'all',
