@@ -85,6 +85,11 @@ export const BRICKLINK_REFRESH_ORDER_SQL = `
   COALESCE(NULLIF(ls.blended_value, 0), ls.current_value, 0) DESC,
   COALESCE(ls.year, 0) DESC`;
 
+/** Sets whose persisted sealed valuation carries an unresolved source conflict. */
+export const CONFLICT_PREDICATE = `ls.set_num IN (
+  SELECT set_num FROM set_valuation_state
+  WHERE condition = 'new_sealed' AND flags_json LIKE '%source_conflict%')`;
+
 export interface ValuationQuotaGrants {
   bricklink: number;
   ebay: number;
@@ -101,7 +106,7 @@ export interface SelectDueSetsConfig {
   scope: 'owned' | 'all';
   options: {
     limit?: number; includeFresh?: boolean; prioritizeValue?: boolean; formulaHead?: boolean;
-    blStale?: boolean;
+    blStale?: boolean; conflictTiebreak?: boolean;
     minValue?: number; subrequestBudget?: number; onProgress?: unknown;
   };
   includeSupplemental: boolean;
@@ -159,7 +164,8 @@ export async function selectDueSets(
     : '';
   // blStale supplies its own freshness criterion (BrickLink age), and its targets are
   // deliberately NOT "due" by the normal rule — that is exactly why they were starving.
-  const freshnessPredicate = (options.includeFresh || options.blStale) ? '' : `AND ${duePredicate}`;
+  const conflictTiebreak = options.conflictTiebreak === true;
+  const freshnessPredicate = (options.includeFresh || options.blStale || conflictTiebreak) ? '' : `AND ${duePredicate}`;
   // High-value mode: restrict to real (non-formula) market values worth at
   // least minValue, and order the most valuable first so the catalog head
   // stays fresh rather than the oldest-expiry rotation used for coverage.
@@ -172,7 +178,17 @@ export async function selectDueSets(
   // Begin at 22h so rows selected by the hourly lane have execution headroom
   // before BrickLink's 24h display gate. Selection alone makes no freshness
   // promise: only a successful downstream fetch advances bl_cached_at.
-  const valuePredicate = blStale
+  const valuePredicate = conflictTiebreak
+    // Two sources disagree and nothing breaks the tie (mostly BrickEconomy vs
+    // PriceCharting with no BrickLink guide). A BrickLink guide is the
+    // independent third witness the v3 outlier screen needs.
+    ? includeBrickLink
+      ? `AND ${CONFLICT_PREDICATE}
+        AND (ls.bl_cached_at IS NULL OR ls.bl_cached_at < datetime('now', '-7 days'))
+        AND (sme.bl_nodata_at IS NULL OR julianday(sme.bl_nodata_at) IS NULL
+             OR julianday(sme.bl_nodata_at) <= julianday('now', '-90 days'))`
+      : 'AND 0=1'
+    : blStale
     ? includeBrickLink
       ? `AND ls.bl_new_value IS NOT NULL
         AND (ls.bl_cached_at IS NULL OR ls.bl_cached_at < datetime('now', '-22 hours'))
@@ -189,7 +205,7 @@ export async function selectDueSets(
       AND COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) >= ${minValueFloor}
       AND (ls.cached_at IS NULL OR ls.cached_at < datetime('now', '-3 days'))`
     : '';
-  const valueOrder = (prioritizeValue || formulaHead)
+  const valueOrder = (prioritizeValue || formulaHead || conflictTiebreak)
     ? `COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) DESC,`
     : '';
 

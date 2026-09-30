@@ -4,7 +4,8 @@ import { state } from '../state.js';
 import { api } from '../api.js';
 import { I } from '../icons.js';
 import { isLocalAiSupported, createLocalAiSession, getLocalAiAvailability, checkGemma3Downloaded, runLocalTextInference } from '../lib/local-ai.js';
-import { displayValueOf } from '../lib/pure.js';
+import { displayValueOf, withDisplayValue } from '../lib/pure.js';
+import { holdingValue } from '../ui/vault-ui.js';
 import { t, tPlural } from '../lib/i18n.js';
 import { topbar, iconBtn, icon, btn, emptyState, sheetBody, row } from '../ui/kit.js';
 import { showSheet, hideSheet } from './sheet.js';
@@ -713,8 +714,9 @@ function clearAdvisorHistory() {
 
 function buildLocalAdvisorContext() {
   const p = state.portfolio;
-  const items = p?.items || [];
-  const wl = state.wishlist || [];
+  // Value each copy the way the vault does, so the advisor quotes the same numbers.
+  const items = (p?.items || []).map((i) => ({ ...i, current_value: holdingValue(i) }));
+  const wl = (state.wishlist || []).map(withDisplayValue);
   
   const lines = [];
   lines.push(`USER COLLECTION (${p?.count || items.length} sets)`);

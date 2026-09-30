@@ -1,3 +1,4 @@
+import { holdingValueForRollout, type HoldingValuationRow } from '../lib/market-sources';
 import { Hono } from 'hono';
 import { requireMember } from '../auth';
 import { fetchTracked } from '../lib/http';
@@ -295,22 +296,27 @@ export async function runSyncProcess(userId: string, refreshToken: string, exist
       target_price: number | null; added_at: string;
     };
 
+    const rolloutPercent = Number(env.PRICING_V3_READ_PERCENT || 0);
     const [collRes, wishRes] = await Promise.all([
       env.DB.prepare(`
         SELECT uc.set_num, ls.name, ls.year, ls.theme, ls.pieces, ls.minifigs,
-               uc.condition, uc.purchase_price, ls.current_value, uc.quantity, uc.added_at
+               uc.condition, uc.purchase_price, ls.current_value, uc.quantity, uc.added_at,
+               ls.blended_value, ls.used_value, ls.ebay_used_value, ls.pc_new_value, ls.pc_complete_value,
+               svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair
         FROM user_collection uc
         JOIN lego_sets ls ON ls.set_num = uc.set_num
+        LEFT JOIN set_valuation_state svn ON svn.set_num = ls.set_num AND svn.condition = 'new_sealed'
+        LEFT JOIN set_valuation_state svu ON svu.set_num = ls.set_num AND svu.condition = 'used_complete'
         WHERE uc.user_id = ? AND uc.deleted_at IS NULL
         ORDER BY uc.added_at DESC
       `).bind(userId).all() as unknown as { results: CollectionRow[] },
 
       env.DB.prepare(`
-        SELECT uw.set_num, ls.name, ls.theme, ls.current_value, uw.target_price, uw.added_at
+        SELECT uw.set_num, ls.name, ls.theme, COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) AS current_value, uw.target_price, uw.added_at
         FROM user_wishlist uw
         JOIN lego_sets ls ON ls.set_num = uw.set_num
         WHERE uw.user_id = ?
-        ORDER BY ls.current_value DESC
+        ORDER BY COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) DESC
       `).bind(userId).all() as unknown as { results: WishlistRow[] },
     ]);
 
@@ -331,7 +337,8 @@ export async function runSyncProcess(userId: string, refreshToken: string, exist
         item.minifigs || 0,
         item.condition || 'new',
         item.purchase_price || 0,
-        item.current_value || 0,
+        // Same condition-aware value as the vault total.
+        holdingValueForRollout(item as unknown as HoldingValuationRow, rolloutPercent),
         item.quantity || 1,
         item.added_at || '',
         `=IF(H${rowNum}>0,(I${rowNum}-H${rowNum})/H${rowNum},"")`,

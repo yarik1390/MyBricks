@@ -157,3 +157,34 @@ describe('legacy sealed-target priority semantics', () => {
     ]);
   });
 });
+
+describe('conflict tie-break selection', () => {
+  beforeEach(async () => {
+    await applyTestTables(db, [
+      'lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist',
+      'api_quota', 'integration_health', 'pricing_signals', 'set_valuation_state',
+    ]);
+  });
+
+  const conflict = (setNum: string, flags = '["source_conflict"]') => db.prepare(
+    `INSERT INTO set_valuation_state (set_num, condition, flags_json) VALUES (?1, 'new_sealed', ?2)`,
+  ).bind(setNum, flags).run();
+
+  it('picks only conflicted sets without a recent BrickLink guide or a no-data backoff', async () => {
+    await insertSet('NO-BL', { blValue: null, ageHours: 24 * 400, value: 300 });
+    await insertSet('STALE-BL', { ageHours: 24 * 10, value: 900 });
+    await insertSet('FRESH-BL', { ageHours: 24 * 2, value: 1000 });
+    await insertSet('BACKED-OFF', { blValue: null, ageHours: 24 * 400, value: 800 });
+    await insertSet('AGREE', { blValue: null, ageHours: 24 * 400, value: 700 });
+    for (const s of ['NO-BL', 'STALE-BL', 'FRESH-BL', 'BACKED-OFF']) await conflict(s);
+    await conflict('AGREE', '["stale_source"]');
+    await db.prepare(`INSERT INTO set_market_ext (set_num, bl_nodata_at) VALUES ('BACKED-OFF', datetime('now', '-5 days'))`).run();
+
+    const { results } = await selectDueSets({ ...(env as any), BRICKLINK_CONSUMER_KEY: 'test-key' }, {
+      scope: 'all', options: { limit: 20, conflictTiebreak: true },
+      includeSupplemental: false, includeBrickLink: true, includeEbay: false,
+      includeEbaySold: false, includeAiFallback: false,
+    });
+    expect(results.map((row) => row.set_num).sort()).toEqual(['NO-BL', 'STALE-BL']);
+  });
+});

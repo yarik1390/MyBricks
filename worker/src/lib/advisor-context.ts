@@ -10,7 +10,7 @@ import { enrichSetRecord } from './market-sources';
 export async function buildAdvisorContext(userId: string, env: Env): Promise<string> {
   const [topSets, wishlist, stats, movers, trends, themes, rareFigs] = await Promise.all([
     env.DB.prepare(`
-      SELECT ls.set_num, ls.name, ls.theme, ls.current_value, ls.retail_price,
+      SELECT ls.set_num, ls.name, ls.theme, COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) AS current_value, ls.retail_price,
              COALESCE(ls.ebay_new_value, ls.ebay_value) AS ebay_value,
              ls.ebay_used_value, ls.retired, ls.retirement_risk_score,
              ls.valuation_method, ls.valuation_expires_at, ls.cached_at,
@@ -23,7 +23,7 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
       FROM user_collection uc
       JOIN lego_sets ls ON ls.set_num = uc.set_num
       WHERE uc.user_id = ? AND uc.deleted_at IS NULL
-      ORDER BY ls.current_value DESC
+      ORDER BY COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) DESC
       LIMIT 25
     `).bind(userId).all<{
       set_num: string; name: string; theme: string | null;
@@ -40,7 +40,7 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
     }>(),
 
     env.DB.prepare(`
-      SELECT ls.set_num, ls.name, ls.current_value,
+      SELECT ls.set_num, ls.name, COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) AS current_value,
              COALESCE(ls.ebay_new_value, ls.ebay_value) AS ebay_value,
              ls.ebay_used_value, ls.valuation_method,
              ls.valuation_expires_at, ls.cached_at, ls.bl_new_value, ls.bl_new_qty,
@@ -50,7 +50,7 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
       FROM user_wishlist uw
       JOIN lego_sets ls ON ls.set_num = uw.set_num
       WHERE uw.user_id = ?
-      ORDER BY ls.current_value DESC
+      ORDER BY COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) DESC
       LIMIT 15
     `).bind(userId).all<{
       set_num: string; name: string; current_value: number;
@@ -63,7 +63,7 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
 
     env.DB.prepare(`
       SELECT COUNT(*) as set_count,
-             COALESCE(SUM(ls.current_value * uc.quantity), 0) as total_value,
+             COALESCE(SUM(COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) * uc.quantity), 0) as total_value,
              COALESCE(SUM(COALESCE(uc.purchase_price, 0) * uc.quantity), 0) as total_paid
       FROM user_collection uc
       JOIN lego_sets ls ON ls.set_num = uc.set_num
@@ -71,7 +71,7 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
     `).bind(userId).first<{ set_count: number; total_value: number; total_paid: number }>(),
 
     env.DB.prepare(`
-      SELECT set_num, name, current_value, retail_price, valuation_method
+      SELECT set_num, name, COALESCE(NULLIF(blended_value, 0), current_value) AS current_value, retail_price, valuation_method
       FROM lego_sets
       WHERE valuation_expires_at > datetime('now', '-14 days')
         AND valuation_method IN ('market', 'brickeconomy', 'ai', 'ebay_rss', 'ebay_sold')
@@ -80,7 +80,7 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
           UNION
           SELECT set_num FROM user_wishlist WHERE user_id = ?
         )
-      ORDER BY current_value DESC
+      ORDER BY COALESCE(NULLIF(blended_value, 0), current_value) DESC
       LIMIT 10
     `).bind(userId, userId).all<{
       set_num: string; name: string; current_value: number;
@@ -105,7 +105,7 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
     env.DB.prepare(`
       SELECT ls.theme,
         COUNT(*) as sets,
-        ROUND(SUM(ls.current_value * uc.quantity), 0) as value,
+        ROUND(SUM(COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) * uc.quantity), 0) as value,
         ROUND(SUM(COALESCE(uc.purchase_price, 0) * uc.quantity), 0) as paid
       FROM user_collection uc
       JOIN lego_sets ls ON ls.set_num = uc.set_num

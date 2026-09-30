@@ -631,11 +631,11 @@ app.get('/wrapped', async (c) => {
   // Best performer among currently-owned sets with a real purchase price.
   const best = await c.env.DB.prepare(`
     SELECT uc.set_num, s.name, s.image_url, uc.purchase_price,
-           COALESCE(s.blended_value, s.current_value) AS value_now
+           COALESCE(NULLIF(s.blended_value, 0), s.current_value) AS value_now
     FROM user_collection uc JOIN lego_sets s ON s.set_num = uc.set_num
     WHERE uc.user_id=? AND uc.deleted_at IS NULL AND uc.purchase_price > 0
-      AND COALESCE(s.blended_value, s.current_value) > 0
-    ORDER BY (COALESCE(s.blended_value, s.current_value) - uc.purchase_price) / uc.purchase_price DESC
+      AND COALESCE(NULLIF(s.blended_value, 0), s.current_value) > 0
+    ORDER BY (COALESCE(NULLIF(s.blended_value, 0), s.current_value) - uc.purchase_price) / uc.purchase_price DESC
     LIMIT 1
   `).bind(userId).first<Record<string, unknown>>();
 

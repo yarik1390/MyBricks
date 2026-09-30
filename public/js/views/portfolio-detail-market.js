@@ -5,7 +5,7 @@
 import { I } from '../icons.js';
 import { pricechartingAttributionHTML } from '../lib/partner-attribution.js';
 import { amazonSlotHTML } from '../lib/amazon-affiliate.js';
-import { ebaySoldSummary } from '../lib/pure.js';
+import { ebaySoldSummary, displayValueOf } from '../lib/pure.js';
 import { escapeHtml, fmtMoney, fmtPct, fmtDateUpdated, trendBadgeHTML } from '../utils.js';
 import { t, tPlural } from '../lib/i18n.js';
 import { deriveSoldEvidence, soldEvidenceHTML as soldEvidenceHTMLImpl } from '../lib/sold-evidence.js';
@@ -29,7 +29,8 @@ function genericSourceLabel(s) {
 }
 
 export function priceStripHTML(set, entry) {
-  const delta = entry?.purchase_price ? (set.current_value - entry.purchase_price) / entry.purchase_price : null;
+  const headline = (set.valuation?.read_enabled && Number(set.valuation?.new?.fair_value)) || displayValueOf(set);
+  const delta = entry?.purchase_price ? (headline - entry.purchase_price) / entry.purchase_price : null;
 
   // Column 1: primary new-condition valuation source
   const isBE = set.valuation_method === "brickeconomy";
@@ -40,7 +41,7 @@ export function priceStripHTML(set, entry) {
     : (set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold") ? "eBay sold"
     : set.valuation_method === "formula_bulk" ? "Formula"
     : "Market";
-  const val1 = (set.valuation?.read_enabled && Number(set.valuation?.new?.fair_value)) || set.current_value;
+  const val1 = headline;
 
   // Column 2: cross-source BrickLink new (when BE is primary, show BL independently)
   //           or BrickLink used when BL is primary (most useful comparison)

@@ -330,7 +330,7 @@ export function marketValueForCondition(set = {}, condition = "new") {
  */
 export function pricePerPiece(set = {}) {
   const pieces = Number(set.pieces);
-  const value = positiveNumber(set.current_value);
+  const value = positiveNumber(displayValueOf(set));
   if (!Number.isFinite(pieces) || pieces < 20 || !value) return null;
   const ppp = value / pieces;
   const baseline = 0.11 * (set.retired ? 1.4 : 1.0);

@@ -222,9 +222,22 @@ filter/sort set added during the audit: `theme_group`, `category`, `year`,
   `low` + `source_conflict`.
 - **Priority re-check lanes** (`jobs/recompute-blends.ts`): besides the full
   rotation (~3 days), each hourly run re-derives a page of persisted `buy` rows
-  and a page of suspect valuations (new_sealed `low` confidence,
-  `source_conflict`, or fair value >= $500), each on its own `app_settings`
-  cursor, so a pricing fix reaches them within a day.
+  and a page of suspect valuations (new_sealed `source_conflict`, or fair value
+  >= $500), each on its own `app_settings` cursor, so a pricing fix reaches
+  them within a day.
+- **Conflict tie-breakers**: most `source_conflict` states are BrickEconomy vs
+  the eBay/PriceCharting family with no BrickLink guide. The `45 * * * *` slot
+  first runs `valuate-conflict-tiebreak` (8 sets/h, BrickLink-only, from the
+  same allowance as `valuate-bl-refresh`, now 16/h), and `ebay-sold-scrape`
+  gives conflicted sets up to half of each run (7-day retry), so a third witness can
+  outvote the outlier (`CONFLICT_PREDICATE` in `jobs/valuate-select.ts`).
+- **One headline value**: user-facing reads use the set page's headline, not
+  raw `current_value`. SQL: `COALESCE(NULLIF(blended_value, 0), current_value)`
+  (`blended_value` is the persisted v3 fair value); holdings:
+  `holdingValueForRollout` (server) / `holdingValue` in `ui/vault-ui.js`
+  (client, v3 used fair value for used copies). Covers the advisor context,
+  Google Sheets sync, CSV exports, retiring/pre-order alerts and the listing
+  draft. `marketValueForCondition` stays raw-comps on purpose (deal/flip math).
 - **Magazine gifts have no retail**: nightly `db-hygiene` clears a
   retail_price/be_retail on `subtheme='Magazine Gift'` rows without a Brickset
   MSRP (scrapes/AI filled in the magazine's cover price); the AI, BrickEconomy

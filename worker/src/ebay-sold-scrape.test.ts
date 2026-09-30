@@ -31,7 +31,7 @@ const live = { ...bare, FIRECRAWL_API_KEY: 'fc-test' };
 describe('runEbaySoldScrape', () => {
   beforeEach(async () => {
     vi.clearAllMocks(); // reset fetcher call history so cross-test calls don't leak
-    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota', 'integration_health', 'pricing_write_ledger', 'app_settings', 'pricing_anomalies', 'ebay_sold_observations']);
+    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota', 'integration_health', 'pricing_write_ledger', 'app_settings', 'pricing_anomalies', 'ebay_sold_observations', 'set_valuation_state']);
     clearSourceConfigCache();
     await saveSourceConfig(bare as any, { ebay: { enabled: true } });
     clearSourceConfigCache();
@@ -85,6 +85,43 @@ describe('runEbaySoldScrape', () => {
       WHERE day=date('now') AND job='ebay-sold-scrape'
     `).first<{ rows_written: number }>();
     expect(Number(ledger?.rows_written)).toBe(4); // 2 cooldown markers + 2 immutable no-data observations
+  });
+
+  it('puts sets with an unresolved source conflict first and retries them weekly', async () => {
+    await db.batch([
+      // Not due by the monthly rule (sealed comps 10 days old), but conflicted.
+      db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value, ebay_new_cached_at, ebay_used_cached_at)
+        VALUES ('CF-1','Conflicted', 50, datetime('now','-10 days'), datetime('now','-10 days'))`),
+      db.prepare(`INSERT INTO set_valuation_state (set_num, condition, flags_json) VALUES ('CF-1','new_sealed','["source_conflict"]')`),
+      // Same freshness, no conflict: stays out.
+      db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value, ebay_new_cached_at, ebay_used_cached_at)
+        VALUES ('OK-1','Settled', 5000, datetime('now','-10 days'), datetime('now','-10 days'))`),
+      // Due by the monthly rule and worth more, but not conflicted: goes after.
+      db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('DUE-1','Due', 9000)`),
+    ]);
+    mockFetcher.mockResolvedValue({ status: 'no_data', new_value: null, new_count: 0 } as any);
+
+    await runEbaySoldScrape({ ...live } as any, { limit: 1 });
+
+    expect(mockFetcher.mock.calls.map((c) => c[0])).toEqual(['CF-1']);
+  });
+
+  it('caps conflicted sets at half a run so the regular refresh keeps moving', async () => {
+    const stmts = [];
+    for (const n of ['C1', 'C2', 'C3']) {
+      stmts.push(db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value, ebay_new_cached_at, ebay_used_cached_at)
+        VALUES (?1, ?1, 50, datetime('now','-10 days'), datetime('now','-10 days'))`).bind(n));
+      stmts.push(db.prepare(`INSERT INTO set_valuation_state (set_num, condition, flags_json) VALUES (?1,'new_sealed','["source_conflict"]')`).bind(n));
+    }
+    stmts.push(db.prepare(`INSERT INTO lego_sets (set_num, name, bl_new_value) VALUES ('R1','Regular', 10)`));
+    await db.batch(stmts);
+    mockFetcher.mockResolvedValue({ status: 'no_data', new_value: null, new_count: 0 } as any);
+
+    await runEbaySoldScrape({ ...live } as any, { limit: 4 });
+
+    const called = mockFetcher.mock.calls.map((c) => c[0]);
+    expect(called).toContain('R1');
+    expect(called.filter((n) => String(n).startsWith('C'))).toHaveLength(3);
   });
 
   it('provider error stamps the attempt marker', async () => {

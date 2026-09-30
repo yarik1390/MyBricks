@@ -664,7 +664,7 @@ function guestCollectionEntry(setNum) {
 
 function normalizeCollectionItem(item) {
   const quantity = Math.max(1, parseInt(String(item.quantity ?? 1), 10) || 1);
-  const current = Number(item.current_value) || 0;
+  const current = displayValueOf(item);
   const paid = Number(item.purchase_price) || 0;
   let annualized = null;
   if (item.purchased_at && paid > 0 && current > 0) {
@@ -1010,12 +1010,12 @@ function guestCollectionCSV() {
   };
   const rows = guestCollectionPayload().items.map(r => {
     const pp = Number(r.purchase_price);
-    const cv = Number(r.current_value);
+    const cv = displayValueOf(r);
     const roi = pp > 0 && cv > 0 ? ((cv - pp) / pp * 100).toFixed(2) : '';
     return [
       r.set_num, r.name, r.theme, r.year, r.pieces, r.minifigs,
       r.condition, r.quantity, r.purchase_price ?? '', r.purchased_at ? String(r.purchased_at).slice(0, 10) : '',
-      r.current_value ?? '', r.retail_price ?? '', roi,
+      cv || '', r.retail_price ?? '', roi,
       r.storage_location ?? '', r.acquisition_source ?? '',
       r.is_complete == null ? 'true' : String(!!r.is_complete), r.missing_pieces ?? 0,
       r.notes ?? '', r.added_at ? String(r.added_at).slice(0, 10) : '',
@@ -1081,7 +1081,7 @@ async function guestMinifigs(path) {
 
 function guestAdvisorResponse(q = '') {
   const p = guestCollectionPayload();
-  const items = p.items || [];
+  const items = (p.items || []).map((i) => ({ ...i, current_value: displayValueOf(i) }));
   const topValue = items.slice().sort((a, b) => (Number(b.current_value) || 0) - (Number(a.current_value) || 0)).slice(0, 3);
   const topRoi = items
     .filter(i => Number(i.purchase_price) > 0 && Number(i.current_value) > 0)
