@@ -231,6 +231,16 @@ filter/sort set added during the audit: `theme_group`, `category`, `year`,
   same allowance as `valuate-bl-refresh`, now 16/h), and `ebay-sold-scrape`
   gives conflicted sets up to half of each run (7-day retry), so a third witness can
   outvote the outlier (`CONFLICT_PREDICATE` in `jobs/valuate-select.ts`).
+  Note: the eBay sold-scrape lane is compliance-held in production
+  (`ebaySoldLaneEnabled` is test-only), so in practice BrickLink is the
+  tie-breaker; existing eBay sold comps are frozen and only age.
+- **Stale evidence** (`lib/valuation-v3.ts`): a stale family votes at half
+  weight (`STALE_FAMILY_WEIGHT`); a stale sold headline corroborated by a
+  fresh BrickEconomy guide within 1.25x stays `medium` instead of `low`; sold
+  comps unchecked for 180+ days (`SOLD_EXPIRED_DAYS`) leave the headline when
+  other sold/modeled evidence remains (`expired_source` flag). PriceCharting
+  rows re-confirmed daily can still read stale because `source_observed_at`
+  only moves when the price changes (90-day observation window).
 - **One headline value**: user-facing reads use the set page's headline, not
   raw `current_value`. SQL: `COALESCE(NULLIF(blended_value, 0), current_value)`
   (`blended_value` is the persisted v3 fair value); holdings:

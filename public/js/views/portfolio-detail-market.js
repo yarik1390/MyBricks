@@ -144,6 +144,8 @@ const FLAG_LABELS = {
   legacy_estimate: 'Legacy estimate',
   legacy_signal: 'Legacy signal',
   stale_data: 'Stale data',
+  stale_source: 'Stale data',
+  expired_source: 'Stale data',
   wide_range: 'Wide range',
 };
 const flagLabel = (flag) => FLAG_LABELS[flag] || String(flag).replaceAll('_', ' ');
@@ -174,7 +176,7 @@ function conditionStateHTML(state, label) {
         <div><dt>Independent families</dt><dd>${Number(state.independent_family_count || 0)}</dd></div>
         <div><dt>As of</dt><dd>${state.as_of ? escapeHtml(fmtDateUpdated(state.as_of)) : 'Pending'}</dd></div>
       </dl>
-      ${flags.length ? `<div class="pricing-warning-row"><span class="u-sr-only">Data note:</span>${flags.map((flag) => `<span>${escapeHtml(flagLabel(flag))}</span>`).join('')}</div>` : ''}
+      ${flags.length ? `<div class="pricing-warning-row"><span class="u-sr-only">Data note:</span>${[...new Set(flags.map(flagLabel))].map((label) => `<span>${escapeHtml(label)}</span>`).join('')}</div>` : ''}
     </article>`;
 }
 

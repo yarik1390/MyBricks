@@ -250,3 +250,51 @@ describe('pricing v3 rollout consistency', () => {
     expect(pricingV3ReadEnabled(holding.set_num, 100)).toBe(true);
   });
 });
+
+describe('stale evidence', () => {
+  const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+  const aged = (signal: PricingSignal, days: number): PricingSignal => ({
+    ...signal, checked_at: daysAgo(days), source_observed_at: daysAgo(days),
+  });
+  const modeled = (value: number, days = 0): PricingSignal => ({
+    ...aged(sold('brickeconomy_new', 'brickeconomy', value, 0), days), signal_type: 'modeled',
+  });
+
+  it('keeps a stale sold comp at medium when a fresh guide agrees', () => {
+    const result = valueSignalsV3('new_sealed', [aged(sold('pricecharting', 'ebay_market', 100, 20), 40), modeled(110)]);
+    expect(result.fair_value).toBe(100);
+    expect(result.confidence).toBe('medium');
+    expect(result.flags).toContain('stale_source');
+  });
+
+  it('stays low when the fresh guide disagrees with the stale sold comp', () => {
+    const result = valueSignalsV3('new_sealed', [aged(sold('pricecharting', 'ebay_market', 100, 20), 40), modeled(140)]);
+    expect(result.confidence).toBe('low');
+  });
+
+  it('stays low when the guide is stale too', () => {
+    const result = valueSignalsV3('new_sealed', [aged(sold('pricecharting', 'ebay_market', 100, 20), 40), modeled(105, 30)]);
+    expect(result.confidence).toBe('low');
+  });
+
+  it('lets a fresh sold family outweigh a stale one', () => {
+    const result = valueSignalsV3('new_sealed', [
+      sold('bricklink_new', 'bricklink', 100, 5),
+      aged(sold('pricecharting', 'ebay_market', 120, 20), 40),
+    ]);
+    expect(result.fair_value).toBe(100);
+  });
+
+  it('drops a half-year-old sold comp when other evidence remains', () => {
+    const result = valueSignalsV3('new_sealed', [aged(sold('ebay_sold_new', 'ebay_market', 300, 10), 200), modeled(100)]);
+    expect(result.fair_value).toBe(100);
+    expect(result.flags).toContain('expired_source');
+  });
+
+  it('keeps a half-year-old sold comp when it is the only evidence', () => {
+    const result = valueSignalsV3('new_sealed', [aged(sold('ebay_sold_new', 'ebay_market', 300, 10), 200)]);
+    expect(result.fair_value).toBe(300);
+    expect(result.confidence).toBe('low');
+    expect(result.flags).toContain('expired_source');
+  });
+});

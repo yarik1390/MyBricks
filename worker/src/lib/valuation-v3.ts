@@ -85,6 +85,15 @@ export interface ForecastV3 {
 const DAY_MS = 86_400_000;
 const SOURCE_FRESH_DAYS = 14;
 const SOLD_OBSERVATION_DAYS = 90;
+// A sold comp nobody has re-checked in half a year is history, not a market.
+// It leaves the headline whenever other eligible evidence remains; a set whose
+// only evidence is that old comp keeps it (flagged) rather than losing a value.
+const SOLD_EXPIRED_DAYS = 180;
+// Stale families still vote, at half strength, so fresher evidence wins ties.
+const STALE_FAMILY_WEIGHT = 0.5;
+// A fresh independent modeled family this close to a stale sold headline
+// corroborates it: the price is still believable, just not freshly proven.
+const STALE_CORROBORATION_RATIO = 1.25;
 const HISTORY_ANOMALY_HIGH = 2.5;
 const HISTORY_ANOMALY_LOW = 0.4;
 
@@ -292,7 +301,12 @@ export function valueSignalsV3(
     }
     return true;
   });
-  const screened = rejectSoldOutliers(eligible, flags);
+  const unexpired = eligible.filter(signal =>
+    signal.signal_type !== 'sold' || ageDays(signal.checked_at, now) <= SOLD_EXPIRED_DAYS);
+  const dropExpired = unexpired.length < eligible.length
+    && unexpired.some(signal => signal.signal_type === 'sold' || signal.signal_type === 'modeled');
+  if (unexpired.length < eligible.length) flags.add('expired_source');
+  const screened = rejectSoldOutliers(dropExpired ? unexpired : eligible, flags);
   const families = collapseFamilies(screened, now);
   const sold = families.filter(f => f.signal_type === 'sold');
   const supporting = families.filter(f => f.signal_type === 'modeled' || f.signal_type === 'asking');
@@ -333,6 +347,7 @@ export function valueSignalsV3(
     value: family.value,
     weight: (family.signal_type === 'sold' ? 1 : family.signal_type === 'modeled' ? 0.65 : 0.25)
       * (0.7 + Math.min(family.sample_count, 20) / 50)
+      * (family.fresh ? 1 : STALE_FAMILY_WEIGHT)
       * family.trust_multiplier,
   }))));
   const soldValues = sold.map(f => f.value);
@@ -346,7 +361,10 @@ export function valueSignalsV3(
     confidence = soldDispersion > 2.2 ? 'low' : 'medium';
     flags.add('source_conflict');
   } else if (sold.length && !allSoldFresh) {
-    confidence = 'low';
+    const corroborated = supporting.some(family => family.signal_type === 'modeled'
+      && family.fresh && family.identity_verified
+      && Math.max(family.value, fairValue) / Math.min(family.value, fairValue) <= STALE_CORROBORATION_RATIO);
+    confidence = corroborated ? 'medium' : 'low';
   }
   // Sold comps that disagree grossly INSIDE one family (eBay sold vs
   // PriceCharting, which collapse together) are invisible to the cross-family
