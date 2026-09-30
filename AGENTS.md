@@ -227,7 +227,7 @@ filter/sort set added during the audit: `theme_group`, `category`, `year`,
   them within a day.
 - **Conflict tie-breakers**: most `source_conflict` states are BrickEconomy vs
   the eBay/PriceCharting family with no BrickLink guide. The `45 * * * *` slot
-  first runs `valuate-conflict-tiebreak` (8 sets/h, BrickLink-only, from the
+  first runs `valuate-conflict-tiebreak` (12 sets/h, BrickLink-only, from the
   same allowance as `valuate-bl-refresh`, now 16/h), and `ebay-sold-scrape`
   gives conflicted sets up to half of each run (7-day retry), so a third witness can
   outvote the outlier (`CONFLICT_PREDICATE` in `jobs/valuate-select.ts`).
