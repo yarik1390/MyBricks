@@ -234,6 +234,10 @@ filter/sort set added during the audit: `theme_group`, `category`, `year`,
   Note: the eBay sold-scrape lane is compliance-held in production
   (`ebaySoldLaneEnabled` is test-only), so in practice BrickLink is the
   tie-breaker; existing eBay sold comps are frozen and only age.
+  Both BrickLink lanes (`blStale`, `conflictTiebreak`) force the BrickLink
+  fetch in `runValuateSets` even when a plausible BrickEconomy value already
+  set the headline (before, they reserved quota but never called BrickLink
+  for BrickEconomy-covered sets).
 - **Stale evidence** (`lib/valuation-v3.ts`): a stale family votes at half
   weight (`STALE_FAMILY_WEIGHT`); a stale sold headline corroborated by a
   fresh BrickEconomy guide within 1.25x stays `medium` instead of `low`; sold

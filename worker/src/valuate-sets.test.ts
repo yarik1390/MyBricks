@@ -91,6 +91,43 @@ describe('runValuateSets — BrickLink no-data backoff correctness', () => {
   });
 });
 
+describe('runValuateSets — BrickLink lanes call BrickLink even when BrickEconomy answered', () => {
+  beforeEach(async () => {
+    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'set_valuation_state', 'user_collection', 'user_wishlist', 'api_quota', 'integration_health']);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const guide = () => vi.fn(async () => new Response(
+    JSON.stringify({ meta: { code: 200 }, data: { unit_quantity: 12, total_quantity: 12, qty_avg_price: '130.00', avg_price: '130.00', min_price: '110.00', max_price: '150.00' } }),
+    { status: 200 },
+  ));
+  const blRow = async (setNum: string) => db.prepare(`SELECT bl_new_value, bl_cached_at FROM lego_sets WHERE set_num=?`)
+    .bind(setNum).first<{ bl_new_value: number | null; bl_cached_at: string | null }>();
+
+  it('conflict tie-break fetches a BrickLink guide for a BrickEconomy-valued set', async () => {
+    await seedDueSet({ set_num: '99010-1', be_value_new: 120, retail_price: 99.99, brickset_msrp: 99.99, valuation_method: 'brickeconomy', current_value: 120 });
+    await db.prepare(`INSERT INTO set_valuation_state (set_num, condition, flags_json) VALUES ('99010-1','new_sealed','["source_conflict"]')`).run();
+    const fetchSpy = guide();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await runValuateSets({ ...env, CACHE_KV: undefined, ...blCreds, ...noSources } as any, { ...OPTS, conflictTiebreak: true });
+
+    expect(fetchSpy).toHaveBeenCalled();
+    expect((await blRow('99010-1'))?.bl_cached_at).toBeTruthy();
+  });
+
+  it('BrickLink refresh lane refreshes a stale guide for a BrickEconomy-valued set', async () => {
+    await seedDueSet({ set_num: '99011-1', be_value_new: 120, retail_price: 99.99, brickset_msrp: 99.99, valuation_method: 'brickeconomy', current_value: 120, bl_new_value: 100, bl_cached_at: '2026-01-01 00:00:00' });
+    const fetchSpy = guide();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await runValuateSets({ ...env, CACHE_KV: undefined, ...blCreds, ...noSources } as any, { ...OPTS, blStale: true });
+
+    expect(fetchSpy).toHaveBeenCalled();
+    expect((await blRow('99011-1'))?.bl_cached_at).not.toBe('2026-01-01 00:00:00');
+  });
+});
+
 // The valuation budget is finite (~5,000 BrickLink calls/day), so WHAT the queue
 // picks is as consequential as how fast it runs.
 describe('selectDueSets queue composition', () => {
