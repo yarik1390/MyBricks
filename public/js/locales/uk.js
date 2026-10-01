@@ -1883,3 +1883,7 @@ Object.assign(uk.contributions, {
   starRatingOther: 'Оцініть {n} з 5',
   ratingRequired: 'Оцінка (обов’язково)',
 });
+
+// Sold-or-remove prompt and the BrickLink sales import.
+Object.assign(uk.bvSet, {"removeAskTitle": "Ви його продали?", "removeAskSub": "Якщо {name} продано, вкажіть ціну. Вона залишається приватною і допомагає оцінкам лише як анонімне середнє.", "removeAskSold": "Так, записати продаж", "removeAskJust": "Ні, просто прибрати"});
+Object.assign(uk.data, {"blSalesTitle": "Імпорт продажів BrickLink", "blSalesSub": "Експортуйте «Orders Received» зі свого магазину BrickLink у CSV. Продані набори залишають сховище з ціною продажу й враховуються в реалізованому прибутку.", "blSalesPick": "Вибрати CSV продажів", "blSalesImport": "Імпортувати продажі", "blSalesResult": "✓ {sold}, {skipped}. {errors}", "salesRecordedCountOne": "Записано {n} продаж", "salesRecordedCountFew": "Записано {n} продажі", "salesRecordedCountMany": "Записано {n} продажів", "salesRecordedCountOther": "Записано {n} продажу"});

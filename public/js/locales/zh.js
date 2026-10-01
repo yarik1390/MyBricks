@@ -1745,3 +1745,7 @@ Object.assign(zh.contributions, {
   starRatingOther: '评 {n} 分（满分 5 分）',
   ratingRequired: '评分（必填）',
 });
+
+// Sold-or-remove prompt and the BrickLink sales import.
+Object.assign(zh.bvSet, {"removeAskTitle": "你卖掉了吗？", "removeAskSub": "如果 {name} 已售出，请填写售价。售价保持私密，只以匿名平均值帮助大家的估值。", "removeAskSold": "是，记录这次出售", "removeAskJust": "否，仅移除"});
+Object.assign(zh.data, {"blSalesTitle": "导入 BrickLink 销售记录", "blSalesSub": "从你的 BrickLink 店铺导出 “Orders Received” CSV。已售套装会带着售价离开收藏，并计入已实现收益。", "blSalesPick": "选择销售 CSV", "blSalesImport": "导入销售记录", "blSalesResult": "✓ {sold}，{skipped}。{errors}", "salesRecordedCountOne": "已记录 {n} 笔销售", "salesRecordedCountOther": "已记录 {n} 笔销售"});

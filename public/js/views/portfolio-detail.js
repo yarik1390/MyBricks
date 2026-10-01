@@ -727,13 +727,18 @@ function openWhySheet(set, entry) {
 // Remove this holding (confirm + Undo snackbar) — from the Your copy sheet or
 // the copies stepper going below one.
 async function removeFromVault(set, entry) {
-  const ok = await confirmSheet({
+  // Signed-in collectors are asked whether the set was sold first: a sale
+  // price recorded here feeds the anonymized community sold prices, which a
+  // plain removal throws away. Guests keep the plain confirm (no account, no
+  // community data).
+  const choice = isGuestMode() ? ((await confirmSheet({
     title: "Remove from vault?",
     message: `Remove ${set.name} from your vault? Your notes and quantity for this set will be cleared.`,
     confirmLabel: "Remove",
     danger: true,
-  });
-  if (!ok) return;
+  })) ? "remove" : null) : await removeOrSellChoice(set);
+  if (choice === "sold") { openRecordSaleSheet(set, entry); return; }
+  if (choice !== "remove") return;
   try {
     // Keep the payload so a mis-tap after the confirm is still recoverable —
     // soft deletes make re-POSTing the entry a faithful restore.
@@ -767,6 +772,26 @@ async function removeFromVault(set, entry) {
       go("#/");
     } else toast("Remove failed", "error");
   }
+}
+
+// "Did you sell it?" — the removal sheet for signed-in collectors. Resolves
+// "sold", "remove" or null (cancelled).
+function removeOrSellChoice(set) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => { if (done) return; done = true; hideSheet(); resolve(v); };
+    showSheet(kitSheetBody({
+      title: t("bvSet.removeAskTitle"),
+      inner: `<p class="bv-sheet__sub">${escapeHtml(t("bvSet.removeAskSub", { name: set.name }))}</p>
+        <button type="button" class="bv-btn bv-btn--primary bv-btn--full" id="rmSold">${kitIcon("tag", { size: 20 })}<span>${escapeHtml(t("bvSet.removeAskSold"))}</span></button>
+        <button type="button" class="bv-btn bv-btn--danger bv-btn--full" id="rmJust" style="margin-top:8px;">${escapeHtml(t("bvSet.removeAskJust"))}</button>
+        <button type="button" class="bv-btn bv-btn--text bv-btn--full" id="rmCancel" style="margin-top:8px;">${escapeHtml(t("common.cancel"))}</button>`,
+    }));
+    $("#rmSold")?.addEventListener("click", () => finish("sold"));
+    $("#rmJust")?.addEventListener("click", () => finish("remove"));
+    $("#rmCancel")?.addEventListener("click", () => finish(null));
+    $("#sheetBackdrop")?.addEventListener("click", () => finish(null), { once: true });
+  });
 }
 
 // Copies stepper inside "Your copy". Minus at one removes the set (confirmed).

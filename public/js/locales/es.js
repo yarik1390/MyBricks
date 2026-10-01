@@ -1745,3 +1745,7 @@ Object.assign(es.contributions, {
   starRatingOther: 'Valora {n} de 5',
   ratingRequired: 'Valoración (obligatoria)',
 });
+
+// Sold-or-remove prompt and the BrickLink sales import.
+Object.assign(es.bvSet, {"removeAskTitle": "¿Lo vendiste?", "removeAskSub": "Si {name} se vendió, añade el precio. Es privado y solo ayuda a los valores de todos como media anónima.", "removeAskSold": "Sí, registrar la venta", "removeAskJust": "No, solo quitarlo"});
+Object.assign(es.data, {"blSalesTitle": "Importar ventas de BrickLink", "blSalesSub": "Exporta “Orders Received” de tu tienda BrickLink en CSV. Los sets vendidos salen de tu bóveda con su precio de venta y cuentan en las ganancias realizadas.", "blSalesPick": "Elegir CSV de ventas", "blSalesImport": "Importar ventas", "blSalesResult": "✓ {sold}, {skipped}. {errors}", "salesRecordedCountOne": "{n} venta registrada", "salesRecordedCountOther": "{n} ventas registradas"});
