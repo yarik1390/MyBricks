@@ -761,8 +761,8 @@ test('deleting an owned set offers a working Undo', async ({ page, stub }) => {
   // "Your copy" sheet: the copies stepper at one removes the set.
   await page.locator('#manageBtn').click();
   await page.locator('#qtyDown').click();
-  // Confirm sheet → Remove
-  await page.locator('#cfYes').click();
+  // "Did you sell it?" → No, just remove it
+  await page.locator('#rmJust').click();
   await expect.poll(() => stub.calls.some((c) => c.method === 'DELETE' && c.path.startsWith('/api/collection/'))).toBe(true);
   // Undo toast appears; tapping it re-POSTs the kept payload.
   const undo = page.locator('#toast .toast-undo-btn');
