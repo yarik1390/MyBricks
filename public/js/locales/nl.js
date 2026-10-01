@@ -1745,3 +1745,7 @@ Object.assign(nl.contributions, {
   starRatingOther: 'Beoordeel met {n} van 5',
   ratingRequired: 'Beoordeling (verplicht)',
 });
+
+// Sold-or-remove prompt and the BrickLink sales import.
+Object.assign(nl.bvSet, {"removeAskTitle": "Heb je het verkocht?", "removeAskSub": "Als {name} verkocht is, vul dan de prijs in. Die blijft privé en helpt alleen als anoniem gemiddelde ieders waarden.", "removeAskSold": "Ja, verkoop vastleggen", "removeAskJust": "Nee, alleen verwijderen"});
+Object.assign(nl.data, {"blSalesTitle": "BrickLink-verkopen importeren", "blSalesSub": "Exporteer “Orders Received” uit je BrickLink-winkel als CSV. Verkochte sets verlaten je kluis met hun verkoopprijs en tellen mee in gerealiseerde winst.", "blSalesPick": "Verkoop-CSV kiezen", "blSalesImport": "Verkopen importeren", "blSalesResult": "✓ {sold}, {skipped}. {errors}", "salesRecordedCountOne": "{n} verkoop vastgelegd", "salesRecordedCountOther": "{n} verkopen vastgelegd"});

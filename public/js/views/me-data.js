@@ -42,6 +42,7 @@ export async function renderMeData() {
         <div class="bv-group__box">
           ${kitRow({ icon: 'brick', title: t('bvAccount.fromBrickset'), sub: t('bvAccount.fromBricksetSub'), href: '#/me/integrations' })}
           ${fileRow({ icon: 'upload', title: 'Import from BrickLink orders', sub: "Export your BrickLink order history as CSV and upload it here to auto-add sets you've bought.", inputId: 'blOrderFile', pickLabel: 'Choose BrickLink CSV', nameId: 'blOrderFileName', importId: 'blOrderImportBtn', importLabel: 'Import BrickLink Orders', resultId: 'blOrderImportResult' })}
+          ${guest ? '' : fileRow({ icon: 'tag', title: t('data.blSalesTitle'), sub: t('data.blSalesSub'), inputId: 'blSalesFile', pickLabel: t('data.blSalesPick'), nameId: 'blSalesFileName', importId: 'blSalesImportBtn', importLabel: t('data.blSalesImport'), resultId: 'blSalesImportResult' })}
           ${fileRow({ icon: 'file', title: 'Import collection', sub: 'Upload a CSV to add sets in bulk — works with Brickset and BrickEconomy exports too. Existing sets are skipped.', inputId: 'csvFile', pickLabel: 'Choose CSV file', nameId: 'csvFileName', importId: 'csvImportBtn', importLabel: 'Import', resultId: 'csvImportResult' })}
         </div>
       </section>
@@ -234,45 +235,59 @@ toast(tPlural('data.restoredFromBackup', res.restored, { date }), "success");
     }
   });
 
-  // BrickLink order CSV import
-  const blFileInput = $("#blOrderFile");
-  const blImportBtn = $("#blOrderImportBtn");
-  const blFileNameSpan = $("#blOrderFileName");
+  // BrickLink order CSV imports: purchases ("My Orders") add sets to the
+  // vault; sales ("Orders Received") record what sets sold for, which also
+  // feeds the anonymized community sold prices.
+  wireBrickLinkImport({ prefix: "blOrder", mode: "purchases" });
+  wireBrickLinkImport({ prefix: "blSales", mode: "sales" });
+}
 
-  blFileInput?.addEventListener("change", (e) => {
+function wireBrickLinkImport({ prefix, mode }) {
+  const fileInput = $(`#${prefix}File`);
+  const importBtn = $(`#${prefix}ImportBtn`);
+  const fileNameSpan = $(`#${prefix}FileName`);
+
+  fileInput?.addEventListener("change", (e) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (blFileNameSpan) blFileNameSpan.textContent = file.name;
-      if (blImportBtn) blImportBtn.style.display = "inline-flex";
-    } else {
-      if (blFileNameSpan) blFileNameSpan.textContent = "";
-      if (blImportBtn) blImportBtn.style.display = "none";
-    }
+    if (fileNameSpan) fileNameSpan.textContent = file ? file.name : "";
+    if (importBtn) importBtn.style.display = file ? "inline-flex" : "none";
   });
 
-  blImportBtn?.addEventListener("click", async () => {
-    const file = blFileInput?.files?.[0];
+  importBtn?.addEventListener("click", async () => {
+    const file = fileInput?.files?.[0];
     if (!file) return;
     haptic("medium");
-    setBtnLoading(blImportBtn, true);
-    const resultEl = $("#blOrderImportResult");
+    setBtnLoading(importBtn, true);
+    const resultEl = $(`#${prefix}ImportResult`);
     if (resultEl) resultEl.textContent = "Parsing BrickLink orders...";
     try {
       const text = await file.text();
-      const res = await api("/api/bricklink/import-csv", { method: "POST", body: { csv: text } });
-      const bricklinkSummary = {
-        added: tPlural('data.setsAddedCount', res.added),
-        skipped: tPlural('data.skippedCount', res.skipped),
-        errors: res.errors?.slice(0, 3).join('; ') || '',
-      };
-      if (resultEl) resultEl.textContent = t('data.bricklinkImportResult', bricklinkSummary);
+      // Prices without a currency in the file are read in the app currency.
+      const res = await api("/api/bricklink/import-csv", { method: "POST", body: { csv: text, mode, currency: state.me?.currency || "USD" } });
+      const errors = res.errors?.slice(0, 3).join('; ') || '';
+      if (mode === "sales") {
+        const salesSummary = {
+          sold: tPlural('data.salesRecordedCount', res.sold),
+          skipped: tPlural('data.skippedCount', res.skipped),
+          errors,
+        };
+        if (resultEl) resultEl.textContent = t('data.blSalesResult', salesSummary);
+        toast(tPlural('data.salesRecordedCount', res.sold), res.sold ? "success" : "info");
+      } else {
+        const bricklinkSummary = {
+          added: tPlural('data.setsAddedCount', res.added),
+          skipped: tPlural('data.skippedCount', res.skipped),
+          errors,
+        };
+        if (resultEl) resultEl.textContent = t('data.bricklinkImportResult', bricklinkSummary);
+        toast(tPlural('data.bricklinkSetsImported', res.added), "success");
+      }
       invalidatePortfolio();
-      toast(tPlural('data.bricklinkSetsImported', res.added), "success");
     } catch (e) {
       if (resultEl) resultEl.textContent = t('data.bricklinkImportFailed', { error: e.message || e });
       toast(t('data.bricklinkImportFailed', { error: e.message || e }), "error");
     } finally {
-      setBtnLoading(blImportBtn, false);
+      setBtnLoading(importBtn, false);
     }
   });
 }

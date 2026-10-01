@@ -2031,3 +2031,20 @@ Object.assign(en.room, {
   rotateControls: 'Box rotation controls', rotateLeft: 'Rotate box left', rotateRight: 'Rotate box right', setNumber: 'Set number', owned: 'Owned',
   listHint: 'Browse your sets and open their details using the list.', retry3D: 'Retry 3D', empty: 'Your showroom is ready. Add sets to your vault to fill the shelves.',
 });
+
+// Sold-or-remove prompt and the BrickLink sales import (community sold prices).
+Object.assign(en.bvSet, {
+  removeAskTitle: 'Did you sell it?',
+  removeAskSub: 'If {name} sold, add what it went for. The price stays private and only helps everyone’s values as an anonymous average.',
+  removeAskSold: 'Yes, record the sale',
+  removeAskJust: 'No, just remove it',
+});
+Object.assign(en.data, {
+  blSalesTitle: 'Import BrickLink sales',
+  blSalesSub: 'Export “Orders Received” from your BrickLink store as CSV. Sold sets leave your vault with their sale price, which counts toward realized gains.',
+  blSalesPick: 'Choose sales CSV',
+  blSalesImport: 'Import sales',
+  blSalesResult: '✓ {sold}, {skipped}. {errors}',
+  salesRecordedCountOne: '{n} sale recorded',
+  salesRecordedCountOther: '{n} sales recorded',
+});

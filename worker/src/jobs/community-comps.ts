@@ -45,7 +45,10 @@ export async function runCommunityComps(env: Env) {
       WHERE purchase_price > 0
         AND purchased_at IS NOT NULL AND purchased_at >= date('now', ?1)
       UNION ALL
-      SELECT set_num, user_id, sold_price AS price,
+      -- sold_price is the gross price for the whole holding (the sale sheet
+      -- and the BrickLink sales import both record it that way), so a
+      -- multi-copy sale is divided back to a per-set comp.
+      SELECT set_num, user_id, sold_price / MAX(COALESCE(quantity, 1), 1) AS price,
              CASE WHEN condition IN ('new','sealed') THEN 'new_sealed' ELSE 'used_complete' END AS bucket
       FROM user_collection
       WHERE sold_price > 0
