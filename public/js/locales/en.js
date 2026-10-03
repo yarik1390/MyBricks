@@ -2041,7 +2041,7 @@ Object.assign(en.bvSet, {
 });
 Object.assign(en.data, {
   blSalesTitle: 'Import BrickLink sales',
-  blSalesSub: 'Export “Orders Received” from your BrickLink store as CSV. Sold sets leave your vault with their sale price, which counts toward realized gains.',
+  blSalesSub: 'Export “Orders Received” from your BrickLink store as CSV. Sold sets leave your vault with their sale price, which counts toward realized gains. Prices also contribute to anonymous community medians, published only after at least five collectors contribute.',
   blSalesPick: 'Choose sales CSV',
   blSalesImport: 'Import sales',
   blSalesResult: '✓ {sold}, {skipped}. {errors}',

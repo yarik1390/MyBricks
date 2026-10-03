@@ -68,7 +68,7 @@ jobs:
       - name: Download and unpack the dump
         run: |
           set -euo pipefail
-          npx wrangler@3 r2 object get "${BACKUP_BUCKET}/${DUMP_KEY}" --remote --file dump.sql.gz
+          npx wrangler@3 r2 object get "${BACKUP_BUCKET}/${DUMP_KEY}" --file dump.sql.gz
           gunzip dump.sql.gz
           ls -lh dump.sql
           # An empty or tiny dump means the backup itself is broken.
@@ -114,7 +114,7 @@ jobs:
         run: |
           set -euo pipefail
           expected="brickvault-restore-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          if [[ "$expected" =~ ^brickvault-restore-[0-9]+-[0-9]+$ ]]; then
+          if [[ "${DRILL_DB:-}" == "$expected" && "$expected" =~ ^brickvault-restore-[0-9]+-[0-9]+$ ]]; then
             npx wrangler@3 d1 delete "$expected" -y
           fi
           rm -f -- dump.sql dump.sql.gz

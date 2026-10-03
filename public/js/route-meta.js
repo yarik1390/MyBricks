@@ -13,7 +13,8 @@ const ROUTES = [
   { match: (hash) => hash === "/room", key: "collection-room", nav: "/", title: "Collection room", fullscreen: true, fab: false },
   { match: (hash) => hash === "/collections", key: "collections", nav: "/", title: "Collections", fab: false },
   { match: (hash) => hash === "/" || hash === "", key: "vault", nav: "/", title: "Vault", fab: true, scanFab: true },
-  { match: (hash) => hash === "/add", key: "catalog", nav: "/add", title: "Catalog", fab: true, scanFab: true },
+  // Discover already has an inline scan action; no floating buttons over prices or add controls.
+  { match: (hash) => hash === "/add", key: "catalog", nav: "/add", title: "Catalog", fab: false, scanFab: false },
   { match: (hash) => hash === "/pile", key: "scan", nav: "/pile", title: "Scan a set", fullscreen: true, fab: false },
   { match: (hash) => hash === "/minifigs", key: "minifigs", nav: "/", title: "Minifigs", fab: true, scanFab: true },
   // "What can I build" is a Vault section (Sets · Minifigs · Lists · Build).

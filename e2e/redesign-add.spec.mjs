@@ -49,6 +49,42 @@ test('Discover tile adds in place and Undo removes it', async ({ page }) => {
   await expect(page.locator('[data-add-set="10497-1"]')).toBeVisible();
 });
 
+for (const width of [320, 390, 1024]) {
+  test(`Discover cards stay unobscured and inline scanning works at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    const sets = Array.from({ length: 12 }, (_, i) => ({ ...OTHER, set_num: `${10497 + i}-1`, name: `Test set ${i}` }));
+    await page.route('**/api/sets/search*', route => route.fulfill({
+      contentType: 'application/json', body: JSON.stringify({ sets, total: sets.length, hasMore: false }),
+    }));
+    await page.goto('/#/add');
+    await expect(page.locator('#catalogGrid .bv-tile')).toHaveCount(12);
+    await expect(page.locator('#bvFab')).toBeHidden();
+    await expect(page.locator('#advisorFab')).toBeHidden();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const scan = page.locator('#catalogScanBtn');
+    await expect(scan).toBeVisible();
+    await scan.click();
+    await expect(page.locator('#scanOverlay')).toHaveClass(/open/);
+    await page.locator('#scanCloseBtn').click();
+    // Align a right-hand tile's footer where the old FAB used to cover it.
+    const add = page.locator('#catalogGrid .bv-tile__act').nth(1);
+    await add.evaluate(el => window.scrollBy(0, el.getBoundingClientRect().top - (innerHeight - 140)));
+    await expect(add).toBeInViewport();
+    expect(await add.evaluate(el => {
+      const r = el.getBoundingClientRect();
+      return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+    })).toBe(true);
+    await add.click();
+    await expect(page.locator('#toast')).toContainText('Test set 1');
+  });
+}
+
+test('BrickLink sales import explains anonymous community pricing before upload', async ({ page }) => {
+  await page.goto('/#/me/data');
+  await expect(page.locator('#root')).toContainText('anonymous community medians');
+  await expect(page.locator('#root')).toContainText('at least five collectors');
+});
+
 test('filter sheet previews the result count before applying', async ({ page }) => {
   await page.route('**/api/sets/search*', (route) => {
     const url = new URL(route.request().url());

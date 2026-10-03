@@ -53,10 +53,10 @@ jobs:
       - name: Upload the dump to R2 (private)
         run: |
           set -euo pipefail
-          npx wrangler@3 r2 object put "${BACKUP_BUCKET}/${OBJECT_KEY}" --remote \
+          npx wrangler@3 r2 object put "${BACKUP_BUCKET}/${OBJECT_KEY}" \
             --file "${LOCAL_FILE}" --content-type "application/gzip"
           # Fail closed if R2 is missing/unauthorized or upload did not persist.
-          npx wrangler@3 r2 object get "${BACKUP_BUCKET}/${OBJECT_KEY}" --remote --file verify.sql.gz >/dev/null
+          npx wrangler@3 r2 object get "${BACKUP_BUCKET}/${OBJECT_KEY}" --file verify.sql.gz >/dev/null
           cmp --silent "${LOCAL_FILE}" verify.sql.gz || { echo '::error::Backup R2 bytes differ from exported dump'; exit 1; }
           echo "Verified r2://${BACKUP_BUCKET}/${OBJECT_KEY}"
 

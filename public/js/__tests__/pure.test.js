@@ -1325,10 +1325,11 @@ describe('routeMetaFor', () => {
     assert.equal(routeMetaFor('/pile').nav, '/pile');
   });
 
-  it('shows the Scan FAB only on collection and Discover roots', async () => {
+  it('shows the Scan FAB on collection roots, not over Discover cards', async () => {
     const { routeMetaFor } = await import('../route-meta.js');
     assert.equal(routeMetaFor('/').scanFab, true);
-    assert.equal(routeMetaFor('/add').scanFab, true);
+    assert.equal(routeMetaFor('/add').scanFab, false);
+    assert.equal(routeMetaFor('/add').fab, false);
     assert.equal(routeMetaFor('/minifigs').scanFab, true);
     assert.equal(routeMetaFor('/set/10300-1').scanFab, false);
     assert.equal(routeMetaFor('/me').scanFab, false);

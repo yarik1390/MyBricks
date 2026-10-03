@@ -491,7 +491,7 @@ function mountCatalogSentinel() {
 function paintAdd() {
   const f = state.filter;
   $("#root").innerHTML = `
-    <main class="bv-page has-fab bv-discover" id="discoverPage">
+    <main class="bv-page bv-discover" id="discoverPage">
       ${kitTopbar({ title: t('collector.discover'), actionsHtml: kitIconBtn({ icon: "more", label: t("bvAdd.moreOptions"), id: "discoverMoreBtn" }) })}
       ${kitSearchBar({ id: "catalogSearch", name: "catalog_search", placeholder: t("bvAdd.searchPlaceholder"), label: t("bvAdd.searchLabel"), value: f.catalogQ, trailHtml: kitIconBtn({ icon: "scan", label: t("bvAdd.scanToSearch"), id: "catalogScanBtn" }) })}
       ${discoverNavigation()}

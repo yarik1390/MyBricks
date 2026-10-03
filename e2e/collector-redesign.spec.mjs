@@ -38,7 +38,8 @@ test('collector navigation, permanent search, one-tap scan, and room entry', asy
   await page.locator('#nav [data-route="/add"]').click();
   await expect(page.locator('#catalogSearch')).toBeVisible();
   await expect(page.locator('#nav [aria-current="page"]')).toHaveAttribute('data-route', '/add');
-  await expect(fab).toBeVisible();
+  await expect(fab).toBeHidden();
+  await expect(page.locator('#catalogScanBtn')).toBeVisible();
   await page.locator('#nav [data-route="/me"]').click();
   await expect(page.locator('#nav [aria-current="page"]')).toHaveAttribute('data-route', '/me');
   await expect(fab).toBeHidden();
