@@ -163,8 +163,11 @@ export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, 
         AND COALESCE(lego_retiring_soon, 0) = 0
         -- Only when LEGO.com never reported it, or reported it sold out:
         -- out_of_stock is temporary, and the stock refresh skips retired
-        -- rows, so a wrong flag here could never heal.
-        AND COALESCE(lego_availability, 'sold_out') = 'sold_out'
+        -- rows, so a wrong flag here could never heal. Past 25 years an
+        -- out_of_stock answer is a set-number collision with a modern product
+        -- (1301-1 from 1955 and 2-1 from 1967 both read out_of_stock).
+        AND (COALESCE(lego_availability, 'sold_out') = 'sold_out'
+          OR year <= CAST(strftime('%Y', 'now') AS INTEGER) - 25)
     `).run();
     oldSetsRetired = (fix.meta?.changes as number | undefined) ?? 0;
   } catch (e) {
