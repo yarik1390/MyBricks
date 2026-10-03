@@ -44,7 +44,7 @@ describe('old sets retired', () => {
   it('flags decades-old sets that are not on sale', async () => {
     const y = new Date().getFullYear();
     await db.batch([
-      db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired) VALUES ('1301-1', 'LEGO Mosaic, Large', 1955, 0)`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired, lego_availability) VALUES ('1301-1', 'LEGO Mosaic, Large', 1955, 0, 'out_of_stock')`),
       db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired, lego_in_stock) VALUES ('10179-1', 'Old but reissued', 2007, 0, 1)`),
       db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired) VALUES ('75192-1', 'Millennium Falcon', 2017, 0)`),
       db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired, lego_availability) VALUES ('10220-1', 'Temporarily out', 2011, 0, 'out_of_stock')`),
