@@ -27,6 +27,7 @@ vi.mock('./lib/market-sources', () => ({
 }));
 vi.mock('./lib/source-config', () => ({
   sourceEnabled: vi.fn(async () => true),
+  ebaySoldLaneEnabled: vi.fn(async () => false),
 }));
 
 import { fetchMinifigPricing } from './lib/bricklink';
@@ -140,9 +141,10 @@ describe('batch jobs enforce reserveQuota grants', () => {
 
     expect(mockMinifigPricing).toHaveBeenCalledTimes(1);
     expect(result.missed).toBe(1);
-    const rows = await db.prepare(`SELECT cached_at FROM minifigs ORDER BY fig_num`)
-      .all<{ cached_at: string | null }>();
-    expect(rows.results.filter((row) => row.cached_at != null)).toHaveLength(1);
+    const rows = await db.prepare(`SELECT cached_at, attempted_at FROM minifigs ORDER BY fig_num`)
+      .all<{ cached_at: string | null; attempted_at: string | null }>();
+    expect(rows.results.filter((row) => row.attempted_at != null)).toHaveLength(1);
+    expect(rows.results.every((row) => row.cached_at == null)).toBe(true);
   });
 
   it('makes zero eBay sold calls when quota accounting fails closed', async () => {

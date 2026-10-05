@@ -60,7 +60,7 @@ import { runBricksetEnrich } from './jobs/brickset-enrich';
 import { runBrickEconomyEnrich } from './jobs/brickeconomy-enrich';
 import { runBlendRecomputeBackfill } from './jobs/recompute-blends';
 import { applySourceConfig } from './lib/source-config';
-import { recordCronFinish, summarizeResult } from './lib/cron-runs';
+import { recordCronFinish, summarizeResult, resultFailed } from './lib/cron-runs';
 import { amazonReadiness } from './lib/amazon';
 import { CLIENT_EVENTS, logClientEvent, mirrorClientMetric } from './lib/analytics';
 import { setPricingV3ReadPercent } from './lib/market-sources';
@@ -344,7 +344,11 @@ export default {
       const runId = lease.id;
       try {
         const res = await fn();
-        await recordCronFinish(env, runId, name, { ok: true, summary: summarizeResult(res), durationMs: Date.now() - startedMs }).catch(() => {});
+        const summary = summarizeResult(res);
+        const failed = resultFailed(res);
+        await recordCronFinish(env, runId, name, { ok: !failed, summary,
+          error: failed ? `Provider/item failures: ${summary}` : null,
+          durationMs: Date.now() - startedMs }).catch(() => {});
       } catch (e) {
         console.error(`[cron] ${name} failed:`, e);
         await recordCronFinish(env, runId, name, { ok: false, error: (e as Error).message, durationMs: Date.now() - startedMs }).catch(() => {});

@@ -30,6 +30,10 @@ export function summarizeResult(res: unknown): string | null {
     const v = r[key];
     if (typeof v === 'number' && Number.isFinite(v)) parts.push(`${label} ${v}`);
   };
+  // Show failure/partial counters first so the four-field UI cap cannot hide them.
+  for (const key of ['failed', 'partial', 'no_data', 'rejected']) {
+    if (Number(r[key]) > 0) add(key, key.replace('_', ' '));
+  }
   add('updated', 'updated');
   add('matched', 'matched');
   add('fired', 'fired');
@@ -60,6 +64,11 @@ export function summarizeResult(res: unknown): string | null {
     if (typeof v === 'number' && v > 0) parts.push(`${k} ${v}`);
   }
   return parts.length ? parts.slice(0, 4).join(' · ') : null;
+}
+
+/** Completed invocation is not necessarily a successful provider run. */
+export function resultFailed(res: unknown): boolean {
+  return !!res && typeof res === 'object' && Number((res as Record<string, unknown>).failed) > 0;
 }
 
 // Mark orphaned 'running' rows as failed. A Worker invocation killed at the CPU

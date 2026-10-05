@@ -635,6 +635,17 @@ CREATE INDEX IF NOT EXISTS idx_bl_mf_norm ON bricklink_minifigs(norm_name);
 -- the set_market_ext side table because lego_sets is at D1's 100-column ceiling.
 ALTER TABLE set_market_ext ADD COLUMN bl_nodata_at TEXT;
 
+-- Attempts are scheduling metadata, never observation freshness.
+ALTER TABLE set_market_ext ADD COLUMN stockx_attempted_at TEXT;
+ALTER TABLE set_market_ext ADD COLUMN stockx_attempt_status TEXT;
+ALTER TABLE set_market_ext ADD COLUMN be_attempted_at TEXT;
+ALTER TABLE set_market_ext ADD COLUMN be_attempt_status TEXT;
+ALTER TABLE set_market_ext ADD COLUMN brickset_attempted_at TEXT;
+ALTER TABLE set_market_ext ADD COLUMN brickset_attempt_status TEXT;
+ALTER TABLE set_market_ext ADD COLUMN lego_attempted_at TEXT;
+ALTER TABLE set_market_ext ADD COLUMN lego_attempt_status TEXT;
+ALTER TABLE minifigs ADD COLUMN attempted_at TEXT;
+
 -- Image mirror: stamp minifigs once their Rebrickable image has been pre-warmed
 -- into R2 (same pattern as lego_sets.img_prewarmed_at) so the hourly prewarm
 -- queue advances instead of re-fetching.

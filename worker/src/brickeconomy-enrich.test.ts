@@ -18,7 +18,7 @@ const withKey = { ...env, FIRECRAWL_API_KEY: 'fc-key', FIRECRAWL_DAILY_CREDITS: 
 describe('runBrickEconomyEnrich', () => {
   beforeEach(async () => {
     mockScrape.mockReset();
-    await applyTestTables(db, ['lego_sets', 'user_collection', 'user_wishlist', 'api_quota']);
+    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota']);
   });
 
   it('skips when Firecrawl is not configured', async () => {
@@ -78,7 +78,7 @@ describe('runBrickEconomyEnrich', () => {
     expect(row.be_cached_at).toBeTruthy();
   });
 
-  it('stamps be_cached_at without writing values when the scrape yields nothing', async () => {
+  it('parks no-data separately without fabricating observation freshness', async () => {
     await db.prepare(`INSERT INTO lego_sets (set_num, name, year, be_cached_at) VALUES ('00000-1','Unknown', 2015, NULL)`).run();
     mockScrape.mockResolvedValue(null as any);
 
@@ -88,7 +88,24 @@ describe('runBrickEconomyEnrich', () => {
     expect(r.updated).toBe(0);
     const row = await db.prepare(`SELECT be_value_new, be_cached_at FROM lego_sets WHERE set_num='00000-1'`).first<{ be_value_new: number | null; be_cached_at: string | null }>();
     expect(row!.be_value_new).toBeNull();      // nothing written
-    expect(row!.be_cached_at).toBeTruthy();     // but parked so it isn't re-scraped
+    expect(row!.be_cached_at).toBeNull();
+    const attempt = await db.prepare(`SELECT be_attempt_status FROM set_market_ext WHERE set_num='00000-1'`).first<any>();
+    expect(attempt.be_attempt_status).toBe('no_data');
+    expect((await runBrickEconomyEnrich(withKey)).processed).toBe(0);
+  });
+
+  it('preserves old condition clocks and scenarios on empty/partial observations', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, year, be_value_new, be_value_used,
+      be_forecast_2y, be_cached_at) VALUES ('PARTIAL-1','Partial',2015,120,80,150,'2020-01-01')`).run();
+    mockScrape.mockResolvedValue(null);
+    expect(await runBrickEconomyEnrich(withKey)).toMatchObject({ updated: 0, no_data: 1 });
+    expect(await db.prepare(`SELECT be_value_new, be_value_used, be_cached_at FROM lego_sets`).first())
+      .toMatchObject({ be_value_new: 120, be_value_used: 80, be_cached_at: '2020-01-01' });
+    await db.prepare(`UPDATE set_market_ext SET be_attempted_at='2020-01-01'`).run();
+    mockScrape.mockResolvedValue({ current_value_new: 130 } as any);
+    expect(await runBrickEconomyEnrich(withKey)).toMatchObject({ updated: 1, partial: 1 });
+    expect(await db.prepare(`SELECT be_value_new, be_value_used, be_forecast_2y, be_cached_at FROM lego_sets`).first())
+      .toMatchObject({ be_value_new: 130, be_value_used: 80, be_forecast_2y: null, be_cached_at: '2020-01-01' });
   });
 
   it('does not stamp a provider failure as no-data', async () => {
@@ -101,6 +118,10 @@ describe('runBrickEconomyEnrich', () => {
     expect(r.updated).toBe(0);
     const row = await db.prepare(`SELECT be_cached_at FROM lego_sets WHERE set_num='FAIL-1'`).first<{ be_cached_at: string | null }>();
     expect(row!.be_cached_at).toBeNull();
+    expect(r).toMatchObject({ failed: 1, no_data: 0 });
+    expect((await runBrickEconomyEnrich(withKey)).processed).toBe(0);
+    await db.prepare(`UPDATE set_market_ext SET be_attempted_at=datetime('now','-2 hours')`).run();
+    expect((await runBrickEconomyEnrich(withKey)).processed).toBe(1);
   });
 
   // BrickEconomy is the widest price source in the app (15,154 sets) and 98.8%

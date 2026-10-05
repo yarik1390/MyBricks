@@ -589,7 +589,10 @@ function scheduleAdminJobPoll(delay = 2500) {
 }
 
 function isPopulateEverythingComplete(run = {}) {
-  return run.job_type === 'populate_everything' && /method:populate-everything\b[\s\S]*complete:true/i.test(String(run.error || ''));
+  const note = String(run.error || '');
+  return run.job_type === 'populate_everything'
+    && /method:populate-everything\b/i.test(note)
+    && /(?:^|\s)complete:true(?:\s|$)/i.test(note);
 }
 
 function schedulePopulateEverythingContinue(delay = 1400) {

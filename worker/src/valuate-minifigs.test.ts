@@ -13,7 +13,7 @@ const db = (env as any).DB as D1Database;
 const mockBl = vi.mocked(fetchMinifigPricing);
 const mockEbay = vi.mocked(fetchMinifigEbaySoldViaFirecrawl);
 // Firecrawl on, so the eBay branch is reachable.
-const fcEnv = { ...env, FIRECRAWL_API_KEY: 'fc-test' } as any;
+const fcEnv = { ...env, FIRECRAWL_API_KEY: 'fc-test', ENVIRONMENT: 'test', EBAY_SOURCE_AUTHORIZED_FOR_TESTS: '1' } as any;
 
 const seedFig = (figNum: string, name: string, year: number | null = 2014, appears = 5) =>
   db.prepare(`INSERT INTO minifigs (fig_num, name, year, appears_in_sets) VALUES (?, ?, ?, ?)`)
@@ -36,17 +36,31 @@ describe('runValuateMinifigs', () => {
     ]);
   });
 
-  it('stamps cached_at on a fig no source could price, so the queue rotates', async () => {
+  it('rotates an unpriceable fig without freshening its price observation', async () => {
     await seedFig('fig-1', 'Nobody In Particular').run();
 
     const r = await runValuateMinifigs(fcEnv, { limit: 5 });
 
     expect(r).toMatchObject({ figs: 1, priced: 0, missed: 1 });
     const fig = await readFig('fig-1');
-    expect(fig!.cached_at).toBeTruthy();   // cooled down for the 14-day TTL
+    expect(fig!.cached_at).toBeNull(); // attempt cooldown is separate
+    expect((await db.prepare(`SELECT attempted_at FROM minifigs WHERE fig_num='fig-1'`).first<any>()).attempted_at).toBeTruthy();
     expect(fig!.current_value).toBeNull(); // but no value invented
     // ...and the second run no longer sees it.
     expect((await runValuateMinifigs(fcEnv, { limit: 5 })).figs).toBe(0);
+  });
+
+  it('never calls sold scraping in production and preserves prior clocks on failures', async () => {
+    await db.batch([seedFig('fig-held', 'Batman'), seedBl('bat001','batman',2014)]);
+    await db.prepare(`UPDATE minifigs SET current_value=30, cached_at='2020-01-01',
+      ebay_value=35, ebay_cached_at='2020-01-02' WHERE fig_num='fig-held'`).run();
+    mockBl.mockRejectedValue(new Error('provider down'));
+    const result = await runValuateMinifigs({ ...fcEnv, ENVIRONMENT: 'production' }, { limit: 5 });
+    expect(result).toMatchObject({ ebay: 0, failed: 1, priced: 0 });
+    expect(mockEbay).not.toHaveBeenCalled();
+    expect(await readFig('fig-held')).toMatchObject({ current_value: 30, cached_at: '2020-01-01', ebay_value: 35 });
+    expect((await db.prepare(`SELECT ebay_cached_at FROM minifigs WHERE fig_num='fig-held'`).first<any>()).ebay_cached_at)
+      .toBe('2020-01-02');
   });
 
   it('uses eBay as the primary source for a fig nobody owns', async () => {
@@ -134,7 +148,7 @@ describe('runValuateMinifigs', () => {
     const fig = await readFig('fig-6');
     expect(fig!.current_value).toBeNull(); // not adopted
     expect(fig!.ebay_value).toBe(5000);    // but recorded as an observation
-    expect(fig!.cached_at).toBeTruthy();
+    expect(fig!.cached_at).toBeNull();
     const anomaly = await db.prepare(
       `SELECT anomaly_type FROM pricing_anomalies WHERE anomaly_key='minifig:fig-6:ebay_solo'`,
     ).first<{ anomaly_type: string }>();

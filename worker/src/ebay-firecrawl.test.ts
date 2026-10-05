@@ -1,13 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchEbaySoldViaFirecrawl } from './lib/ebay-firecrawl';
+import { fetchEbaySoldViaFirecrawl, fetchMinifigEbaySoldViaFirecrawl } from './lib/ebay-firecrawl';
 import { firecrawlScrape } from './lib/firecrawl';
 
 vi.mock('./lib/firecrawl', () => ({ firecrawlScrape: vi.fn() }));
 const mockScrape = vi.mocked(firecrawlScrape);
-const env = { FIRECRAWL_API_KEY: 'test-key' } as any;
+const env = { FIRECRAWL_API_KEY: 'test-key', ENVIRONMENT: 'test', EBAY_SOURCE_AUTHORIZED_FOR_TESTS: '1' } as any;
 
 describe('fetchEbaySoldViaFirecrawl', () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it('holds every sold-scrape entry point in production even with a test override', async () => {
+    const prod = { ...env, ENVIRONMENT: 'production' };
+    expect((await fetchEbaySoldViaFirecrawl('75192-1', 'Falcon', prod)).status).toBe('disabled');
+    expect((await fetchMinifigEbaySoldViaFirecrawl('fig-1', 'Batman', prod)).status).toBe('disabled');
+    expect(mockScrape).not.toHaveBeenCalled();
+  });
 
   it('separates new and used sold observations from one extraction', async () => {
     mockScrape.mockResolvedValue({

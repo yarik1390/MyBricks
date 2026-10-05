@@ -109,7 +109,8 @@ const iso = (value: unknown): string | null => {
 
 const ageDays = (value: unknown, now: number): number => {
   const stamp = iso(value);
-  return stamp ? Math.max(0, (now - Date.parse(stamp)) / DAY_MS) : Number.POSITIVE_INFINITY;
+  const elapsed = stamp ? now - Date.parse(stamp) : Number.NaN;
+  return Number.isFinite(elapsed) && elapsed >= 0 ? elapsed / DAY_MS : Number.POSITIVE_INFINITY;
 };
 
 const roundMoney = (value: number): number => Math.round(value * 100) / 100;
@@ -485,15 +486,15 @@ export function legacySignalsFor(row: Record<string, unknown>): PricingSignal[] 
     pieces: Number(row.pieces) || null,
     corroborators: [positive(row.bl_new_value), positive(row.ebay_new_value), plausibleAskValue(row)],
   });
-  add({ source: 'brickeconomy_new', provider_family: 'brickeconomy', condition: 'new_sealed', signal_type: 'modeled', value: beNew, checked_at: iso(row.be_cached_at) || cached, match_status: beTrusted ? 'verified' : 'quarantined' });
-  add({ source: 'brickeconomy_used', provider_family: 'brickeconomy', condition: 'used_complete', signal_type: 'modeled', value: positive(row.be_value_used), checked_at: iso(row.be_cached_at) || cached });
+  add({ source: 'brickeconomy_new', provider_family: 'brickeconomy', condition: 'new_sealed', signal_type: 'modeled', value: beNew, checked_at: iso(row.be_cached_at) || (positive(row.be_value_new) ? null : cached), match_status: beTrusted ? 'verified' : 'quarantined' });
+  add({ source: 'brickeconomy_used', provider_family: 'brickeconomy', condition: 'used_complete', signal_type: 'modeled', value: positive(row.be_value_used), checked_at: iso(row.be_cached_at) });
   add({ source: 'ebay_asking', provider_family: 'ebay_market', condition: 'new_sealed', signal_type: 'asking', value: plausibleAskValue(row), sample_count: positive(row.ebay_ask_qty), checked_at: iso(row.ebay_ask_cached_at) || cached });
   // StockX lowest ask — a single new/sealed listing ceiling from an INDEPENDENT
   // marketplace (its own provider_family, so it corroborates rather than collapsing
   // into ebay_market). Asking signal (0.35 weight): with any sold family it can only
   // nudge the range ±15%, never move the headline; a lone StockX ask reads as
   // asking_only (no fair value). StockX only lists sealed, so new_sealed only.
-  add({ source: 'stockx_ask', provider_family: 'stockx', condition: 'new_sealed', signal_type: 'asking', value: positive(row.stockx_ask), checked_at: iso(row.stockx_cached_at) || cached });
+  add({ source: 'stockx_ask', provider_family: 'stockx', condition: 'new_sealed', signal_type: 'asking', value: positive(row.stockx_ask), checked_at: iso(row.stockx_cached_at) });
 
   // PriceCharting legacy columns are deliberately absent. Existing mappings are
   // quarantined; verified records enter through pricing_signals and collapse into

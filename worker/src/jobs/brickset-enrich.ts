@@ -80,10 +80,13 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
 
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num, ls.year, ls.brickset_enriched_at
-    FROM lego_sets ls
+    FROM lego_sets ls LEFT JOIN set_market_ext ext ON ext.set_num=ls.set_num
     WHERE (ls.brickset_enriched_at IS NULL OR ls.brickset_enriched_at < datetime('now', '-90 days'))
+      AND (ext.brickset_attempted_at IS NULL OR ext.brickset_attempted_at < datetime('now',
+        CASE ext.brickset_attempt_status WHEN 'error' THEN '-1 hour' ELSE '-90 days' END))
       AND ls.year >= 2000
     ORDER BY
+      (ext.brickset_attempted_at IS NOT NULL), ext.brickset_attempted_at,
       CASE WHEN ls.brickset_enriched_at IS NULL THEN 0 ELSE 1 END,
       CASE WHEN EXISTS (
         SELECT 1 FROM user_collection uc WHERE uc.set_num = ls.set_num AND uc.deleted_at IS NULL
@@ -99,7 +102,14 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
   let processed = 0;
   let updated = 0;
   let unchanged = 0;
+  let failed = 0;
+  let no_data = 0;
   const stmts: D1PreparedStatement[] = [];
+  const attempt = (setNum: string, status: string) => stmts.push(env.DB.prepare(
+    `INSERT INTO set_market_ext (set_num, brickset_attempted_at, brickset_attempt_status)
+     VALUES (?1, datetime('now'), ?2) ON CONFLICT(set_num) DO UPDATE SET
+     brickset_attempted_at=excluded.brickset_attempted_at, brickset_attempt_status=excluded.brickset_attempt_status`,
+  ).bind(setNum, status));
 
   for (const { set_num, brickset_enriched_at } of results) {
     processed++;
@@ -117,6 +127,7 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
         env,
       );
       if (probe?.data?.changeTracking?.changeStatus === 'same') {
+        attempt(set_num, 'ok');
         stmts.push(env.DB.prepare(
           `UPDATE lego_sets SET brickset_enriched_at=datetime('now') WHERE set_num=?`,
         ).bind(set_num));
@@ -169,6 +180,8 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
     if (!data && !result) {
       // A null result is a provider/network failure, not verified no-data.
       // Leave freshness untouched so the next run can retry after recovery.
+      failed++;
+      attempt(set_num, 'error');
       continue;
     }
 
@@ -215,6 +228,8 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
       }
     }
 
+    if (fields.length === 1) { no_data++; attempt(set_num, 'no_data'); continue; }
+    attempt(set_num, 'ok');
     stmts.push(env.DB.prepare(
       `UPDATE lego_sets SET ${fields.join(', ')} WHERE set_num=?`,
     ).bind(...binds, set_num));
@@ -227,5 +242,5 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
   // No aggregate health write — firecrawlScrape records each scrape attempt
   // (real ok/fail + error message) inside the wrapper; a batch tally here would
   // double-count and clobber the real error with "unknown error".
-  return { processed, updated, unchanged, limit: effLimit };
+  return { processed, updated, unchanged, failed, no_data, limit: effLimit };
 }

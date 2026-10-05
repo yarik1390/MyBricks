@@ -21,7 +21,7 @@ import { enrichSetRecord, persistBlendedValue } from '../lib/market-sources';
 import { applySourceConfig } from '../lib/source-config';
 import { recentValueMedian } from '../lib/price-trend';
 import { isSearchIndexCorruption, rebuildSearchIndex } from '../lib/search-index';
-import { checkLegoStock } from '../lib/lego-stock';
+import { checkLegoStock, legoStockUpdate, normalizeLegoStockResult } from '../lib/lego-stock';
 import { fetchSetMinifigs } from '../lib/rebrickable';
 import type { Env, Variables } from '../types';
 import { isTranslatableLang, getCachedDescription, translateDescription, cacheDescription, hashSource } from '../lib/describe-i18n';
@@ -729,11 +729,9 @@ async function buildSharedSetDetail(
       new Date(resultSet.lego_checked_at as string) < new Date(Date.now() - 86_400_000)
     )) {
       c.executionCtx.waitUntil((async () => {
-        const stock = await checkLegoStock(resultSet.set_num as string, c.env).catch(() => null);
+        const stock = normalizeLegoStockResult(await checkLegoStock(resultSet.set_num as string, c.env).catch(() => null));
         if (stock !== null) {
-          await c.env.DB.prepare(
-            `UPDATE lego_sets SET lego_in_stock=?, lego_retiring_soon=?, lego_availability=?, lego_checked_at=datetime('now') WHERE set_num=?`
-          ).bind(stock.in_stock === null ? null : (stock.in_stock ? 1 : 0), stock.retiring_soon ? 1 : 0, stock.availability ?? null, resultSet.set_num).run();
+          await legoStockUpdate(c.env.DB, resultSet.set_num as string, stock).run();
         }
       })());
     }

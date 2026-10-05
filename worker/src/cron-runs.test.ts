@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach } from 'vitest';
-import { recordCronStart, recordCronFinish, getRecentRuns, summarizeResult, sweepStaleCronRuns, isCronRunning } from './lib/cron-runs';
+import { recordCronStart, recordCronFinish, getRecentRuns, summarizeResult, resultFailed, sweepStaleCronRuns, isCronRunning } from './lib/cron-runs';
 
 const db = (env as any).DB as D1Database;
 
@@ -17,6 +17,12 @@ describe('summarizeResult', () => {
   it('summarizes count fields', () => {
     expect(summarizeResult({ processed: 50, updated: 14, discovered: 2 })).toBe('updated 14 · found 2 · processed 50');
     expect(summarizeResult({ matched: 9000, rows: 13119 })).toBe('matched 9000 · rows 13119');
+  });
+  it('does not hide per-item failures behind a completed invocation', () => {
+    const result = { processed: 40, updated: 30, failed: 4, partial: 3, no_data: 3 };
+    expect(summarizeResult(result)).toBe('failed 4 · partial 3 · no data 3 · updated 30');
+    expect(resultFailed(result)).toBe(true);
+    expect(resultFailed({ updated: 0, failed: 0, skipped: 'disabled' })).toBe(false);
   });
   it('reports a skip reason', () => {
     expect(summarizeResult({ skipped: 'PRICECHARTING_TOKEN not set' })).toBe('skipped: PRICECHARTING_TOKEN not set');

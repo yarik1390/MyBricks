@@ -29,7 +29,7 @@ import { recomputeBlendedValues } from '../lib/market-sources';
 export async function runStockXEnrich(
   env: Env,
   options: { limit?: number; concurrency?: number } = {},
-): Promise<{ processed: number; updated: number; rejected: number; limit: number; skipped?: string }> {
+): Promise<{ processed: number; updated: number; rejected: number; failed?: number; no_data?: number; limit: number; skipped?: string }> {
   if (!stockxEnabled(env)) {
     return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'StockX disabled (STOCKX_ENABLED=1 or the stockx flag to enable)' };
   }
@@ -61,13 +61,8 @@ export async function runStockXEnrich(
   // Gears, minifig packs, "Special Offer" — that StockX has never listed, burning
   // an entire batch on guaranteed no-data misses.) Owned/wishlist first, then value.
   //
-  // Skip logic is the stockx_cached_at stamp ALONE (written on every outcome below,
-  // ask or no ask). That column feeds ONLY this job's freshness gate, never the
-  // blend, so stamping absent data is safe — and it's the whole skip mechanism:
-  // a stamped set drops out of this query for 30 days. An earlier KV neg-cache was
-  // removed because it created a wall the SQL couldn't see past — sets neg-cached
-  // but not yet stamped kept sorting to the top (never-cached = '2000-01-01') and
-  // no over-select was reliably large enough to reach fresh candidates behind them.
+  // Quote freshness feeds the blend. Separate SQL-visible attempt clocks rotate
+  // misses without rejuvenating a retained quote. Errors retry after one hour.
   const { results: candidates } = await env.DB.prepare(`
     SELECT ls.set_num, ls.name, ls.bl_new_value, ls.current_value
     FROM lego_sets ls
@@ -75,7 +70,10 @@ export async function runStockXEnrich(
     WHERE COALESCE(ls.bl_new_value, ls.current_value) >= 150
       AND ls.year >= 2000
       AND (ext.stockx_cached_at IS NULL OR ext.stockx_cached_at < datetime('now', '-30 days'))
+      AND (ext.stockx_attempted_at IS NULL OR ext.stockx_attempted_at < datetime('now',
+        CASE ext.stockx_attempt_status WHEN 'error' THEN '-1 hour' ELSE '-30 days' END))
     ORDER BY
+      (ext.stockx_attempted_at IS NOT NULL), ext.stockx_attempted_at,
       CASE WHEN EXISTS (
         SELECT 1 FROM user_collection uc WHERE uc.set_num = ls.set_num AND uc.deleted_at IS NULL
       ) OR EXISTS (
@@ -95,6 +93,8 @@ export async function runStockXEnrich(
   let processed = 0;
   let updated = 0;
   let rejected = 0;
+  let failed = 0;
+  let no_data = 0;
   const health = { ok: 0, fail: 0, lastError: undefined as string | undefined };
   const stmts: D1PreparedStatement[] = [];
   const touched: string[] = []; // sets that got a new ask → re-blend so it folds in
@@ -120,23 +120,23 @@ export async function runStockXEnrich(
       if (r.status === 'ok' || r.status === 'no_data') health.ok++;
       else { health.fail++; if (r.error) health.lastError = r.error; }
 
-      // Stamp stockx_cached_at (ask left NULL) on every miss — no_data, provider
-      // error, OR a diverged wrong-item match — so the set drops out of the query
-      // for 30 days. Stamping errors too (vs retrying) is deliberate: it keeps a
-      // one-time bulk sweep bounded and terminating; the daily cron re-checks after
-      // 30 days. The ask INSERT below stamps cached_at on a hit the same way.
-      const stampMiss = () =>
+      const stampAttempt = (status: string) =>
         stmts.push(env.DB.prepare(
-          `INSERT INTO set_market_ext (set_num, stockx_cached_at) VALUES (?1, datetime('now'))
-           ON CONFLICT(set_num) DO UPDATE SET stockx_cached_at=datetime('now')`,
-        ).bind(set.set_num));
+          `INSERT INTO set_market_ext (set_num, stockx_attempted_at, stockx_attempt_status)
+           VALUES (?1, datetime('now'), ?2) ON CONFLICT(set_num) DO UPDATE SET
+           stockx_attempted_at=excluded.stockx_attempted_at, stockx_attempt_status=excluded.stockx_attempt_status`,
+        ).bind(set.set_num, status));
 
-      if (r.status !== 'ok' || r.ask == null) { stampMiss(); continue; }
+      if (r.status === 'no_data') { no_data++; stampAttempt('no_data'); continue; }
+      if (r.status !== 'ok' || r.ask == null || !Number.isFinite(r.ask) || r.ask <= 0) {
+        failed++; stampAttempt('error'); continue;
+      }
 
       // Corroboration gate: accept only within 3x of the existing value.
       const ref = set.bl_new_value ?? set.current_value ?? null;
       const ok = ref == null ? true : (r.ask >= ref / 3 && r.ask <= ref * 3);
       if (ok) {
+        stampAttempt('ok');
         stmts.push(env.DB.prepare(
           `INSERT INTO set_market_ext (set_num, stockx_ask, stockx_cached_at)
            VALUES (?1, ?2, datetime('now'))
@@ -147,7 +147,7 @@ export async function runStockXEnrich(
       } else {
         // Wrong-item match — stamp it too (re-scraping yields the same bad match).
         rejected++;
-        stampMiss();
+        stampAttempt('rejected');
       }
     }
     // Flush every wave (not just at ≥90) so a long backfill run that gets cut
@@ -156,5 +156,5 @@ export async function runStockXEnrich(
   }
   await flush();
   await recordIntegrationHealth(env, 'stockx', health);
-  return { processed, updated, rejected, limit: effLimit };
+  return { processed, updated, rejected, failed, no_data, limit: effLimit };
 }

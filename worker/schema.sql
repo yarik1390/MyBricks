@@ -124,6 +124,14 @@ CREATE TABLE IF NOT EXISTS set_market_ext (
   pa_cached_at TEXT,
   stockx_ask REAL,
   stockx_cached_at TEXT,
+  stockx_attempted_at TEXT,
+  stockx_attempt_status TEXT,
+  be_attempted_at TEXT,
+  be_attempt_status TEXT,
+  brickset_attempted_at TEXT,
+  brickset_attempt_status TEXT,
+  lego_attempted_at TEXT,
+  lego_attempt_status TEXT,
   -- eBay-sold LAST-ATTEMPT stamp (any outcome). Separate from lego_sets.ebay_new_cached_at
   -- (which is success-only and feeds the blend's freshness): the scrape job orders/
   -- filters candidates by this so a miss drops out of the queue for a cooldown
@@ -444,6 +452,7 @@ CREATE TABLE IF NOT EXISTS minifigs (
   ebay_value REAL,
   ebay_qty INTEGER,
   ebay_cached_at TEXT,
+  attempted_at TEXT,
   bl_id TEXT,
   img_prewarmed_at TEXT
 );

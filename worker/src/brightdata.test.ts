@@ -278,7 +278,7 @@ describe('deterministic Bright Data HTML parsers', () => {
       in_stock: false, retiring_soon: false, availability: 'sold_out',
     });
     expect(parseLegoStockHtml(`{"availabilityStatus":"IN_STOCK"}`)).toMatchObject({
-      in_stock: true, retiring_soon: false, availability: 'in_stock',
+      in_stock: true, retiring_soon: null, availability: 'in_stock',
     });
   });
 
@@ -302,7 +302,7 @@ describe('deterministic Bright Data HTML parsers', () => {
       <script type="application/ld+json">{"@type":"Product","sku":"75313","offers":{"price":849.99,"priceCurrency":"USD","availability":"https://schema.org/OutOfStock"}}</script>`;
     expect(parseLegoStockHtml(html, '75313')).toEqual({
       in_stock: false,
-      retiring_soon: false,
+      retiring_soon: null,
       availability: 'out_of_stock',
       retail_price_usd: 849.99,
     });

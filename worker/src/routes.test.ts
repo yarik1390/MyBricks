@@ -319,7 +319,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         num_parts INTEGER,
         appears_in_sets INTEGER,
         cached_at TEXT,
-        ebay_value REAL, ebay_qty INTEGER, ebay_cached_at TEXT
+        ebay_value REAL, ebay_qty INTEGER, ebay_cached_at TEXT, attempted_at TEXT
       )`,
       `CREATE TABLE minifig_value_history (
         fig_num TEXT NOT NULL, snapshot_date TEXT NOT NULL,

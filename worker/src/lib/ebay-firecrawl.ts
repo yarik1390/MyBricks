@@ -1,6 +1,7 @@
 import type { Env } from '../types';
 import { firecrawlScrape } from './firecrawl';
 import { firecrawlEnabled } from './pricing-flags';
+import { ebaySoldLaneEnabled, sourceEnabled } from './source-config';
 import { summarizeSoldPrices, isValidLegoSetSaleTitle } from './ebay';
 import { boundedEvidence, type EbaySoldListingEvidence } from './ebay-sold-observations';
 /**
@@ -71,7 +72,10 @@ export async function fetchEbaySoldViaFirecrawl(
   env: Env,
   options: { includeNew?: boolean; includeUsed?: boolean } = {},
 ): Promise<EbaySoldScrapeResult> {
-  if (!firecrawlEnabled(env)) return { status: 'disabled', new_value: null, new_count: 0 };
+  if (!ebaySoldLaneEnabled(env) || !firecrawlEnabled(env)
+    || !(await sourceEnabled(env, 'ebay')) || !(await sourceEnabled(env, 'firecrawl'))) {
+    return { status: 'disabled', new_value: null, new_count: 0 };
+  }
 
   const base = setNum.replace(/-\d+$/, '');
   const q = encodeURIComponent(`LEGO ${base} ${setName || ''}`.trim());
@@ -202,7 +206,10 @@ export async function fetchMinifigEbaySoldViaFirecrawl(
   figName: string,
   env: Env,
 ): Promise<MinifigEbaySold> {
-  if (!firecrawlEnabled(env)) return { status: 'disabled', value: null, count: 0 };
+  if (!ebaySoldLaneEnabled(env) || !firecrawlEnabled(env)
+    || !(await sourceEnabled(env, 'ebay')) || !(await sourceEnabled(env, 'firecrawl'))) {
+    return { status: 'disabled', value: null, count: 0 };
+  }
 
   const q = encodeURIComponent(`LEGO ${figName || figNum} minifigure`.trim());
   const url = `https://www.ebay.com/sch/i.html?_nkw=${q}&LH_Sold=1&LH_Complete=1&_ipg=60`;

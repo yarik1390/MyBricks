@@ -43,6 +43,25 @@ describe('investment-grade valuation v3', () => {
     expect(result.sample_count).toBe(8);
   });
 
+  it.each([null, 'invalid', '2999-01-01', '2020-01-01'])('never earns fresh/high confidence from %s clocks', clock => {
+    const result = valueSignalsV3('new_sealed', [
+      { ...sold('bricklink_new', 'bricklink', 100, 5), checked_at: clock, source_observed_at: clock },
+      { ...sold('ebay_sold_new', 'ebay_market', 108, 3), checked_at: clock, source_observed_at: clock },
+    ]);
+    expect(result.confidence).not.toBe('high');
+    expect(result.basis.every(family => !family.fresh)).toBe(true);
+  });
+
+  it('does not borrow unrelated recompute clocks for stored modeled/asking prices', () => {
+    const signals = legacySignalsFor({ set_num: 'CLOCK-1', be_value_new: 100, stockx_ask: 110, cached_at: now });
+    const retained = signals.filter(s => ['brickeconomy_new', 'stockx_ask'].includes(s.source));
+    expect(retained).toHaveLength(2);
+    for (const signal of retained) {
+      expect(signal.checked_at).toBeNull();
+      expect(signal.source_observed_at ?? null).toBeNull();
+    }
+  });
+
   it('collapses eBay and PriceCharting into one family and never yields high', () => {
     const result = valueSignalsV3('new_sealed', [
       sold('ebay_sold_new', 'ebay_market', 100, 7),

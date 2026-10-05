@@ -5,17 +5,16 @@ import { firecrawlEnabled } from '../lib/pricing-flags';
 /**
  * Refresh the upcoming/coming-soon feed (G2b). One Firecrawl scrape of the
  * LEGO.com coming-soon listing per run (cheap; the page is small and changes
- * slowly). Upserts each product and prunes rows that weren't seen this run —
- * those have either released (now in the normal catalog) or been pulled.
+ * slowly). Listing scrapes can be partial: absence is never release evidence.
  */
 export async function runUpcomingRefresh(env: Env) {
+  let removed = await pruneReleasedUpcoming(env);
   const cleared = await clearRetiringOnUpcoming(env);
-  if (!firecrawlEnabled(env)) return { upserted: 0, removed: 0, cleared, skipped: 'firecrawl disabled' };
+  if (!firecrawlEnabled(env)) return { upserted: 0, removed, cleared, skipped: 'firecrawl disabled' };
 
   const items = await fetchUpcomingSets(env);
-  // Don't prune on an empty/failed scrape — that would wipe a good feed on a
-  // transient miss. Only reconcile when we actually got products.
-  if (!items.length) return { upserted: 0, removed: 0, cleared, skipped: 'no items scraped' };
+  // Empty or partial scrapes never establish that omitted products released.
+  if (!items.length) return { upserted: 0, removed, cleared, skipped: 'no items scraped' };
 
   const stamp = new Date().toISOString();
   const stmts = items.map((it) => env.DB.prepare(`
@@ -25,12 +24,22 @@ export async function runUpcomingRefresh(env: Env) {
   `).bind(it.set_num, it.name, it.price_usd, it.availability, stamp));
   for (let i = 0; i < stmts.length; i += 90) await env.DB.batch(stmts.slice(i, i + 90));
 
-  // Prune entries no longer listed (not refreshed this run).
-  const del = await env.DB.prepare(
-    `DELETE FROM upcoming_sets WHERE scraped_at IS NULL OR scraped_at < ?`,
-  ).bind(stamp).run();
+  removed += await pruneReleasedUpcoming(env);
+  return { upserted: items.length, removed, cleared: cleared + await clearRetiringOnUpcoming(env) };
+}
 
-  return { upserted: items.length, removed: (del.meta.changes as number | undefined) ?? 0, cleared: cleared + await clearRetiringOnUpcoming(env) };
+// Fresh stock must be a valid observation, not an invalid/future timestamp.
+const RELEASED = `(retired = 1 OR (
+  datetime(lego_checked_at) >= datetime('now', '-7 days')
+  AND datetime(lego_checked_at) <= datetime('now')
+  AND lego_availability IN ('in_stock', 'back_order', 'sold_out', 'retiring')
+))`;
+
+async function pruneReleasedUpcoming(env: Env): Promise<number> {
+  const res = await env.DB.prepare(
+    `DELETE FROM upcoming_sets WHERE set_num IN (SELECT set_num FROM lego_sets WHERE ${RELEASED})`,
+  ).run();
+  return res.meta.changes ?? 0;
 }
 
 /**
@@ -43,7 +52,8 @@ export async function clearRetiringOnUpcoming(env: Env): Promise<number> {
   try {
     const res = await env.DB.prepare(
       `UPDATE lego_sets SET lego_retiring_soon = 0, retirement_risk_score = 0
-       WHERE (lego_retiring_soon = 1 OR COALESCE(retirement_risk_score, 0) > 0)
+       WHERE NOT COALESCE(${RELEASED}, 0)
+         AND (lego_retiring_soon = 1 OR COALESCE(retirement_risk_score, 0) > 0)
          AND (set_num IN (SELECT set_num FROM upcoming_sets)
               OR COALESCE(lego_availability, '') IN ('coming_soon', 'pre_order'))`,
     ).run();

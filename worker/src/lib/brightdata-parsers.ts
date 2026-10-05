@@ -152,17 +152,16 @@ export function parseBricksetHtml(html: string): BricksetScrape | null {
 }
 
 function normalizeAvailability(raw: string): LegoStockResult {
-  const status = raw.toUpperCase().replace(/[\s-]+/g, '_');
-  if (/^(IN_STOCK|AVAILABLE|AVAILABLE_NOW)$/.test(status)) return { in_stock: true, retiring_soon: false, availability: 'in_stock', retail_price_usd: null };
-  if (/PRE.?ORDER/.test(status)) return { in_stock: true, retiring_soon: false, availability: 'pre_order', retail_price_usd: null };
-  if (/BACK.?ORDER/.test(status)) return { in_stock: true, retiring_soon: false, availability: 'back_order', retail_price_usd: null };
-  if (/COMING.?SOON/.test(status)) return { in_stock: false, retiring_soon: false, availability: 'coming_soon', retail_price_usd: null };
-  // Exact terminal states BEFORE the broad /RETIR/ match: a retired product is
-  // sold out, not "retiring soon".
-  if (/^(EOL|SOLD_OUT|DISCONTINUED|RETIRED)$/.test(status)) return { in_stock: false, retiring_soon: false, availability: 'sold_out', retail_price_usd: null };
-  if (/RETIR/.test(status)) return { in_stock: false, retiring_soon: true, availability: 'retiring', retail_price_usd: null };
-  if (/OUT.?OF.?STOCK|UNAVAILABLE/.test(status)) return { in_stock: false, retiring_soon: false, availability: 'out_of_stock', retail_price_usd: null };
-  return { in_stock: null, retiring_soon: false, availability: null, retail_price_usd: null };
+  const status = raw.toUpperCase().replace(/[\s_-]+/g, '');
+  const result = (in_stock: boolean | null, retiring_soon: boolean | null, availability: string | null): LegoStockResult => ({ in_stock, retiring_soon, availability, retail_price_usd: null });
+  if (/^(INSTOCK|AVAILABLE|AVAILABLENOW)$/.test(status)) return result(true, null, 'in_stock');
+  if (status === 'PREORDER') return result(true, false, 'pre_order');
+  if (status === 'BACKORDER') return result(true, null, 'back_order');
+  if (status === 'COMINGSOON') return result(false, false, 'coming_soon');
+  if (/^(EOL|SOLDOUT|DISCONTINUED|RETIRED)$/.test(status)) return result(false, false, 'sold_out');
+  if (/^(RETIRING|RETIRINGSOON)$/.test(status)) return result(false, true, 'retiring');
+  if (/^(OUTOFSTOCK|UNAVAILABLE)$/.test(status)) return result(false, null, 'out_of_stock');
+  return result(null, null, null);
 }
 
 export function parseLegoStockHtml(html: string, hint?: string): LegoStockResult | null {
@@ -181,7 +180,7 @@ export function parseLegoStockHtml(html: string, hint?: string): LegoStockResult
     const price = priceOf(chosen);
     const result: LegoStockResult = {
       ...status,
-      retiring_soon: status.retiring_soon || /retiring\s+soon|retirement\s+immin/i.test(html),
+      retiring_soon: status.retiring_soon,
       retail_price_usd: price,
     };
     // A Product block that yielded nothing usable must NOT short-circuit the
@@ -189,6 +188,13 @@ export function parseLegoStockHtml(html: string, hint?: string): LegoStockResult
     return result.in_stock != null || result.availability != null || result.retiring_soon || result.retail_price_usd != null
       ? result : null;
   }
+
+  // Ambiguous structured products must not fall back to the first global offer.
+  if (!target && /type=["']application\/ld\+json["']/i.test(html)) return null;
+
+  // A requested product needs positive identity evidence; global state/navigation
+  // cannot establish that recommendation data belongs to it.
+  if (target) return parseScopedLegoState(html, target);
 
   // 2) No (unambiguous) JSON-LD product data — fall back to the inline state
   //    JSON. LEGO pages still embed `"availabilityStatus"` and
@@ -207,8 +213,6 @@ export function parseLegoStockHtml(html: string, hint?: string): LegoStockResult
     raw = schemaStatus;
   }
   const result = normalizeAvailability(raw ?? '');
-  result.retiring_soon = result.retiring_soon || /retiring\s+soon|retirement\s+immin/i.test(html);
-  if (result.retiring_soon && result.availability == null) result.availability = 'retiring';
 
   const cents = [...html.matchAll(/"centAmount"\s*:\s*(\d+)[\s\S]{0,80}?"currencyCode"\s*:\s*"USD"/gi)]
     .map((m) => Number(m[1]) / 100)
@@ -223,6 +227,39 @@ export function parseLegoStockHtml(html: string, hint?: string): LegoStockResult
 
   return result.in_stock != null || result.availability != null || result.retiring_soon || result.retail_price_usd != null
     ? result : null;
+}
+
+function parseScopedLegoState(html: string, target: string): LegoStockResult | null {
+  const candidates: LegoStockResult[] = [];
+  const visit = (value: unknown) => {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) { value.forEach(visit); return; }
+    const node = value as Record<string, any>;
+    const ids = [node.sku, node.productCode, node.productId, node.id];
+    const url = typeof node.url === 'string' ? node.url : '';
+    const matches = ids.some((id) => String(id ?? '').replace(/-\d+$/, '') === target)
+      || new RegExp(`/product/(?:[^/]*-)?${escapeRe(target)}(?:$|[/?#])`).test(url);
+    if (matches) {
+      const offer = Array.isArray(node.offers) ? node.offers[0] : node.offers;
+      const raw = node.availabilityStatus ?? node.availability ?? offer?.availability;
+      const result = normalizeAvailability(typeof raw === 'string' ? raw.replace(/^https?:\/\/schema\.org\//i, '') : '');
+      if (typeof node.retiringSoon === 'boolean') result.retiring_soon = node.retiringSoon;
+      const price = node.price ?? offer;
+      if (price && typeof price === 'object' && price.currencyCode === 'USD') {
+        const amount = finite(price.centAmount);
+        result.retail_price_usd = amount != null && amount > 0 ? amount / 100 : null;
+      } else if (offer) {
+        result.retail_price_usd = priceOf({ price: offer.price, currency: offer.priceCurrency });
+      }
+      if (Object.values(result).some((field) => field != null)) candidates.push(result);
+    }
+    Object.values(node).forEach(visit);
+  };
+  for (const script of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)) {
+    try { visit(JSON.parse(script[1])); } catch { /* non-JSON script */ }
+  }
+  const distinct = new Map(candidates.map((result) => [JSON.stringify(result), result]));
+  return distinct.size === 1 ? [...distinct.values()][0] : null;
 }
 
 interface LdProduct {
@@ -251,9 +288,10 @@ function pickProductBlock(html: string, target?: string): LdProduct | null {
         const offers = (item as any).offers;
         const offer = Array.isArray(offers) ? offers[0] : offers;
         blocks.push({
-          text: script[1],
+          text: JSON.stringify({ sku: (item as any).sku, url: (item as any).url, '@id': (item as any)['@id'] }),
           product: {
-            availability: (offer?.availability ?? (item as any).availability ?? '').replace(/^https?:\/\/schema\.org\//i, '') || undefined,
+            availability: typeof (offer?.availability ?? (item as any).availability) === 'string'
+              ? (offer?.availability ?? (item as any).availability).replace(/^https?:\/\/schema\.org\//i, '') : undefined,
             price: offer?.price ?? offer?.lowPrice ?? null,
             currency: offer?.priceCurrency ?? null,
           },
@@ -264,10 +302,10 @@ function pickProductBlock(html: string, target?: string): LdProduct | null {
   if (!blocks.length) return null;
   if (target) {
     const scoped = blocks.filter((b) => new RegExp(
-      `(?:/product/${escapeRe(target)}|"sku"\\s*:\\s*"${escapeRe(target)}"|"gtin1?3?"\\s*:\\s*"${escapeRe(target)}")`, 'i',
+      `(?:/product/(?:[^/]*-)?${escapeRe(target)}(?:[/?#]|\"|$)|"sku"\\s*:\\s*"${escapeRe(target)}"|"gtin1?3?"\\s*:\\s*"${escapeRe(target)}")`, 'i',
     ).test(b.text));
     if (scoped.length === 1) return scoped[0].product;
-    if (scoped.length > 1) return null; // even the hint can't disambiguate
+    return null; // absent or ambiguous target identity is not a match
   }
   if (blocks.length === 1) return blocks[0].product;
   return null; // several products, none clearly the requested set

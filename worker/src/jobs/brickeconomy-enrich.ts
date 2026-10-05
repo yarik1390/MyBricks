@@ -78,12 +78,8 @@ export async function runBrickEconomyEnrich(
   // hard fallback guard if a raw fetch or deterministic parse fails.
   const effLimit = (hasScrapingAnt || hasBrightData) ? limit : Math.min(limit, Math.floor(spendable / 5));
 
-  // Select by FRESHNESS (never-scraped or >90d stale), NOT by "be_value_new IS
-  // NULL". A scrape that yields no usable value still stamps be_cached_at (see
-  // the miss path below); gating on be_value_new IS NULL would re-select — and
-  // re-charge 5cr for — those un-populatable sets every single run, burning the
-  // daily credit ceiling while the bootstrap never advances past them. The
-  // ORDER BY still prioritizes never-valued sets, so real values fill first.
+  // Attempt clocks rotate independently of price observation freshness. Misses
+  // never rejuvenate retained prices; transport errors cool for one hour.
   // TWO cadences, because the catalog splits cleanly in two:
   //   - 15,154 sets that HAVE yielded BrickEconomy data. This is the app's widest
   //     price source and 98.8% of it was stale, so it refreshes on a ~weekly gate
@@ -96,20 +92,24 @@ export async function runBrickEconomyEnrich(
   const refreshDays = Math.min(Math.max(Number(env.BRICKECONOMY_REFRESH_DAYS) || 7, 1), 365);
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num
-    FROM lego_sets ls
+    FROM lego_sets ls LEFT JOIN set_market_ext ext ON ext.set_num=ls.set_num
     WHERE (
         ls.be_cached_at IS NULL
         OR (ls.be_value_new IS NOT NULL AND ls.be_cached_at < datetime('now', '-${refreshDays} days'))
         OR (ls.be_value_new IS NULL AND ls.be_cached_at < datetime('now', '-90 days'))
       )
+      AND (ext.be_attempted_at IS NULL OR ext.be_attempted_at < datetime('now',
+        CASE ext.be_attempt_status WHEN 'error' THEN '-1 hour'
+          WHEN 'no_data' THEN '-90 days' ELSE '-${refreshDays} days' END))
       AND ls.year >= 2000
     ORDER BY
+      (ext.be_attempted_at IS NOT NULL), ext.be_attempted_at,
       -- Never tried first, then the weekly refresh of sets that actually carry
       -- data, and only then the known-empty tail. (Was "be_value_new IS NULL
       -- first", which under the split cadence would have front-loaded exactly
       -- the sets BrickEconomy has nothing for.)
       CASE
-        WHEN ls.be_cached_at IS NULL THEN 0
+        WHEN ext.be_attempted_at IS NULL AND ls.be_cached_at IS NULL THEN 0
         WHEN ls.be_value_new IS NOT NULL THEN 1
         ELSE 2
       END,
@@ -130,6 +130,9 @@ export async function runBrickEconomyEnrich(
 
   let processed = 0;
   let updated = 0;
+  let failures = 0;
+  let no_data = 0;
+  let partial = 0;
   const stmts: D1PreparedStatement[] = [];
 
   // Scrape in small concurrent batches (default 5, matching ebay-sold-scrape) so
@@ -149,29 +152,37 @@ export async function runBrickEconomyEnrich(
 
     for (const { set_num, scrape, failed } of outs) {
       processed++;
-      // Provider failures remain immediately retryable. Only a successful
-      // scrape with no usable values earns the 90-day negative-data stamp.
-      if (failed) continue;
-      if (!scrape) {
-        // A successful scrape found no usable BrickEconomy data. Stamp the
-        // negative result so the set is not re-scraped every run.
-        stmts.push(env.DB.prepare(
-          `UPDATE lego_sets SET be_cached_at=datetime('now') WHERE set_num=?`,
-        ).bind(set_num));
-        continue;
-      }
+      const hasNew = Number.isFinite(scrape?.current_value_new) && Number(scrape?.current_value_new) > 0;
+      const hasUsed = Number.isFinite(scrape?.current_value_used) && Number(scrape?.current_value_used) > 0;
+      const status = failed ? 'error' : !hasNew && !hasUsed ? 'no_data' : hasNew && hasUsed ? 'ok' : 'partial';
+      stmts.push(env.DB.prepare(
+        `INSERT INTO set_market_ext (set_num, be_attempted_at, be_attempt_status)
+         VALUES (?1, datetime('now'), ?2) ON CONFLICT(set_num) DO UPDATE SET
+         be_attempted_at=excluded.be_attempted_at, be_attempt_status=excluded.be_attempt_status`,
+      ).bind(set_num, status));
+      if (status === 'error') { failures++; continue; }
+      if (status === 'no_data' || !scrape) { no_data++; continue; }
+      if (status === 'partial') partial++;
 
       // Sparse update: only write the figures the scrape actually returned, so a
       // partial scrape never nulls out a previously-good column.
-      const fields: string[] = [`be_cached_at=datetime('now')`];
-      const binds: number[] = [];
+      // One legacy clock serves both conditions: advance it only if every
+      // retained condition price was observed again. Partial results retain the
+      // earlier clock, conservatively understating freshness instead of lying.
+      const fields: string[] = [`be_cached_at=CASE WHEN
+        (?=1 OR be_value_new IS NULL) AND (?=1 OR be_value_used IS NULL)
+        THEN datetime('now') ELSE be_cached_at END`];
+      const binds: (number | null)[] = [hasNew ? 1 : 0, hasUsed ? 1 : 0];
       const maybe = (col: string, val: number | null) => {
         if (val != null) { fields.push(`${col}=?`); binds.push(val); }
       };
-      maybe('be_value_new', scrape.current_value_new);
-      maybe('be_value_used', scrape.current_value_used);
-      maybe('be_forecast_2y', scrape.forecast_value_new_2_years);
-      maybe('be_forecast_5y', scrape.forecast_value_new_5_years);
+      if (hasNew) maybe('be_value_new', scrape.current_value_new);
+      if (hasUsed) maybe('be_value_used', scrape.current_value_used);
+      // A new baseline without forecasts must not rejuvenate old scenarios.
+      if (hasNew) {
+        fields.push('be_forecast_2y=?', 'be_forecast_5y=?');
+        binds.push(scrape.forecast_value_new_2_years ?? null, scrape.forecast_value_new_5_years ?? null);
+      }
       // Magazine gifts have no retail; the scrape reports the cover price.
       if (scrape.retail_price_us != null) {
         fields.push(`be_retail=CASE WHEN LOWER(COALESCE(subtheme, '')) = 'magazine gift' THEN be_retail ELSE ? END`);
@@ -197,5 +208,5 @@ export async function runBrickEconomyEnrich(
   // No aggregate health write — firecrawlScrape records each scrape attempt
   // (real ok/fail + error message) inside the wrapper. Writing a batch tally
   // here would double-count and clobber the real error with "unknown error".
-  return { processed, updated, limit: effLimit };
+  return { processed, updated, failed: failures, no_data, partial, limit: effLimit };
 }

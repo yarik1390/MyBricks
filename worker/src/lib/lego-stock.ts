@@ -9,11 +9,39 @@ import { scrapingAntFetchHtml } from './scrapingant';
 
 export interface LegoStockResult {
   in_stock: boolean | null;
-  retiring_soon: boolean;
+  retiring_soon: boolean | null;
   // Normalized fine-grained status from the same page (already fetched, free):
   // in_stock | out_of_stock | pre_order | back_order | coming_soon | sold_out | retiring | null.
   availability?: string | null;
   retail_price_usd?: number | null;
+}
+
+/** Treat absent/invalid extraction fields as unknown, never as false. */
+export function normalizeLegoStockResult(data: unknown): LegoStockResult | null {
+  if (!data || typeof data !== 'object') return null;
+  const d = data as Record<string, unknown>;
+  const availability = typeof d.availability === 'string' ? d.availability.trim().toLowerCase() : '';
+  const result: LegoStockResult = {
+    in_stock: typeof d.in_stock === 'boolean' ? d.in_stock : null,
+    retiring_soon: typeof d.retiring_soon === 'boolean' ? d.retiring_soon : null,
+    availability: ['in_stock', 'out_of_stock', 'pre_order', 'back_order', 'coming_soon', 'sold_out', 'retiring'].includes(availability) ? availability : null,
+    retail_price_usd: typeof d.retail_price_usd === 'number' && Number.isFinite(d.retail_price_usd) && d.retail_price_usd > 0 ? d.retail_price_usd : null,
+  };
+  return Object.values(result).some((value) => value != null) ? result : null;
+}
+
+// Shared by scheduled and on-demand writers: an unknown field is not a deletion
+// and retirement/price-only evidence cannot refresh the stock observation clock.
+export function legoStockUpdate(db: D1Database, setNum: string, stock: LegoStockResult): D1PreparedStatement {
+  const observedStock = stock.in_stock != null || stock.availability != null;
+  return db.prepare(`UPDATE lego_sets SET lego_in_stock=COALESCE(?, lego_in_stock),
+    lego_retiring_soon=COALESCE(?, lego_retiring_soon),
+    lego_checked_at=CASE WHEN ? THEN datetime('now') ELSE lego_checked_at END,
+    lego_availability=COALESCE(?, lego_availability),
+    retail_price=COALESCE(?, retail_price) WHERE set_num=?`)
+    .bind(stock.in_stock == null ? null : Number(stock.in_stock),
+      stock.retiring_soon == null ? null : Number(stock.retiring_soon), observedStock ? 1 : 0,
+      stock.availability ?? null, stock.retail_price_usd ?? null, setNum);
 }
 
 const STOCK_SCHEMA = {
@@ -48,24 +76,17 @@ async function checkLegoStockViaFirecrawl(setNum: string, env: Env): Promise<Leg
       formats: ['json'],
       jsonOptions: {
         schema: STOCK_SCHEMA,
-        prompt: 'Extract stock availability, retirement status, and US retail price from this LEGO product page.',
+        prompt: `Extract stock availability, retirement status, and US retail price ONLY for LEGO product ${num}. Ignore recommendations and navigation. Omit any field whose value is not observed; unknown is not false.`,
       },
       waitFor: 1500,
       timeoutMs: 25_000,
     },
     env,
   );
-  if (!result) return null;
-  const d = result.data;
-  return {
-    in_stock: typeof d.in_stock === 'boolean' ? d.in_stock : null,
-    retiring_soon: !!d.retiring_soon,
-    availability: typeof d.availability === 'string' ? d.availability : null,
-    retail_price_usd: typeof d.retail_price_usd === 'number' ? d.retail_price_usd : null,
-  };
+  return normalizeLegoStockResult(result?.data);
 }
 
-// Fallback: plain fetch + regex (same as the previous implementation).
+// Fallback: the same product-scoped deterministic parser as paid HTML lanes.
 async function checkLegoStockFallback(setNum: string): Promise<LegoStockResult | null> {
   const num = setNum.replace(/-\d+$/, '');
   const url = `https://www.lego.com/en-us/product/${num}`;
@@ -79,36 +100,7 @@ async function checkLegoStockFallback(setNum: string): Promise<LegoStockResult |
     }, { retries: 0, timeoutMs: 8000 });
     if (!resp.ok) return null;
 
-    const html = await resp.text();
-    const retiringSoon = /retiring\s+soon/i.test(html)
-      || /retirement\s+immin/i.test(html)
-      || /"availabilityStatus"\s*:\s*"(?:RETIRING|RETIRING_SOON)"/i.test(html);
-
-    let inStock: boolean | null = null;
-    const availMatch = html.match(/"availability"\s*:\s*"([^"]+)"/);
-    if (availMatch) {
-      const val = availMatch[1].toLowerCase();
-      if (val.includes('instock') || val.includes('in_stock')) inStock = true;
-      else if (val.includes('outofstock') || val.includes('out_of_stock') || val.includes('discontinued')) inStock = false;
-    }
-    if (inStock === null && /add-to-cart|AddToCart/i.test(html)) inStock = true;
-
-    // Fine-grained status (free — same HTML). LEGO exposes richer states than a
-    // bare in/out boolean; surface them so buyers can time pre-orders/back-orders.
-    const statusMatch = html.match(/"availabilityStatus"\s*:\s*"([^"]+)"/i);
-    const rawStatus = (statusMatch?.[1] || availMatch?.[1] || '').toUpperCase();
-    let availability: string | null = null;
-    if (/PRE.?ORDER/.test(rawStatus)) availability = 'pre_order';
-    else if (/BACK.?ORDER/.test(rawStatus)) availability = 'back_order';
-    else if (/COMING.?SOON/.test(rawStatus)) availability = 'coming_soon';
-    else if (retiringSoon) availability = 'retiring';
-    else if (/SOLD.?OUT/.test(rawStatus)) availability = 'sold_out';
-    else if (/OUT.?OF.?STOCK|DISCONTINUED/.test(rawStatus)) availability = 'out_of_stock';
-    else if (/IN.?STOCK/.test(rawStatus)) availability = 'in_stock';
-    else if (inStock === true) availability = 'in_stock';
-    else if (inStock === false) availability = 'out_of_stock';
-
-    return { in_stock: inStock, retiring_soon: retiringSoon, availability };
+    return parseLegoStockHtml(await resp.text(), num);
   } catch {
     return null;
   }
@@ -117,7 +109,7 @@ async function checkLegoStockFallback(setNum: string): Promise<LegoStockResult |
 /**
  * Fetch LEGO.com product page and extract stock/retirement status + retail price.
  * Uses Firecrawl when available (handles Cloudflare bot-protection); falls back to
- * plain fetch+regex when Firecrawl is unconfigured OR fails at runtime (a block,
+ * plain fetch + product-scoped parsing when Firecrawl is unconfigured OR fails at runtime (a block,
  * timeout, or the daily credit ceiling) — so a transient Firecrawl miss doesn't
  * leave the set unchecked.
  */

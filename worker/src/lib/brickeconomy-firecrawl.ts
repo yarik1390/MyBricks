@@ -3,8 +3,9 @@ import { firecrawlScrape } from './firecrawl';
 import { firecrawlEnabled } from './pricing-flags';
 import { sourceEnabled } from './source-config';
 import { brightDataUnlock } from './brightdata';
+import { brightDataEnabled } from './brightdata-keys';
 import { parseBrickEconomyHtml } from './brightdata-parsers';
-import { scrapingAntFetchHtml } from './scrapingant';
+import { scrapingAntEnabled, scrapingAntFetchHtml } from './scrapingant';
 
 /**
  * BrickEconomy set valuation via Firecrawl structured extraction — a drop-in,
@@ -95,21 +96,29 @@ export async function fetchBrickEconomy(
   // Every lane honors the
   // admin source-tuning kill switches (sourceEnabled) — disabling a provider
   // in the console stops its use here too.
-  if (await sourceEnabled(env, 'scrapingant')) {
+  let attemptedHtml = false;
+  if (scrapingAntEnabled(env) && await sourceEnabled(env, 'scrapingant')) {
+    attemptedHtml = true;
     const html = await scrapingAntFetchHtml(url, env, { timeoutMs: 25_000 });
     if (html) {
       const parsed = parseBrickEconomyHtml(html);
       if (parsed) return stripRetailEcho(parsed);
     }
   }
-  if (await sourceEnabled(env, 'brightdata')) {
+  if (brightDataEnabled(env) && await sourceEnabled(env, 'brightdata')) {
+    attemptedHtml = true;
     const html = await brightDataUnlock(url, env, { timeoutMs: 25_000 });
     if (html) {
       const parsed = parseBrickEconomyHtml(html);
       if (parsed) return stripRetailEcho(parsed);
     }
   }
-  if (!(await sourceEnabled(env, 'firecrawl')) || !firecrawlEnabled(env)) return null;
+  if (!(await sourceEnabled(env, 'firecrawl')) || !firecrawlEnabled(env)) {
+    // A fetch/parse miss cannot establish an empty valuation page. Keep it on
+    // the short error retry rather than negative-caching it for 90 days.
+    if (attemptedHtml) throw new Error('BrickEconomy HTML observation failed');
+    return null;
+  }
 
   const result = await firecrawlScrape<Partial<BrickEconomyScrape>>(
     {
