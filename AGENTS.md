@@ -242,9 +242,17 @@ filter/sort set added during the audit: `theme_group`, `category`, `year`,
   weight (`STALE_FAMILY_WEIGHT`); a stale sold headline corroborated by a
   fresh BrickEconomy guide within 1.25x stays `medium` instead of `low`; sold
   comps unchecked for 180+ days (`SOLD_EXPIRED_DAYS`) leave the headline when
-  other sold/modeled evidence remains (`expired_source` flag). PriceCharting
-  rows re-confirmed daily can still read stale because `source_observed_at`
-  only moves when the price changes (90-day observation window).
+  other sold/modeled evidence remains (`expired_source` flag). The 90-day
+  `source_observed_at` window applies to individual sold comps only;
+  PriceCharting (`REPUBLISHED_GUIDE_SOURCES`) is fresh while re-confirmed
+  (`checked_at`), since its unchanged figure keeps the old observation date.
+  `stale_source` is judged on the collapsed families actually used, not on
+  every raw row.
+- **Asking vs value** (`lib/valuation-v3.ts`): an ask above a modeled/sold
+  value, up to `ASK_PREMIUM_CEILING` (2.5x), is a seller premium and does not
+  raise `source_conflict`; an ask below the value (1.4x modeled, 1.5x sold) or
+  above the ceiling still does. Two families of the same kind keep the 1.4x
+  rule.
 - **One headline value**: user-facing reads use the set page's headline, not
   raw `current_value`. SQL: `COALESCE(NULLIF(blended_value, 0), current_value)`
   (`blended_value` is the persisted v3 fair value); holdings:

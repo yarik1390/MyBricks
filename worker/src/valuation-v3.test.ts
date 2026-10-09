@@ -317,3 +317,80 @@ describe('stale evidence', () => {
     expect(result.flags).toContain('expired_source');
   });
 });
+
+describe('reliability round 5', () => {
+  const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+  const modeled = (value: number): PricingSignal => ({ ...sold('brickeconomy_new', 'brickeconomy', value, 0), signal_type: 'modeled' });
+  const ask = (value: number, source = 'ebay_asking', family = 'ebay_market'): PricingSignal => ({
+    ...sold(source, family, value, 10), signal_type: 'asking',
+  });
+
+  it('keeps a re-confirmed PriceCharting figure fresh even when its value is months old', () => {
+    const pc = { ...sold('pricecharting', 'ebay_market', 100, 20), source_observed_at: daysAgo(200), checked_at: daysAgo(2) };
+    const result = valueSignalsV3('new_sealed', [pc]);
+    expect(result.basis[0].fresh).toBe(true);
+    expect(result.flags).not.toContain('stale_source');
+  });
+
+  it('still ages out an individual sold comp observed long ago', () => {
+    const comp = { ...sold('ebay_sold_new', 'ebay_market', 100, 5), source_observed_at: daysAgo(120), checked_at: daysAgo(2) };
+    const result = valueSignalsV3('new_sealed', [comp]);
+    expect(result.basis[0].fresh).toBe(false);
+    expect(result.flags).toContain('stale_source');
+  });
+
+  it('does not call PriceCharting fresh when nobody re-confirmed it', () => {
+    const pc = { ...sold('pricecharting', 'ebay_market', 100, 20), source_observed_at: daysAgo(200), checked_at: daysAgo(30) };
+    expect(valueSignalsV3('new_sealed', [pc]).basis[0].fresh).toBe(false);
+  });
+
+  it('does not flag stale data for an old row that lost to fresher evidence in its family', () => {
+    const oldComp = { ...sold('ebay_sold_new', 'ebay_market', 100, 5), source_observed_at: daysAgo(60), checked_at: daysAgo(60) };
+    const result = valueSignalsV3('new_sealed', [oldComp, sold('pricecharting', 'ebay_market', 104, 20)]);
+    expect(result.basis[0].fresh).toBe(true);
+    expect(result.flags).not.toContain('stale_source');
+  });
+
+  it('reads a listing priced above the market guide as a premium, not a conflict', () => {
+    const result = valueSignalsV3('new_sealed', [modeled(100), ask(180)]);
+    expect(result.flags).not.toContain('source_conflict');
+    expect(result.confidence).toBe('low');
+    expect(result.fair_value).toBe(100);
+  });
+
+  it('still flags listings far below, or wildly above, the market guide', () => {
+    expect(valueSignalsV3('new_sealed', [modeled(100), ask(60)]).flags).toContain('source_conflict');
+    expect(valueSignalsV3('new_sealed', [modeled(100), ask(300)]).flags).toContain('source_conflict');
+  });
+
+  it('keeps two guides of the same kind to the 1.4x agreement rule', () => {
+    const result = valueSignalsV3('new_sealed', [ask(100), ask(150, 'stockx_ask', 'stockx')]);
+    expect(result.flags).toContain('source_conflict');
+  });
+
+  it('does not flag a StockX ask above a sold headline', () => {
+    const result = valueSignalsV3('new_sealed', [sold('pricecharting', 'ebay_market', 100, 20), ask(170, 'stockx_ask', 'stockx')]);
+    expect(result.flags).not.toContain('source_conflict');
+    const below = valueSignalsV3('new_sealed', [sold('pricecharting', 'ebay_market', 100, 20), ask(60, 'stockx_ask', 'stockx')]);
+    expect(below.flags).toContain('source_conflict');
+  });
+});
+
+describe('family freshness follows the selected value', () => {
+  const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+  it('a fresh PriceCharting sibling outweighs an old-observation eBay comp and keeps the family fresh', () => {
+    const oldComp = { ...sold('ebay_sold_new', 'ebay_market', 300, 20), source_observed_at: daysAgo(120), checked_at: daysAgo(1) };
+    const pc = { ...sold('pricecharting', 'ebay_market', 100, 3), source_observed_at: daysAgo(200), checked_at: daysAgo(1) };
+    const result = valueSignalsV3('new_sealed', [oldComp, pc]);
+    expect(result.basis[0].value).toBe(100);
+    expect(result.basis[0].fresh).toBe(true);
+  });
+
+  it('a family whose value came from a stale comp is stale', () => {
+    const oldComp = { ...sold('ebay_sold_new', 'ebay_market', 300, 20), source_observed_at: daysAgo(120), checked_at: daysAgo(1) };
+    const stalePc = { ...sold('pricecharting', 'ebay_market', 100, 3), checked_at: daysAgo(40) };
+    const result = valueSignalsV3('new_sealed', [oldComp, stalePc]);
+    expect(result.basis[0].fresh).toBe(false);
+    expect(result.flags).toContain('stale_source');
+  });
+});
