@@ -103,6 +103,23 @@ async function createMockJWT(userId: string, secret: string): Promise<string> {
   return `${unsigned}.${sigB64}`;
 }
 
+describe('Public health check', () => {
+  it('returns static, non-cacheable status without authentication or bindings', async () => {
+    const response = await app.fetch(new Request('https://example.com/healthz'), {} as any);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Type')).toContain('application/json');
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
+    expect(await response.json()).toEqual({ status: 'ok' });
+  });
+
+  it('keeps existing member routes protected', async () => {
+    const response = await app.fetch(new Request('https://example.com/api/me'), {} as any);
+
+    expect(response.status).toBe(401);
+  });
+});
+
 describe('BrickVault API Worker Tests', () => {
   const JWT_SECRET = 'test-secret-at-least-32-chars-long-and-super-secure';
   let token: string;
