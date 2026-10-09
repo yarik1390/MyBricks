@@ -85,6 +85,16 @@ export interface ForecastV3 {
 const DAY_MS = 86_400_000;
 const SOURCE_FRESH_DAYS = 14;
 const SOLD_OBSERVATION_DAYS = 90;
+// Rolling price guides re-publish a figure every day. An unchanged figure keeps
+// its original source_observed_at (the benchmark freeze anchor), so for these
+// an old observation date means "unchanged", not "unverified"
+// (docs/pricing-partner-compliance.md). Their freshness is the re-confirmation
+// clock (checked_at) alone. Individual sold comps keep the 90-day rule.
+const REPUBLISHED_GUIDE_SOURCES = new Set(['pricecharting']);
+// Listings normally sit above the market: an ask up to this multiple of a
+// modeled or sold value is a seller premium, not a disagreement. An ask BELOW
+// the value (you can buy it for less) still is.
+const ASK_PREMIUM_CEILING = 2.5;
 // A sold comp nobody has re-checked in half a year is history, not a market.
 // It leaves the headline whenever other eligible evidence remains; a set whose
 // only evidence is that old comp keeps it (flagged) rather than losing a value.
@@ -180,6 +190,31 @@ const SOLD_AGREE_RATIO = 1.6;
 
 const spread = (a: number, b: number): number => Math.max(a, b) / Math.min(a, b);
 
+/** An ask disagrees with a value only when it is below it, or absurdly above it. */
+function askConflicts(ask: number, value: number, tolerance: number): boolean {
+  return ask * tolerance < value || ask > value * ASK_PREMIUM_CEILING;
+}
+
+/**
+ * Do supporting (modeled/asking) families genuinely disagree? Two of the same
+ * kind must agree within 1.4x. An ask against a modeled value is read
+ * directionally: listings priced above a market guide are the norm.
+ */
+function supportingConflict(supporting: ValuationBasis[]): boolean {
+  for (let i = 0; i < supporting.length; i++) {
+    for (let j = i + 1; j < supporting.length; j++) {
+      const [a, b] = [supporting[i], supporting[j]];
+      if (a.signal_type === b.signal_type) {
+        if (spread(a.value, b.value) > 1.4) return true;
+        continue;
+      }
+      const [ask, other] = a.signal_type === 'asking' ? [a, b] : [b, a];
+      if (askConflicts(ask.value, other.value, 1.4)) return true;
+    }
+  }
+  return false;
+}
+
 function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
@@ -238,6 +273,7 @@ function collapseFamilies(signals: PricingSignal[], now: number): ValuationBasis
     const fresh = selected.some(signal => {
       const checkedFresh = ageDays(signal.checked_at, now) <= SOURCE_FRESH_DAYS;
       const observedFresh = signal.signal_type !== 'sold'
+        || REPUBLISHED_GUIDE_SOURCES.has(signal.source)
         || ageDays(signal.source_observed_at || signal.checked_at, now) <= SOLD_OBSERVATION_DAYS;
       return checkedFresh && observedFresh;
     });
@@ -286,7 +322,6 @@ export function valueSignalsV3(
     if (signal.signal_type === 'sold' && Number(signal.sample_count || signal.sales_volume || 0) < minimumSample(signal)) {
       flags.add('insufficient_sample');
     }
-    if (ageDays(signal.checked_at, now) > SOURCE_FRESH_DAYS) flags.add('stale_source');
     for (const flag of signal.flags || []) flags.add(flag);
   }
 
@@ -309,6 +344,9 @@ export function valueSignalsV3(
   if (unexpired.length < eligible.length) flags.add('expired_source');
   const screened = rejectSoldOutliers(dropExpired ? unexpired : eligible, flags);
   const families = collapseFamilies(screened, now);
+  // Judge staleness on the evidence actually used. An old row that lost its
+  // family to fresher evidence (or was never eligible) is not "stale data".
+  if (families.some(family => !family.fresh)) flags.add('stale_source');
   const sold = families.filter(f => f.signal_type === 'sold');
   const supporting = families.filter(f => f.signal_type === 'modeled' || f.signal_type === 'asking');
   const estimates = families.filter(f => f.signal_type === 'estimate');
@@ -323,7 +361,7 @@ export function valueSignalsV3(
     const ratio = Math.max(...values) / Math.min(...values);
     headlineFamilies = supporting;
     confidence = ratio <= 1.4 ? 'medium' : 'low';
-    if (ratio > 1.4) flags.add('source_conflict');
+    if (supportingConflict(supporting)) flags.add('source_conflict');
   } else if (supporting.length === 1 && supporting[0].signal_type === 'modeled') {
     headlineFamilies = supporting;
     confidence = 'low';
@@ -390,8 +428,11 @@ export function valueSignalsV3(
     for (const family of supporting) {
       low = Math.min(low, clamp(family.value, fairValue * 0.85, fairValue * 1.15));
       high = Math.max(high, clamp(family.value, fairValue * 0.85, fairValue * 1.15));
-      const ratio = Math.max(family.value, fairValue) / Math.min(family.value, fairValue);
-      if (ratio >= 1.5) flags.add('source_conflict');
+      if (family.signal_type === 'asking') {
+        if (askConflicts(family.value, fairValue, 1.5)) flags.add('source_conflict');
+      } else if (spread(family.value, fairValue) >= 1.5) {
+        flags.add('source_conflict');
+      }
     }
   }
 
