@@ -144,13 +144,25 @@ function minimumSample(signal: PricingSignal): number {
   return 3;
 }
 
+/**
+ * Re-checked within 14 days and, for an individual sold comp, observed within
+ * 90. A re-published guide (PriceCharting) is judged on its re-check alone.
+ */
+function signalFresh(signal: PricingSignal, now: number): boolean {
+  const checkedFresh = ageDays(signal.checked_at, now) <= SOURCE_FRESH_DAYS;
+  const observedFresh = signal.signal_type !== 'sold'
+    || REPUBLISHED_GUIDE_SOURCES.has(signal.source)
+    || ageDays(signal.source_observed_at || signal.checked_at, now) <= SOLD_OBSERVATION_DAYS;
+  return checkedFresh && observedFresh;
+}
+
 function signalWeight(signal: PricingSignal, now: number): number {
   const type = signal.signal_type === 'sold' ? 1
     : signal.signal_type === 'modeled' ? 0.65
       : signal.signal_type === 'asking' ? 0.35 : 0.2;
   const sample = Math.max(1, Number(signal.sample_count || signal.sales_volume || 1));
   const sampleFactor = signal.signal_type === 'sold' ? 0.65 + Math.min(sample, 20) / 40 : 1;
-  const freshness = ageDays(signal.checked_at, now) <= SOURCE_FRESH_DAYS ? 1 : 0.35;
+  const freshness = signalFresh(signal, now) ? 1 : 0.35;
   const trust = Number.isFinite(signal.trust_multiplier) ? Math.max(0, signal.trust_multiplier as number) : 1;
   return type * sampleFactor * freshness * trust;
 }
@@ -270,13 +282,9 @@ function collapseFamilies(signals: PricingSignal[], now: number): ValuationBasis
     // Multiple APIs can expose the same underlying marketplace. Use the largest
     // sample in a family instead of summing and pretending those sales are unique.
     const sampleCount = Math.max(0, ...selected.map(s => Number(s.sample_count || s.sales_volume || 0)));
-    const fresh = selected.some(signal => {
-      const checkedFresh = ageDays(signal.checked_at, now) <= SOURCE_FRESH_DAYS;
-      const observedFresh = signal.signal_type !== 'sold'
-        || REPUBLISHED_GUIDE_SOURCES.has(signal.source)
-        || ageDays(signal.source_observed_at || signal.checked_at, now) <= SOLD_OBSERVATION_DAYS;
-      return checkedFresh && observedFresh;
-    });
+    // Fresh only if the signal that supplied the family value is fresh, so a
+    // stale comp cannot borrow freshness from a sibling it outvoted.
+    const fresh = selected.some(signal => signal.value === value && signalFresh(signal, now));
     // Representative multiplier for the family. In the overwhelming common
     // case every signal here shares one owner/source-config entry (a family
     // only spans multiple admin-tunable owners in the rare cross-source

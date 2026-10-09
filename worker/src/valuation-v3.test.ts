@@ -375,3 +375,22 @@ describe('reliability round 5', () => {
     expect(below.flags).toContain('source_conflict');
   });
 });
+
+describe('family freshness follows the selected value', () => {
+  const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+  it('a fresh PriceCharting sibling outweighs an old-observation eBay comp and keeps the family fresh', () => {
+    const oldComp = { ...sold('ebay_sold_new', 'ebay_market', 300, 20), source_observed_at: daysAgo(120), checked_at: daysAgo(1) };
+    const pc = { ...sold('pricecharting', 'ebay_market', 100, 3), source_observed_at: daysAgo(200), checked_at: daysAgo(1) };
+    const result = valueSignalsV3('new_sealed', [oldComp, pc]);
+    expect(result.basis[0].value).toBe(100);
+    expect(result.basis[0].fresh).toBe(true);
+  });
+
+  it('a family whose value came from a stale comp is stale', () => {
+    const oldComp = { ...sold('ebay_sold_new', 'ebay_market', 300, 20), source_observed_at: daysAgo(120), checked_at: daysAgo(1) };
+    const stalePc = { ...sold('pricecharting', 'ebay_market', 100, 3), checked_at: daysAgo(40) };
+    const result = valueSignalsV3('new_sealed', [oldComp, stalePc]);
+    expect(result.basis[0].fresh).toBe(false);
+    expect(result.flags).toContain('stale_source');
+  });
+});
