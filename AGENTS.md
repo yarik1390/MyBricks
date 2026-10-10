@@ -561,6 +561,13 @@ Both one-time bootstraps — PriceCharting per-set (`10,25,40,55`) and BrickEcon
   `redirect_to` absent from the dashboard allowlist and *silently* falls back to
   the project Site URL — so "login sends me to the wrong domain" is almost never
   a code bug. Fix in Authentication -> URL Configuration.
+- **D1 30s query limit vs. catalog-wide joins.** `col LIKE other.col || '-%'`
+  cannot use an index, so in a set-based job it scans `lego_sets` once per row.
+  That made two `pricecharting-bulk` statements take 40-55s on a 13k-set
+  catalog, and the daily import died before refreshing or re-confirming any
+  price. Match set-number bases through an indexed helper table (see
+  `SETBASE`/`CAND` in `jobs/pricecharting-bulk.ts`).
+  `pricecharting-bulk-scale.test.ts` guards it.
 
 ---
 
