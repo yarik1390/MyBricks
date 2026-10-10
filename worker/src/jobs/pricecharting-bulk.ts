@@ -210,6 +210,15 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
   // Isolate overlapping cron/admin imports; one run must never drop another's
   // evidence. A failed run can leave an orphan stage, but cannot poison a peer.
   const STAGE = `_pc_bulk_${crypto.randomUUID().replace(/-/g, '')}`;
+  // Helper tables, dropped with the stage. SETBASE maps every catalog set to
+  // its base number ("10204-2" -> "10204") so variant checks are index lookups;
+  // CAND holds the only (pcid, set_num) pairs any match rule can accept.
+  // Before these, `ls.set_num LIKE s.setbase || '-%'` (a pattern SQLite cannot
+  // index) scanned the whole catalog once per CSV row: ~60s statements on a
+  // 13k-set catalog, past D1's 30s query limit, so the import died before it
+  // refreshed or re-confirmed any price.
+  const SETBASE = `${STAGE}_sb`;
+  const CAND = `${STAGE}_cand`;
   const rows = parsePriceChartingCsv(csvText);
   const idCounts = new Map<string, number>();
   for (const r of rows) if (r.pcId) idCounts.set(r.pcId, (idCounts.get(r.pcId) ?? 0) + 1);
@@ -275,13 +284,24 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
   // Both branches of the duplicate-evidence OR must be indexed; otherwise
   // its correlated anti-join scans the entire CSV once per candidate row.
   await env.DB.prepare(`CREATE INDEX IF NOT EXISTS ${STAGE}_setbase ON ${STAGE}(setbase)`).run();
+  await env.DB.prepare(`CREATE TABLE ${SETBASE} AS
+    SELECT set_num, substr(set_num, 1, instr(set_num, '-') - 1) AS base
+    FROM lego_sets WHERE instr(set_num, '-') > 1`).run();
+  await env.DB.prepare(`CREATE INDEX ${SETBASE}_base ON ${SETBASE}(base, set_num)`).run();
+  await env.DB.prepare(`CREATE TABLE ${CAND} AS
+    SELECT s.pcid, ls.set_num FROM ${STAGE} s JOIN lego_sets ls ON ls.set_num=s.setnum
+    UNION SELECT s.pcid, b.set_num FROM ${STAGE} s JOIN ${SETBASE} b ON b.base=s.setbase
+    UNION SELECT s.pcid, ls.set_num FROM ${STAGE} s JOIN lego_sets ls ON ls.upc=s.upc
+      WHERE s.upc IS NOT NULL AND s.upc<>''`).run();
+  await env.DB.prepare(`CREATE INDEX ${CAND}_pcid ON ${CAND}(pcid, set_num)`).run();
 
   const CATEGORY_COMPATIBLE = `(lower(s.provider_category) LIKE '%lego%'
     AND (ls.category IS NULL OR ls.category='' OR lower(ls.category)='normal'
       OR lower(s.provider_category) LIKE '%' || lower(ls.category) || '%'))`;
   const TOKEN_COMPATIBLE = `(s.setnum=ls.set_num OR (s.setnum IS NULL AND
-    (s.setbase IS NULL OR (ls.set_num LIKE s.setbase || '-%' AND NOT EXISTS (
-      SELECT 1 FROM lego_sets variant WHERE variant.set_num LIKE s.setbase || '-%'
+    (s.setbase IS NULL OR (EXISTS (SELECT 1 FROM ${SETBASE} b
+      WHERE b.base=s.setbase AND b.set_num=ls.set_num) AND NOT EXISTS (
+      SELECT 1 FROM ${SETBASE} variant WHERE variant.base=s.setbase
         AND variant.set_num<>ls.set_num)))))`;
   const UPC_COMPATIBLE = `(s.upc IS NULL OR s.upc='' OR (
     (ls.upc IS NULL OR ls.upc='' OR ls.upc=s.upc)
@@ -314,12 +334,11 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
                 ELSE 'upc' END,
            CASE WHEN ${CATEGORY_COMPATIBLE} THEN 1.0 ELSE 0.1 END,
            CASE WHEN ${CATEGORY_COMPATIBLE} THEN 'verified' ELSE 'quarantined' END, datetime('now'), datetime('now')
-    FROM ${STAGE} s JOIN lego_sets ls ON
+    FROM ${STAGE} s CROSS JOIN ${CAND} c CROSS JOIN lego_sets ls ON c.pcid=s.pcid AND ls.set_num=c.set_num AND
       (s.setnum=ls.set_num OR (s.setbase IS NOT NULL AND ${TOKEN_COMPATIBLE}) OR (${BY_SAFE_UPC}))
     WHERE ${CATEGORY_COMPATIBLE} AND ${TOKEN_COMPATIBLE} AND (s.setnum IS NOT NULL OR s.upc IS NOT NULL)
-      AND NOT EXISTS (SELECT 1 FROM ${STAGE} other WHERE other.pcid<>s.pcid
-        AND ((s.setbase IS NOT NULL AND other.setbase=s.setbase)
-          OR (s.upc IS NOT NULL AND s.upc<>'' AND other.upc=s.upc)))
+      AND NOT EXISTS (SELECT 1 FROM ${STAGE} other WHERE other.setbase=s.setbase AND other.pcid<>s.pcid)
+      AND NOT EXISTS (SELECT 1 FROM ${STAGE} other WHERE s.upc<>'' AND other.upc=s.upc AND other.pcid<>s.pcid)
       AND NOT EXISTS (SELECT 1 FROM pricing_source_map protected
         WHERE protected.source='pricecharting' AND protected.set_num=ls.set_num
           AND protected.status IN ('manual','rejected'))
@@ -342,12 +361,13 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
     SELECT 'pricecharting',s.pcid,ls.set_num,s.title,s.upc,ls.set_num,
       CASE WHEN s.setnum=ls.set_num THEN 'set_token_conflict' ELSE 'base_candidate' END,
       0.1,'quarantined',datetime('now')
-    FROM ${STAGE} s JOIN lego_sets ls ON
-      (s.setnum=ls.set_num OR (s.setbase IS NOT NULL AND ls.set_num LIKE s.setbase || '-%'))
+    FROM ${STAGE} s CROSS JOIN ${CAND} c CROSS JOIN lego_sets ls ON c.pcid=s.pcid AND ls.set_num=c.set_num AND
+      (s.setnum=ls.set_num OR (s.setbase IS NOT NULL AND EXISTS (SELECT 1 FROM ${SETBASE} b
+        WHERE b.base=s.setbase AND b.set_num=ls.set_num)))
     WHERE s.pcid IS NOT NULL
       AND (NOT ${CATEGORY_COMPATIBLE} OR NOT ${TOKEN_COMPATIBLE})
-      OR (s.setbase IS NOT NULL AND s.upc IS NULL AND NOT EXISTS (SELECT 1 FROM lego_sets v
-        WHERE v.set_num LIKE s.setbase || '-%' AND v.set_num<>ls.set_num))
+      OR (s.setbase IS NOT NULL AND s.upc IS NULL AND NOT EXISTS (SELECT 1 FROM ${SETBASE} v
+        WHERE v.base=s.setbase AND v.set_num<>ls.set_num))
       AND NOT EXISTS (SELECT 1 FROM pricing_source_map pm
         WHERE pm.source='pricecharting' AND pm.source_item_id=s.pcid)
     ON CONFLICT(source,source_item_id) DO NOTHING
@@ -355,9 +375,8 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
 
   const OBSERVATION_IDENTITY_COMPATIBLE = `${CATEGORY_COMPATIBLE}
     AND ${TOKEN_COMPATIBLE} AND ${UPC_COMPATIBLE}
-    AND NOT EXISTS (SELECT 1 FROM ${STAGE} other WHERE other.pcid<>s.pcid
-      AND ((s.setbase IS NOT NULL AND other.setbase=s.setbase)
-        OR (s.upc IS NOT NULL AND s.upc<>'' AND other.upc=s.upc)))`;
+    AND NOT EXISTS (SELECT 1 FROM ${STAGE} other WHERE other.setbase=s.setbase AND other.pcid<>s.pcid)
+    AND NOT EXISTS (SELECT 1 FROM ${STAGE} other WHERE s.upc<>'' AND other.upc=s.upc AND other.pcid<>s.pcid)`;
   const VERIFIED_JOIN = `${STAGE} s JOIN pricing_source_map pm
     ON pm.source='pricecharting' AND pm.source_item_id=s.pcid
    AND pm.status IN ('verified','manual')
@@ -492,6 +511,8 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
     importError = e;
   } finally {
     try {
+      await env.DB.prepare(`DROP TABLE IF EXISTS ${CAND}`).run();
+      await env.DB.prepare(`DROP TABLE IF EXISTS ${SETBASE}`).run();
       await env.DB.prepare(`DROP TABLE IF EXISTS ${STAGE}`).run();
     } catch (cleanupError) {
       // The import failure is the primary diagnostic. Cleanup failure is fatal
