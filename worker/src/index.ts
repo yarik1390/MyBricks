@@ -134,6 +134,11 @@ app.use('*', async (c, next) => {
   c.header('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
 });
 
+app.get('/healthz', (c) => {
+  c.header('Cache-Control', 'no-store');
+  return c.json({ status: 'ok' }, 200);
+});
+
 // Client telemetry: anonymous, sampled client-side, event names allowlisted,
 // detail capped at 120 chars, no user identifiers. Fire-and-forget on the
 // client; a 204 either way so the endpoint can't be used as an oracle.
