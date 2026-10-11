@@ -132,6 +132,8 @@ export interface BulkResult {
   matched: number;
   unmatched: number;
   updated: number;
+  /** Verified mappings demoted because the feed's own title names another set. */
+  contradicted?: number;
   skipped?: string;
   detail?: string;
   finished_at?: string;
@@ -474,6 +476,30 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
       LIMIT ${PC_RECONFIRM_BUDGET}
     )
   `);
+  // A verified (non-manual) mapping whose product the feed now titles with a
+  // different set number is contradicted by the provider itself (e.g. a UPC
+  // link to 42177-1 for "Wizard Trader #2891"). The identity gate above already
+  // refuses fresh observations for it, but its old signals would keep feeding
+  // valuations as stale evidence. Demote both. Ambiguity (duplicate base or UPC
+  // in the feed) is not a contradiction and is left alone.
+  const CONTRADICTED_PCIDS = `SELECT s.pcid FROM ${STAGE} s JOIN pricing_source_map pm
+      ON pm.source='pricecharting' AND pm.source_item_id=s.pcid AND pm.status='verified'
+    WHERE (s.setnum IS NOT NULL AND s.setnum<>pm.set_num)
+       OR (s.setnum IS NULL AND s.setbase IS NOT NULL AND NOT EXISTS (
+         SELECT 1 FROM ${SETBASE} b WHERE b.base=s.setbase AND b.set_num=pm.set_num))`;
+  const contradictedSignals = env.DB.prepare(`
+    UPDATE pricing_signals SET match_status='quarantined', updated_at=datetime('now')
+    WHERE source='pricecharting' AND match_status='verified'
+      AND source_item_id IN (${CONTRADICTED_PCIDS})
+  `);
+  const contradictedMaps = env.DB.prepare(`
+    UPDATE pricing_source_map SET status='quarantined', match_confidence=0.1, updated_at=datetime('now')
+    WHERE source='pricecharting' AND status='verified'
+      AND source_item_id IN (${CONTRADICTED_PCIDS})
+  `);
+  const [, contradictedResult] = await env.DB.batch([contradictedSignals, contradictedMaps]);
+  const contradicted = Number(contradictedResult.meta?.changes || 0);
+
   await env.DB.batch([
     signalInsert('new_sealed', 'newv'),
     signalInsert('used_complete', 'cibv'),
@@ -511,6 +537,7 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
     matched,
     unmatched: rows.length - matched,
     updated: touched.size,
+    ...(contradicted ? { contradicted } : {}),
   };
   } catch (e) {
     importError = e;
