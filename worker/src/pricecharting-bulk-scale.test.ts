@@ -92,8 +92,9 @@ describe('PriceCharting bulk import at catalog scale', () => {
     const ambiguous = Array.from({ length: N }, (_, i) => i).filter((i) => i % 3 === 0 && i % 5 === 0).length;
     expect(result.matched).toBe(N - ambiguous);
     const fresh = await db.prepare(`SELECT count(*) AS n FROM pricing_signals WHERE condition='new_sealed' AND checked_at > '2026-09-01'`).first<{ n: number }>();
-    // Re-confirmation is capped at 2,500 rows per run (PC_RECONFIRM_BUDGET).
-    expect(fresh!.n).toBe(2500);
+    // Every matched, unchanged row is re-confirmed in one run: the budget
+    // (PC_RECONFIRM_BUDGET) sits above the daily steady-state need.
+    expect(fresh!.n).toBe(N - ambiguous);
     expect(await db.prepare(`SELECT name FROM sqlite_master WHERE name LIKE '_pc_bulk_%'`).all())
       .toMatchObject({ results: [] });
   }, 60000);

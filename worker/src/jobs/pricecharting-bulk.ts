@@ -40,9 +40,14 @@ const PROGRESS_KEY = 'pc_bulk_last_result';
 // family to stale after 14 days. A price the daily full-catalog sweep keeps
 // re-publishing is current evidence, so it must be stamped as such — bounded so
 // the re-confirmation itself can never become a D1 rows-written problem.
-// 7 days refreshes the ~22k verified signals on a rolling basis inside the cap.
+// Re-confirming every row every 7 days needs (verified rows / 7) writes a day:
+// ~36k rows across new/used/loose is ~5k a day, so the budget must sit well
+// above that or rows age past the 14-day stale line faster than they are
+// re-stamped. 2,500 was below the steady-state need and left ~80% of
+// PriceCharting evidence stale; 10,000 clears a full backlog in about four
+// runs and then writes only what has aged past 7 days.
 const PC_RECONFIRM_DAYS = 7;
-const PC_RECONFIRM_BUDGET = 2500;
+const PC_RECONFIRM_BUDGET = 10000;
 
 function parseLine(line: string): string[] {
   const cols: string[] = [];
