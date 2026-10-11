@@ -78,6 +78,23 @@ describe('runWishlistAlerts', () => {
     expect(types.results.map(t => t.alert_type)).toEqual(['deal', 'preorder', 'retiring']);
   });
 
+  it('gives Pro members a one-day head start on retiring alerts', async () => {
+    await db.batch([
+      db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, retired, lego_retiring_soon, lego_retiring_since) VALUES ('R-NEW','Just flagged', 30, 0, 1, datetime('now', '-2 hours'))`),
+      db.prepare(`INSERT INTO user_prefs (user_id, is_supporter) VALUES ('pro', 1)`),
+      db.prepare(`INSERT INTO user_wishlist (user_id, set_num) VALUES ('pro','R-NEW')`),
+      db.prepare(`INSERT INTO user_wishlist (user_id, set_num) VALUES ('u1','R-NEW')`),
+    ]);
+    expect((await runWishlistAlerts(e)).retiring).toBe(1);
+    const first = await db.prepare(`SELECT user_id FROM wishlist_alerts WHERE alert_type='retiring'`).all<{ user_id: string }>();
+    expect(first.results.map(r => r.user_id)).toEqual(['pro']);
+
+    await db.prepare(`UPDATE lego_sets SET lego_retiring_since = datetime('now', '-25 hours') WHERE set_num='R-NEW'`).run();
+    expect((await runWishlistAlerts(e)).retiring).toBe(1);
+    const all = await db.prepare(`SELECT user_id FROM wishlist_alerts WHERE alert_type='retiring' ORDER BY user_id`).all<{ user_id: string }>();
+    expect(all.results.map(r => r.user_id)).toEqual(['pro', 'u1']);
+  });
+
   it('never sends a retiring alert for a set that has not released yet', async () => {
     await db.batch([
       // Flagged retiring by a stock scrape, but LEGO lists it as coming soon.

@@ -58,3 +58,14 @@ test('a refused purchase says why', async ({ page }) => {
   await expect(page.getByText(/didn't allow this purchase/)).toBeVisible();
   await page.screenshot({ path: process.env.PRO_SHOT || 'test-results/pro.png' });
 });
+
+test('the thanks wall lists public supporters', async ({ page }) => {
+  await mockBilling(page);
+  await page.route('**/api/users/supporters', (route) => route.fulfill({ json: { supporters: [{ handle: 'patron', name: 'Pat' }, { handle: 'brickfan', name: 'Brick Fan' }] } }));
+  await page.goto('/#/pro');
+  const wall = page.locator('.bv-prowall');
+  await expect(wall.getByRole('heading', { name: 'Thanks to our supporters' })).toBeVisible();
+  await expect(wall.getByRole('link', { name: 'Pat' })).toHaveAttribute('href', '#/u/patron');
+  await expect(page.getByText('Retirement alerts first')).toBeVisible();
+  await page.screenshot({ path: process.env.PRO_SHOT || 'test-results/pro-wall.png', fullPage: true });
+});

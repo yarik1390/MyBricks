@@ -15,6 +15,7 @@ import { icon, brickSvg } from '../ui/kit.js';
 import { money0, moneySigned } from '../ui/set-ui.js';
 import { displayValueOf } from '../lib/pure.js';
 import { getCapacitorPlugin, isNativeCapacitor } from '../lib/native-auth.js';
+import { loadMe } from './me-shared.js';
 
 const onScreen = () => location.hash.split('?')[0] === '#/wrapped';
 const num = (n) => Number(n || 0).toLocaleString(intlLocale());
@@ -77,7 +78,10 @@ async function loadStory() {
     isGuestMode() || state.me?.is_guest ? Promise.resolve(null) : api('/api/me/wrapped').catch(() => null),
   ]);
   if (!Array.isArray(coll?.items)) throw new Error('collection unavailable');
-  return buildStory(coll.items, summary);
+  const built = buildStory(coll.items, summary);
+  // Pro perk: the story and its share image come in black and gold.
+  built.gold = !!state.me?.is_supporter;
+  return built;
 }
 
 const slideCount = () => (story?.empty ? 1 : 1 + story.stats.length);
@@ -94,13 +98,14 @@ function pageHTML() {
        <h1 class="bv-wr__head">${escapeHtml(t('bvCommunity.wrEmptyTitle'))}</h1>
        <p class="bv-wr__small">${escapeHtml(t('bvCommunity.wrEmptyBody'))}</p>`
     : `<span class="bv-wr__eyebrow">${escapeHtml(t('bvCommunity.wrEyebrow', { year: story.year }))}</span>
+       ${story.gold ? `<span class="bv-wr__pro">${icon('star', { size: 16 })}${escapeHtml(t('bvCommunity.wrPro'))}</span>` : ''}
        <h1 class="bv-wr__head">${escapeHtml(story.headline)}</h1>
        ${story.stats.map(statHTML).join('')}`;
   const action = story.empty
     ? `<a class="bv-wr__cta" href="#/add">${icon('plus', { size: 20 })}<span>${escapeHtml(t('bvCommunity.wrEmptyAction'))}</span></a>`
     : `<button type="button" class="bv-wr__cta" id="wrShareStory">${icon('share', { size: 20 })}<span>${escapeHtml(t('bvCommunity.wrShare'))}</span></button>`;
-  return `<main class="bv-wr" id="wrappedStory" aria-roledescription="${escapeHtml(t('bvCommunity.wrStory'))}">
-    <div class="bv-wr__brick" aria-hidden="true">${brickSvg('#252820')}</div>
+  return `<main class="bv-wr${story.gold ? ' bv-wr--gold' : ''}" id="wrappedStory" aria-roledescription="${escapeHtml(t('bvCommunity.wrStory'))}">
+    <div class="bv-wr__brick" aria-hidden="true">${brickSvg(story.gold ? '#E5C158' : '#252820')}</div>
     <header class="bv-wr__top">
       <a class="bv-wr__icon" href="#/me" id="wrClose" aria-label="${escapeHtml(t('bvCommunity.wrClose'))}">${icon('x')}</a>
       <div class="bv-wr__prog" aria-hidden="true">${seg}</div>
@@ -141,6 +146,7 @@ export async function renderWrapped() {
   story = null;
   root.innerHTML = `<main class="bv-wr is-loading" aria-busy="true"><header class="bv-wr__top"><a class="bv-wr__icon" href="#/me" aria-label="${escapeHtml(t('bvCommunity.wrClose'))}">${icon('x')}</a></header></main>`;
   try {
+    if (!state.me && !isGuestMode()) await loadMe();
     story = await loadStory();
   } catch {
     if (!onScreen()) return;
@@ -199,18 +205,32 @@ export function drawStory(canvas, s) {
   const ctx = canvas.getContext('2d');
   const sans = cssVar('--bv-sans', 'system-ui, sans-serif');
   const mono = cssVar('--bv-mono', 'ui-monospace, monospace');
+  const gold = !!s.gold;
+  const ink = gold ? '#F1DC97' : '#252820';
+  const inkSoft = gold ? 'rgba(241,220,151,.8)' : 'rgba(37,40,32,.85)';
   const g = ctx.createLinearGradient(0, 0, W * 0.35, H);
-  g.addColorStop(0, '#ffda47'); g.addColorStop(0.45, '#ffcf1a'); g.addColorStop(1, '#f2a81d');
+  if (gold) { g.addColorStop(0, '#1F1A10'); g.addColorStop(0.55, '#14110A'); g.addColorStop(1, '#0B0905'); }
+  else { g.addColorStop(0, '#ffda47'); g.addColorStop(0.45, '#ffcf1a'); g.addColorStop(1, '#f2a81d'); }
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  if (gold) {
+    // Soft gold glow top-right and a gold frame, like a foil card.
+    const glow = ctx.createRadialGradient(W, 0, 40, W, 0, W * 0.9);
+    glow.addColorStop(0, 'rgba(229,193,88,.32)'); glow.addColorStop(1, 'rgba(229,193,88,0)');
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+    const foil = ctx.createLinearGradient(0, 0, W, H);
+    foil.addColorStop(0, '#F3E09A'); foil.addColorStop(0.4, '#B8891F'); foil.addColorStop(0.7, '#F1DC97'); foil.addColorStop(1, '#B8891F');
+    ctx.strokeStyle = foil; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(36, 36, W - 72, H - 72, 48) : ctx.rect(36, 36, W - 72, H - 72); ctx.stroke();
+  }
   // Big faint brick bottom-right, like the screen.
   ctx.save();
-  ctx.globalAlpha = 0.16; ctx.fillStyle = '#252820';
+  ctx.globalAlpha = gold ? 0.12 : 0.16; ctx.fillStyle = gold ? '#E5C158' : '#252820';
   const bx = W - 460, by = H - 640;
   const rr = (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); ctx.fill(); };
   rr(bx + 80, by, 110, 80, 22); rr(bx + 290, by, 110, 80, 22); rr(bx, by + 60, 520, 340, 44);
   ctx.restore();
 
-  ctx.fillStyle = '#252820';
+  ctx.fillStyle = ink;
   ctx.textBaseline = 'alphabetic';
   let y = 220;
   ctx.font = `700 40px ${sans}`;
@@ -220,19 +240,19 @@ export function drawStory(canvas, s) {
   for (const line of wrapLines(ctx, s.headline, W - X * 2)) { ctx.fillText(line, X, y); y += 124; }
   y += 40;
   for (const st of s.stats) {
-    ctx.fillStyle = '#252820';
+    ctx.fillStyle = ink;
     ctx.font = `600 ${st.theme ? 84 : 92}px ${st.theme ? sans : mono}`;
     const big = wrapLines(ctx, st.big, W - X * 2).slice(0, 2);
     for (const line of big) { y += 96; ctx.fillText(line, X, y); }
     ctx.font = `400 40px ${sans}`;
-    ctx.fillStyle = 'rgba(37,40,32,.85)';
+    ctx.fillStyle = inkSoft;
     for (const line of wrapLines(ctx, st.small, W - X * 2).slice(0, 2)) { y += 56; ctx.fillText(line, X, y); }
     y += 56;
     if (y > H - 260) break;
   }
-  ctx.fillStyle = '#252820';
+  ctx.fillStyle = ink;
   ctx.font = `600 38px ${sans}`;
-  ctx.fillText(publicOrigin().replace(/^https?:\/\//, ''), X, H - 110);
+  ctx.fillText(publicOrigin().replace(/^https?:\/\//, '') + (gold ? ' · Pro' : ''), X, H - 110);
   return canvas;
 }
 

@@ -9195,6 +9195,18 @@
     ]
   },
   {
+    "text": "bvAccount.appIconHelp",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "bvAccount.appIconHelpPro",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
     "text": "bvAccount.appLockOff",
     "files": [
       "views/me.js"

@@ -734,3 +734,4 @@ ALTER TABLE user_wishlist ADD COLUMN notify_target INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE user_wishlist ADD COLUMN notify_retiring INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE user_wishlist ADD COLUMN notify_stock INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE native_push_tokens ADD COLUMN supports_actions INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE lego_sets ADD COLUMN lego_retiring_since TEXT;

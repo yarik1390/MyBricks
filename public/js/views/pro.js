@@ -10,14 +10,31 @@ import { topbar, icon, btn } from '../ui/kit.js';
 import { go } from '../router.js';
 import { isNativeBilling, proPurchaseReady, purchaseProPlan, restorePurchases, presentCustomerCenter, proPlanPrices } from '../lib/revenuecat-native.js';
 import { loadMe } from './me-shared.js';
+import { api } from '../api.js';
 
 const BENEFITS = [
   ['trend', 'bvAccount.proInsights', 'bvAccount.proInsightsSub'],
   ['clock', 'bvAccount.proHistory', 'bvAccount.proHistorySub'],
   ['camera', 'bvAccount.proScans', 'bvAccount.proScansSub'],
   ['download', 'bvAccount.proExports', 'bvAccount.proExportsSub'],
+  ['bell', 'bvAccount.proAlertsFirst', 'bvAccount.proAlertsFirstSub'],
   ['star', 'bvAccount.proSkin', 'bvAccount.proSkinSub'],
+  ['heart', 'bvAccount.proWall', 'bvAccount.proWallSub'],
 ];
+
+// Thanks wall: Pro members with a public profile. Optional — an empty or
+// failed list just leaves the section out.
+async function loadSupporters() {
+  try { return (await api('/api/users/supporters'))?.supporters || []; } catch { return []; }
+}
+
+function wallHTML(list) {
+  if (!list.length) return '';
+  return `<section class="bv-prowall" aria-labelledby="proWallTitle">
+      <h2 class="bv-h2" id="proWallTitle">${escapeHtml(t('bvAccount.proWallTitle'))}</h2>
+      <ul class="bv-prowall__list">${list.map((p) => `<li><a href="#/u/${encodeURIComponent(p.handle)}">${icon('star', { size: 14 })}<span>${escapeHtml(p.name)}</span></a></li>`).join('')}</ul>
+    </section>`;
+}
 
 function benefitsHTML() {
   return `<ul class="bv-probenefits">${BENEFITS.map(([ic, title, sub]) => `<li>${icon(ic, { size: 22 })}<span><span class="bv-probenefits__title">${escapeHtml(t(title))}</span><span class="bv-probenefits__sub">${escapeHtml(t(sub))}</span></span></li>`).join('')}</ul>`;
@@ -49,7 +66,7 @@ export async function renderPro() {
   const native = isNativeBilling();
   const active = !!me.is_supporter;
   const patreon = state.config?.patreon_url;
-  const prices = native && !active ? await proPlanPrices() : [];
+  const [prices, supporters] = await Promise.all([native && !active ? proPlanPrices() : [], loadSupporters()]);
   if (location.hash.split('?')[0] !== '#/pro') return;
 
   let actions;
@@ -72,6 +89,7 @@ export async function renderPro() {
       ${topbar({ title: t('bvAccount.proTitle'), sub: t('bvAccount.proSub'), back: '#/me' })}
       <section class="bv-procard" aria-label="${escapeHtml(t('bvAccount.proWhat'))}">${benefitsHTML()}</section>
       <div class="bv-proactions">${actions}</div>
+      ${wallHTML(supporters)}
     </main>`;
 
   let plan = prices.some((p) => p.type === 'ANNUAL') ? 'ANNUAL' : 'MONTHLY';

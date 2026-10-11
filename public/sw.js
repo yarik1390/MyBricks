@@ -128,6 +128,7 @@ const STATIC_ASSETS = [
   '/js/lib/native-share.js',
   '/js/lib/native-file-export.js',
   '/js/lib/native-widget.js',
+  '/js/lib/app-icon.js',
   '/js/lib/amazon-affiliate.js',
   '/js/lib/morphdom.js',
   '/js/lib/local-ai.js',

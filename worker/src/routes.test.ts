@@ -164,7 +164,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         blended_confidence TEXT, blended_low REAL, blended_high REAL,
         subtheme TEXT, be_growth_12m REAL, bl_new_min REAL, bl_new_max REAL,
         be_value_new REAL, be_value_used REAL, be_forecast_2y REAL, be_forecast_5y REAL, be_retail REAL,
-        bl_used_min REAL, bl_used_max REAL, lego_in_stock INTEGER, lego_retiring_soon INTEGER, lego_availability TEXT,
+        bl_used_min REAL, bl_used_max REAL, lego_in_stock INTEGER, lego_retiring_soon INTEGER, lego_retiring_since TEXT, lego_availability TEXT,
         theme_group TEXT, category TEXT, brickset_tags TEXT,
         created_at TEXT, age_min INTEGER, age_max INTEGER, brickset_rating REAL,
         brickset_review_count INTEGER, retired_year INTEGER, lego_checked_at TEXT,
@@ -1147,6 +1147,17 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       await db.prepare(`INSERT INTO user_prefs (user_id, handle, is_public) VALUES (?, 'someone', 1)`).bind(otherUserId).run();
       const theirs = await app.fetch(new Request('http://localhost/api/users/someone/showcase', { headers: auth() }), env);
       expect(theirs.status).toBe(403);
+    });
+
+    it('supporters wall lists public Pro members only', async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO user_prefs (user_id, handle, display_name, is_public, is_supporter) VALUES (?, 'patron', 'Pat', 1, 1)`).bind(userId),
+        db.prepare(`INSERT INTO user_prefs (user_id, handle, is_public, is_supporter) VALUES (?, 'quiet', 0, 1)`).bind(otherUserId),
+        db.prepare(`INSERT INTO user_prefs (user_id, handle, is_public, is_supporter) VALUES ('free-user', 'free', 1, 0)`),
+      ]);
+      const res = await app.fetch(new Request('http://localhost/api/users/supporters'), env);
+      expect(res.status).toBe(200);
+      expect((await res.json<any>()).supporters).toEqual([{ handle: 'patron', name: 'Pat' }]);
     });
 
     it('leaderboard ranks opted-in public collections by value, excluding private ones', async () => {

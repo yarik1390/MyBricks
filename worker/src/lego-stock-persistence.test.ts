@@ -39,3 +39,14 @@ it('shared writer clears only an explicitly observed warning without rejuvenatin
   expect(await db.prepare(`SELECT lego_in_stock,lego_retiring_soon,lego_checked_at FROM lego_sets`).first())
     .toEqual({ lego_in_stock: 1, lego_retiring_soon: 0, lego_checked_at: '2020-01-01' });
 });
+it('stamps when a set is first flagged retiring and clears it when the flag goes away', async () => {
+  await db.prepare(`UPDATE lego_sets SET lego_retiring_soon=0, lego_retiring_since=NULL`).run();
+  await legoStockUpdate(db, '12345-1', normalizeLegoStockResult({ retiring_soon: true })!).run();
+  const first = await db.prepare(`SELECT lego_retiring_since FROM lego_sets`).first<{ lego_retiring_since: string | null }>();
+  expect(first!.lego_retiring_since).toBeTruthy();
+  await db.prepare(`UPDATE lego_sets SET lego_retiring_since='2026-01-01 00:00:00'`).run();
+  await legoStockUpdate(db, '12345-1', normalizeLegoStockResult({ retiring_soon: true })!).run();
+  expect(await db.prepare(`SELECT lego_retiring_since FROM lego_sets`).first()).toEqual({ lego_retiring_since: '2026-01-01 00:00:00' });
+  await legoStockUpdate(db, '12345-1', normalizeLegoStockResult({ retiring_soon: false })!).run();
+  expect(await db.prepare(`SELECT lego_retiring_since FROM lego_sets`).first()).toEqual({ lego_retiring_since: null });
+});

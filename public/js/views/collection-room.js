@@ -321,6 +321,7 @@ export async function renderCollectionRoom() {
       box_image_url: item.box_image_url ? proxyImg(item.box_image_url) : '',
     })), {
       isCurrent: () => current() && stage.isConnected,
+      gold: !!state.me?.is_supporter,
       onSelect: details, onUnavailable: unavailable, joystick: $('#roomJoystick'), initialPose,
       doorIntroMode: useVideoIntro ? 'deferred' : 'native',
     });

@@ -415,6 +415,10 @@ async function runRetirementAlerts(env: Env): Promise<{ fired: number }> {
       AND COALESCE(ls.lego_availability, '') NOT IN ('coming_soon', 'pre_order')
       AND NOT EXISTS (SELECT 1 FROM upcoming_sets us WHERE us.set_num = ls.set_num)
       AND ${categoryWanted('up', 'notify_retiring')}
+      -- Pro head start: members hear as soon as the flag flips, everyone else
+      -- a day later. A flag set before lego_retiring_since existed is NULL.
+      AND (COALESCE(up.is_supporter, 0) = 1 OR ls.lego_retiring_since IS NULL
+        OR ls.lego_retiring_since <= datetime('now', '-1 day'))
       AND NOT EXISTS (
         SELECT 1 FROM wishlist_alerts wa
         WHERE wa.user_id = u.user_id AND wa.set_num = ls.set_num

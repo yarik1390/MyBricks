@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS lego_sets (
   bl_used_max REAL,
   lego_in_stock INTEGER,
   lego_retiring_soon INTEGER DEFAULT 0,
+  lego_retiring_since TEXT,
   lego_checked_at TEXT,
   lego_availability TEXT,
   bo_new_value REAL,
