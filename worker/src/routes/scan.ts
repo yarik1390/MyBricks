@@ -453,7 +453,7 @@ app.post('/identify', async (c) => {
   // Shelf Snap: same pipeline, exhaustive prompt + a completion budget sized
   // for up to SHELF_MAX_SETS sets instead of one.
   const shelfMode = mode === 'shelf';
-  const promptOpts: ScanPromptOpts = shelfMode ? { prompt: SHELF_SCAN_PROMPT, maxTokens: 2400 } : {};
+  const promptOpts: ScanPromptOpts = shelfMode ? { prompt: SHELF_SCAN_PROMPT, maxTokens: 2800 } : {};
 
   const geminiKey = c.req.header('X-Gemini-Key');
   const openaiKey = c.req.header('X-OpenAI-Key');

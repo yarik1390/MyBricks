@@ -92,9 +92,10 @@ export const SHELF_SCAN_PROMPT =
   'theme, and approximate release year from the model\'s appearance (most display sets have no visible number — a confident ' +
   'name identification is expected and useful). List at most 25 sets, largest/clearest first. Ignore loose parts and non-LEGO items. ' +
   'Return ONLY raw JSON (no markdown fences) in this shape: ' +
-  '{ "sets": [ { "set_num": string|null, "name": string, "theme": string|null, "year": number|null, "confidence": "high"|"medium"|"low"|"none", "reasoning": string } ], ' +
+  '{ "sets": [ { "set_num": string|null, "name": string, "theme": string|null, "year": number|null, "confidence": "high"|"medium"|"low"|"none", "reasoning": string, "box": [ymin, xmin, ymax, xmax] } ], ' +
   '"minifigs": [] }. ' +
-  'Use confidence "none" only when you cannot even guess the set; prefer "low" with your best name guess.';
+  'Use confidence "none" only when you cannot even guess the set; prefer "low" with your best name guess. ' +
+  '"box" is where that set sits in the photo, as integers 0-1000 of the image height (y) and width (x).';
 
 /**
  * Effective OpenRouter FREE pools. The daily model-refresh cron validates the

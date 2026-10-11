@@ -1,6 +1,7 @@
 import { $, $$, haptic, escapeHtml, fmtMoney, toast, setBtnLoading, readFileAsDataURL, resizeImage, setHue, getExchangeRate, CURRENCY_SYMBOLS, activateFocusTrap, FOCUSABLE_SEL, getCachedSetDetail, track, capturedMoneyContext } from '../utils.js';
 import { icon as kitIcon, iconBtn as kitIconBtn, field as kitField, seg as kitSeg, pill as kitPill, sheetBody as kitSheetBody, thumb as kitThumb } from '../ui/kit.js';
-import { quadToViewRect, screenQuadToViewRect, cornerOffsets, defaultFrame } from '../lib/scan-geometry.js';
+import { quadToViewRect, screenQuadToViewRect, cornerOffsets, defaultFrame, normBoxToViewRect } from '../lib/scan-geometry.js';
+import { startSeek, focusFound, stopSeek, seekActive, clearSeekMarks } from './scan-seek.js';
 import { liveScanEnabled } from '../lib/native-barcode.js';
 import { localMoneyToUsd } from '../lib/money-input.js';
 import { state, invalidatePortfolio } from '../state.js';
@@ -382,6 +383,9 @@ function startScanPhrases() {
     const strong = document.querySelector('#scanResult .scan-loading-copy strong');
     if (!strong) return;
     const next = queue[i++ % queue.length];
+    // While the pointer roams the photo the sheet is down: the hint carries it.
+    const hint = document.querySelector('.bv-scan.is-seeking #scanHint');
+    if (hint) hint.textContent = next;
     if (reduce) { strong.textContent = next; return; }
     strong.style.transition = 'opacity .18s ease';
     strong.style.opacity = '0';
@@ -836,6 +840,7 @@ function clearScanResult({ restartCamera = false } = {}) {
   }
   const wrap = document.querySelector(".bv-scan");
   wrap?.classList.remove("has-result", "has-captured-photo");
+  clearSeekMarks(wrap);
   const preview = $("#scanPhotoPreview");
   if (preview) {
     preview.removeAttribute("src");
@@ -1113,6 +1118,11 @@ async function sendScanToAPI(payload) {
   );
   const frame = document.querySelector(".bv-scan__frame");
   if (frame) frame.classList.add("scan-pending");
+  // Photo / Shelf: a pointer searches the frozen still while the scan runs.
+  const still = $("#scanPhotoPreview");
+  if (payload.mode !== "barcode" && still && !still.hidden && !reducedMotion()) {
+    startSeek(document.querySelector(".bv-scan"), _frameRect);
+  }
   // Playful rotating copy for the (slower) image/AI path; barcode is instant.
   if (payload.mode !== "barcode") startScanPhrases();
   const done = () => {
@@ -1177,7 +1187,7 @@ async function sendScanToAPI(payload) {
             current_value: 0,
             theme: "Local AI"
           };
-          showScanResult({ identified: true, confidence: localResult.confidence, reasoning: localResult.reasoning, sets: [set] });
+          await revealScanResult({ identified: true, confidence: localResult.confidence, reasoning: localResult.reasoning, sets: [set] }, stale);
           done();
           return;
         }
@@ -1231,7 +1241,7 @@ async function sendScanToAPI(payload) {
       const steps = (res.diag.timings || []).map(t => `${t.provider}/${t.model} ${t.ms}ms ${t.outcome}`).join(' | ');
       console.warn(`[scan] ${res.diag.total_ms}ms total, image ${res.diag.image_kb}KB :: ${steps || 'no steps ran'}`);
     }
-    showScanResult(res);
+    await revealScanResult(res, stale);
   } catch (e) {
     if (generation !== _scanGeneration || (controller.signal.aborted && !timedOut)) return;
     const localizedMsg = timedOut
@@ -1338,9 +1348,37 @@ function showBlindBoxResult(res) {
 }
 
 
+// Where each found set sits on screen, for the seek pointer to visit. Shelf
+// scans may carry a located box per set; without one a single set is focused
+// in the frame the user aimed with, and a shelf gets one lock on the shelf.
+function seekTargets(res) {
+  const sets = res?.identified ? (res.sets || (res.set ? [res.set] : [])) : [];
+  if (!sets.length) return [];
+  const { w, h } = scanView();
+  const img = $("#scanPhotoPreview");
+  const name = (s) => [String(s.set_num || "").replace(/-1$/, ""), s.name].filter(Boolean).join(" · ");
+  const boxed = sets
+    .map((s) => ({ rect: normBoxToViewRect(s.scan_box, img?.naturalWidth, img?.naturalHeight, w, h), label: name(s) }))
+    .filter((x) => x.rect);
+  if (boxed.length) return boxed;
+  if (state.camera.shelf) return [{ rect: _frameRect || defaultFrame(w, h, "image"), label: tPlural("scanner.setsFound", sets.length) }];
+  return [{ rect: _frameRect || defaultFrame(w, h, "image"), label: name(sets[0]) }];
+}
+
+// Let the seek pointer find and focus each set before the result sheet rises.
+async function revealScanResult(res, stale = () => false) {
+  const targets = seekActive() ? seekTargets(res) : [];
+  if (targets.length) {
+    await focusFound(targets, { isStale: stale, onLock: (_i, label) => { haptic("light"); showChip(label, "lock"); } });
+    if (stale()) return;
+  }
+  showScanResult(res);
+}
+
 export function showScanResult(res) {
   const el = $("#scanResult");
   if (!el) return;
+  if (seekActive()) { stopSeek({ keepMarks: !!res?.identified }); showChip(""); }
   // Photo scans never reported success: scan_success was emitted only from
   // routeScannedCode (the barcode path), so every identified PHOTO counted as an
   // attempt with no matching success and the admin SLO sat at 0% with image

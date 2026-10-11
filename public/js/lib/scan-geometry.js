@@ -69,3 +69,38 @@ export function defaultFrame(viewW, viewH, mode = 'barcode') {
   const top = Math.round(Math.max(96, viewH * (mode === 'barcode' ? 0.3 : 0.24)));
   return { left, top, width: w, height: h };
 }
+
+/**
+ * A set's location from the shelf scan (`[ymin, xmin, ymax, xmax]`, each 0–1000
+ * of the photo) as a padded rect in a viewW×viewH view showing that imgW×imgH
+ * photo with object-fit: cover. Null when the box is missing, malformed or off
+ * screen, so the caller can fall back to the frame the user aimed with.
+ */
+export function normBoxToViewRect(box, imgW, imgH, viewW, viewH, pad = 6) {
+  if (!Array.isArray(box) || box.length !== 4) return null;
+  if (!(imgW > 0) || !(imgH > 0) || !(viewW > 0) || !(viewH > 0)) return null;
+  const [y0, x0, y1, x1] = box.map(Number);
+  if (![y0, x0, y1, x1].every((v) => Number.isFinite(v) && v >= 0 && v <= 1000)) return null;
+  if (y1 <= y0 || x1 <= x0) return null;
+  const quad = [{ x: (x0 / 1000) * imgW, y: (y0 / 1000) * imgH }, { x: (x1 / 1000) * imgW, y: (y1 / 1000) * imgH }];
+  const r = quadToViewRect(quad, imgW, imgH, viewW, viewH, pad);
+  return r && r.width >= 24 && r.height >= 24 ? r : null;
+}
+
+/**
+ * Where the roaming scan pointer goes next while a photo is being identified:
+ * a size×size square that wanders the upper two thirds of the view (the result
+ * sheet rises over the rest). Deterministic per step, so tests can pin it.
+ */
+export function seekWaypoint(step, viewW, viewH, size = 104) {
+  const fx = (0.31 + step * 0.618034) % 1;
+  const fy = (0.57 + step * 0.381966) % 1;
+  const minX = viewW * 0.08, maxX = viewW * 0.92 - size;
+  const minY = viewH * 0.14, maxY = viewH * 0.64 - size;
+  return {
+    left: Math.round(minX + fx * Math.max(0, maxX - minX)),
+    top: Math.round(minY + fy * Math.max(0, maxY - minY)),
+    width: size,
+    height: size,
+  };
+}

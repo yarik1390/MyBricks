@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { matchSetsToCatalog } from './lib/scan-match';
+import { matchSetsToCatalog, scanBox } from './lib/scan-match';
 
 const db = (env as any).DB as D1Database;
 
@@ -74,5 +74,28 @@ describe('scan catalog matching', () => {
     }]);
 
     expect(result.sets[0]?.set_num).toBe('75192-1');
+  });
+
+  it('passes a located shelf box through and drops a malformed one', async () => {
+    const result = await matchSetsToCatalog(env as any, [
+      { set_num: '75192', name: 'Millennium Falcon', confidence: 'high', reasoning: '', box: [120.4, 50, 610, 480] },
+      { set_num: '52236', name: 'Millennium Falcon Bag Tag', confidence: 'high', reasoning: '', box: [500, 10, 400, 90] },
+    ]);
+    expect(result.sets[0]?.scan_box).toEqual([120, 50, 610, 480]);
+    expect(result.sets[1]?.set_num).toBe('52236-1');
+    expect(result.sets[1]).not.toHaveProperty('scan_box');
+  });
+});
+
+describe('scanBox', () => {
+  it('accepts only four in-range coordinates with positive size', () => {
+    expect(scanBox([0, 0, 1000, 1000])).toEqual([0, 0, 1000, 1000]);
+    expect(scanBox(['10', '20', '30', '40'])).toEqual([10, 20, 30, 40]);
+    expect(scanBox(null)).toBeNull();
+    expect(scanBox([1, 2, 3])).toBeNull();
+    expect(scanBox([0, 0, 1001, 10])).toBeNull();
+    expect(scanBox([-1, 0, 10, 10])).toBeNull();
+    expect(scanBox([10, 10, 10, 20])).toBeNull();
+    expect(scanBox([0, 'x', 10, 10])).toBeNull();
   });
 });
