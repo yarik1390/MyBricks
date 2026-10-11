@@ -1244,6 +1244,14 @@ async function sendScanToAPI(payload) {
     await revealScanResult(res, stale);
   } catch (e) {
     if (generation !== _scanGeneration || (controller.signal.aborted && !timedOut)) return;
+    // A 503 "no provider could identify it" still carries a readable reason:
+    // show that, not the raw status text and reason code.
+    const miss = e?.body;
+    if (!timedOut && miss && miss.identified === false && miss.reasoning) {
+      if (miss.diag) console.warn(`[scan] ${miss.diag.total_ms}ms total :: ${(miss.diag.timings || []).map(s => `${s.provider}/${s.model} ${s.ms}ms ${s.outcome}`).join(' | ')}`);
+      showScanResult({ identified: false, reason: miss.reason, reasoning: miss.reasoning });
+      return;
+    }
     const localizedMsg = timedOut
       ? t('scanner.timedOut')
       : t('scanner.scanFailed', { error: e.message || e });

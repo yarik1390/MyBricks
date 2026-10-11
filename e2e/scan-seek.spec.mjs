@@ -107,3 +107,18 @@ test('reduced motion skips the search animation', async ({ page }) => {
   await expect(page.locator('#scanResult')).toContainText('Millennium Falcon');
   await expect(page.locator('.bv-seek')).toHaveCount(0);
 });
+
+test('an exhausted AI cascade shows its reason, not a raw error code', async ({ page }) => {
+  await page.route('**/api/scan/identify', (route) => route.fulfill({
+    status: 503, contentType: 'application/json',
+    body: JSON.stringify({ identified: false, reason: 'provider_unavailable', reasoning: 'Tried 3 AI providers without a confident match. Try a clearer photo, or scan the barcode.' }),
+  }));
+  await page.goto('/#/add', { waitUntil: 'domcontentloaded' });
+  await captureShelfStill(page);
+  const card = page.locator('#scanResult');
+  await expect(card).toContainText('Tried 3 AI providers without a confident match');
+  await expect(card).not.toContainText('provider_unavailable');
+  await expect(card).not.toContainText('Error:');
+  await expect(card.locator('#scanRetry')).toBeVisible();
+  await expect(page.locator('.bv-seek')).toHaveCount(0);
+});
