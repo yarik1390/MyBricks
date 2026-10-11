@@ -90,10 +90,14 @@ export async function loadPortfolioData() {
 }
 
 let _revalidating = false;
+// Retry pressed while a refresh is still in flight runs once more afterwards,
+// instead of being swallowed while the failing refresh repaints the error.
+let _revalidateAgain = false;
 const SYNC_LINE_DELAY_MS = 600;
-async function _revalidatePortfolio() {
-  if (_revalidating) return;
+async function _revalidatePortfolio({ retry = false } = {}) {
+  if (_revalidating) { if (retry) _revalidateAgain = true; return; }
   _revalidating = true;
+  _revalidateAgain = false;
   const token = state._revalToken || 0;
   // "Updating prices" while the saved values are refreshed (canvas: Syncing) —
   // once the refresh is actually slow. Shown at once, it flashed on every
@@ -119,12 +123,13 @@ async function _revalidatePortfolio() {
     const slot = document.getElementById('bvReachSlot');
     if (slot && onVaultRoute() && navigator.onLine !== false && !document.body.classList.contains('offline')) {
       slot.innerHTML = reachErrorHTML();
-      document.getElementById('bvReachRetry')?.addEventListener('click', () => _revalidatePortfolio());
+      document.getElementById('bvReachRetry')?.addEventListener('click', () => _revalidatePortfolio({ retry: true }));
     }
   } finally {
     _revalidating = false;
     clearTimeout(syncLine);
     setSyncState({ active: false });
+    if (_revalidateAgain) _revalidatePortfolio();
   }
 }
 

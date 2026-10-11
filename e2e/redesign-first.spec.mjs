@@ -148,14 +148,23 @@ test('offline says when values are from and what will sync; an unreachable serve
   await expect(page.locator('#offlineBanner')).toBeHidden();
 
   // Saved values on screen, server unreachable: say so and offer Retry.
-  let fail = true;
-  await page.route('**/api/collection', (route) => (fail && route.request().method() === 'GET'
-    ? json(route, { error: 'boom' }, 500)
-    : route.fallback()));
+  // The server stays down until Retry is pressed. A flag set by a capture-phase
+  // listener (before the button's own handler fetches) decides, so a background
+  // revalidation on a slow runner can't succeed early and remove the button.
+  // (Hash navigations below stay in the same document, so install it directly.)
+  await page.evaluate(() => {
+    document.addEventListener('click', (e) => {
+      if (e.target instanceof Element && e.target.closest('#bvReachRetry')) window.__bvRetried = true;
+    }, true);
+  });
+  await page.route('**/api/collection', async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    const retried = await page.evaluate(() => window.__bvRetried === true).catch(() => false);
+    return retried ? route.fallback() : json(route, { error: 'boom' }, 500);
+  });
   await page.goto('/#/me', { waitUntil: 'domcontentloaded' });
   await page.goto('/#/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#bvReachError')).toContainText('Can’t reach BricksVault');
-  fail = false;
   await page.locator('#bvReachRetry').click();
   await expect(page.locator('#bvReachError')).toHaveCount(0);
 });

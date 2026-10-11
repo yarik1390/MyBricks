@@ -51,6 +51,8 @@ Data **collected** and linked to the user:
 - **Personal info:** Email address (account management, sign-in).
 - **App activity / other:** Your collection & wishlist content, uploaded photos, reviews.
 - **Photos:** Images you upload or scan (scan images sent to AI providers for identification).
+- **Financial info → Purchase history:** BricksVault Pro purchases (Google Play Billing, status recorded via RevenueCat). No card details.
+- **Device or other IDs:** Firebase Cloud Messaging push token (only when notifications are allowed).
 Practices:
 - Data is **encrypted in transit**. ✔
 - Users **can request deletion** — and can delete their account in-app (Me → Delete account). ✔

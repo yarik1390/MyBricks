@@ -22,8 +22,8 @@ account / Mac / decision · **[REVIEW]** drafted, review before publishing.
 - [ ] **[YOU — iOS round]** Configure the **Apple provider in Supabase** (Apple Developer Service ID + key + return URL), then set Worker env `APPLE_SIGNIN_ENABLED=1` to reveal the button. Required for iOS (Guideline 4.8).
 
 ## 2. Legal & privacy
-- [ ] **[REVIEW]** `public/privacy.html` — confirm contact email (`support@brickvault.app` placeholder), owner name, and date.
-- [ ] **[REVIEW]** `public/terms.html` — confirm contact, governing-law section, date.
+- [x] **[DONE]** `public/privacy.html` — contact `support@bricksvault.app`, purchases (RevenueCat) and push (Firebase) declared, dated 2026-10-11.
+- [x] **[DONE]** `public/terms.html` — contact fixed, Google Play subscription terms added, dated 2026-10-11.
 - [x] **[DONE]** Both linked from the Me-tab footer.
 - [ ] **[YOU]** Host the privacy policy at a stable public URL (already will be `https://bricksvault.app/privacy.html`) — you'll paste this into both store listings.
 - [ ] **[YOU]** Complete **Google Play Data Safety** and **Apple App Privacy** forms — answers drafted in `listing.md`.
