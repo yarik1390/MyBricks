@@ -39,7 +39,7 @@ with **RevenueCat**. Patreon stays on **web only**; it's auto-hidden in the nati
   (Integrations → Webhooks) pointing at the Worker URL with that Authorization value.
 - [ ] **[YOU]** Play Console products: `lifetime` (one-time), `yearly` + `monthly` (subs).
 - [ ] **[YOU]** RevenueCat: add the Play app (service-account JSON), entitlement
-  `BricksVault Pro`, attach products, build the `default` Offering, design the Paywall,
+  `BricksVault Pro`, attach products, build the `default` Offering (with `$rc_annual` + `$rc_monthly` packages; the app's own Pro screen is the paywall, so a RevenueCat Paywall design is only a fallback),
   copy the **`goog_`** public key into `public/env.js` as `window.RC_PLAY_BILLING_KEY`.
 - [x] **[DONE]** Plugin registration names verified against
   `@revenuecat/purchases-capacitor@13.2.2` — `Purchases` / `RevenueCatUI` match the

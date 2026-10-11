@@ -91,7 +91,9 @@ export async function presentProPaywall() {
   if (!Purchases || !UI) return { ok: false, reason: 'unavailable' };
   try {
     // presentPaywallIfNeeded shows nothing if the user is already entitled.
-    await UI.presentPaywallIfNeeded({ requiredEntitlementIdentifier: ENTITLEMENT_ID });
+    const res = await UI.presentPaywallIfNeeded({ requiredEntitlementIdentifier: ENTITLEMENT_ID });
+    if (res?.result === 'CANCELLED') return { ok: false, reason: 'cancelled' };
+    if (res?.result === 'ERROR') return { ok: false, reason: 'store' };
     const active = await nativeIsPro();
     return { ok: true, active };
   } catch (e) {
@@ -100,18 +102,52 @@ export async function presentProPaywall() {
   }
 }
 
-// Plan prices for display only (the purchase itself stays in the RevenueCat
-// paywall). Returns [] on the web or when offerings can't be read.
+// Plans from the current Offering, kept so the #/pro screen can buy the plan the
+// user picked straight through Google Play (no second, RevenueCat-designed
+// paywall in between). Returns [] on the web or when offerings can't be read.
+let _packages = [];
 export async function proPlanPrices() {
   const Purchases = await configure();
   if (!Purchases?.getOfferings) return [];
   try {
     const offerings = await Purchases.getOfferings();
-    const packages = offerings?.current?.availablePackages || [];
-    return packages
-      .map((p) => ({ type: String(p.packageType || ''), price: p.product?.priceString || '' }))
-      .filter((p) => p.price && (p.type === 'ANNUAL' || p.type === 'MONTHLY'));
+    _packages = (offerings?.current?.availablePackages || [])
+      .filter((p) => p?.product?.priceString && (p.packageType === 'ANNUAL' || p.packageType === 'MONTHLY'));
+    return _packages.map((p) => ({ type: String(p.packageType), price: p.product.priceString }));
   } catch (e) { console.error('[rc-native] offerings', e); return []; }
+}
+
+// RevenueCat error codes (PURCHASES_ERROR_CODE) we explain to the user. The
+// Capacitor bridge rejects with { code: '<n>', message, data: { readableErrorCode,
+// underlyingErrorMessage, userCancelled } }.
+const ERROR_REASONS = {
+  1: 'cancelled', 2: 'store', 3: 'not_allowed', 4: 'invalid', 5: 'not_available',
+  6: 'already_owned', 7: 'already_owned', 10: 'network', 11: 'setup', 23: 'setup', 35: 'network',
+};
+export function purchaseErrorReason(e) {
+  if (e?.data?.userCancelled || e?.userCancelled) return 'cancelled';
+  return ERROR_REASONS[Number(e?.code)] || 'store';
+}
+function purchaseErrorDetail(e) {
+  return String(e?.data?.underlyingErrorMessage || e?.message || e?.data?.readableErrorCode || '').slice(0, 160);
+}
+
+// Buy one plan ('ANNUAL' | 'MONTHLY') directly: Google Play's purchase sheet
+// opens on top of #/pro. Falls back to the RevenueCat paywall only when the
+// Offering couldn't be read (so the button is never a dead end).
+export async function purchaseProPlan(type) {
+  const Purchases = await configure();
+  if (!Purchases) return { ok: false, reason: 'unavailable' };
+  if (!_packages.length) await proPlanPrices();
+  const pkg = _packages.find((p) => p.packageType === type) || _packages[0];
+  if (!pkg) return presentProPaywall();
+  try {
+    const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg });
+    return { ok: true, active: !!customerInfo?.entitlements?.active?.[ENTITLEMENT_ID] };
+  } catch (e) {
+    console.error('[rc-native] purchasePackage', e);
+    return { ok: false, reason: purchaseErrorReason(e), detail: purchaseErrorDetail(e) };
+  }
 }
 
 // Restore previous purchases (App Store / Play require a visible "Restore").
