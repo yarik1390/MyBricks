@@ -303,13 +303,13 @@ a.bv-card, button.bv-card { text-decoration: none; text-align: left; font: inher
 .bv-tile__tag { position: absolute; left: 6px; top: 6px; }
 .bv-tile__qty { position: absolute; right: 6px; top: 6px; }
 .bv-tile__act {
-  position: absolute; right: 4px; bottom: 4px; width: 40px; height: 40px; border-radius: 20px; border: 0; padding: 0;
+  position: absolute; right: 4px; bottom: 4px; width: 44px; height: 44px; min-height: 44px; border-radius: 22px; border: 0; padding: 0;
   display: flex; align-items: center; justify-content: center; background: var(--bv-acc); color: var(--bv-on-acc); cursor: pointer;
 }
 .bv-tile__act[aria-pressed="true"] { background: var(--bv-s2); color: var(--bv-ink); }
 .bv-tile__act svg { width: 18px; height: 18px; }
 /* The whole tile is the link — above the photo (a positioned layer that would
-   otherwise take the tap); the add button sits above it (44px hit area incl. inset). */
+   otherwise take the tap); the add button sits above it (44px target). */
 .bv-tile > a.bv-tile__link::after { content: ""; position: absolute; inset: 0; z-index: 1; }
 .bv-tile__act { z-index: 2; }
 

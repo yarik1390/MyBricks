@@ -71,3 +71,49 @@
   color: var(--surface);
   border-color: var(--ink);
 }
+
+/* ── 2026 redesign (.bv-*) ────────────────────────────────────────
+   The redesigned screens read --bv-* tokens, so the overrides above
+   barely reached them and Premium looked like Retro in mustard. Here
+   Premium becomes "Platinum": ink-black actions on warm paper in light,
+   brushed platinum on graphite in dark, serif value numerals and soft
+   elevation instead of hairline borders. */
+:root[data-skin="premium"] {
+  --line-soft: #E4E2DB;
+  --accent: #16181D;
+  --accent-text: #6E5A23;
+  --bv-on-acc: #FFFFFF;
+  --bv-acct: #6E5A23;
+  --bv-nav-bg: #FFFFFF;
+  --bv-shadow: rgba(16, 18, 24, .16);
+  --pm-sheen: linear-gradient(180deg, #FFFFFF 0%, #FAF9F6 100%);
+  --pm-rule: linear-gradient(90deg, transparent, #CDA53E 30%, #E6CF8C 50%, #CDA53E 70%, transparent);
+}
+:root[data-skin="premium"][data-theme="dark"] {
+  --line-soft: #2A2F39;
+  --accent: #E6E8EC;
+  --accent-text: #D9C38A;
+  --bv-on-acc: #111317;
+  --bv-acct: #D9C38A;
+  --bv-nav-bg: #12151A;
+  --bv-shadow: rgba(0, 0, 0, .5);
+  --pm-sheen: linear-gradient(180deg, #1A1E25 0%, #15181E 100%);
+}
+:root[data-skin="premium"][data-theme="dark"] :is(.bv-btn--primary, .bv-fab, #nav .nav-tab.active .nav-icon, .bv-pill--acc, .bv-card--acc) {
+  background: linear-gradient(135deg, #FAFBFC 0%, #D9DCE2 55%, #B9BEC7 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 4px 14px rgba(0, 0, 0, .45);
+}
+:root[data-skin="premium"] .bv-card { border-color: transparent; box-shadow: 0 1px 2px rgba(16, 18, 24, .05), 0 8px 24px rgba(16, 18, 24, .06); }
+:root[data-skin="premium"][data-theme="dark"] .bv-card { border-color: var(--bv-line); box-shadow: none; }
+:root[data-skin="premium"] :is(.bv-hero, .bv-valuecard) { position: relative; overflow: hidden; background: var(--pm-sheen); }
+:root[data-skin="premium"] :is(.bv-hero, .bv-valuecard)::before {
+  content: ""; position: absolute; left: 24px; right: 24px; top: 0; height: 2px; background: var(--pm-rule); pointer-events: none;
+}
+:root[data-skin="premium"] :is(.bv-hero__value, .bv-valuecard__value, .bv-valuecard .detail-summary-val) {
+  font-family: 'Spectral', Georgia, serif; font-weight: 600; letter-spacing: -.01em; font-variant-numeric: lining-nums tabular-nums;
+}
+:root[data-skin="premium"] .bv-hero__value { font-size: 40px; line-height: 46px; }
+:root[data-skin="premium"] .bv-spark polygon { fill: #CDA53E; opacity: .18; }
+:root[data-skin="premium"] .bv-tabs > :is([aria-selected="true"], [aria-current="page"]) { border-bottom-color: #CDA53E; }
+:root[data-skin="premium"] #nav { box-shadow: 0 -6px 24px rgba(16, 18, 24, .05); }
+:root[data-skin="premium"] .bv-fab { box-shadow: 0 8px 24px var(--bv-shadow), 0 2px 6px var(--bv-shadow); }
