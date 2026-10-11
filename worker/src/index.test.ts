@@ -242,7 +242,7 @@ describe('BrickVault API Worker Tests', () => {
         bl_used_min REAL,
         bl_used_max REAL,
         lego_in_stock INTEGER,
-        lego_retiring_soon INTEGER,
+        lego_retiring_soon INTEGER, lego_retiring_since TEXT,
         lego_availability TEXT,
         age_min INTEGER, age_max INTEGER, brickset_rating REAL, brickset_review_count INTEGER,
         retired_year INTEGER, lego_checked_at TEXT,
@@ -1902,6 +1902,24 @@ describe('BrickVault API Worker Tests', () => {
       expect(res.status).toBe(429);
       const data = await res.json<{ error: string }>();
       expect(data.error).toContain('10 advisor queries per day');
+    });
+
+    it('gives Pro members 50 daily queries instead of 10', async () => {
+      await db.prepare(
+        `INSERT INTO user_prefs (user_id, is_supporter) VALUES (?, 1)
+         ON CONFLICT (user_id) DO UPDATE SET is_supporter = 1`
+      ).bind(testUserId).run();
+      await db.prepare(
+        `INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count) VALUES (?, 'advisor', ?, 50)`
+      ).bind(testUserId, advisorWindowStart()).run();
+      const res = await app.fetch(new Request('http://localhost/api/advisor', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ q: 'Which sets should I sell?' }),
+      }), env);
+      expect(res.status).toBe(429);
+      const data = await res.json<{ error: string }>();
+      expect(data.error).toContain('50 advisor queries per day');
     });
 
     it('bypasses the daily limit with a user Gemini key', async () => {

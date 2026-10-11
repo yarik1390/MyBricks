@@ -34,13 +34,19 @@ export function normalizeLegoStockResult(data: unknown): LegoStockResult | null 
 // and retirement/price-only evidence cannot refresh the stock observation clock.
 export function legoStockUpdate(db: D1Database, setNum: string, stock: LegoStockResult): D1PreparedStatement {
   const observedStock = stock.in_stock != null || stock.availability != null;
+  // lego_retiring_since records when the flag first flipped on, so Pro members
+  // can get the retiring alert a day before everyone else (wishlist-alerts).
+  // SQLite evaluates every SET expression against the old row.
+  const retiring = stock.retiring_soon == null ? null : Number(stock.retiring_soon);
   return db.prepare(`UPDATE lego_sets SET lego_in_stock=COALESCE(?, lego_in_stock),
+    lego_retiring_since=CASE WHEN ? = 1 AND COALESCE(lego_retiring_soon, 0) = 0 THEN datetime('now')
+      WHEN ? = 0 THEN NULL ELSE lego_retiring_since END,
     lego_retiring_soon=COALESCE(?, lego_retiring_soon),
     lego_checked_at=CASE WHEN ? THEN datetime('now') ELSE lego_checked_at END,
     lego_availability=COALESCE(?, lego_availability),
     retail_price=COALESCE(?, retail_price) WHERE set_num=?`)
-    .bind(stock.in_stock == null ? null : Number(stock.in_stock),
-      stock.retiring_soon == null ? null : Number(stock.retiring_soon), observedStock ? 1 : 0,
+    .bind(stock.in_stock == null ? null : Number(stock.in_stock), retiring, retiring,
+      retiring, observedStock ? 1 : 0,
       stock.availability ?? null, stock.retail_price_usd ?? null, setNum);
 }
 

@@ -16,6 +16,8 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // Free-tier server-key limit; bypassed entirely when the user supplies their own Gemini key.
 const ADVISOR_DAILY_LIMIT = 10;
+// Pro (is_supporter) gets five times the server-key quota.
+const ADVISOR_PRO_DAILY_LIMIT = 50;
 
 /** Route-step provider -> the label the user-facing error names. */
 function providerLabelFor(provider: LlmProvider): 'gemini' | 'openai' {
@@ -122,8 +124,14 @@ app.post('/', async (c) => {
       ON CONFLICT (user_id, endpoint, window_start) DO UPDATE SET hit_count = rate_limits.hit_count + 1
       RETURNING hit_count
     `).bind(userId, ws).first<{ hit_count: number }>();
-    if ((rl?.hit_count ?? 0) > ADVISOR_DAILY_LIMIT) {
-      return c.json({ error: `Rate limit: ${ADVISOR_DAILY_LIMIT} advisor queries per day. Add your Gemini key in Settings for unlimited access.` }, 429);
+    const used = rl?.hit_count ?? 0;
+    if (used > ADVISOR_DAILY_LIMIT) {
+      const pref = await c.env.DB.prepare('SELECT is_supporter FROM user_prefs WHERE user_id=?')
+        .bind(userId).first<{ is_supporter: number }>().catch(() => null);
+      const limit = pref?.is_supporter ? ADVISOR_PRO_DAILY_LIMIT : ADVISOR_DAILY_LIMIT;
+      if (used > limit) {
+        return c.json({ error: `Rate limit: ${limit} advisor queries per day. Add your Gemini key in Settings for unlimited access.` }, 429);
+      }
     }
   }
 

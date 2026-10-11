@@ -303,13 +303,13 @@ a.bv-card, button.bv-card { text-decoration: none; text-align: left; font: inher
 .bv-tile__tag { position: absolute; left: 6px; top: 6px; }
 .bv-tile__qty { position: absolute; right: 6px; top: 6px; }
 .bv-tile__act {
-  position: absolute; right: 4px; bottom: 4px; width: 40px; height: 40px; border-radius: 20px; border: 0; padding: 0;
+  position: absolute; right: 4px; bottom: 4px; width: 44px; height: 44px; min-height: 44px; border-radius: 22px; border: 0; padding: 0;
   display: flex; align-items: center; justify-content: center; background: var(--bv-acc); color: var(--bv-on-acc); cursor: pointer;
 }
 .bv-tile__act[aria-pressed="true"] { background: var(--bv-s2); color: var(--bv-ink); }
 .bv-tile__act svg { width: 18px; height: 18px; }
 /* The whole tile is the link — above the photo (a positioned layer that would
-   otherwise take the tap); the add button sits above it (44px hit area incl. inset). */
+   otherwise take the tap); the add button sits above it (44px target). */
 .bv-tile > a.bv-tile__link::after { content: ""; position: absolute; inset: 0; z-index: 1; }
 .bv-tile__act { z-index: 2; }
 
@@ -1792,7 +1792,7 @@ body.collector-ui .bv-discover #catalogSortBtn { grid-column: auto; grid-row: au
 .bv-proactions { margin: 0 var(--bv-gutter); display: flex; flex-direction: column; gap: 8px; }
 .bv-proactions .bv-btn { margin: 0; }
 .bv-proplans { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 4px; }
-.bv-proplan { padding: 14px; border-radius: 16px; border: 1px solid var(--bv-line); background: var(--bv-s); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.bv-proplan { font: inherit; color: inherit; text-align: left; cursor: pointer; padding: 14px; border-radius: 16px; border: 1px solid var(--bv-line); background: var(--bv-s); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .bv-proplan.is-best { border: 2px solid var(--bv-ink); padding: 13px; }
 .bv-proplan__title { font: 600 15px/20px var(--bv-sans); }
 .bv-proplan__price { font: 600 18px/24px var(--bv-mono); overflow-wrap: anywhere; }
@@ -2234,3 +2234,19 @@ body.collector-ui.offline #app { padding-top: 56px; }
 }
 
 /* ---- end area: first ---- */
+
+/* Pro perk: Brick Wrapped in black and gold. */
+.bv-wr--gold { color: #F1DC97; background: radial-gradient(120% 60% at 100% 0%, rgba(229, 193, 88, .28), transparent 60%), linear-gradient(170deg, #1F1A10 0%, #14110A 55%, #0B0905 100%); }
+.bv-wr--gold::after { content: ""; position: absolute; inset: calc(10px + var(--safe-top, 0px)) 10px calc(10px + var(--safe-bottom, 0px)); border: 1.5px solid rgba(229, 193, 88, .55); border-radius: 28px; pointer-events: none; }
+.bv-wr--gold .bv-wr__icon { color: #F1DC97; }
+.bv-wr--gold :is(.bv-wr__icon, .bv-wr__cta, .bv-wr__tap):focus-visible { outline-color: #F1DC97; }
+.bv-wr--gold .bv-wr__prog span { background: rgba(241, 220, 151, .25); }
+.bv-wr--gold .bv-wr__prog span.is-on { background: #E5C158; }
+.bv-wr--gold .bv-wr__big { font-family: 'Spectral', Georgia, serif; background: linear-gradient(180deg, #FBEBB5 0%, #E5C158 55%, #C9A227 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.bv-wr--gold .bv-wr__cta { background: linear-gradient(135deg, #F3E09A 0%, #D9B44A 40%, #B8891F 75%, #E2C063 100%); color: #2A2008; }
+.bv-wr__pro { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 14px; border: 1px solid rgba(229, 193, 88, .6); font: 600 13px/1 var(--bv-sans); letter-spacing: .04em; text-transform: uppercase; color: #E5C158; }
+/* Pro screen: thanks wall of public supporters. */
+.bv-prowall { margin-top: 8px; }
+.bv-prowall__list { list-style: none; margin: 0 var(--bv-gutter); padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.bv-prowall__list a { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px; border-radius: 22px; border: 1px solid var(--bv-line); background: var(--bv-s); color: var(--bv-ink); font: 500 14px/1 var(--bv-sans); text-decoration: none; }
+.bv-prowall__list a svg { color: #C9A227; }

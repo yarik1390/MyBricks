@@ -23,6 +23,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(SystemBarsPlugin.class);
         registerPlugin(TextOcrPlugin.class);
         registerPlugin(WidgetBridgePlugin.class);
+        registerPlugin(AppIconPlugin.class);
         boolean appLockEnabled = getSharedPreferences(
                 SystemBarsPlugin.PRIVACY_PREFS, MODE_PRIVATE)
                 .getBoolean(SystemBarsPlugin.KEY_APP_LOCK, false);

@@ -35,6 +35,19 @@ async function loadShowcase(env: Env, userId: string) {
 
 // GET /api/users/leaderboard — public ranking of opted-in collections by value.
 // Opt-in = a public profile that also exposes its value and has a handle.
+// Supporters wall on the Pro screen: Pro members with a public profile, longest
+// supporters first. Public like the leaderboard; private profiles never appear.
+app.get('/supporters', async (c) => {
+  const res = await c.env.DB.prepare(`
+    SELECT handle, display_name FROM user_prefs
+    WHERE is_supporter = 1 AND is_public = 1 AND handle IS NOT NULL
+    ORDER BY COALESCE(supporter_since, updated_at) ASC, handle ASC
+    LIMIT 200
+  `).all<{ handle: string; display_name: string | null }>().catch(() => ({ results: [] as { handle: string; display_name: string | null }[] }));
+  c.header('Cache-Control', 'public, max-age=600');
+  return c.json({ supporters: (res.results || []).map((r) => ({ handle: r.handle, name: r.display_name || r.handle })) });
+});
+
 app.get('/leaderboard', async (c) => {
   // Bound the joined scan to at most 2000 public users via CTE to prevent unbounded row expansion.
   // JS aggregation via holdingValueForRollout remains the single source of truth so totals stay exact for included users.

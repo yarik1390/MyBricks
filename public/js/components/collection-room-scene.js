@@ -201,7 +201,11 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   const floor = material({ color: 0x5c666b, map: floorTexture, metalness: 0.04, roughness: 0.46 });
   const aisle = material({ color: 0x2e3338, roughness: 0.94, metalness: 0 });
   const shelfSteel = material({ color: 0x5c686e, map: steelTexture, metalness: 0.5, roughness: 0.4 });
-  const shelfEdge = material({ color: 0x3e474c, metalness: 0.66, roughness: 0.42 });
+  // Pro perk: gold uprights, rails and hardware on every shelf bay.
+  const gold = !!options.gold;
+  const shelfEdge = gold
+    ? material({ color: 0xc9a227, metalness: 0.9, roughness: 0.3 })
+    : material({ color: 0x3e474c, metalness: 0.66, roughness: 0.42 });
   const shelfBack = material({ color: 0x6d675f, metalness: 0.05, roughness: 0.82 });
   const lightPanel = material({ color: 0xfff1dc, emissive: 0xfff1dc, emissiveIntensity: 1.6, roughness: 1 });
   const ledStrip = material({ color: 0xffe2b8, emissive: 0xffe2b8, emissiveIntensity: 1.4, roughness: 1 });
@@ -320,7 +324,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       signCanvas.height = 80;
       const context = signCanvas.getContext('2d');
       if (context) {
-        context.fillStyle = '#fff7e9';
+        context.fillStyle = gold ? '#f1dc97' : '#fff7e9';
         context.font = '600 48px system-ui, sans-serif';
         context.textAlign = 'center';
         context.fillText(shorten(context, shelf.theme, 960), 512, 57);

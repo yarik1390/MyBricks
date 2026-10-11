@@ -90,3 +90,52 @@
   -webkit-text-fill-color: transparent;
   color: transparent;
 }
+
+/* ── 2026 redesign (.bv-*) ────────────────────────────────────────
+   The redesigned screens read --bv-* tokens and .bv-* classes, so Gold
+   used to look like Retro in mustard. This carries the brushed-gold
+   gradient onto every primary action, frames the value cards with a
+   gold edge and sets the big numbers in a serif, gold-leaf in dark. */
+:root[data-skin="gold"] {
+  --line-soft: #E6D9B6;
+  --accent-text: #7A5A0E;
+  --bv-acct: #7A5A0E;
+  --bv-on-acc: #2A2008;
+  --bv-nav-bg: #FFFDF7;
+  --bv-shadow: rgba(120, 90, 20, .22);
+  --gd-leaf: linear-gradient(135deg, #F3E09A 0%, #D9B44A 38%, #B8891F 72%, #E2C063 100%);
+  --gd-edge: linear-gradient(135deg, #EED78F, #B8891F 45%, #F1DC97 70%, #B8891F);
+  --gd-sheen: radial-gradient(120% 90% at 100% 0%, rgba(233, 205, 120, .28), transparent 60%);
+}
+:root[data-skin="gold"][data-theme="dark"] {
+  --line-soft: #3A331F;
+  --accent-text: #E5C158;
+  --bv-acct: #E5C158;
+  --bv-nav-bg: #18140C;
+  --bv-shadow: rgba(0, 0, 0, .55);
+  --gd-sheen: radial-gradient(120% 90% at 100% 0%, rgba(229, 193, 88, .16), transparent 60%);
+}
+:root[data-skin="gold"] :is(.bv-btn--primary, .bv-fab, #nav .nav-tab.active .nav-icon, .bv-pill--acc, .bv-card--acc) {
+  background: var(--gd-leaf); color: var(--bv-on-acc);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), inset 0 -1px 0 rgba(90, 60, 0, .25);
+}
+:root[data-skin="gold"] .bv-fab { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 8px 22px var(--bv-shadow); }
+:root[data-skin="gold"] :is(.bv-hero, .bv-valuecard) {
+  border: 1px solid transparent;
+  background: var(--gd-sheen), linear-gradient(var(--bv-s), var(--bv-s)) padding-box, var(--gd-edge) border-box;
+  box-shadow: 0 10px 28px rgba(120, 90, 20, .14);
+}
+:root[data-skin="gold"][data-theme="dark"] :is(.bv-hero, .bv-valuecard) { box-shadow: 0 10px 28px rgba(0, 0, 0, .45); }
+:root[data-skin="gold"] :is(.bv-hero__value, .bv-valuecard__value, .bv-valuecard .detail-summary-val) {
+  font-family: 'Spectral', Georgia, serif; font-weight: 600; letter-spacing: -.01em; font-variant-numeric: lining-nums tabular-nums;
+}
+:root[data-skin="gold"] .bv-hero__value { font-size: 40px; line-height: 46px; }
+:root[data-skin="gold"][data-theme="dark"] :is(.bv-hero__value, .bv-valuecard__value, .bv-valuecard .detail-summary-val) {
+  background: linear-gradient(180deg, #FBEBB5 0%, #E5C158 55%, #C9A227 100%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: #E5C158;
+}
+:root[data-skin="gold"] .bv-spark polyline { stroke: #B8891F; }
+:root[data-skin="gold"][data-theme="dark"] .bv-spark polyline { stroke: #E5C158; }
+:root[data-skin="gold"] .bv-spark polygon { fill: #D9B44A; opacity: .22; }
+:root[data-skin="gold"] .bv-tabs > :is([aria-selected="true"], [aria-current="page"]) { border-bottom: 2px solid #C9A227; }
+:root[data-skin="gold"] #nav { border-top: 1px solid transparent; border-image: linear-gradient(90deg, transparent, #D9B44A, transparent) 1; }

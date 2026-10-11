@@ -15,6 +15,7 @@ import { skelPage, skelStatGrid, skelSettingRows } from '../components/skeleton.
 import { startOnboarding } from '../components/onboarding.js';
 import { getCapacitorPlugin } from '../lib/native-auth.js';
 import { clearVaultWidget } from '../lib/native-widget.js';
+import { appIconAvailable, getAppIcon, setAppIcon, syncAppIconWithPro } from '../lib/app-icon.js';
 import { openLegalSheet } from '../components/legal-sheet.js';
 import { topbar, iconBtn, icon, row, group, sheetBody, btn, toggle, seg, banner } from '../ui/kit.js';
 
@@ -152,6 +153,7 @@ export async function renderMe() {
   try {
     me = me || await api("/api/me");
     state.me = me;
+    syncAppIconWithPro(!!me.is_supporter).catch(() => {});
   } catch (_e) {
     toast(t('bvAccount.loadFailed'), "error");
     me = me || { display_name: t('bvAccount.collector'), handle: null, notify_price_drops: true, portfolio_stats: {} };
@@ -341,6 +343,9 @@ function openAppearanceSheet(me) {
         <div class="bv-field"><span class="bv-field__label">${escapeHtml(t('bvAccount.style'))}</span>
           <div class="bv-chips bv-chips--wrap" id="skinSeg" role="group" aria-label="${escapeHtml(t('bvAccount.style'))}">${skins.map(([v, key]) => `<button type="button" class="bv-chip" data-skin-val="${v}" aria-pressed="${getSkinPref() === v}">${escapeHtml(t(key))}${locked(v) ? ' ★' : ''}</button>`).join('')}</div>
           <span class="bv-field__help">${escapeHtml(t(me.is_supporter ? 'bvAccount.styleHelpPro' : 'bvAccount.styleHelp'))}</span></div>
+        ${appIconAvailable() ? `<div class="bv-field"><span class="bv-field__label">${escapeHtml(t('bvAccount.appIcon'))}</span>
+          <div class="bv-chips bv-chips--wrap" id="iconSeg" role="group" aria-label="${escapeHtml(t('bvAccount.appIcon'))}">${[['default', 'bvAccount.appIconClassic'], ['gold', 'bvAccount.appIconGold']].map(([v, key]) => `<button type="button" class="bv-chip" data-icon-val="${v}" aria-pressed="${v === 'default'}">${escapeHtml(t(key))}${!me.is_supporter && v === 'gold' ? ' ★' : ''}</button>`).join('')}</div>
+          <span class="bv-field__help">${escapeHtml(t(me.is_supporter ? 'bvAccount.appIconHelpPro' : 'bvAccount.appIconHelp'))}</span></div>` : ''}
         <div class="bv-field"><span class="bv-field__label">${escapeHtml(t('bvAccount.viewMode'))}</span>${seg([['pro', 'bvAccount.modeFull'], ['simple', 'bvAccount.modeSimple']].map(([value, key]) => ({ label: t(key), value, current: getModePref() === value })), { label: t('bvAccount.viewMode'), id: 'modeSeg' })}
           <span class="bv-field__help">${escapeHtml(t('bvAccount.viewModeHelp'))}</span></div>
         <div class="bv-field"><label for="languageSelect">${escapeHtml(t("settings.language"))}</label>
@@ -371,6 +376,20 @@ function openAppearanceSheet(me) {
     haptic("light");
     setSkinPref(val);
     pressIn('#skinSeg', b);
+  }));
+  const pressIcon = (val) => $$('#iconSeg [data-icon-val]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.iconVal === val)));
+  if (appIconAvailable()) getAppIcon().then(pressIcon);
+  $$("#iconSeg [data-icon-val]").forEach(b => b.addEventListener("click", async () => {
+    const val = b.dataset.iconVal;
+    if (!me.is_supporter && val === 'gold') {
+      toast(t('bvAccount.appIconLocked'), "info");
+      return;
+    }
+    haptic("light");
+    const applied = await setAppIcon(val);
+    if (!applied) { toast(t('bvAccount.appIconFailed'), 'error'); return; }
+    pressIcon(applied);
+    toast(t('bvAccount.appIconChanged'), 'success');
   }));
   $$("#modeSeg [data-value]").forEach(b => b.addEventListener("click", () => {
     haptic("light");
