@@ -1434,8 +1434,10 @@ export async function api(path, opts = {}) {
   }
   if (!r.ok) {
     let msg = r.statusText;
-    try { const b = await r.json(); msg = b.error || msg; if (b.reason) msg += ': ' + b.reason; } catch {}
-    throw Object.assign(new Error(msg), { status: r.status });
+    let body = null;
+    try { body = await r.json(); msg = body.error || msg; if (body.reason) msg += ': ' + body.reason; } catch {}
+    // Callers that render the server's own explanation (scan misses) read it here.
+    throw Object.assign(new Error(msg), { status: r.status, body });
   }
   assertRequestOwner();
   if (r.status === 204) return null;
