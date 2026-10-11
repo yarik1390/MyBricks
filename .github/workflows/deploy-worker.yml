@@ -186,6 +186,19 @@ jobs:
               continue
             elif grep -qiE 'duplicate column name: [a-zA-Z_][a-zA-Z_0-9]*' <<< "$output" && ! grep -qiE 'error 10[0-9][0-9]|authentication|unauthorized|timed out|network|fetch failed' <<< "$output"; then
               echo "Already present: ${sql%%;*}"
+            elif grep -qi 'too many columns' <<< "$output"; then
+              # D1 caps a table at 100 columns. A table at the cap answers
+              # "too many columns" even for a column it already has, so check
+              # whether the column exists before failing the deploy.
+              table=$(sed -E 's/^[[:space:]]*ALTER TABLE[[:space:]]+([A-Za-z_0-9]+).*/\1/' <<< "$sql")
+              col=$(sed -E 's/.*ADD COLUMN[[:space:]]+([A-Za-z_0-9]+).*/\1/' <<< "$sql")
+              if npx wrangler d1 execute brickvault --remote --command "SELECT $col FROM $table LIMIT 0" >/dev/null 2>&1; then
+                echo "Already present: ${sql%%;*}"
+              else
+                echo "::error::D1 table $table is at the 100-column limit; cannot add $col" >&2
+                printf '%s\n' "$output" >&2
+                exit 1
+              fi
             else
               echo "::error::D1 migration failed: $sql" >&2
               printf '%s\n' "$output" >&2
