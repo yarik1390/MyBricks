@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { coverTransform, quadToViewRect, screenQuadToViewRect, cornerOffsets, defaultFrame } from '../lib/scan-geometry.js';
+import { coverTransform, quadToViewRect, screenQuadToViewRect, cornerOffsets, defaultFrame, normBoxToViewRect, seekWaypoint } from '../lib/scan-geometry.js';
 
 describe('scan geometry', () => {
   it('computes an object-fit: cover transform', () => {
@@ -52,4 +52,34 @@ describe('scan geometry', () => {
     assert.ok(p.height > p.width * 0.9);
     assert.equal(b.left * 2 + b.width, 412);
   });
+
+  it('maps a shelf-scan box (0–1000) onto the cover-fitted photo', () => {
+    // Square 1000×1000 photo in a 400×800 view: scale 0.8, 100px cropped each side.
+    const r = normBoxToViewRect([250, 500, 750, 750], 1000, 1000, 400, 800, 0);
+    assert.deepEqual(r, { left: 200, top: 200, width: 200, height: 400 });
+  });
+
+  it('rejects missing, malformed and off-screen boxes', () => {
+    assert.equal(normBoxToViewRect(null, 1000, 1000, 400, 800), null);
+    assert.equal(normBoxToViewRect([0, 0, 10], 1000, 1000, 400, 800), null);
+    assert.equal(normBoxToViewRect([500, 500, 400, 600], 1000, 1000, 400, 800), null);
+    assert.equal(normBoxToViewRect([0, 0, 1200, 500], 1000, 1000, 400, 800), null);
+    assert.equal(normBoxToViewRect(['a', 0, 10, 10], 1000, 1000, 400, 800), null);
+    // Entirely inside the cropped-away left strip.
+    assert.equal(normBoxToViewRect([100, 0, 900, 50], 1000, 1000, 400, 800), null);
+    assert.equal(normBoxToViewRect([0, 0, 500, 500], 0, 1000, 400, 800), null);
+  });
+
+  it('keeps the roaming pointer in the upper view and moving', () => {
+    const seen = new Set();
+    for (let i = 0; i < 12; i++) {
+      const p = seekWaypoint(i, 390, 844);
+      assert.ok(p.left >= 0 && p.left + p.width <= 390);
+      assert.ok(p.top >= 844 * 0.14 - 1 && p.top + p.height <= 844 * 0.64 + 1);
+      seen.add(`${p.left},${p.top}`);
+    }
+    assert.equal(seen.size, 12);
+    assert.deepEqual(seekWaypoint(3, 390, 844), seekWaypoint(3, 390, 844));
+  });
 });
+

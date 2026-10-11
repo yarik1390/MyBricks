@@ -9,6 +9,8 @@ export interface DescribedSet {
   year?: number | null;
   confidence?: string;
   reasoning?: string;
+  // Shelf Snap: where the set sits in the photo, [ymin, xmin, ymax, xmax] 0-1000.
+  box?: unknown;
 }
 
 export interface SetMatchResult {
@@ -27,6 +29,16 @@ export function ftsPrefixQuery(value: string): string {
     .filter(Boolean)
     .map(tok => `${tok}*`)
     .join(' ');
+}
+
+// A located box from the model, or null when it is missing or malformed. The
+// app only uses it to point at the set on screen, so a bad one is dropped.
+export function scanBox(box: unknown): [number, number, number, number] | null {
+  if (!Array.isArray(box) || box.length !== 4) return null;
+  const n = box.map(Number);
+  if (!n.every(v => Number.isFinite(v) && v >= 0 && v <= 1000)) return null;
+  const [y0, x0, y1, x1] = n.map(Math.round);
+  return y1 > y0 && x1 > x0 ? [y0, x0, y1, x1] : null;
 }
 
 function normalizeMatchText(value: unknown): string {
@@ -127,7 +139,8 @@ export async function matchSetsToCatalog(env: Env, described: DescribedSet[]): P
       // enrichSetRecord recomputes `confidence` as PRICING confidence, so the
       // AI's identification confidence travels under its own key — the shelf
       // checklist shows it per row ("medium match" ≠ "estimated price").
-      matched.push(enrichSetRecord({ ...row, retired: !!row.retired, confidence: cand.confidence, reasoning: cand.reasoning, match_confidence: cand.confidence ?? null }));
+      const box = scanBox(cand.box);
+      matched.push(enrichSetRecord({ ...row, retired: !!row.retired, confidence: cand.confidence, reasoning: cand.reasoning, match_confidence: cand.confidence ?? null, ...(box ? { scan_box: box } : {}) }));
       if (topConfidence === 'none' || cand.confidence === 'high') {
         topConfidence = cand.confidence ?? topConfidence;
         reasoning = cand.reasoning ?? reasoning;

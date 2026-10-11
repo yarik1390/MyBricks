@@ -1304,6 +1304,54 @@ html.bv-scan-native-live .bv-scan__video { display: none; }
 @keyframes bvSweep { from { opacity: 1; background-position: 150% 0; } to { opacity: 0; background-position: -50% 0; } }
 .bv-scan.has-result .bv-scan__frame:not(.is-lock), .bv-scan.is-photo.has-result .bv-scan__frame { opacity: 0; }
 
+/* Photo scan seek (scan-seek.js): a pointer roams the captured still, then
+   travels to each set found, locks on and names it before the sheet rises. */
+.bv-scan.is-seeking .bv-scan__frame { opacity: 0; }
+.bv-scan.is-seeking .bv-scan__chip, .bv-scan__chip.is-lock { max-width: calc(100% - 32px); box-sizing: border-box; }
+.bv-scan__chip span { overflow: hidden; text-overflow: ellipsis; }
+.bv-scan.is-seeking .bv-scan__sheet.loading { transform: translateY(105%); visibility: hidden; transition: none; }
+.bv-scan.is-seeking.has-result .bv-scan__hint, .bv-scan.is-seeking .bv-scan__hint { opacity: 1; top: auto !important; bottom: calc(var(--safe-bottom, 0px) + 40px); }
+.bv-seek { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.bv-seek__scan { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 0, rgba(255, 218, 71, .16) 48%, rgba(255, 218, 71, .3) 50%, transparent 52%) 0 0 / 100% 220% no-repeat; opacity: .8; }
+.bv-seek__ret {
+  position: absolute; left: 0; top: 0; box-sizing: border-box; will-change: transform;
+  transition: transform .44s var(--bv-ease-emph), width .44s var(--bv-ease-emph), height .44s var(--bv-ease-emph);
+}
+.bv-seek__ret.is-instant { transition: none; }
+.bv-seek__corner {
+  position: absolute; width: 22px; height: 22px; box-sizing: border-box; border: 3px solid #fff;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5)); transition: border-color .15s var(--bv-ease);
+}
+.bv-seek__corner[data-c="tl"] { left: 0; top: 0; border-right: 0; border-bottom: 0; border-top-left-radius: 9px; }
+.bv-seek__corner[data-c="tr"] { right: 0; top: 0; border-left: 0; border-bottom: 0; border-top-right-radius: 9px; }
+.bv-seek__corner[data-c="bl"] { left: 0; bottom: 0; border-right: 0; border-top: 0; border-bottom-left-radius: 9px; }
+.bv-seek__corner[data-c="br"] { right: 0; bottom: 0; border-left: 0; border-top: 0; border-bottom-right-radius: 9px; }
+.bv-seek__cross { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px; opacity: .9; transition: opacity .2s var(--bv-ease); }
+.bv-seek__cross::before, .bv-seek__cross::after { content: ""; position: absolute; background: #fff; border-radius: 1px; box-shadow: 0 0 2px rgba(0, 0, 0, .6); }
+.bv-seek__cross::before { left: 8px; top: 0; width: 2px; height: 18px; }
+.bv-seek__cross::after { left: 0; top: 8px; width: 18px; height: 2px; }
+.bv-seek__ret.is-lock .bv-seek__corner { border-color: var(--bv-acc); }
+.bv-seek__ret.is-lock .bv-seek__cross { opacity: 0; }
+.bv-seek__ret.is-lock { box-shadow: 0 0 0 9999px rgba(0, 0, 0, .28); border-radius: 10px; }
+.bv-seek__mark { position: absolute; left: 0; top: 0; box-sizing: border-box; border: 2px solid var(--bv-acc); border-radius: 8px; }
+.bv-seek__mark b {
+  position: absolute; left: 4px; top: 4px; min-width: 20px; height: 20px; padding: 0 5px; box-sizing: border-box; border-radius: 10px;
+  background: var(--bv-acc); color: #252820; font: 700 12px/20px var(--bv-sans); text-align: center; box-shadow: 0 1px 4px rgba(0, 0, 0, .4);
+}
+.bv-seek.is-settled .bv-seek__scan { display: none; }
+.bv-seek.is-settled.has-marks .bv-seek__ret { opacity: 0; }
+.bv-seek.is-settled .bv-seek__ret.is-lock { box-shadow: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .bv-seek__scan { animation: bvSeekScan 2.2s linear infinite; }
+  .bv-seek__ret.is-pause .bv-seek__corner { animation: bvSeekFocus .36s var(--bv-ease) 1; }
+  .bv-seek__ret.is-lock { animation: bvSeekLock .3s var(--bv-spring) 1; }
+  .bv-seek__mark { animation: bvSeekMark .22s var(--bv-ease-emph); }
+}
+@keyframes bvSeekScan { from { background-position: 0 120%; } to { background-position: 0 -20%; } }
+@keyframes bvSeekFocus { 0% { transform: scale(1); } 45% { transform: scale(.82); } 100% { transform: scale(1); } }
+@keyframes bvSeekLock { from { scale: 1.08; } to { scale: 1; } }
+@keyframes bvSeekMark { from { opacity: 0; } to { opacity: 1; } }
+
 .bv-scan__hint {
   position: absolute; left: 24px; right: 24px; z-index: 3; text-align: center;
   font: 500 15px/21px var(--bv-sans); color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .6);
