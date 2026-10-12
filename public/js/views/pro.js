@@ -45,10 +45,17 @@ function benefitsHTML() {
 function plansHTML(prices) {
   const annual = prices.find((p) => p.type === 'ANNUAL');
   const monthly = prices.find((p) => p.type === 'MONTHLY');
-  if (!annual && !monthly) return '';
-  const selected = annual ? 'ANNUAL' : 'MONTHLY';
+  const lifetime = prices.find((p) => p.type === 'LIFETIME');
+  if (!annual && !monthly && !lifetime) return '';
+  const selected = defaultPlan(prices);
   const card = (p, title, note) => p ? `<button type="button" class="bv-proplan${p.type === selected ? ' is-best' : ''}" data-plan="${p.type}" aria-pressed="${p.type === selected}"><span class="bv-proplan__title">${escapeHtml(t(title))}</span><span class="bv-proplan__price bv-num">${escapeHtml(p.price)}</span><span class="bv-proplan__note">${escapeHtml(t(note))}</span></button>` : '';
-  return `<div class="bv-proplans" role="group" aria-label="${escapeHtml(t('bvAccount.planPick'))}">${card(annual, 'bvAccount.planYearly', 'bvAccount.planBest')}${card(monthly, 'bvAccount.planMonthly', 'bvAccount.planCancel')}</div>`;
+  return `<div class="bv-proplans" role="group" aria-label="${escapeHtml(t('bvAccount.planPick'))}">${card(annual, 'bvAccount.planYearly', 'bvAccount.planBest')}${card(monthly, 'bvAccount.planMonthly', 'bvAccount.planCancel')}${card(lifetime, 'bvAccount.planLifetime', 'bvAccount.planOnce')}</div>`;
+}
+
+// Yearly is preselected when offered; Lifetime (a one-time Play product) only
+// when it is the sole plan.
+function defaultPlan(prices) {
+  return ['ANNUAL', 'MONTHLY', 'LIFETIME'].find((type) => prices.some((p) => p.type === type)) || 'ANNUAL';
 }
 
 const PURCHASE_ERRORS = {
@@ -92,7 +99,7 @@ export async function renderPro() {
       ${wallHTML(supporters)}
     </main>`;
 
-  let plan = prices.some((p) => p.type === 'ANNUAL') ? 'ANNUAL' : 'MONTHLY';
+  let plan = defaultPlan(prices);
   root.querySelectorAll('.bv-proplan[data-plan]').forEach((b) => b.addEventListener('click', () => {
     haptic('light');
     plan = b.dataset.plan;

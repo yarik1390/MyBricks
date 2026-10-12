@@ -944,6 +944,8 @@ export const uk = {
     proRestore: 'Відновити покупки',
     proContinue: 'Продовжити',
     planCancel: 'Скасування будь-коли',
+    planLifetime: 'Назавжди',
+    planOnce: 'Один платіж, Pro назавжди',
     planBest: 'Найвигідніше',
     planMonthly: 'Щомісяця',
     planYearly: 'Щороку',

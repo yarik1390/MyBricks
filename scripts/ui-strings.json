@@ -9291,7 +9291,19 @@
     ]
   },
   {
+    "text": "bvAccount.planLifetime",
+    "files": [
+      "views/pro.js"
+    ]
+  },
+  {
     "text": "bvAccount.planMonthly",
+    "files": [
+      "views/pro.js"
+    ]
+  },
+  {
+    "text": "bvAccount.planOnce",
     "files": [
       "views/pro.js"
     ]

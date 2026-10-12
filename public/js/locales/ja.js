@@ -848,6 +848,8 @@ export const ja = {
     proRestore: '購入を復元',
     proContinue: '続ける',
     planCancel: 'いつでも解約可',
+    planLifetime: '買い切り',
+    planOnce: '一度の支払いでずっとPro',
     planBest: 'いちばんお得',
     planMonthly: '月額',
     planYearly: '年額',

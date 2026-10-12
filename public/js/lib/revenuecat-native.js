@@ -106,13 +106,14 @@ export async function presentProPaywall() {
 // user picked straight through Google Play (no second, RevenueCat-designed
 // paywall in between). Returns [] on the web or when offerings can't be read.
 let _packages = [];
+const PLAN_TYPES = new Set(['ANNUAL', 'MONTHLY', 'LIFETIME']);
 export async function proPlanPrices() {
   const Purchases = await configure();
   if (!Purchases?.getOfferings) return [];
   try {
     const offerings = await Purchases.getOfferings();
     _packages = (offerings?.current?.availablePackages || [])
-      .filter((p) => p?.product?.priceString && (p.packageType === 'ANNUAL' || p.packageType === 'MONTHLY'));
+      .filter((p) => p?.product?.priceString && PLAN_TYPES.has(p.packageType));
     return _packages.map((p) => ({ type: String(p.packageType), price: p.product.priceString }));
   } catch (e) { console.error('[rc-native] offerings', e); return []; }
 }
@@ -132,7 +133,7 @@ function purchaseErrorDetail(e) {
   return String(e?.data?.underlyingErrorMessage || e?.message || e?.data?.readableErrorCode || '').slice(0, 160);
 }
 
-// Buy one plan ('ANNUAL' | 'MONTHLY') directly: Google Play's purchase sheet
+// Buy one plan ('ANNUAL' | 'MONTHLY' | 'LIFETIME') directly: Google Play's purchase sheet
 // opens on top of #/pro. Falls back to the RevenueCat paywall only when the
 // Offering couldn't be read (so the button is never a dead end).
 export async function purchaseProPlan(type) {

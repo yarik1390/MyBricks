@@ -848,6 +848,8 @@ export const zh = {
     proRestore: '恢复购买',
     proContinue: '继续',
     planCancel: '随时取消',
+    planLifetime: '终身',
+    planOnce: '一次付费，永久 Pro',
     planBest: '最划算',
     planMonthly: '按月',
     planYearly: '按年',
