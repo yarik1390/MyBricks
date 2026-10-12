@@ -211,12 +211,6 @@
     ]
   },
   {
-    "text": "AI Advisor",
-    "files": [
-      "components/onboarding.js"
-    ]
-  },
-  {
     "text": "AI assistant",
     "files": [
       "components/onboarding.js"
@@ -410,6 +404,18 @@
     ]
   },
   {
+    "text": "Add a set",
+    "files": [
+      "components/onboarding.js"
+    ]
+  },
+  {
+    "text": "Add a set to see it valued, or replay this tour anytime from Profile.",
+    "files": [
+      "components/onboarding.js"
+    ]
+  },
+  {
     "text": "Add copy",
     "files": [
       "components/copies.js"
@@ -446,6 +452,12 @@
     ]
   },
   {
+    "text": "Add the sets you want and set a target price. We alert you when a deal drops below it.",
+    "files": [
+      "components/onboarding.js"
+    ]
+  },
+  {
     "text": "Add them as GitHub Actions secrets and redeploy to enable account linking.",
     "files": [
       "runtime-exact",
@@ -468,12 +480,6 @@
     "text": "Add to Wishlist",
     "files": [
       "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Add your first set from Catalog or Scan.",
-    "files": [
-      "components/onboarding.js"
     ]
   },
   {
@@ -712,12 +718,6 @@
     "text": "Ask AI Advisor",
     "files": [
       "index.html"
-    ]
-  },
-  {
-    "text": "Ask what to buy, sell, or hold — anytime.",
-    "files": [
-      "components/onboarding.js"
     ]
   },
   {
@@ -1304,7 +1304,6 @@
   {
     "text": "Catalog",
     "files": [
-      "components/onboarding.js",
       "route-meta.js",
       "views/me-admin-config.js"
     ]
@@ -1337,6 +1336,12 @@
     "text": "Catalog-wide sweeps",
     "files": [
       "methodology.html"
+    ]
+  },
+  {
+    "text": "Catch sets before they leave the shelves, and see what launches next.",
+    "files": [
+      "components/onboarding.js"
     ]
   },
   {
@@ -2397,6 +2402,7 @@
   {
     "text": "Discover",
     "files": [
+      "components/onboarding.js",
       "index.html"
     ]
   },
@@ -2819,6 +2825,12 @@
     ]
   },
   {
+    "text": "Every set is valued from market prices and updated daily. Open Insights for top movers and retirement risk.",
+    "files": [
+      "components/onboarding.js"
+    ]
+  },
+  {
     "text": "Every value carries its evidence: how many independent families, how many verified sales, the likely range, and when it was last checked.",
     "files": [
       "methodology.html"
@@ -3167,6 +3179,12 @@
     "text": "Find a user",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Find any set",
+    "files": [
+      "components/onboarding.js"
     ]
   },
   {
@@ -4427,6 +4445,12 @@
     ]
   },
   {
+    "text": "List, grid or 3D room",
+    "files": [
+      "components/onboarding.js"
+    ]
+  },
+  {
     "text": "Live Amazon offers for the buy slot. KV-only (24h) per Associates terms; never a valuation input — weight stays 0.",
     "files": [
       "views/me-admin-config.js"
@@ -4627,6 +4651,12 @@
     "text": "Main navigation",
     "files": [
       "index.html"
+    ]
+  },
+  {
+    "text": "Make it yours",
+    "files": [
+      "components/onboarding.js"
     ]
   },
   {
@@ -4858,7 +4888,6 @@
   {
     "text": "Minifigs",
     "files": [
-      "components/onboarding.js",
       "route-meta.js"
     ]
   },
@@ -5530,6 +5559,7 @@
   {
     "text": "Not now",
     "files": [
+      "components/onboarding.js",
       "views/catalog.js"
     ]
   },
@@ -6267,12 +6297,6 @@
     ]
   },
   {
-    "text": "Point it at a box barcode — instant match.",
-    "files": [
-      "components/onboarding.js"
-    ]
-  },
-  {
     "text": "Pointer capture unavailable",
     "files": [
       "components/collection-room-scene.js"
@@ -6410,6 +6434,12 @@
     "text": "Price It!",
     "files": [
       "route-meta.js"
+    ]
+  },
+  {
+    "text": "Price alerts",
+    "files": [
+      "components/onboarding.js"
     ]
   },
   {
@@ -6609,6 +6639,7 @@
   {
     "text": "Profile",
     "files": [
+      "components/onboarding.js",
       "index.html"
     ]
   },
@@ -7371,6 +7402,12 @@
     ]
   },
   {
+    "text": "Retiring soon and Coming soon",
+    "files": [
+      "components/onboarding.js"
+    ]
+  },
+  {
     "text": "Retro",
     "files": [
       "components/onboarding.js"
@@ -7748,8 +7785,13 @@
   {
     "text": "Scan",
     "files": [
-      "components/onboarding.js",
       "index.html"
+    ]
+  },
+  {
+    "text": "Scan a box barcode or photograph a whole shelf, and the sets land in your vault.",
+    "files": [
+      "components/onboarding.js"
     ]
   },
   {
@@ -7763,6 +7805,18 @@
     "text": "Scan another",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "Scan boxes",
+    "files": [
+      "components/onboarding.js"
+    ]
+  },
+  {
+    "text": "Scan to add",
+    "files": [
+      "components/onboarding.js"
     ]
   },
   {
@@ -7836,7 +7890,7 @@
     ]
   },
   {
-    "text": "Search 27,000+ sets and add them to your vault.",
+    "text": "Search 27,000+ sets by name, set number or barcode.",
     "files": [
       "components/onboarding.js"
     ]
@@ -8095,12 +8149,6 @@
     "text": "Set up photo scanning",
     "files": [
       "components/scanner.js"
-    ]
-  },
-  {
-    "text": "Set your currency, sync, and AI options here.",
-    "files": [
-      "components/onboarding.js"
     ]
   },
   {
@@ -8642,6 +8690,12 @@
     ]
   },
   {
+    "text": "Start tour",
+    "files": [
+      "components/onboarding.js"
+    ]
+  },
+  {
     "text": "Starts",
     "files": [
       "views/promotions.js"
@@ -8814,7 +8868,7 @@
     ]
   },
   {
-    "text": "Swipe through to see where everything lives.",
+    "text": "Switch views anytime, or walk through your shelves in the 3D collection room.",
     "files": [
       "components/onboarding.js"
     ]
@@ -8918,6 +8972,12 @@
     ]
   },
   {
+    "text": "Take a one-minute look around your new vault.",
+    "files": [
+      "components/onboarding.js"
+    ]
+  },
+  {
     "text": "Take a photo of the whole box. Pro, or your own AI key.",
     "files": [
       "components/copies.js"
@@ -8925,12 +8985,6 @@
   },
   {
     "text": "Take the guided tour",
-    "files": [
-      "components/onboarding.js"
-    ]
-  },
-  {
-    "text": "Tap any set to see its full value history.",
     "files": [
       "components/onboarding.js"
     ]
@@ -9286,15 +9340,15 @@
     ]
   },
   {
-    "text": "Track minifigs separately from your sets.",
-    "files": [
-      "components/onboarding.js"
-    ]
-  },
-  {
     "text": "Track the copy’s condition and whether any pieces are missing.",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Track value",
+    "files": [
+      "components/onboarding.js"
     ]
   },
   {
@@ -9774,6 +9828,7 @@
   {
     "text": "Vault",
     "files": [
+      "components/onboarding.js",
       "index.html",
       "route-meta.js"
     ]
@@ -10007,6 +10062,12 @@
     ]
   },
   {
+    "text": "What your collection is worth",
+    "files": [
+      "components/onboarding.js"
+    ]
+  },
+  {
     "text": "Where it is",
     "files": [
       "components/copies.js"
@@ -10021,6 +10082,7 @@
   {
     "text": "Wishlist",
     "files": [
+      "components/onboarding.js",
       "index.html",
       "route-meta.js"
     ]
@@ -10095,12 +10157,6 @@
     "text": "XML file to upload on BrickLink",
     "files": [
       "views/build.js"
-    ]
-  },
-  {
-    "text": "You",
-    "files": [
-      "components/onboarding.js"
     ]
   },
   {
@@ -10201,12 +10257,6 @@
     ]
   },
   {
-    "text": "Your Vault",
-    "files": [
-      "components/onboarding.js"
-    ]
-  },
-  {
     "text": "Your app is ready. Add your first set to see it valued — or explore around.",
     "files": [
       "components/onboarding.js"
@@ -10259,6 +10309,12 @@
     "text": "Your profile just got a display case.",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Your public profile, Brick Wrapped, family vault, currency and Pro all live here.",
+    "files": [
+      "components/onboarding.js"
     ]
   },
   {
@@ -10328,7 +10384,7 @@
     ]
   },
   {
-    "text": "You’re all set!",
+    "text": "You’re all set",
     "files": [
       "components/onboarding.js"
     ]
