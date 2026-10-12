@@ -1,5 +1,7 @@
 /** Ukrainian exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Walmart and Target are US stores, so their dollar prices are converted to your currency. Checked daily, before tax, shipping and import costs.": "Walmart і Target — магазини США, тому їхні ціни в доларах переведено у вашу валюту. Перевіряємо щодня, без податків, доставки й мита.",
+  "Walmart and Target are US stores. Prices are checked daily, before tax and shipping.": "Walmart і Target — магазини США. Ціни перевіряємо щодня, без податків і доставки.",
   "Accept": "Прийняти",
   "Accept this swap": "Прийняти цей обмін",
   "Accepted": "Прийнято",
@@ -172,7 +174,6 @@ export const ui = {
   "Title": "Назва",
   "Type": "Тип",
   "US offers from LEGO.com. Check the details before you buy: stock and terms can change.": "Пропозиції LEGO.com у США. Перевірте умови перед покупкою: наявність і умови можуть змінитися.",
-  "US store prices, checked daily, before tax and shipping.": "Ціни магазинів США, перевіряються щодня, без податку й доставки.",
   "We check LEGO.com every day. New gifts with purchase and double points weeks show up here.": "Ми перевіряємо LEGO.com щодня. Нові подарунки за покупку й тижні подвійних балів з'являться тут.",
   "Gifts with purchase, double points and sales": "Подарунки за покупку, подвійні бали та розпродажі",
   "Cost of what you sold": "Вартість проданого",

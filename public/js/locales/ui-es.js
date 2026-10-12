@@ -1,5 +1,7 @@
 /** Spanish exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Walmart and Target are US stores, so their dollar prices are converted to your currency. Checked daily, before tax, shipping and import costs.": "Walmart y Target son tiendas de EE. UU., así que sus precios en dólares se convierten a tu moneda. Revisados a diario, sin impuestos, envío ni aranceles.",
+  "Walmart and Target are US stores. Prices are checked daily, before tax and shipping.": "Walmart y Target son tiendas de EE. UU. Precios revisados a diario, sin impuestos ni envío.",
   "Accept": "Aceptar",
   "Accept this swap": "Aceptar este intercambio",
   "Accepted": "Aceptado",
@@ -172,7 +174,6 @@ export const ui = {
   "Title": "Título",
   "Type": "Tipo",
   "US offers from LEGO.com. Check the details before you buy: stock and terms can change.": "Ofertas de LEGO.com en EE. UU. Revisa los detalles antes de comprar: el stock y las condiciones pueden cambiar.",
-  "US store prices, checked daily, before tax and shipping.": "Precios de tiendas de EE. UU., revisados a diario, sin impuestos ni envío.",
   "We check LEGO.com every day. New gifts with purchase and double points weeks show up here.": "Revisamos LEGO.com cada día. Aquí aparecerán nuevos regalos con la compra y semanas de puntos dobles.",
   "Gifts with purchase, double points and sales": "Regalos con la compra, puntos dobles y rebajas",
   "Cost of what you sold": "Coste de lo vendido",

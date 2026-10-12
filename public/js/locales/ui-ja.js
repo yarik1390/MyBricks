@@ -1,5 +1,7 @@
 /** Japanese exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Walmart and Target are US stores, so their dollar prices are converted to your currency. Checked daily, before tax, shipping and import costs.": "WalmartとTargetは米国の店舗のため、ドル価格をあなたの通貨に換算しています。毎日確認、税・送料・輸入費用は含みません。",
+  "Walmart and Target are US stores. Prices are checked daily, before tax and shipping.": "WalmartとTargetは米国の店舗です。価格は毎日確認、税・送料は含みません。",
   "Accept": "承諾",
   "Accept this swap": "この交換を承諾",
   "Accepted": "承諾済み",
@@ -172,7 +174,6 @@ export const ui = {
   "Title": "タイトル",
   "Type": "種類",
   "US offers from LEGO.com. Check the details before you buy: stock and terms can change.": "LEGO.comの米国向けオファーです。購入前に詳細を確認してください。在庫や条件は変わることがあります。",
-  "US store prices, checked daily, before tax and shipping.": "米国ストアの価格。毎日確認、税・送料別。",
   "We check LEGO.com every day. New gifts with purchase and double points weeks show up here.": "LEGO.comを毎日チェックしています。新しい購入特典やポイント2倍の週はここに表示されます。",
   "Gifts with purchase, double points and sales": "購入特典、ポイント2倍、セール",
   "Cost of what you sold": "売却分の取得費",

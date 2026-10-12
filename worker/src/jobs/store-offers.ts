@@ -49,53 +49,76 @@ export async function runStoreOffers(
   let processed = 0;
   let found = 0;
   const touched: string[] = [];
-  outer: for (const set of results || []) {
+  for (const set of results || []) {
     if (set.last_checked && Date.parse(`${set.last_checked.replace(' ', 'T')}Z`) > Date.now() - 20 * 3600_000) continue;
-    for (const store of STORES) {
-      if (!(await spendQuota(env, 'stores', 1))) break outer;
-      let products: ExtractedProduct[] | null = null;
-      try {
-        const res = await firecrawlScrape<{ products?: ExtractedProduct[] }>({
-          url: storeSearchUrl(store, set.set_num),
-          formats: ['json'],
-          jsonOptions: { schema: STORE_EXTRACT_SCHEMA, prompt: storeExtractPrompt(set.set_num) },
-          waitFor: 2000,
-          timeoutMs: 30_000,
-          throwOnRateLimit: true,
-        }, env);
-        products = res ? (res.data?.products ?? []) : null;
-      } catch (err) {
-        if (err instanceof FirecrawlRateLimitedError) break outer; // retried next run
-        products = null;
-      }
-      processed++;
-      if (products == null) continue; // provider failure: keep the previous row
-      const offer = pickOffer(products, set.set_num, set.msrp);
-      if (offer) {
-        found++;
-        await env.DB.prepare(
-          `INSERT INTO store_offers (set_num, store, price, in_stock, url, title, checked_at)
-           VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-           ON CONFLICT(set_num, store) DO UPDATE SET price = excluded.price, in_stock = excluded.in_stock,
-             url = excluded.url, title = excluded.title, checked_at = excluded.checked_at`,
-        ).bind(set.set_num, store, offer.price, offer.in_stock ? 1 : 0, offer.url, offer.title).run();
-      } else {
-        // Checked and not listed: record it so the set isn't re-checked tomorrow
-        // and a previous price can't linger as if it were current.
-        await env.DB.prepare(
-          `INSERT INTO store_offers (set_num, store, price, in_stock, url, title, checked_at)
-           VALUES (?, ?, NULL, 0, NULL, NULL, datetime('now'))
-           ON CONFLICT(set_num, store) DO UPDATE SET price = NULL, in_stock = 0, url = NULL, title = NULL,
-             checked_at = excluded.checked_at`,
-        ).bind(set.set_num, store).run();
-      }
-    }
-    await syncBestStoreOffer(env.DB, set.set_num);
-    touched.push(set.set_num);
+    const r = await checkSetStores(env, set.set_num, set.msrp);
+    processed += r.processed;
+    found += r.found;
+    if (r.processed) touched.push(set.set_num);
+    if (r.stopped) break;
   }
   // Refresh the persisted deal call (catalog "deals" filter, deal alerts).
   if (touched.length) await recomputeBlendedValues(env.DB, touched).catch(() => 0);
   return { processed, found, cleared };
+}
+
+/**
+ * Look the set up at every store (in parallel, one quota unit and one Firecrawl
+ * extraction each) and store what was found: a price, or "checked, not listed".
+ * A provider failure keeps the previous row. `stopped` means the daily cap or a
+ * Firecrawl rate limit cut the check short.
+ */
+export async function checkSetStores(
+  env: Env,
+  setNum: string,
+  msrp: number | null,
+): Promise<{ processed: number; found: number; stopped: boolean }> {
+  let stopped = false;
+  const lookups = await Promise.all(STORES.map(async (store) => {
+    if (!(await spendQuota(env, 'stores', 1))) { stopped = true; return null; }
+    try {
+      const res = await firecrawlScrape<{ products?: ExtractedProduct[] }>({
+        url: storeSearchUrl(store, setNum),
+        formats: ['json'],
+        jsonOptions: { schema: STORE_EXTRACT_SCHEMA, prompt: storeExtractPrompt(setNum) },
+        waitFor: 2000,
+        timeoutMs: 30_000,
+        throwOnRateLimit: true,
+      }, env);
+      return { store, products: res ? (res.data?.products ?? []) : null };
+    } catch (err) {
+      if (err instanceof FirecrawlRateLimitedError) stopped = true;
+      return { store, products: null };
+    }
+  }));
+  let processed = 0;
+  let found = 0;
+  for (const l of lookups) {
+    if (!l) continue;
+    processed++;
+    if (l.products == null) continue; // provider failure: keep the previous row
+    const offer = pickOffer(l.products, setNum, msrp);
+    if (offer) {
+      found++;
+      await env.DB.prepare(
+        `INSERT INTO store_offers (set_num, store, price, in_stock, url, title, checked_at)
+         VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+         ON CONFLICT(set_num, store) DO UPDATE SET price = excluded.price, in_stock = excluded.in_stock,
+           url = excluded.url, title = excluded.title, checked_at = excluded.checked_at`,
+      ).bind(setNum, l.store, offer.price, offer.in_stock ? 1 : 0, offer.url, offer.title).run();
+    } else {
+      // Checked and not listed: record it so the set isn't re-checked tomorrow
+      // and a previous price can't linger as if it were current.
+      await env.DB.prepare(
+        `INSERT INTO store_offers (set_num, store, price, in_stock, url, title, checked_at)
+         VALUES (?, ?, NULL, 0, NULL, NULL, datetime('now'))
+         ON CONFLICT(set_num, store) DO UPDATE SET price = NULL, in_stock = 0, url = NULL, title = NULL,
+           checked_at = excluded.checked_at`,
+      ).bind(setNum, l.store).run();
+    }
+  }
+  if (processed) await syncBestStoreOffer(env.DB, setNum);
+  return { processed, found, stopped };
 }
 
 async function clearStaleOffers(db: D1Database): Promise<string[]> {

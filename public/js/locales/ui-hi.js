@@ -1,5 +1,7 @@
 /** Hindi exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Walmart and Target are US stores, so their dollar prices are converted to your currency. Checked daily, before tax, shipping and import costs.": "Walmart और Target अमेरिकी स्टोर हैं, इसलिए उनकी डॉलर कीमतें आपकी मुद्रा में बदली जाती हैं। रोज़ जाँची जाती हैं, टैक्स, शिपिंग और आयात शुल्क से पहले।",
+  "Walmart and Target are US stores. Prices are checked daily, before tax and shipping.": "Walmart और Target अमेरिकी स्टोर हैं। कीमतें रोज़ जाँची जाती हैं, टैक्स और शिपिंग से पहले।",
   "Accept": "स्वीकार करें",
   "Accept this swap": "यह अदला-बदली स्वीकार करें",
   "Accepted": "स्वीकार किया",
@@ -172,7 +174,6 @@ export const ui = {
   "Title": "शीर्षक",
   "Type": "प्रकार",
   "US offers from LEGO.com. Check the details before you buy: stock and terms can change.": "LEGO.com के US ऑफ़र। खरीदने से पहले विवरण देखें: स्टॉक और शर्तें बदल सकती हैं।",
-  "US store prices, checked daily, before tax and shipping.": "US स्टोर की कीमतें, रोज़ जाँची जाती हैं, टैक्स और शिपिंग से पहले।",
   "We check LEGO.com every day. New gifts with purchase and double points weeks show up here.": "हम रोज़ LEGO.com देखते हैं। नए खरीद के साथ गिफ्ट और डबल पॉइंट्स हफ़्ते यहाँ दिखेंगे।",
   "Gifts with purchase, double points and sales": "खरीद के साथ गिफ्ट, डबल पॉइंट्स और सेल",
   "Cost of what you sold": "बेचे गए सामान की लागत",

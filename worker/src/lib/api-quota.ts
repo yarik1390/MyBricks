@@ -59,7 +59,7 @@ export const QUOTA_CAPS: Record<string, number> = {
   stockx: 100,
   // Walmart/Target price lookups (jobs/store-offers.ts): one Firecrawl json
   // extraction (5 credits) per store per set, so 40/day = 200 credits/day.
-  stores: 40,
+  stores: 80,
 };
 
 // Admin-tunable daily-cap overrides (lib/source-config.ts), keyed by service.
