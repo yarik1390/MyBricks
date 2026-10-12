@@ -553,6 +553,14 @@ export const TABLE_DDL: Record<string, string> = {
   PRIMARY KEY (set_num, part_num, color_id)
 )`,
 
+  user_missing_parts: `CREATE TABLE IF NOT EXISTS user_missing_parts (
+    user_id TEXT NOT NULL,
+    set_num TEXT NOT NULL,
+    part_num TEXT NOT NULL,
+    color_id INTEGER NOT NULL DEFAULT 0,
+    missing_qty INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (user_id, set_num, part_num, color_id)
+  )`,
   part_prices: `CREATE TABLE IF NOT EXISTS part_prices (
   part_num TEXT NOT NULL,
   color_id INTEGER NOT NULL DEFAULT 0,

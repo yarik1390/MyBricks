@@ -45,6 +45,11 @@ export function lookupBlColor(map: Record<number, number> | null, rbColorId: num
   return rbColorId in map ? map[rbColorId] : null;
 }
 
+/** The Rebrickable → BrickLink color map, or null when it can't be loaded. */
+export async function loadBrickLinkColorMap(env: Env): Promise<Record<number, number> | null> {
+  return loadMap(env);
+}
+
 async function loadMap(env: Env): Promise<Record<number, number> | null> {
   if (memo) return memo;
   if (env.CACHE_KV) {

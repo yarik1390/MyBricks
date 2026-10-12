@@ -131,7 +131,26 @@ function setRow(b) {
       ${bar(pct, { label: t('bvVault.buildPctLabel', { pct }) }).replace('class="bv-bar"', `class="bv-bar${ready ? ' is-ready' : ''}"`)}
       <span class="vault-build-row__sub">${esc(sub)}</span>
     </span>
-  </a>`;
+  </a>${ready ? '' : `<button type="button" class="bv-btn bv-btn--text vault-build-row__wanted" data-wanted-set="${esc(b.set_num)}" data-wanted-name="${esc(b.name || b.set_num)}">${icon('download', { size: 16 })}<span>Export parts to buy</span></button>`}`;
+}
+
+// The shortfall to build a set from owned parts, as a BrickLink or Rebrickable
+// wanted list (GET /api/wanted-list/build/:set).
+function openWantedSheet(setNum, name) {
+  const path = `/api/wanted-list/build/${encodeURIComponent(setNum)}`;
+  const run = (format) => async () => {
+    const { exportWantedList } = await import('../components/parts-checklist.js');
+    try { await exportWantedList(path, format); } catch { toast('Could not build the wanted list. Try again.', 'error'); }
+  };
+  openActionSheet({
+    title: 'Parts to buy',
+    sub: name,
+    id: 'buildWantedSheet',
+    groups: [{ rows: [
+      { icon: 'download', label: 'BrickLink wanted list', sub: 'XML file to upload on BrickLink', onClick: run('bricklink') },
+      { icon: 'download', label: 'Rebrickable part list', sub: 'CSV file to import on Rebrickable', onClick: run('rebrickable') },
+    ] }],
+  });
 }
 
 function altRow(b) {
@@ -244,6 +263,9 @@ async function ensureLoaded() {
 }
 
 function wire() {
+  $$('#buildPage [data-wanted-set]').forEach((b) => {
+    b.onclick = () => { haptic('light'); openWantedSheet(b.dataset.wantedSet, b.dataset.wantedName); };
+  });
   $$('#buildPage [data-mode]').forEach((b) => {
     b.onclick = async () => {
       const m = b.dataset.mode;

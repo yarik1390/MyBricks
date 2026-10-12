@@ -312,6 +312,7 @@ app.route('/api/contributions', contributionsRoute);
 app.route('/api/push', pushRoute);
 app.route('/api/bricklink', bricklinkImportRoute);
 app.route('/api/build', buildRoute);
+import { wantedListRoute } from './routes/wanted-list'; app.route('/api/wanted-list', wantedListRoute);
 app.route('/api/stripe', stripeRoute);
 app.route('/api/revenuecat', revenuecatRoute);
 // Public image proxy (no auth — images load via <img src>). R2-backed + edge-cached.

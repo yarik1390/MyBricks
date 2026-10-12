@@ -841,12 +841,6 @@
     ]
   },
   {
-    "text": "Based on the Rebrickable parts list and your saved missing-parts marks. Spares are ignored.",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Based on the latest available market data.",
     "files": [
       "views/portfolio-detail-market.js"
@@ -991,6 +985,13 @@
     ]
   },
   {
+    "text": "BrickLink wanted list",
+    "files": [
+      "components/parts-checklist.js",
+      "views/build.js"
+    ]
+  },
+  {
     "text": "BricksVault Pro",
     "files": [
       "lib/revenuecat-native.js",
@@ -1118,6 +1119,12 @@
     "text": "COLLECTION VALUATION",
     "files": [
       "lib/insurance-report.js"
+    ]
+  },
+  {
+    "text": "CSV file to import on Rebrickable",
+    "files": [
+      "views/build.js"
     ]
   },
   {
@@ -1468,12 +1475,6 @@
     ]
   },
   {
-    "text": "Compares the official parts list with missing pieces you mark for this set. 100% means no missing parts are recorded.",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
     "text": "Compatible",
     "files": [
       "views/me-integrations.js"
@@ -1661,6 +1662,13 @@
     ]
   },
   {
+    "text": "Could not build the wanted list. Try again.",
+    "files": [
+      "components/parts-checklist.js",
+      "views/build.js"
+    ]
+  },
+  {
     "text": "Could not identify",
     "files": [
       "components/scanner.js"
@@ -1688,6 +1696,12 @@
     "text": "Could not open tour",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Could not save that change. Check your connection.",
+    "files": [
+      "components/parts-checklist.js"
     ]
   },
   {
@@ -2532,6 +2546,12 @@
     ]
   },
   {
+    "text": "Export parts to buy",
+    "files": [
+      "views/build.js"
+    ]
+  },
+  {
     "text": "Export your BrickLink order history as CSV and upload it here to auto-add sets you've bought.",
     "files": [
       "views/me-data.js"
@@ -2689,6 +2709,12 @@
     "text": "Filters",
     "files": [
       "runtime-exact"
+    ]
+  },
+  {
+    "text": "Find a part",
+    "files": [
+      "components/parts-checklist.js"
     ]
   },
   {
@@ -3955,6 +3981,12 @@
     ]
   },
   {
+    "text": "Mark pieces you're missing with − and +. Then export them as a wanted list to buy them on BrickLink or Rebrickable.",
+    "files": [
+      "components/parts-checklist.js"
+    ]
+  },
+  {
     "text": "Mark read",
     "files": [
       "views/portfolio.js"
@@ -4195,9 +4227,15 @@
     ]
   },
   {
-    "text": "Missing:",
+    "text": "Missing only",
     "files": [
-      "views/portfolio-detail.js"
+      "components/parts-checklist.js"
+    ]
+  },
+  {
+    "text": "Missing pieces",
+    "files": [
+      "components/parts-checklist.js"
     ]
   },
   {
@@ -4542,6 +4580,18 @@
     ]
   },
   {
+    "text": "No parts match.",
+    "files": [
+      "components/parts-checklist.js"
+    ]
+  },
+  {
+    "text": "No parts to export yet.",
+    "files": [
+      "components/parts-checklist.js"
+    ]
+  },
+  {
     "text": "No pending",
     "files": [
       "runtime-exact"
@@ -4737,6 +4787,12 @@
     ]
   },
   {
+    "text": "Nothing marked missing.",
+    "files": [
+      "components/parts-checklist.js"
+    ]
+  },
+  {
     "text": "Nothing needs attention.",
     "files": [
       "views/me-admin.js"
@@ -4900,6 +4956,18 @@
     ]
   },
   {
+    "text": "One fewer missing",
+    "files": [
+      "components/parts-checklist.js"
+    ]
+  },
+  {
+    "text": "One more missing",
+    "files": [
+      "components/parts-checklist.js"
+    ]
+  },
+  {
     "text": "One ~2MB download",
     "files": [
       "views/me-admin-config.js"
@@ -4957,6 +5025,12 @@
     "text": "Open set",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Open the official parts list, mark any pieces you're missing, and export them as a BrickLink or Rebrickable wanted list.",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -5147,7 +5221,7 @@
     ]
   },
   {
-    "text": "Parts completeness",
+    "text": "Parts checklist",
     "files": [
       "views/portfolio-detail.js"
     ]
@@ -5156,6 +5230,12 @@
     "text": "Parts list is being fetched — check back in a moment.",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Parts to buy",
+    "files": [
+      "views/build.js"
     ]
   },
   {
@@ -5838,6 +5918,18 @@
     ]
   },
   {
+    "text": "Rebrickable list",
+    "files": [
+      "components/parts-checklist.js"
+    ]
+  },
+  {
+    "text": "Rebrickable part list",
+    "files": [
+      "views/build.js"
+    ]
+  },
+  {
     "text": "Rebuild the catalog search index now?",
     "files": [
       "views/me-admin-config.js"
@@ -5927,12 +6019,6 @@
     "text": "Refresh days must be a positive integer or blank.",
     "files": [
       "lib/pure.js"
-    ]
-  },
-  {
-    "text": "Refresh parts",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -7002,9 +7088,21 @@
     ]
   },
   {
+    "text": "Show more parts",
+    "files": [
+      "components/parts-checklist.js"
+    ]
+  },
+  {
     "text": "Show newest 3",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Show parts",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -7228,6 +7326,12 @@
     "files": [
       "app.js",
       "views/login.js"
+    ]
+  },
+  {
+    "text": "Some parts were left out: BrickLink has no matching color.",
+    "files": [
+      "components/parts-checklist.js"
     ]
   },
   {
@@ -8392,6 +8496,12 @@
     ]
   },
   {
+    "text": "Wanted list",
+    "files": [
+      "components/parts-checklist.js"
+    ]
+  },
+  {
     "text": "Watch the combination…",
     "files": [
       "components/empty-vault-brick-3d.js"
@@ -8552,6 +8662,12 @@
     "text": "Wrong image",
     "files": [
       "components/contribute.js"
+    ]
+  },
+  {
+    "text": "XML file to upload on BrickLink",
+    "files": [
+      "views/build.js"
     ]
   },
   {
