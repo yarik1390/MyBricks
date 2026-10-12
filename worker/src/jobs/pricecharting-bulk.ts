@@ -170,6 +170,36 @@ export async function runPriceChartingBulk(env: Env, csvText: string): Promise<B
 
 const LEGO_CSV_URL = 'https://www.pricecharting.com/price-guide/download-custom';
 
+// The daily 04:30 download sometimes hits a PriceCharting 503 (Oct 10 and 12,
+// 2026). Without a retry the whole catalog waits a full day. The hourly cron
+// asks this before retrying: only when the last outcome was a failed download,
+// at least RETRY_GAP_MS ago (well clear of the 1-per-10-minutes download
+// limit), and still the same import day (the next 04:30 run takes over).
+const RETRY_GAP_MS = 50 * 60 * 1000;
+const RETRY_WINDOW_MS = 22 * 60 * 60 * 1000;
+
+export async function priceChartingBulkNeedsRetry(env: Env, now = Date.now()): Promise<boolean> {
+  try {
+    const row = await env.DB.prepare(`SELECT value FROM app_settings WHERE key=?1`)
+      .bind(PROGRESS_KEY).first<{ value: string }>();
+    if (!row?.value) return false;
+    const last = JSON.parse(row.value) as BulkResult;
+    if (!last.skipped?.startsWith('download ')) return false;
+    const finished = Date.parse(last.finished_at ?? '');
+    if (!Number.isFinite(finished)) return false;
+    const age = now - finished;
+    if (age < RETRY_GAP_MS) return false;
+    // A run of retries keeps moving finished_at, so bound the window by the
+    // first failure of the day: the most recent 04:30 UTC slot.
+    const slot = new Date(now);
+    slot.setUTCHours(4, 30, 0, 0);
+    if (slot.getTime() > now) slot.setUTCDate(slot.getUTCDate() - 1);
+    return finished >= slot.getTime() && now - slot.getTime() < RETRY_WINDOW_MS;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Fetch the LEGO-sets price guide CSV directly from PriceCharting (Legendary
  * tier) and bulk-populate. One ~2 MB request covers the whole LEGO catalog
