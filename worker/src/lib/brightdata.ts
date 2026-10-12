@@ -47,8 +47,9 @@ export async function brightDataUnlock(
     // outbound requests on an exhausted day).
     const remaining = await quotaRemaining(env, 'brightdata');
     if (remaining < 1) {
-      lastError = 'Bright Data daily cap reached';
-      break;
+      // Our own daily budget, not a provider failure — don't record it as one.
+      console.warn('[brightdata] daily cap reached');
+      return null;
     }
 
     // Atomic monthly claim BEFORE the request. A ledger outage must not turn

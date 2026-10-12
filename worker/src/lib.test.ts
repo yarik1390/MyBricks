@@ -61,6 +61,29 @@ describe('classifyHealth', () => {
     })).toBe('ok');
   });
 
+  const row = (last_ok_at: string | null, last_fail_at: string, last_error: string) => ({
+    service: 'x', last_ok_at, last_fail_at, last_error, ok_count: 10, fail_count: 5, updated_at: last_fail_at,
+  });
+
+  it('never calls a rate-limited or quota-capped provider down', () => {
+    expect(classifyHealth(row('2026-10-11 06:01:18', '2026-10-11 06:01:18', 'BrickInsights HTTP 429'))).toBe('degraded');
+    expect(classifyHealth(row('2026-10-12 04:51:38', '2026-10-12 04:51:57', 'rate limit (HTTP 429) on every Firecrawl key'))).toBe('degraded');
+    expect(classifyHealth(row(null, '2026-10-12 04:51:54', 'ScrapingAnt daily cap reached'))).toBe('degraded');
+  });
+
+  it('treats a malformed model reply next to a success as healthy', () => {
+    expect(classifyHealth(row('2026-10-11 14:17:15', '2026-10-11 14:17:41', 'Malformed scan response'))).toBe('ok');
+    expect(classifyHealth(row(null, '2026-10-11 14:17:41', 'Malformed scan response'))).toBe('degraded');
+  });
+
+  it('marks a batch with both successes and failures as degraded, not down', () => {
+    expect(classifyHealth(row('2026-10-11 06:01:18', '2026-10-11 06:01:18', 'HTTP 404'))).toBe('degraded');
+  });
+
+  it('still reports a provider-side outage as down', () => {
+    expect(classifyHealth(row('2026-10-11 04:31:11', '2026-10-12 04:30:17', 'bulk download HTTP 503'))).toBe('down');
+  });
+
   it('recognizes eBay OAuth and Marketplace Insights access failures', () => {
     expect(classifyHealth({
       service: 'ebay',

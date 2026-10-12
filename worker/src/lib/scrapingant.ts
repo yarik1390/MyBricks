@@ -1,6 +1,6 @@
 import type { Env } from '../types';
 import { spendQuotaFailClosed } from './api-quota';
-import { recordIntegrationAttempt } from './integration-health';
+import { integrationRecentlyHealthy, recordIntegrationAttempt } from './integration-health';
 import {
   configuredScrapingAntKeys,
   markScrapingAntExhausted,
@@ -38,6 +38,11 @@ export async function scrapingAntFetchHtml(
   options: ScrapingAntFetchOptions = {},
 ): Promise<string | null> {
   if (!scrapingAntEnabled(env)) return null;
+  // Circuit breaker: when every call in the last day failed and none succeeded,
+  // skip the lane (callers fall back to Bright Data / Firecrawl) instead of
+  // spending the free plan's credits on requests that keep failing. Once the
+  // failures age past 24h the next run probes again.
+  if (!(await integrationRecentlyHealthy(env, 'scrapingant', 24))) return null;
   const maxAttempts = configuredScrapingAntKeys(env).length;
   let lastError = 'no live ScrapingAnt key (monthly budget drained)';
 
@@ -51,8 +56,10 @@ export async function scrapingAntFetchHtml(
     // Keep the established daily accounting intact. It remains fail-closed, and
     // is claimed before the monthly unit so a daily rejection cannot drain a key.
     if (!(await spendQuotaFailClosed(env, 'scrapingant', 1))) {
-      lastError = 'ScrapingAnt daily cap reached or quota ledger unavailable';
-      break;
+      // Our own daily budget, not a provider failure. Recording it buried the
+      // real ScrapingAnt error under ~700 "cap reached" rows a day.
+      console.warn('[scrapingant] daily cap reached or quota ledger unavailable');
+      return null;
     }
 
     let reserved = false;

@@ -320,7 +320,7 @@ function isWorkerCapacityIssue(error?: string | null): boolean {
 // balance is left on it. Firecrawl (HTTP 429 per-minute ceiling), Gemini (free
 // tier 429) and UPCitemdb (EXCEED_LIMIT) all land in this bucket.
 function isQuotaIssue(error?: string | null): boolean {
-  return !!error && /(HTTP 429|EXCEED_LIMIT|rate limit|quota|too many requests|daily cap)/i.test(error);
+  return !!error && /(HTTP 429|EXCEED_LIMIT|rate limit|quota|too many requests|daily cap|credit ceiling)/i.test(error);
 }
 
 // A failure on the PROVIDER's side — 5xx, an unavailable upstream, or a page
@@ -332,20 +332,33 @@ function isProviderOutage(error?: string | null): boolean {
   return !!error && /(HTTP 5\d\d|unavailable|bad gateway|service unavailable|gateway timeout|empty\/short body|empty body)/i.test(error);
 }
 
+// The provider answered, but a model's reply could not be parsed. That is a
+// model-quality miss on one call, not an outage of the gateway that served it.
+function isModelOutputIssue(error?: string | null): boolean {
+  return !!error && /(malformed|unparseable|invalid json)/i.test(error);
+}
+
 export function classifyHealth(row: IntegrationHealthRow): 'ok' | 'degraded' | 'down' {
   const okAt = row.last_ok_at ? Date.parse(row.last_ok_at) : 0;
   const failAt = row.last_fail_at ? Date.parse(row.last_fail_at) : 0;
   if (failAt && failAt >= okAt) {
     // Credential/access problems always need a human → keep flagged as degraded.
     if (isCredentialOrAccessIssue(row.last_error)) return 'degraded';
+    // A 429 or spent quota means the provider is up and refusing for budget
+    // reasons. It recovers on its own, so it is never "down" (BrickInsights 429s
+    // and exhausted daily caps were showing as "unavailable").
+    if (isQuotaIssue(row.last_error)) return 'degraded';
+    const recentSuccess = !!okAt && failAt - okAt < 24 * 60 * 60 * 1000;
+    if (isModelOutputIssue(row.last_error)) return recentSuccess ? 'ok' : 'degraded';
     // Transient worker-capacity blips (timeouts, aborts, "too many subrequests")
     // are common for scrapers under load. If the provider ALSO succeeded within a
     // day of this failure, it's flapping — not down — so it shouldn't stick on
     // "degraded". Without any nearby success, treat it as degraded.
     if (isWorkerCapacityIssue(row.last_error)) {
-      const recentSuccess = !!okAt && failAt - okAt < 24 * 60 * 60 * 1000;
       return recentSuccess ? 'ok' : 'degraded';
     }
+    // Successes and failures stamped in the same batch: partially working.
+    if (okAt && failAt === okAt) return 'degraded';
     return 'down';
   }
   if (okAt && okAt > failAt) return 'ok';
