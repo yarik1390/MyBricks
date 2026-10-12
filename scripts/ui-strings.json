@@ -7697,6 +7697,12 @@
     ]
   },
   {
+    "text": "The provider is returning server errors. Jobs retry on their next run.",
+    "files": [
+      "lib/admin-issues.js"
+    ]
+  },
+  {
     "text": "The rules behind every number in the app — no black box.",
     "files": [
       "methodology.html"

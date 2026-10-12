@@ -52,8 +52,23 @@ function isAccessFailure(row) {
   return /\b(?:401|403)\b|unauthori[sz]ed|forbidden|invalid[_ -]?(?:client|key|token)|access denied|credential|permission/i.test(message);
 }
 
-function issueCopy(kind, label) {
+// A 429 or a spent quota is the provider saying "not now", and it recovers on
+// its own. It is shown as "Quota limited" under Services, never as an issue.
+function isQuotaRefusal(row) {
+  const message = typeof row.last_error === 'string' ? row.last_error : '';
+  return /HTTP 429|EXCEED_LIMIT|quota|rate limit|daily cap|credit ceiling|too many requests/i.test(message);
+}
+
+function isProviderSideFailure(row) {
+  const message = typeof row.last_error === 'string' ? row.last_error : '';
+  return /HTTP 5\d\d|service unavailable|bad gateway|gateway timeout/i.test(message);
+}
+
+function issueCopy(kind, label, row) {
   if (kind === 'access') return { title: `${label} needs access`, detail: 'Required configuration is not available.' };
+  if (kind === 'error' && isProviderSideFailure(row)) {
+    return { title: `${label} is unavailable`, detail: 'The provider is returning server errors. Jobs retry on their next run.' };
+  }
   if (kind === 'error') return { title: `${label} is unavailable`, detail: 'A recent health check failed.' };
   if (kind === 'degraded') return { title: `${label} is degraded`, detail: 'A recent health check reported reduced service.' };
   if (kind === 'stale') return { title: `${label} evidence is stale`, detail: 'The last observation is too old to confirm current health.' };
@@ -106,6 +121,7 @@ export function buildAdminIssues({
     const stale = observation ? now - observation.time > staleAfterMs : false;
     let kind = null;
 
+    if (observation && !stale && isQuotaRefusal(row) && row.status !== 'down' && row.reachable !== false) continue;
     if (!observation) kind = 'unknown';
     else if (stale) kind = 'stale';
     else if (isAccessFailure(row) && (row.configured === false || row.status === 'unconfigured' || row.reachable === false || row.status === 'down')) kind = 'access';
@@ -120,7 +136,7 @@ export function buildAdminIssues({
       label,
       kind,
       severity: kind === 'access' || kind === 'error' ? 'danger' : kind === 'degraded' || kind === 'stale' ? 'warn' : 'neutral',
-      ...issueCopy(kind, label),
+      ...issueCopy(kind, label, row),
       evidenceAt,
       ...remedyFor(row.service),
     });

@@ -75,7 +75,9 @@ export async function firecrawlScrape<T = unknown>(
   // json LLM extract = 5; enhanced proxy (mobile, anti-bot) = up to 5; else 1.
   const creditCost = (opts.jsonOptions || formats.includes('json') || opts.proxy === 'enhanced') ? 5 : 1;
   if (!(await spendQuota(env, 'firecrawl', creditCost))) {
-    await recordIntegrationAttempt(env, 'firecrawl', false, 'daily Firecrawl credit ceiling reached');
+    // Our own daily budget, not a provider failure: recording it made the admin
+    // console call a working Firecrawl "unavailable" every evening.
+    console.warn('[firecrawl] daily credit ceiling reached');
     return null;
   }
 
@@ -114,6 +116,7 @@ export async function firecrawlScrape<T = unknown>(
   // runaway wall-clock time on a genuinely dead/blocked key (isRateLimited is
   // specifically NOT the same signal as a hung/blocked request).
   let sameKeyRetries = 0;
+  let rateLimited = false;
   const MAX_SAME_KEY_RETRIES = 1;
   const RATE_LIMIT_BACKOFF_MS = 1500;
   for (let attempt = 0; attempt < 3 && picked; attempt++) {
@@ -128,6 +131,7 @@ export async function firecrawlScrape<T = unknown>(
       picked = await pickFirecrawlKey(env);
       continue;
     }
+    rateLimited = true;
     // rate_limited: the key is still live and still first in the drain order,
     // so step PAST it explicitly for this call only, when another key exists.
     const next = await pickNextFirecrawlKey(env, picked.index);
@@ -138,7 +142,11 @@ export async function firecrawlScrape<T = unknown>(
     attempted.delete(picked.hash); // intentional same-key retry, not a stuck pool
   }
   if (!picked) {
-    await recordIntegrationAttempt(env, 'firecrawl', false, 'no Firecrawl key could serve the request');
+    // Name the cause so health triage can tell a per-minute 429 (recovers by
+    // itself) from a pool with no credits left (needs a new key or top-up).
+    await recordIntegrationAttempt(env, 'firecrawl', false, rateLimited
+      ? 'rate limit (HTTP 429) on every Firecrawl key'
+      : 'no Firecrawl key has credits left');
   }
   return null;
 }
