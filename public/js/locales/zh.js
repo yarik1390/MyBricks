@@ -1778,3 +1778,6 @@ Object.assign(zh.data, {"blSalesTitle": "导入 BrickLink 销售记录", "blSale
 zh.copies = {"paid": "购入价 {price}", "soldToast": "以 {price} 售出", "editN": "编辑第 {index} 件", "sellN": "出售第 {index} 件"};
 // Sales & taxes (views/me-sales.js).
 zh.sales = {"checkReady": "在收藏者过去一年记录的 {sales} 笔出售中，我们的估值有 {w10}% 与实际价格相差在 10% 以内，{w20}% 在 20% 以内。典型偏差为 {miss}%。", "checkPending": "当收藏者在一年内记录 {min} 笔未拆封套装的出售后，我们会公布此数据。目前：{sales} 笔。", "salesIn": "{year} 年的出售", "net": "净额 {amount}", "cost": "成本 {amount}", "costMissing": "未记录成本", "longTerm": "长期", "shortTerm": "短期", "locked": "逐笔出售报告（含持有时间、成本和收益）以及用于报税的 CSV 和 PDF 下载，包含在 Pro 中。"};
+// Compare stores (components/store-prices.js) and promotions (views/promotions.js).
+zh.stores = {"best": "最低价", "outOfStock": "缺货", "belowValue": "比估值低 {pct}%", "aboveValue": "比估值高 {pct}%"};
+zh.promos = {"until": "截至 {date}", "starts": "{date} 开始", "fromTo": "{start} 至 {end}", "whileItLasts": "售完即止", "spend": "满 {amount}"};

@@ -34,6 +34,7 @@ export const PROCESS_REGISTRY: Record<string, ProcessInfo> = {
   'pricing-movers': { label: 'Anomaly detection', description: 'After the value snapshot, flags day-over-day moves beyond ±40% and auto-resolves day_move/value_divergence anomalies that no longer hold.', schedule: 'Daily 03:00 UTC', group: 'Pricing' },
   'pricing-v3-shadow': { label: 'v3 blend recompute', description: 'Recomputes persisted v3 blends in bounded slices so stored portfolio sums stay aligned with the live read path.', schedule: 'Daily 02:00 UTC', group: 'Pricing' },
   'valuate-bl-refresh': { label: 'BrickLink freshness refresh', description: 'Re-queries sets whose BrickLink value has aged past the blend\'s 14-day freshness window, eBay-corroborated ones first. BrickLink age — not data availability — is what caps high-confidence valuations.', schedule: 'Hourly (:45)', group: 'Pricing' },
+  'store-offers': { label: 'Store prices', description: 'Checks Walmart and Target prices for current sets people own or wishlist (Firecrawl), and clears live offers older than 4 days so they stop driving deals and alerts.', schedule: 'Daily 07:30 UTC', group: 'Pricing' },
   'stockx-enrich': { label: 'StockX lowest ask', description: 'Scrapes StockX lowest ask (Firecrawl-preferred, rendered) as a corroborating new-condition signal. OFF by default; collect-only until validated and wired into the blend.', schedule: 'Daily 18:00 UTC', group: 'Pricing' },
 
   // --- Valuation ---
@@ -56,6 +57,7 @@ export const PROCESS_REGISTRY: Record<string, ProcessInfo> = {
   'part-out-compute': { label: 'Part-out value', description: 'Computes each set’s sum-of-parts (part-out) floor value.', schedule: 'Daily 13:00 UTC', group: 'Enrichment' },
 
   // --- Snapshots & Alerts ---
+  'promotions-refresh': { label: 'Promotions calendar', description: 'Reads LEGO.com offers pages for gifts with purchase, double Insiders points and sales.', schedule: 'Daily 15:00 UTC', group: 'Snapshots & Alerts' },
   'snapshot-portfolios': { label: 'Portfolio snapshots', description: 'Records a daily snapshot of every user’s total portfolio value.', schedule: 'Daily 02:00 UTC', group: 'Snapshots & Alerts' },
   'snapshot-set-values': { label: 'Set value history', description: 'Records daily per-set value history that powers the trend charts.', schedule: 'Daily 03:00 UTC', group: 'Snapshots & Alerts' },
   'wishlist-alerts': { label: 'Alerts', description: 'Sends price-drop, value-spike, retiring-soon, buy-window and pre-order alerts.', schedule: 'Daily 08:00 UTC', group: 'Snapshots & Alerts' },

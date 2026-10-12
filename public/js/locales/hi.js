@@ -1778,3 +1778,6 @@ Object.assign(hi.data, {"blSalesTitle": "BrickLink बिक्री आया�
 hi.copies = {"paid": "भुगतान {price}", "soldToast": "{price} में बिका", "editN": "कॉपी {index} बदलें", "sellN": "कॉपी {index} बेचें"};
 // Sales & taxes (views/me-sales.js).
 hi.sales = {"checkReady": "पिछले साल कलेक्टरों द्वारा दर्ज {sales} बिक्रियों में, हमारी वैल्यू {w10}% मामलों में असली कीमत से 10% के भीतर और {w20}% में 20% के भीतर थी। आम अंतर {miss}% रहा।", "checkPending": "जब कलेक्टर एक साल में सील्ड सेट्स की {min} बिक्रियाँ दर्ज कर लेंगे, हम इसे प्रकाशित करेंगे। अब तक: {sales}।", "salesIn": "{year} की बिक्रियाँ", "net": "नेट {amount}", "cost": "लागत {amount}", "costMissing": "लागत दर्ज नहीं", "longTerm": "लॉन्ग-टर्म", "shortTerm": "शॉर्ट-टर्म", "locked": "हर बिक्री की रिपोर्ट, रखने की अवधि, लागत और लाभ के साथ, और टैक्स रिटर्न के लिए CSV और PDF डाउनलोड, Pro में मिलते हैं।"};
+// Compare stores (components/store-prices.js) and promotions (views/promotions.js).
+hi.stores = {"best": "सबसे अच्छी कीमत", "outOfStock": "स्टॉक में नहीं", "belowValue": "वैल्यू से {pct}% कम", "aboveValue": "वैल्यू से {pct}% ज़्यादा"};
+hi.promos = {"until": "{date} तक", "starts": "{date} से शुरू", "fromTo": "{start} से {end}", "whileItLasts": "स्टॉक रहने तक", "spend": "{amount}+ खर्च करें"};

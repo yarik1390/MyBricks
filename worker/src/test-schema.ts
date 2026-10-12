@@ -587,6 +587,33 @@ export const TABLE_DDL: Record<string, string> = {
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   deleted_at DATETIME
 )`,
+  store_offers: `CREATE TABLE IF NOT EXISTS store_offers (
+  set_num TEXT NOT NULL,
+  store TEXT NOT NULL,
+  price REAL,
+  in_stock INTEGER NOT NULL DEFAULT 0,
+  url TEXT,
+  title TEXT,
+  checked_at DATETIME NOT NULL,
+  PRIMARY KEY (set_num, store)
+)`,
+  promotions: `CREATE TABLE IF NOT EXISTS promotions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  dedupe_key TEXT NOT NULL UNIQUE,
+  kind TEXT NOT NULL DEFAULT 'other' CHECK(kind IN ('gwp','double_points','sale','other')),
+  title TEXT NOT NULL,
+  details TEXT,
+  starts_on DATE,
+  ends_on DATE,
+  min_spend REAL,
+  gift_set_num TEXT,
+  url TEXT,
+  source TEXT NOT NULL DEFAULT 'lego.com',
+  hidden INTEGER NOT NULL DEFAULT 0,
+  last_seen_at DATETIME,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)`,
   user_missing_parts: `CREATE TABLE IF NOT EXISTS user_missing_parts (
     user_id TEXT NOT NULL,
     set_num TEXT NOT NULL,

@@ -1916,3 +1916,6 @@ Object.assign(uk.data, {"blSalesTitle": "Імпорт продажів BrickLink
 uk.copies = {"paid": "Сплачено {price}", "soldToast": "Продано за {price}", "editN": "Редагувати примірник {index}", "sellN": "Продати примірник {index}"};
 // Sales & taxes (views/me-sales.js).
 uk.sales = {"checkReady": "Серед {sales} продажів, які колекціонери записали за останній рік, наша оцінка відрізнялася від реальної ціни менш ніж на 10% у {w10}% випадків і менш ніж на 20% у {w20}%. Типове відхилення — {miss}%.", "checkPending": "Ми опублікуємо це, коли колекціонери запишуть {min} продажів запечатаних наборів за рік. Поки що: {sales}.", "salesIn": "Продажі за {year}", "net": "Чиста сума {amount}", "cost": "вартість {amount}", "costMissing": "вартість не вказано", "longTerm": "Довгострокові", "shortTerm": "Короткострокові", "locked": "Звіт по кожному продажу з терміном володіння, вартістю і прибутком, а також завантаження CSV і PDF для декларації — у Pro."};
+// Compare stores (components/store-prices.js) and promotions (views/promotions.js).
+uk.stores = {"best": "Найкраща ціна", "outOfStock": "Немає в наявності", "belowValue": "на {pct}% нижче оцінки", "aboveValue": "на {pct}% вище оцінки"};
+uk.promos = {"until": "До {date}", "starts": "З {date}", "fromTo": "З {start} до {end}", "whileItLasts": "Поки є в наявності", "spend": "Покупка від {amount}"};
