@@ -1,5 +1,7 @@
 /** Hindi exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "eBay and BrickLink figures come from US listings and sales of new sets. Check the listing for its own price and shipping.": "eBay और BrickLink के आँकड़े नए सेट की अमेरिकी लिस्टिंग और बिक्री से आते हैं। असली कीमत और शिपिंग लिस्टिंग में देखें।",
+  "eBay and BrickLink figures come from US listings and sales of new sets, converted to your currency. Check the listing for its own price and shipping.": "eBay और BrickLink के आँकड़े नए सेट की अमेरिकी लिस्टिंग और बिक्री से आते हैं, आपकी मुद्रा में बदले गए। असली कीमत और शिपिंग लिस्टिंग में देखें।",
   "Walmart and Target are US stores, so their dollar prices are converted to your currency. Checked daily, before tax, shipping and import costs.": "Walmart और Target अमेरिकी स्टोर हैं, इसलिए उनकी डॉलर कीमतें आपकी मुद्रा में बदली जाती हैं। रोज़ जाँची जाती हैं, टैक्स, शिपिंग और आयात शुल्क से पहले।",
   "Walmart and Target are US stores. Prices are checked daily, before tax and shipping.": "Walmart और Target अमेरिकी स्टोर हैं। कीमतें रोज़ जाँची जाती हैं, टैक्स और शिपिंग से पहले।",
   "Accept": "स्वीकार करें",

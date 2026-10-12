@@ -11742,6 +11742,18 @@
     ]
   },
   {
+    "text": "eBay and BrickLink figures come from US listings and sales of new sets, converted to your currency. Check the listing for its own price and shipping.",
+    "files": [
+      "components/store-prices.js"
+    ]
+  },
+  {
+    "text": "eBay and BrickLink figures come from US listings and sales of new sets. Check the listing for its own price and shipping.",
+    "files": [
+      "components/store-prices.js"
+    ]
+  },
+  {
     "text": "eBay asking",
     "files": [
       "views/portfolio-detail-market.js"

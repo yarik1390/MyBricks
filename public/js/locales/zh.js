@@ -1781,7 +1781,7 @@ zh.copies = {"paid": "购入价 {price}", "soldToast": "以 {price} 售出", "ed
 // Sales & taxes (views/me-sales.js).
 zh.sales = {"checkReady": "在收藏者过去一年记录的 {sales} 笔出售中，我们的估值有 {w10}% 与实际价格相差在 10% 以内，{w20}% 在 20% 以内。典型偏差为 {miss}%。", "checkPending": "当收藏者在一年内记录 {min} 笔未拆封套装的出售后，我们会公布此数据。目前：{sales} 笔。", "salesIn": "{year} 年的出售", "net": "净额 {amount}", "cost": "成本 {amount}", "costMissing": "未记录成本", "longTerm": "长期", "shortTerm": "短期", "locked": "逐笔出售报告（含持有时间、成本和收益）以及用于报税的 CSV 和 PDF 下载，包含在 Pro 中。"};
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
-zh.stores = {"best": "最低价", "outOfStock": "缺货", "belowValue": "比估值低 {pct}%", "aboveValue": "比估值高 {pct}%", "checking": "正在查询…", "notListed": "目前该店未售", "unchecked": "尚未查询"};
+zh.stores = {"best": "最低价", "outOfStock": "缺货", "belowValue": "比估值低 {pct}%", "aboveValue": "比估值高 {pct}%", "checking": "正在查询…", "notListed": "目前该店未售", "unchecked": "尚未查询", "ebayAskPlain": "常见挂牌价", "ebayAskOne": "常见挂牌价，{n} 个在售", "ebayAskOther": "常见挂牌价，{n} 个在售", "blSoldPlain": "近期平均成交价（全新）", "blSoldOne": "近期平均成交价，全新售出 {n} 套", "blSoldOther": "近期平均成交价，全新售出 {n} 套"};
 zh.promos = {"until": "截至 {date}", "starts": "{date} 开始", "fromTo": "{start} 至 {end}", "whileItLasts": "售完即止", "spend": "满 {amount}"};
 // Rebrickable sync (components/rebrickable-card.js).
 zh.rebrickable = {"importResult": "新加入收藏：{fresh}。已存在：{already}。尚未收录：{unknown}。", "exportPartial": "已发送：{sent}。待发送：{left}。一分钟后再次点击发送。", "exportDone": "已发送到 Rebrickable：{sent}。"};

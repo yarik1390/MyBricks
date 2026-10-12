@@ -46,6 +46,26 @@ test('a set nobody checked yet is checked at Walmart and Target on the spot', as
   await expect(card).toContainText('Walmart and Target are US stores');
 });
 
+test('eBay and BrickLink show the prices we hold instead of a bare link', async ({ page }) => {
+  await page.route(`**/api/sets/${SET.set_num}`, route => route.fulfill({ json: { set: SET, entry: null } }));
+  await page.route(`**/api/stores/${SET.set_num}`, route => route.fulfill({ json: {
+    set_num: SET.set_num, msrp: 100, value: 120, stores: [],
+    offers: [{ store: 'lego', label: 'LEGO.com', price: 99.99, in_stock: true, url: 'https://www.lego.com/en-us/product/1', checked_at: '2026-10-12 10:00:00' }],
+    market: [
+      { store: 'ebay', label: 'eBay', kind: 'ask', price: 118, count: 23, checked_at: '2026-10-12 04:00:00', url: 'https://www.ebay.com/sch/i.html?_nkw=LEGO' },
+      { store: 'bricklink', label: 'BrickLink', kind: 'sold', price: 125.5, count: 9, checked_at: '2026-10-12 10:00:00', url: 'https://www.bricklink.com/v2/catalog/catalogitem.page?S=1' },
+    ],
+    links: [{ store: 'brickowl', label: 'Brick Owl', url: 'https://www.brickowl.com/search/catalog?query=1' }],
+  } }));
+  await page.goto(`/#/set/${SET.set_num}`);
+  const card = page.locator('.bv-stores');
+  await expect(card.locator('.bv-stores__row').nth(1)).toContainText('Typical asking price, 23 listings');
+  await expect(card.locator('.bv-stores__row').nth(1)).toContainText('118');
+  await expect(card.locator('.bv-stores__row').nth(2)).toContainText('Average recent sale, 9 sold new');
+  await expect(card.locator('.bv-chip')).toHaveCount(1);
+  await expect(card).toContainText('eBay and BrickLink figures come from US listings');
+});
+
 test('promotions page splits offers into on now and coming up', async ({ page }) => {
   await page.route('**/api/promotions', route => route.fulfill({ json: {
     now: [{ id: 1, kind: 'gwp', title: 'Free Christmas Tree', starts_on: '2026-10-01', ends_on: '2099-12-31', min_spend: 150, gift_set_num: '40573-1', gift_name: 'Christmas Tree', gift_image: null, url: 'https://www.lego.com/en-us/offers' }],

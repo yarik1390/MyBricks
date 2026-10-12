@@ -1,5 +1,7 @@
 /** Chinese (Simplified) exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "eBay and BrickLink figures come from US listings and sales of new sets. Check the listing for its own price and shipping.": "eBay 和 BrickLink 的数据来自美国全新套装的挂牌和成交。实际价格和运费请以商品页面为准。",
+  "eBay and BrickLink figures come from US listings and sales of new sets, converted to your currency. Check the listing for its own price and shipping.": "eBay 和 BrickLink 的数据来自美国全新套装的挂牌和成交，已换算为你的货币。实际价格和运费请以商品页面为准。",
   "Walmart and Target are US stores, so their dollar prices are converted to your currency. Checked daily, before tax, shipping and import costs.": "Walmart 和 Target 是美国商店，其美元价格已换算为你的货币。每日更新，不含税费、运费和进口费用。",
   "Walmart and Target are US stores. Prices are checked daily, before tax and shipping.": "Walmart 和 Target 是美国商店。价格每日更新，不含税费和运费。",
   "Accept": "接受",

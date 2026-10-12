@@ -1,5 +1,7 @@
 /** Ukrainian exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "eBay and BrickLink figures come from US listings and sales of new sets. Check the listing for its own price and shipping.": "Дані eBay і BrickLink беруться з оголошень і продажів нових наборів у США. Ціну й доставку дивіться в самому оголошенні.",
+  "eBay and BrickLink figures come from US listings and sales of new sets, converted to your currency. Check the listing for its own price and shipping.": "Дані eBay і BrickLink беруться з оголошень і продажів нових наборів у США та переводяться у вашу валюту. Ціну й доставку дивіться в самому оголошенні.",
   "Walmart and Target are US stores, so their dollar prices are converted to your currency. Checked daily, before tax, shipping and import costs.": "Walmart і Target — магазини США, тому їхні ціни в доларах переведено у вашу валюту. Перевіряємо щодня, без податків, доставки й мита.",
   "Walmart and Target are US stores. Prices are checked daily, before tax and shipping.": "Walmart і Target — магазини США. Ціни перевіряємо щодня, без податків і доставки.",
   "Accept": "Прийняти",

@@ -1,5 +1,7 @@
 /** Spanish exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "eBay and BrickLink figures come from US listings and sales of new sets. Check the listing for its own price and shipping.": "Las cifras de eBay y BrickLink vienen de anuncios y ventas de sets nuevos en EE. UU. Consulta el anuncio para ver su precio y envío.",
+  "eBay and BrickLink figures come from US listings and sales of new sets, converted to your currency. Check the listing for its own price and shipping.": "Las cifras de eBay y BrickLink vienen de anuncios y ventas de sets nuevos en EE. UU., convertidas a tu moneda. Consulta el anuncio para ver su precio y envío.",
   "Walmart and Target are US stores, so their dollar prices are converted to your currency. Checked daily, before tax, shipping and import costs.": "Walmart y Target son tiendas de EE. UU., así que sus precios en dólares se convierten a tu moneda. Revisados a diario, sin impuestos, envío ni aranceles.",
   "Walmart and Target are US stores. Prices are checked daily, before tax and shipping.": "Walmart y Target son tiendas de EE. UU. Precios revisados a diario, sin impuestos ni envío.",
   "Accept": "Aceptar",
