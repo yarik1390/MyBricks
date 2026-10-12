@@ -1,5 +1,5 @@
 import type { Env } from '../types';
-import { firecrawlScrape } from '../lib/firecrawl';
+import { firecrawlScrape, FirecrawlRateLimitedError } from '../lib/firecrawl';
 import { firecrawlEnabled } from '../lib/pricing-flags';
 import { sourceEnabled } from '../lib/source-config';
 import { quotaRemaining } from '../lib/api-quota';
@@ -104,6 +104,7 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
   let unchanged = 0;
   let failed = 0;
   let no_data = 0;
+  let deferred = 0;
   const stmts: D1PreparedStatement[] = [];
   const attempt = (setNum: string, status: string) => stmts.push(env.DB.prepare(
     `INSERT INTO set_market_ext (set_num, brickset_attempted_at, brickset_attempt_status)
@@ -146,6 +147,7 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
       if (html) data = parseBricksetHtml(html);
     }
 
+    let rateLimited = false;
     const result = (data || !hasFirecrawl) ? null : await firecrawlScrape<{
       msrp_usd?: number | null;
       launch_date?: string | null;
@@ -173,9 +175,20 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
           prompt: `Extract LEGO set details from this Brickset page for set ${set_num}. Extract all available fields: price, dates, theme/subtheme, age range, dimensions, packaging, description, ratings, and tags.`,
         },
         timeoutMs: 20_000,
+        throwOnRateLimit: true,
       },
       env,
-    );
+    ).catch((e) => {
+      if (e instanceof FirecrawlRateLimitedError) { rateLimited = true; return null; }
+      throw e;
+    });
+
+    if (!data && rateLimited) {
+      // Firecrawl was only busy. Leave the attempt clock untouched so the set
+      // is retried first next run; this is not a provider failure.
+      deferred++;
+      continue;
+    }
 
     if (!data && !result) {
       // A null result is a provider/network failure, not verified no-data.
@@ -242,5 +255,5 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
   // No aggregate health write — firecrawlScrape records each scrape attempt
   // (real ok/fail + error message) inside the wrapper; a batch tally here would
   // double-count and clobber the real error with "unknown error".
-  return { processed, updated, unchanged, failed, no_data, limit: effLimit };
+  return { processed, updated, unchanged, failed, no_data, deferred, limit: effLimit };
 }

@@ -295,6 +295,12 @@ const PROBES: Record<string, Probe> = {
   // round-trip on a lightweight target. Spends one token credit.
   async brightdata(env) {
     if (!brightDataEnabled(env)) return configured('Bright Data tokens not configured');
+    // Name our own daily cap instead of the generic "no usable page" when that
+    // is the only reason the unlock was skipped.
+    const { quotaRemaining } = await import('./api-quota');
+    if ((await quotaRemaining(env, 'brightdata')) < 1) {
+      return { ok: true, status: 'degraded', detail: 'daily cap reached (raise it under Pricing sources); tokens were not called' };
+    }
     const { brightDataUnlock } = await import('./brightdata');
     const html = await brightDataUnlock('https://example.com/', env, { timeoutMs: 15_000 });
     if (html && /example/i.test(html.slice(0, 500))) {

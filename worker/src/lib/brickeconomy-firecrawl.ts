@@ -130,6 +130,8 @@ export async function fetchBrickEconomy(
       },
       waitFor: 1200,
       timeoutMs: 25_000,
+      // A busy account is not a failed page: let the job defer this set.
+      throwOnRateLimit: true,
     },
     env,
   );
