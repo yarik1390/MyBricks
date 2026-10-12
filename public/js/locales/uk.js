@@ -954,6 +954,8 @@ export const uk = {
     proAlertsFirstSub: "Дізнавайтеся про набори, що знімаються з виробництва, на день раніше за інших",
     proWall: "Ваше ім’я на стіні подяки",
     proWallSub: "Показується нижче, поки ваш профіль публічний",
+    proTax: "Звіт про продажі та податки",
+    proTaxSub: "Кожен продаж із вартістю і прибутком, у CSV або PDF",
     proWallTitle: "Дякуємо нашим прихильникам",
     proSkin: "Золото всюди",
     proExportsSub: 'Ринкова вартість і прибутковість у CSV, а також страховий звіт',
@@ -1912,3 +1914,5 @@ Object.assign(uk.bvSet, {"removeAskTitle": "Ви його продали?", "rem
 Object.assign(uk.data, {"blSalesTitle": "Імпорт продажів BrickLink", "blSalesSub": "Експортуйте «Orders Received» зі свого магазину BrickLink у CSV. Продані набори залишають сховище з ціною продажу й враховуються в реалізованому прибутку. Ціни також враховуються в анонімних медіанах спільноти, які публікуються лише після внесків щонайменше п’яти колекціонерів.", "blSalesPick": "Вибрати CSV продажів", "blSalesImport": "Імпортувати продажі", "blSalesResult": "✓ {sold}, {skipped}. {errors}", "salesRecordedCountOne": "Записано {n} продаж", "salesRecordedCountFew": "Записано {n} продажі", "salesRecordedCountMany": "Записано {n} продажів", "salesRecordedCountOther": "Записано {n} продажу"});
 // Set page → Your copies (components/copies.js).
 uk.copies = {"paid": "Сплачено {price}", "soldToast": "Продано за {price}", "editN": "Редагувати примірник {index}", "sellN": "Продати примірник {index}"};
+// Sales & taxes (views/me-sales.js).
+uk.sales = {"checkReady": "Серед {sales} продажів, які колекціонери записали за останній рік, наша оцінка відрізнялася від реальної ціни менш ніж на 10% у {w10}% випадків і менш ніж на 20% у {w20}%. Типове відхилення — {miss}%.", "checkPending": "Ми опублікуємо це, коли колекціонери запишуть {min} продажів запечатаних наборів за рік. Поки що: {sales}.", "salesIn": "Продажі за {year}", "net": "Чиста сума {amount}", "cost": "вартість {amount}", "costMissing": "вартість не вказано", "longTerm": "Довгострокові", "shortTerm": "Короткострокові", "locked": "Звіт по кожному продажу з терміном володіння, вартістю і прибутком, а також завантаження CSV і PDF для декларації — у Pro."};

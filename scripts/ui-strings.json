@@ -745,6 +745,12 @@
     ]
   },
   {
+    "text": "BRICKSVAULT · SALES REPORT",
+    "files": [
+      "lib/sales-report.js"
+    ]
+  },
+  {
     "text": "BRICKSVAULT · STACK SOMETHING BEAUTIFUL",
     "files": [
       "views/me.js"
@@ -923,6 +929,12 @@
     "text": "Books",
     "files": [
       "lib/pure.js"
+    ]
+  },
+  {
+    "text": "Bought on",
+    "files": [
+      "lib/sales-report.js"
     ]
   },
   {
@@ -1440,6 +1452,7 @@
   {
     "text": "Collector",
     "files": [
+      "views/me-sales.js",
       "views/me-shared.js"
     ]
   },
@@ -1528,6 +1541,7 @@
     "text": "Condition",
     "files": [
       "components/copies.js",
+      "lib/sales-report.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -1706,6 +1720,24 @@
     ]
   },
   {
+    "text": "Cost",
+    "files": [
+      "lib/sales-report.js"
+    ]
+  },
+  {
+    "text": "Cost of units sold",
+    "files": [
+      "lib/sales-report.js"
+    ]
+  },
+  {
+    "text": "Cost of what you sold",
+    "files": [
+      "views/me-sales.js"
+    ]
+  },
+  {
     "text": "Could not build the wanted list. Try again.",
     "files": [
       "components/parts-checklist.js",
@@ -1752,6 +1784,12 @@
     "text": "Could not remove the copy.",
     "files": [
       "components/copies.js"
+    ]
+  },
+  {
+    "text": "Could not remove the sale.",
+    "files": [
+      "views/me-sales.js"
     ]
   },
   {
@@ -2026,6 +2064,12 @@
     ]
   },
   {
+    "text": "Days held",
+    "files": [
+      "lib/sales-report.js"
+    ]
+  },
+  {
     "text": "Deal Score Breakdown",
     "files": [
       "components/scanner.js",
@@ -2187,6 +2231,12 @@
     ]
   },
   {
+    "text": "Download CSV",
+    "files": [
+      "views/me-sales.js"
+    ]
+  },
+  {
     "text": "Download anyway",
     "files": [
       "views/me-integrations.js"
@@ -2250,6 +2300,12 @@
     "text": "Each provider plays a different role. Sold data leads; modeled and asking data only widen ranges; reference data never touches prices.",
     "files": [
       "methodology.html"
+    ]
+  },
+  {
+    "text": "Each sale is compared with the value we showed on the day it sold. Every sale you record makes this check, and our prices, more accurate.",
+    "files": [
+      "views/me-sales.js"
     ]
   },
   {
@@ -2767,6 +2823,12 @@
     ]
   },
   {
+    "text": "Fees",
+    "files": [
+      "lib/sales-report.js"
+    ]
+  },
+  {
     "text": "Fees & Ship",
     "files": [
       "components/flip-calc.js"
@@ -2775,7 +2837,8 @@
   {
     "text": "Fees and shipping",
     "files": [
-      "components/copies.js"
+      "components/copies.js",
+      "views/me-sales.js"
     ]
   },
   {
@@ -2791,10 +2854,17 @@
     ]
   },
   {
+    "text": "File saving is unavailable",
+    "files": [
+      "views/me-sales.js"
+    ]
+  },
+  {
     "text": "Filesystem",
     "files": [
       "lib/native-file-export.js",
       "views/me-insurance.js",
+      "views/me-sales.js",
       "views/wrapped.js"
     ]
   },
@@ -3010,6 +3080,12 @@
     "files": [
       "components/scanner.js",
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Gain",
+    "files": [
+      "lib/sales-report.js"
     ]
   },
   {
@@ -3342,6 +3418,12 @@
     "text": "How We Price — BricksVault",
     "files": [
       "methodology.html"
+    ]
+  },
+  {
+    "text": "How close our values are",
+    "files": [
+      "views/me-sales.js"
     ]
   },
   {
@@ -4020,6 +4102,19 @@
     ]
   },
   {
+    "text": "Long-term (held over a year)",
+    "files": [
+      "lib/sales-report.js",
+      "views/me-sales.js"
+    ]
+  },
+  {
+    "text": "Long-term means held more than a year. Tax rules differ by country, so this is a record of your numbers, not tax advice.",
+    "files": [
+      "views/me-sales.js"
+    ]
+  },
+  {
     "text": "Low RAM detected",
     "files": [
       "views/me-integrations.js"
@@ -4473,6 +4568,12 @@
     ]
   },
   {
+    "text": "Net proceeds",
+    "files": [
+      "lib/sales-report.js"
+    ]
+  },
+  {
     "text": "Network",
     "files": [
       "lib/native-net.js"
@@ -4717,6 +4818,13 @@
     ]
   },
   {
+    "text": "No purchase date",
+    "files": [
+      "lib/sales-report.js",
+      "views/me-sales.js"
+    ]
+  },
+  {
     "text": "No quarantined matches.",
     "files": [
       "views/me-admin.js"
@@ -4726,6 +4834,12 @@
     "text": "No ratings yet — be the first.",
     "files": [
       "runtime-exact"
+    ]
+  },
+  {
+    "text": "No sales recorded this year.",
+    "files": [
+      "views/me-sales.js"
     ]
   },
   {
@@ -5834,6 +5948,13 @@
     ]
   },
   {
+    "text": "Proceeds",
+    "files": [
+      "lib/sales-report.js",
+      "views/me-sales.js"
+    ]
+  },
+  {
     "text": "Processing queue...",
     "files": [
       "components/scanner.js"
@@ -5922,6 +6043,12 @@
     "text": "Push notifications enabled",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "Quantity",
+    "files": [
+      "lib/sales-report.js"
     ]
   },
   {
@@ -6030,6 +6157,25 @@
     "text": "Real collector transactions",
     "files": [
       "methodology.html"
+    ]
+  },
+  {
+    "text": "Realized gain",
+    "files": [
+      "lib/sales-report.js",
+      "views/me-sales.js"
+    ]
+  },
+  {
+    "text": "Realized gains by year",
+    "files": [
+      "views/me-sales.js"
+    ]
+  },
+  {
+    "text": "Realized gains by year, with a tax report",
+    "files": [
+      "views/me.js"
     ]
   },
   {
@@ -6207,6 +6353,7 @@
     "text": "Remove",
     "files": [
       "components/copies.js",
+      "views/me-sales.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -6250,6 +6397,18 @@
     "text": "Remove this copy?",
     "files": [
       "components/copies.js"
+    ]
+  },
+  {
+    "text": "Remove this sale",
+    "files": [
+      "views/me-sales.js"
+    ]
+  },
+  {
+    "text": "Remove this sale?",
+    "files": [
+      "views/me-sales.js"
     ]
   },
   {
@@ -6304,6 +6463,12 @@
     "text": "Replay the first-run setup (mode, appearance, extras, Pro) to review it.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Report ready",
+    "files": [
+      "views/me-sales.js"
     ]
   },
   {
@@ -6772,9 +6937,31 @@
     ]
   },
   {
+    "text": "Sale removed",
+    "files": [
+      "views/me-sales.js"
+    ]
+  },
+  {
     "text": "Sales",
     "files": [
+      "lib/sales-report.js",
+      "views/me-sales.js",
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "Sales & taxes",
+    "files": [
+      "route-meta.js",
+      "views/me-sales.js",
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "Sales could not load.",
+    "files": [
+      "views/me-sales.js"
     ]
   },
   {
@@ -6782,6 +6969,12 @@
     "files": [
       "components/copies.js",
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "Save PDF report",
+    "files": [
+      "views/me-sales.js"
     ]
   },
   {
@@ -7059,7 +7252,8 @@
   {
     "text": "Set",
     "files": [
-      "lib/insurance-report.js"
+      "lib/insurance-report.js",
+      "lib/sales-report.js"
     ]
   },
   {
@@ -7108,6 +7302,12 @@
     "text": "Set not found",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Set number",
+    "files": [
+      "lib/sales-report.js"
     ]
   },
   {
@@ -7214,6 +7414,7 @@
       "lib/native-file-export.js",
       "lib/native-share.js",
       "views/me-insurance.js",
+      "views/me-sales.js",
       "views/wrapped.js"
     ]
   },
@@ -7234,6 +7435,13 @@
     "files": [
       "components/scanner.js",
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Short-term",
+    "files": [
+      "lib/sales-report.js",
+      "views/me-sales.js"
     ]
   },
   {
@@ -7423,6 +7631,12 @@
     ]
   },
   {
+    "text": "Sold",
+    "files": [
+      "lib/sales-report.js"
+    ]
+  },
+  {
     "text": "Sold (verified mappings) · liquidity",
     "files": [
       "methodology.html"
@@ -7471,6 +7685,12 @@
     ]
   },
   {
+    "text": "Sold on",
+    "files": [
+      "lib/sales-report.js"
+    ]
+  },
+  {
     "text": "Sold prices are facts; asking prices are wishes. Sold data leads every valuation. Listing and modeled data may widen the likely range slightly, but they can never move a sold-based headline.",
     "files": [
       "methodology.html"
@@ -7505,6 +7725,12 @@
     "text": "Some parts were left out: BrickLink has no matching color.",
     "files": [
       "components/parts-checklist.js"
+    ]
+  },
+  {
+    "text": "Some sales have no price paid recorded, so they count in proceeds but not in the gain. Add the price on the set page to include them.",
+    "files": [
+      "views/me-sales.js"
     ]
   },
   {
@@ -7891,9 +8117,21 @@
     ]
   },
   {
+    "text": "Tax year",
+    "files": [
+      "views/me-sales.js"
+    ]
+  },
+  {
     "text": "Tell us what's wrong with the current image.",
     "files": [
       "components/contribute.js"
+    ]
+  },
+  {
+    "text": "Term",
+    "files": [
+      "lib/sales-report.js"
     ]
   },
   {
@@ -8329,6 +8567,12 @@
     ]
   },
   {
+    "text": "Unlock with Pro",
+    "files": [
+      "views/me-sales.js"
+    ]
+  },
+  {
     "text": "Unlocks after 180 days and 12 recorded values.",
     "files": [
       "runtime-exact",
@@ -8448,6 +8692,12 @@
     "text": "Use the exact Supabase UUID if search has no result.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Use this for a sale recorded by mistake. The set does not come back to your vault.",
+    "files": [
+      "views/me-sales.js"
     ]
   },
   {
@@ -9145,6 +9395,12 @@
     ]
   },
   {
+    "text": "bv-btn-row bv-sales__actions",
+    "files": [
+      "views/me-sales.js"
+    ]
+  },
+  {
     "text": "bv-btn-row vault-facets__actions",
     "files": [
       "views/minifigs.js"
@@ -9274,6 +9530,7 @@
     "text": "bv-group__box bv-gap",
     "files": [
       "views/me-insurance.js",
+      "views/me-sales.js",
       "views/retiring.js",
       "views/upcoming.js"
     ]

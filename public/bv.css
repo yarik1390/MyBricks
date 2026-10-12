@@ -2268,3 +2268,20 @@ body.collector-ui.offline #app { padding-top: 56px; }
 .bv-copies__notes { font-size: 12px; line-height: 17px; color: var(--bv-mute); overflow-wrap: anywhere; }
 .bv-copies__actions { flex: none; display: flex; gap: 2px; }
 .bv-copies__actions .bv-btn { min-height: 44px; }
+
+/* Me → Sales & taxes (views/me-sales.js). */
+.bv-sales__years { margin: 0 var(--bv-gutter) 12px; overflow-x: auto; }
+.bv-sales__summary { display: flex; flex-direction: column; gap: 4px; }
+.bv-sales__hero { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+.bv-sales__big { font: 600 28px/34px var(--bv-sans); }
+.bv-sales__line { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 14px; line-height: 20px; }
+.bv-sales__split { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--bv-line); }
+.bv-sales__list { list-style: none; margin: 0 var(--bv-gutter); padding: 0; display: flex; flex-direction: column; }
+.bv-sales__row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--bv-line); }
+.bv-sales__body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.bv-sales__name { font-weight: 600; color: var(--bv-ink); text-decoration: none; overflow-wrap: anywhere; }
+.bv-sales__meta { font-size: 12px; line-height: 17px; color: var(--bv-mute); overflow-wrap: anywhere; }
+.bv-sales__gain { flex: none; font-weight: 600; }
+.bv-sales__row .bv-btn { flex: none; min-height: 44px; }
+.bv-sales__actions { margin: 12px var(--bv-gutter); }
+.bv-sales__check p { margin: 0 0 8px; }

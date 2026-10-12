@@ -858,6 +858,8 @@ export const hi = {
     proAlertsFirstSub: "रिटायर हो रहे सेट के बारे में सबसे एक दिन पहले जानें",
     proWall: "धन्यवाद दीवार पर आपका नाम",
     proWallSub: "प्रोफ़ाइल सार्वजनिक रहने तक नीचे दिखता है",
+    proTax: "बिक्री और टैक्स रिपोर्ट",
+    proTaxSub: "हर बिक्री लागत और लाभ के साथ, CSV या PDF में",
     proWallTitle: "हमारे समर्थकों का धन्यवाद",
     proSkin: "हर जगह गोल्ड",
     proExportsSub: 'CSV में बाज़ार मूल्य और ROI कॉलम, साथ में बीमा रिपोर्ट',
@@ -1774,3 +1776,5 @@ Object.assign(hi.bvSet, {"removeAskTitle": "क्या आपने इसे 
 Object.assign(hi.data, {"blSalesTitle": "BrickLink बिक्री आयात करें", "blSalesSub": "अपने BrickLink स्टोर से “Orders Received” CSV निर्यात करें। बिके सेट अपनी बिक्री कीमत के साथ वॉल्ट से हट जाते हैं और प्राप्त लाभ में गिने जाते हैं। कीमतें समुदाय की अनाम माध्यिका कीमतों में भी योगदान देती हैं, जो कम से कम पाँच संग्रहकर्ताओं के योगदान के बाद ही प्रकाशित होती हैं।", "blSalesPick": "बिक्री CSV चुनें", "blSalesImport": "बिक्री आयात करें", "blSalesResult": "✓ {sold}, {skipped}. {errors}", "salesRecordedCountOne": "{n} बिक्री दर्ज हुई", "salesRecordedCountOther": "{n} बिक्रियाँ दर्ज हुईं"});
 // Set page → Your copies (components/copies.js).
 hi.copies = {"paid": "भुगतान {price}", "soldToast": "{price} में बिका", "editN": "कॉपी {index} बदलें", "sellN": "कॉपी {index} बेचें"};
+// Sales & taxes (views/me-sales.js).
+hi.sales = {"checkReady": "पिछले साल कलेक्टरों द्वारा दर्ज {sales} बिक्रियों में, हमारी वैल्यू {w10}% मामलों में असली कीमत से 10% के भीतर और {w20}% में 20% के भीतर थी। आम अंतर {miss}% रहा।", "checkPending": "जब कलेक्टर एक साल में सील्ड सेट्स की {min} बिक्रियाँ दर्ज कर लेंगे, हम इसे प्रकाशित करेंगे। अब तक: {sales}।", "salesIn": "{year} की बिक्रियाँ", "net": "नेट {amount}", "cost": "लागत {amount}", "costMissing": "लागत दर्ज नहीं", "longTerm": "लॉन्ग-टर्म", "shortTerm": "शॉर्ट-टर्म", "locked": "हर बिक्री की रिपोर्ट, रखने की अवधि, लागत और लाभ के साथ, और टैक्स रिटर्न के लिए CSV और PDF डाउनलोड, Pro में मिलते हैं।"};

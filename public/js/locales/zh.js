@@ -858,6 +858,8 @@ export const zh = {
     proAlertsFirstSub: "比其他人早一天得知即将停产的套装",
     proWall: "你的名字上感谢墙",
     proWallSub: "个人资料公开时显示在下方",
+    proTax: "出售与税务报告",
+    proTaxSub: "每笔出售含成本和收益，可导出 CSV 或 PDF",
     proWallTitle: "感谢我们的支持者",
     proSkin: "处处金色",
     proExportsSub: 'CSV 中包含市场价值和收益列，外加保险报告',
@@ -1774,3 +1776,5 @@ Object.assign(zh.bvSet, {"removeAskTitle": "你卖掉了吗？", "removeAskSub":
 Object.assign(zh.data, {"blSalesTitle": "导入 BrickLink 销售记录", "blSalesSub": "从你的 BrickLink 店铺导出 “Orders Received” CSV。已售套装会带着售价离开收藏，并计入已实现收益。 价格也会用于匿名的社区价格中位数，只有至少五位收藏者贡献数据后才会公布。", "blSalesPick": "选择销售 CSV", "blSalesImport": "导入销售记录", "blSalesResult": "✓ {sold}，{skipped}。{errors}", "salesRecordedCountOne": "已记录 {n} 笔销售", "salesRecordedCountOther": "已记录 {n} 笔销售"});
 // Set page → Your copies (components/copies.js).
 zh.copies = {"paid": "购入价 {price}", "soldToast": "以 {price} 售出", "editN": "编辑第 {index} 件", "sellN": "出售第 {index} 件"};
+// Sales & taxes (views/me-sales.js).
+zh.sales = {"checkReady": "在收藏者过去一年记录的 {sales} 笔出售中，我们的估值有 {w10}% 与实际价格相差在 10% 以内，{w20}% 在 20% 以内。典型偏差为 {miss}%。", "checkPending": "当收藏者在一年内记录 {min} 笔未拆封套装的出售后，我们会公布此数据。目前：{sales} 笔。", "salesIn": "{year} 年的出售", "net": "净额 {amount}", "cost": "成本 {amount}", "costMissing": "未记录成本", "longTerm": "长期", "shortTerm": "短期", "locked": "逐笔出售报告（含持有时间、成本和收益）以及用于报税的 CSV 和 PDF 下载，包含在 Pro 中。"};

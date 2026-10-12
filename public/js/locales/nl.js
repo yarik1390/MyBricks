@@ -858,6 +858,8 @@ export const nl = {
     proAlertsFirstSub: "Hoor een dag eerder dan iedereen welke sets stoppen",
     proWall: "Je naam op de bedankmuur",
     proWallSub: "Hieronder zichtbaar zolang je profiel openbaar is",
+    proTax: "Verkoop- & belastingrapport",
+    proTaxSub: "Elke verkoop met kosten en winst, als CSV of PDF",
     proWallTitle: "Dank aan onze supporters",
     proSkin: "Overal goud",
     proExportsSub: 'Kolommen voor marktwaarde en rendement in CSV, plus het verzekeringsrapport',
@@ -1774,3 +1776,5 @@ Object.assign(nl.bvSet, {"removeAskTitle": "Heb je het verkocht?", "removeAskSub
 Object.assign(nl.data, {"blSalesTitle": "BrickLink-verkopen importeren", "blSalesSub": "Exporteer “Orders Received” uit je BrickLink-winkel als CSV. Verkochte sets verlaten je kluis met hun verkoopprijs en tellen mee in gerealiseerde winst. Prijzen dragen ook bij aan anonieme communitymedianen, die pas worden gepubliceerd nadat minstens vijf verzamelaars hebben bijgedragen.", "blSalesPick": "Verkoop-CSV kiezen", "blSalesImport": "Verkopen importeren", "blSalesResult": "✓ {sold}, {skipped}. {errors}", "salesRecordedCountOne": "{n} verkoop vastgelegd", "salesRecordedCountOther": "{n} verkopen vastgelegd"});
 // Set page → Your copies (components/copies.js).
 nl.copies = {"paid": "Betaald {price}", "soldToast": "Verkocht voor {price}", "editN": "Exemplaar {index} bewerken", "sellN": "Exemplaar {index} verkopen"};
+// Sales & taxes (views/me-sales.js).
+nl.sales = {"checkReady": "Bij {sales} verkopen die verzamelaars het afgelopen jaar vastlegden, zat onze waarde voor {w10}% binnen 10% van de echte prijs en voor {w20}% binnen 20%. De gebruikelijke afwijking was {miss}%.", "checkPending": "We publiceren dit zodra verzamelaars in een jaar {min} verkopen van verzegelde sets hebben vastgelegd. Tot nu toe: {sales}.", "salesIn": "Verkopen in {year}", "net": "Netto {amount}", "cost": "kosten {amount}", "costMissing": "kosten niet vastgelegd", "longTerm": "Lange termijn", "shortTerm": "Korte termijn", "locked": "Het overzicht per verkoop, met bezitsduur, kosten en winst, plus CSV- en PDF-downloads voor je aangifte, hoort bij Pro."};

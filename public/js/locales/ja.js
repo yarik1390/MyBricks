@@ -858,6 +858,8 @@ export const ja = {
     proAlertsFirstSub: "引退するセットを誰よりも 1 日早く知らせます",
     proWall: "感謝の壁にあなたの名前",
     proWallSub: "プロフィールが公開中は下に表示されます",
+    proTax: "売却・税務レポート",
+    proTaxSub: "すべての売却を取得費と利益付きでCSVまたはPDFに",
     proWallTitle: "サポーターの皆さんに感謝",
     proSkin: "どこでもゴールド",
     proExportsSub: 'CSVに市場価値と利回りの列、さらに保険用レポート',
@@ -1779,3 +1781,5 @@ Object.assign(ja.bvSet, {"removeAskTitle": "売却しましたか？", "removeAs
 Object.assign(ja.data, {"blSalesTitle": "BrickLink の販売をインポート", "blSalesSub": "BrickLink ストアの「Orders Received」を CSV でエクスポートしてください。売却したセットは販売価格とともにコレクションから外れ、実現損益に計上されます。 価格は匿名のコミュニティ中央値にも使用され、少なくとも5人のコレクターが提供した後にのみ公開されます。", "blSalesPick": "販売 CSV を選択", "blSalesImport": "販売をインポート", "blSalesResult": "✓ {sold}、{skipped}。{errors}", "salesRecordedCountOne": "{n} 件の販売を記録", "salesRecordedCountOther": "{n} 件の販売を記録"});
 // Set page → Your copies (components/copies.js).
 ja.copies = {"paid": "購入価格 {price}", "soldToast": "{price} で売却", "editN": "{index} 個目を編集", "sellN": "{index} 個目を売却"};
+// Sales & taxes (views/me-sales.js).
+ja.sales = {"checkReady": "過去1年にコレクターが記録した {sales} 件の売却のうち、当社の評価額は {w10}% で実際の価格との差が10%以内、{w20}% で20%以内でした。典型的なずれは {miss}% です。", "checkPending": "1年間に未開封セットの売却が {min} 件記録されたら公開します。現在：{sales} 件。", "salesIn": "{year} 年の売却", "net": "手取り {amount}", "cost": "取得費 {amount}", "costMissing": "取得費未記録", "longTerm": "長期", "shortTerm": "短期", "locked": "保有期間・取得費・利益を含む売却ごとのレポートと、確定申告用のCSV・PDFダウンロードはProで利用できます。"};

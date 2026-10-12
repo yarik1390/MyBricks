@@ -102,6 +102,7 @@ function pageHTML(me) {
     row({ icon: 'plug', title: t('bvAccount.integrations'), sub: t('bvAccount.integrationsSub'), href: '#/me/integrations' }),
     row({ icon: 'db', title: t('bvAccount.importExport'), sub: t('bvAccount.importExportSub'), href: '#/me/data' }),
     guest ? '' : row({ icon: 'shield', title: t('bvAccount.insurance'), sub: t('bvAccount.insuranceSub'), href: '#/me/insurance' }),
+    guest ? '' : row({ icon: 'tag', title: 'Sales & taxes', sub: 'Realized gains by year, with a tax report', href: '#/me/sales' }),
   ].join('');
   const play = [
     row({ icon: 'game', title: t('bvAccount.priceIt'), sub: t('bvAccount.priceItSub'), href: '#/game' }),

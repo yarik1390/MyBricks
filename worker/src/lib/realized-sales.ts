@@ -64,3 +64,27 @@ export function parseSaleBody(body: { sold_price?: unknown; sold_at?: unknown; s
   }
   return { ok: true, soldPrice, soldAt, soldFees: soldFees as number | null };
 }
+
+/**
+ * A `sales` CTE over every sale a user recorded: the ledger, plus sold
+ * holdings from before the ledger existed (or written by older clients) that
+ * have no ledger row for the same set and date. Bind the user id twice.
+ * Columns: id, set_num, quantity, cost_basis, sold_price, sold_fees, sold_at,
+ * purchased_at, condition, value_at_sale, origin ('ledger' | 'legacy').
+ */
+export const SALES_CTE = `sales AS (
+  SELECT r.id AS id, r.set_num, r.quantity, r.cost_basis, r.sold_price, r.sold_fees, r.sold_at,
+         r.purchased_at, r.condition, r.value_at_sale, 'ledger' AS origin
+    FROM realized_sales r
+   WHERE r.user_id = ? AND r.deleted_at IS NULL
+  UNION ALL
+  SELECT -uc.id AS id, uc.set_num, COALESCE(uc.quantity, 1) AS quantity,
+         CASE WHEN uc.purchase_price IS NOT NULL THEN uc.purchase_price * COALESCE(uc.quantity, 1) END AS cost_basis,
+         uc.sold_price, uc.sold_fees, uc.sold_at, uc.purchased_at, uc.condition, NULL AS value_at_sale, 'legacy' AS origin
+    FROM user_collection uc
+   WHERE uc.user_id = ? AND uc.sold_at IS NOT NULL AND uc.sold_price IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1 FROM realized_sales r2
+        WHERE r2.user_id = uc.user_id AND r2.set_num = uc.set_num AND r2.sold_at = uc.sold_at
+     )
+)`;

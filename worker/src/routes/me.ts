@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { SALES_CTE } from '../lib/realized-sales';
 import { requireMember } from '../auth';
 import { appLink } from '../lib/app-url';
 import type { Env, Variables } from '../types';
@@ -606,13 +607,15 @@ app.get('/wrapped', async (c) => {
     WHERE uc.user_id=? AND uc.added_at >= ? AND uc.added_at < ?
   `).bind(userId, y0, y1).first<{ sets_added: number; invested: number; pieces_added: number }>();
 
+  // Every sale recorded that year: the realized_sales ledger plus older sold
+  // holdings. cost_basis already covers every unit sold.
   const sold = await c.env.DB.prepare(`
+    WITH ${SALES_CTE}
     SELECT COUNT(*) AS sets_sold, COALESCE(SUM(sold_price), 0) AS sale_total,
-           -- sold_price is what the whole holding fetched, so every copy's cost comes off.
-           COALESCE(SUM(sold_price - COALESCE(sold_fees, 0) - COALESCE(purchase_price, 0) * COALESCE(quantity, 1)), 0) AS realized_gain
-    FROM user_collection
-    WHERE user_id=? AND sold_at >= ? AND sold_at < ?
-  `).bind(userId, y0, y1).first<{ sets_sold: number; sale_total: number; realized_gain: number }>();
+           COALESCE(SUM(sold_price - COALESCE(sold_fees, 0) - COALESCE(cost_basis, 0)), 0) AS realized_gain
+    FROM sales
+    WHERE sold_at >= ? AND sold_at < ?
+  `).bind(userId, userId, y0, y1).first<{ sets_sold: number; sale_total: number; realized_gain: number }>();
 
   // Portfolio movement over the year from the daily snapshots (first vs last
   // inside the window — tolerates accounts created mid-year).

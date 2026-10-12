@@ -867,6 +867,8 @@ export const en = {
     proAlertsFirstSub: "Hear about retiring sets a day before everyone else",
     proWall: "Your name on the thanks wall",
     proWallSub: "Shown below while your profile is public",
+    proTax: "Sales & tax report",
+    proTaxSub: "Every sale with cost and gain, as CSV or PDF",
     proWallTitle: "Thanks to our supporters",
     proSkin: "Gold everywhere",
     proExportsSub: 'Market value and ROI columns in CSV, plus the insurance report',
@@ -2073,3 +2075,5 @@ Object.assign(en.data, {
 });
 // Set page → Your copies (components/copies.js).
 en.copies = {"paid": "Paid {price}", "soldToast": "Sold for {price}", "editN": "Edit copy {index}", "sellN": "Sell copy {index}"};
+// Sales & taxes (views/me-sales.js).
+en.sales = {"checkReady": "Across {sales} sales collectors recorded in the last year, our value was within 10% of the real price for {w10}% of them and within 20% for {w20}%. The typical miss was {miss}%.", "checkPending": "We'll publish this once collectors have recorded {min} sales of sealed sets in a year. So far: {sales}.", "salesIn": "Sales in {year}", "net": "Net {amount}", "cost": "cost {amount}", "costMissing": "cost not recorded", "longTerm": "Long-term", "shortTerm": "Short-term", "locked": "The sale-by-sale report, with dates held, cost and gain for each sale, plus CSV and PDF downloads for your tax return, comes with Pro."};
