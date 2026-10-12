@@ -105,6 +105,7 @@ function pageHTML(me) {
     guest ? '' : row({ icon: 'tag', title: 'Sales & taxes', sub: 'Realized gains by year, with a tax report', href: '#/me/sales' }),
   ].join('');
   const play = [
+    row({ icon: 'cal', title: 'Promotions', sub: 'Gifts with purchase, double points and sales', href: '#/promos' }),
     row({ icon: 'game', title: t('bvAccount.priceIt'), sub: t('bvAccount.priceItSub'), href: '#/game' }),
     guest ? '' : row({ icon: 'kid', title: t('bvAccount.kidsMode'), sub: t(me.has_kids_pin ? 'bvAccount.kidsOn' : 'bvAccount.kidsOff'), id: 'kidsModeRow' }),
     row({ icon: 'walk', title: t('bvAccount.tour'), sub: t('bvAccount.tourSub'), id: 'replayTourRow' }),

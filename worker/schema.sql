@@ -400,6 +400,40 @@ CREATE TABLE IF NOT EXISTS realized_sales (
 CREATE INDEX IF NOT EXISTS idx_realized_sales_user ON realized_sales(user_id, sold_at);
 CREATE INDEX IF NOT EXISTS idx_realized_sales_date ON realized_sales(sold_at);
 
+-- Live prices at big US stores (jobs/store-offers.ts). price NULL = checked,
+-- not listed. The cheapest fresh in-stock row is mirrored into set_market_ext.pa_*.
+CREATE TABLE IF NOT EXISTS store_offers (
+  set_num TEXT NOT NULL,
+  store TEXT NOT NULL,
+  price REAL,
+  in_stock INTEGER NOT NULL DEFAULT 0,
+  url TEXT,
+  title TEXT,
+  checked_at DATETIME NOT NULL,
+  PRIMARY KEY (set_num, store)
+);
+CREATE INDEX IF NOT EXISTS idx_store_offers_checked ON store_offers(checked_at);
+
+-- LEGO promotions calendar (jobs/promotions-refresh.ts + admin edits).
+CREATE TABLE IF NOT EXISTS promotions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  dedupe_key TEXT NOT NULL UNIQUE,
+  kind TEXT NOT NULL DEFAULT 'other' CHECK(kind IN ('gwp','double_points','sale','other')),
+  title TEXT NOT NULL,
+  details TEXT,
+  starts_on DATE,
+  ends_on DATE,
+  min_spend REAL,
+  gift_set_num TEXT,
+  url TEXT,
+  source TEXT NOT NULL DEFAULT 'lego.com',
+  hidden INTEGER NOT NULL DEFAULT 0,
+  last_seen_at DATETIME,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_promotions_dates ON promotions(hidden, ends_on);
+
 -- Owner-private named lists of canonical set identities. Client-generated IDs
 -- are owner-scoped, so the same UUID may safely exist in separate accounts.
 CREATE TABLE IF NOT EXISTS user_subcollections (

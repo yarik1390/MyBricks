@@ -2077,3 +2077,6 @@ Object.assign(en.data, {
 en.copies = {"paid": "Paid {price}", "soldToast": "Sold for {price}", "editN": "Edit copy {index}", "sellN": "Sell copy {index}"};
 // Sales & taxes (views/me-sales.js).
 en.sales = {"checkReady": "Across {sales} sales collectors recorded in the last year, our value was within 10% of the real price for {w10}% of them and within 20% for {w20}%. The typical miss was {miss}%.", "checkPending": "We'll publish this once collectors have recorded {min} sales of sealed sets in a year. So far: {sales}.", "salesIn": "Sales in {year}", "net": "Net {amount}", "cost": "cost {amount}", "costMissing": "cost not recorded", "longTerm": "Long-term", "shortTerm": "Short-term", "locked": "The sale-by-sale report, with dates held, cost and gain for each sale, plus CSV and PDF downloads for your tax return, comes with Pro."};
+// Compare stores (components/store-prices.js) and promotions (views/promotions.js).
+en.stores = {"best": "Best price", "outOfStock": "Out of stock", "belowValue": "{pct}% below its value", "aboveValue": "{pct}% above its value"};
+en.promos = {"until": "Until {date}", "starts": "Starts {date}", "fromTo": "{start} to {end}", "whileItLasts": "While it lasts", "spend": "Spend {amount}+"};

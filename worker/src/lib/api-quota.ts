@@ -57,6 +57,9 @@ export const QUOTA_CAPS: Record<string, number> = {
   // StockX lowest-ask scrape (Firecrawl). Low daily cap: slow
   // rendered calls, corroborating-only, OFF by default.
   stockx: 100,
+  // Walmart/Target price lookups (jobs/store-offers.ts): one Firecrawl json
+  // extraction (5 credits) per store per set, so 40/day = 200 credits/day.
+  stores: 40,
 };
 
 // Admin-tunable daily-cap overrides (lib/source-config.ts), keyed by service.

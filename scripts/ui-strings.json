@@ -374,6 +374,12 @@
     ]
   },
   {
+    "text": "Add a promotion",
+    "files": [
+      "views/promotions.js"
+    ]
+  },
+  {
     "text": "Add copy",
     "files": [
       "components/copies.js"
@@ -1340,6 +1346,12 @@
     ]
   },
   {
+    "text": "Check the price at",
+    "files": [
+      "components/store-prices.js"
+    ]
+  },
+  {
     "text": "Checking compatibility...",
     "files": [
       "views/me-integrations.js"
@@ -1477,6 +1489,12 @@
     ]
   },
   {
+    "text": "Coming up",
+    "files": [
+      "views/promotions.js"
+    ]
+  },
+  {
     "text": "Common",
     "files": [
       "runtime-exact"
@@ -1498,6 +1516,12 @@
     "text": "Compact set, lower aftermarket premium",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Compare stores",
+    "files": [
+      "components/store-prices.js"
     ]
   },
   {
@@ -1802,6 +1826,12 @@
     "text": "Could not save the copy.",
     "files": [
       "components/copies.js"
+    ]
+  },
+  {
+    "text": "Could not save.",
+    "files": [
+      "views/promotions.js"
     ]
   },
   {
@@ -2141,7 +2171,8 @@
     "text": "Details",
     "files": [
       "views/me-admin.js",
-      "views/portfolio-detail.js"
+      "views/portfolio-detail.js",
+      "views/promotions.js"
     ]
   },
   {
@@ -2222,6 +2253,12 @@
     "text": "Done!",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "Double Insiders points",
+    "files": [
+      "views/promotions.js"
     ]
   },
   {
@@ -2311,13 +2348,20 @@
   {
     "text": "Edit",
     "files": [
-      "components/copies.js"
+      "components/copies.js",
+      "views/promotions.js"
     ]
   },
   {
     "text": "Edit copy",
     "files": [
       "components/copies.js"
+    ]
+  },
+  {
+    "text": "Edit promotion",
+    "files": [
+      "views/promotions.js"
     ]
   },
   {
@@ -2380,6 +2424,12 @@
     "files": [
       "views/me-admin.js",
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Ends",
+    "files": [
+      "views/promotions.js"
     ]
   },
   {
@@ -3174,6 +3224,30 @@
     ]
   },
   {
+    "text": "Gift set number",
+    "files": [
+      "views/promotions.js"
+    ]
+  },
+  {
+    "text": "Gift with purchase",
+    "files": [
+      "views/promotions.js"
+    ]
+  },
+  {
+    "text": "Gifts with purchase, double points and sales",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "Gifts, double points and sales at LEGO",
+    "files": [
+      "views/promotions.js"
+    ]
+  },
+  {
     "text": "Global AI Engine",
     "files": [
       "views/me-integrations.js"
@@ -3355,6 +3429,18 @@
     "text": "Heartbeat:",
     "files": [
       "runtime-exact"
+    ]
+  },
+  {
+    "text": "Hidden",
+    "files": [
+      "views/promotions.js"
+    ]
+  },
+  {
+    "text": "Hide",
+    "files": [
+      "views/promotions.js"
     ]
   },
   {
@@ -3981,6 +4067,12 @@
     ]
   },
   {
+    "text": "Link",
+    "files": [
+      "views/promotions.js"
+    ]
+  },
+  {
     "text": "Link copied to clipboard!",
     "files": [
       "views/portfolio-detail.js"
@@ -4403,6 +4495,12 @@
     ]
   },
   {
+    "text": "Minimum spend (USD)",
+    "files": [
+      "views/promotions.js"
+    ]
+  },
+  {
     "text": "Missing MSRP",
     "files": [
       "views/me-admin.js"
@@ -4818,6 +4916,12 @@
     ]
   },
   {
+    "text": "No promotions right now",
+    "files": [
+      "views/promotions.js"
+    ]
+  },
+  {
     "text": "No purchase date",
     "files": [
       "lib/sales-report.js",
@@ -4858,6 +4962,12 @@
     "text": "No sets selected to add",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "No store has a price for this set today.",
+    "files": [
+      "components/store-prices.js"
     ]
   },
   {
@@ -5091,6 +5201,12 @@
     "text": "Older than 14 days",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "On now",
+    "files": [
+      "views/promotions.js"
     ]
   },
   {
@@ -5988,6 +6104,20 @@
     "text": "Promotes mappings whose PC price agrees with an independent BrickLink/eBay sold value, then re-blends them.",
     "files": [
       "views/me-admin-config.js"
+    ]
+  },
+  {
+    "text": "Promotions",
+    "files": [
+      "route-meta.js",
+      "views/me.js",
+      "views/promotions.js"
+    ]
+  },
+  {
+    "text": "Promotions could not load.",
+    "files": [
+      "views/promotions.js"
     ]
   },
   {
@@ -6931,6 +7061,12 @@
     ]
   },
   {
+    "text": "Sale",
+    "files": [
+      "views/promotions.js"
+    ]
+  },
+  {
     "text": "Sale date",
     "files": [
       "components/copies.js"
@@ -6968,7 +7104,8 @@
     "text": "Save",
     "files": [
       "components/copies.js",
-      "views/me-integrations.js"
+      "views/me-integrations.js",
+      "views/promotions.js"
     ]
   },
   {
@@ -6999,6 +7136,12 @@
     "text": "Save to Wishlist",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Saved",
+    "files": [
+      "views/promotions.js"
     ]
   },
   {
@@ -7451,6 +7594,12 @@
     ]
   },
   {
+    "text": "Show",
+    "files": [
+      "views/promotions.js"
+    ]
+  },
+  {
     "text": "Show less",
     "files": [
       "views/portfolio-detail.js"
@@ -7845,6 +7994,12 @@
     "text": "Start a safe batch from Pricing → Populate & Batch, or use Run now below for one process. Live progress appears here.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Starts",
+    "files": [
+      "views/promotions.js"
     ]
   },
   {
@@ -8334,6 +8489,12 @@
     ]
   },
   {
+    "text": "Title",
+    "files": [
+      "views/promotions.js"
+    ]
+  },
+  {
     "text": "Title (optional)",
     "files": [
       "components/contribute.js"
@@ -8510,6 +8671,12 @@
     ]
   },
   {
+    "text": "Type",
+    "files": [
+      "views/promotions.js"
+    ]
+  },
+  {
     "text": "Type at least 2 characters.",
     "files": [
       "views/me-admin.js"
@@ -8525,6 +8692,18 @@
     "text": "Typical sealed resale value",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "US offers from LEGO.com. Check the details before you buy: stock and terms can change.",
+    "files": [
+      "views/promotions.js"
+    ]
+  },
+  {
+    "text": "US store prices, checked daily, before tax and shipping.",
+    "files": [
+      "components/store-prices.js"
     ]
   },
   {
@@ -8962,6 +9141,12 @@
     "text": "Watchdogs run every night",
     "files": [
       "methodology.html"
+    ]
+  },
+  {
+    "text": "We check LEGO.com every day. New gifts with purchase and double points weeks show up here.",
+    "files": [
+      "views/promotions.js"
     ]
   },
   {
@@ -9531,6 +9716,7 @@
     "files": [
       "views/me-insurance.js",
       "views/me-sales.js",
+      "views/promotions.js",
       "views/retiring.js",
       "views/upcoming.js"
     ]
@@ -9629,6 +9815,12 @@
     "text": "bv-num bv-settitle__num",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "bv-num bv-stores__price",
+    "files": [
+      "components/store-prices.js"
     ]
   },
   {

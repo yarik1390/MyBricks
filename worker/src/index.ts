@@ -56,6 +56,8 @@ import { runBrickInsightsBackfill } from './jobs/brickinsights';
 import { runEbaySoldScrape } from './jobs/ebay-sold-scrape';
 import { runEbaySoldApifyScrape } from './jobs/ebay-sold-apify';
 import { runStockXEnrich } from './jobs/stockx-enrich';
+import { runStoreOffers } from './jobs/store-offers';
+import { runPromotionsRefresh } from './jobs/promotions-refresh';
 import { runLegoStockRefresh } from './jobs/lego-stock-refresh';
 import { runBricksetEnrich } from './jobs/brickset-enrich';
 import { runBrickEconomyEnrich } from './jobs/brickeconomy-enrich';
@@ -309,6 +311,8 @@ app.route('/api/brickset', bricksetSyncRoute);
 app.route('/api/collection', photosRoute);
 import { copiesRoute } from './routes/copies'; app.route('/api/collection', copiesRoute);
 import { salesRoute } from './routes/sales'; app.route('/api/sales', salesRoute);
+import { storesRoute } from './routes/stores'; app.route('/api/stores', storesRoute);
+import { promotionsRoute } from './routes/promotions'; app.route('/api/promotions', promotionsRoute);
 app.route('/api/game', gameRoute);
 app.route('/api/contributions', contributionsRoute);
 app.route('/api/push', pushRoute);
@@ -555,7 +559,10 @@ export default {
       // cap. Needs its own slot: the pricing cron-contract test asserts the literal
       // `case '0 14 * * *': await run('pricecharting-enrich'` form.
       case '45 14 * * *': await run('pricecharting-link-backfill', () => runPriceChartingEnrich(env, { limit: 150, concurrency: 5, linkBackfill: true })); break;
-      case '0 15 * * *': await run('upcoming-refresh', () => runUpcomingRefresh(env)); break;
+      case '0 15 * * *':
+        await run('upcoming-refresh', () => runUpcomingRefresh(env));
+        await run('promotions-refresh', () => runPromotionsRefresh(env));
+        break;
       case '0 16 * * *': await run('minifig-verify', () => runMinifigVerify(env)); break;
       // pricesAPI live-retail runs in 3 daily slots (~18 sets/day) now that the
       // key pool spreads the monthly budget; cold calls are 30–90s so each slot
@@ -563,7 +570,12 @@ export default {
       // Amazon Creators API offer refresh — KV-only (24h TTL, Associates terms),
       // owned/wishlisted + catalog head. No-ops until AMAZON_CREATORS_ENABLED=1
       // with eligible credentials (>= 10 qualifying sales / 30 days).
-      case '30 7 * * *': await run('amazon-offers', () => runAmazonOffers(env, { limit: 60 })); break;
+      // Walmart/Target prices run right after, before the 08:00 wishlist alerts
+      // read the refreshed live offers.
+      case '30 7 * * *':
+        await run('amazon-offers', () => runAmazonOffers(env, { limit: 60 }));
+        await run('store-offers', () => runStoreOffers(env, { limit: 20 }));
+        break;
       case '30 16 * * *': await run('amazon-offers', () => runAmazonOffers(env, { limit: 60 })); break;
       case '0 18 * * *': await run('stockx-enrich', () => runStockXEnrich(env, { limit: 20 })); break;
       case '0 22 * * *': await run('community-comps', () => runCommunityComps(env)); break;

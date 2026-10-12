@@ -21,6 +21,7 @@ import { openReviewSheet, openPhotoSheet, openDataFixSheet } from '../components
 import { refreshNavBadge } from './portfolio.js';
 import { getModePref } from '../theme.js';
 import { hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
+import { mountStorePrices } from '../components/store-prices.js';
 import { getProviderCredential } from '../lib/provider-credentials.js';
 
 // Simple mode hides the forecast (price-projection) tab. Helper centralizes the
@@ -1236,12 +1237,14 @@ function infoTabHTML(set, entry) {
     ${aboutHtml}
     ${minifigsCard}
     ${galleryHtml}
+    ${isKidsMode() || set.coming_soon ? '' : '<div id="storePrices"></div>'}
     ${externalLinks}`;
 }
 
 function wireInfoTab(set) {
   loadSetImages(set.set_num);
   hydrateAmazonSlots(document, state.me?.retail_market || 'FR');
+  mountStorePrices($("#storePrices"), set.set_num);
 
   // The set description is catalog DATA, not UI copy — a unique paragraph per
   // set — so the exact-match dictionary can never carry it. Fetch a translation
