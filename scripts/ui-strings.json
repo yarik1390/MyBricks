@@ -9438,12 +9438,6 @@
     ]
   },
   {
-    "text": "US store prices, checked daily, before tax and shipping.",
-    "files": [
-      "components/store-prices.js"
-    ]
-  },
-  {
     "text": "Uncommon",
     "files": [
       "runtime-exact"
@@ -9878,6 +9872,18 @@
     "text": "Waiting for an answer",
     "files": [
       "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Walmart and Target are US stores, so their dollar prices are converted to your currency. Checked daily, before tax, shipping and import costs.",
+    "files": [
+      "components/store-prices.js"
+    ]
+  },
+  {
+    "text": "Walmart and Target are US stores. Prices are checked daily, before tax and shipping.",
+    "files": [
+      "components/store-prices.js"
     ]
   },
   {
@@ -10830,6 +10836,12 @@
     "text": "bv-sr bv-contribsum__sr",
     "files": [
       "views/me-contributions.js"
+    ]
+  },
+  {
+    "text": "bv-stores__row is-out",
+    "files": [
+      "components/store-prices.js"
     ]
   },
   {

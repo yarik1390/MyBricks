@@ -1786,7 +1786,7 @@ ja.copies = {"paid": "購入価格 {price}", "soldToast": "{price} で売却", "
 // Sales & taxes (views/me-sales.js).
 ja.sales = {"checkReady": "過去1年にコレクターが記録した {sales} 件の売却のうち、当社の評価額は {w10}% で実際の価格との差が10%以内、{w20}% で20%以内でした。典型的なずれは {miss}% です。", "checkPending": "1年間に未開封セットの売却が {min} 件記録されたら公開します。現在：{sales} 件。", "salesIn": "{year} 年の売却", "net": "手取り {amount}", "cost": "取得費 {amount}", "costMissing": "取得費未記録", "longTerm": "長期", "shortTerm": "短期", "locked": "保有期間・取得費・利益を含む売却ごとのレポートと、確定申告用のCSV・PDFダウンロードはProで利用できます。"};
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
-ja.stores = {"best": "最安値", "outOfStock": "在庫切れ", "belowValue": "評価額より {pct}% 安い", "aboveValue": "評価額より {pct}% 高い"};
+ja.stores = {"best": "最安値", "outOfStock": "在庫切れ", "belowValue": "評価額より {pct}% 安い", "aboveValue": "評価額より {pct}% 高い", "checking": "確認中…", "notListed": "現在そこでは販売されていません", "unchecked": "まだ確認していません"};
 ja.promos = {"until": "{date} まで", "starts": "{date} 開始", "fromTo": "{start}〜{end}", "whileItLasts": "なくなり次第終了", "spend": "{amount} 以上の購入で"};
 // Rebrickable sync (components/rebrickable-card.js).
 ja.rebrickable = {"importResult": "新しく追加：{fresh}。すでに登録済み：{already}。カタログ未登録：{unknown}。", "exportPartial": "送信済み：{sent}。残り：{left}。1分後にもう一度「送信」をタップしてください。", "exportDone": "Rebrickableに送信：{sent}。"};

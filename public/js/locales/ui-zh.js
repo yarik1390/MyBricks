@@ -1,5 +1,7 @@
 /** Chinese (Simplified) exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Walmart and Target are US stores, so their dollar prices are converted to your currency. Checked daily, before tax, shipping and import costs.": "Walmart 和 Target 是美国商店，其美元价格已换算为你的货币。每日更新，不含税费、运费和进口费用。",
+  "Walmart and Target are US stores. Prices are checked daily, before tax and shipping.": "Walmart 和 Target 是美国商店。价格每日更新，不含税费和运费。",
   "Accept": "接受",
   "Accept this swap": "接受这次交换",
   "Accepted": "已接受",
@@ -172,7 +174,6 @@ export const ui = {
   "Title": "标题",
   "Type": "类型",
   "US offers from LEGO.com. Check the details before you buy: stock and terms can change.": "来自 LEGO.com 的美国优惠。购买前请查看详情：库存和条款可能变化。",
-  "US store prices, checked daily, before tax and shipping.": "美国商店价格，每日检查，不含税费和运费。",
   "We check LEGO.com every day. New gifts with purchase and double points weeks show up here.": "我们每天检查 LEGO.com。新的购物赠品和双倍积分周会显示在这里。",
   "Gifts with purchase, double points and sales": "购物赠品、双倍积分和特卖",
   "Cost of what you sold": "已售物品的成本",
