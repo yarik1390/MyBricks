@@ -1788,3 +1788,7 @@ hi.rebrickable = {"importResult": "वॉल्ट में नए: {fresh}। 
 
 // Lot checker (views/lot.js).
 hi.lot = {"unpriced": "अभी बिना कीमत वाले सेट: {missing}। कुल में ये शामिल नहीं हैं।"};
+
+// Family vault and swaps (views/family.js, views/swaps.js).
+hi.family = {"memberStat": "सेट: {sets} · {value}", "removeMember": "{name} को हटाएँ", "shareText": "BricksVault पर हमारे फ़ैमिली वॉल्ट से जुड़ें, आमंत्रण कोड {code}", "shareTitle": "BricksVault फ़ैमिली वॉल्ट"};
+hi.swaps = {"stopOffering": "{name} की पेशकश बंद करें", "from": "{name} से", "to": "{name} को", "proposeTo": "{name} के साथ अदला-बदली"};

@@ -347,6 +347,8 @@ CREATE TABLE IF NOT EXISTS user_collection (
   -- value falls back below the target or the target changes).
   sell_target REAL,
   sell_target_alerted_at TEXT,
+  -- Offered for swaps (routes/swaps.ts).
+  for_trade INTEGER DEFAULT 0,
   UNIQUE(user_id, set_num)
 );
 
@@ -435,6 +437,40 @@ CREATE TABLE IF NOT EXISTS promotions (
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_promotions_dates ON promotions(hidden, ends_on);
+
+-- Family vault (routes/family.ts): members of one household see a combined
+-- vault. A member belongs to at most one household.
+CREATE TABLE IF NOT EXISTS households (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  invite_code TEXT NOT NULL UNIQUE,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS household_members (
+  household_id INTEGER NOT NULL,
+  user_id TEXT NOT NULL UNIQUE,
+  role TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('owner','member')),
+  joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (household_id, user_id)
+);
+
+-- Swap requests between collectors who opted in (routes/swaps.ts). give/get
+-- are JSON arrays of set numbers from the sender's point of view.
+CREATE TABLE IF NOT EXISTS swap_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  from_user TEXT NOT NULL,
+  to_user TEXT NOT NULL,
+  give_sets TEXT NOT NULL,
+  get_sets TEXT NOT NULL,
+  message TEXT,
+  reply TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','declined','cancelled')),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_swap_requests_to ON swap_requests(to_user, status);
+CREATE INDEX IF NOT EXISTS idx_swap_requests_from ON swap_requests(from_user, status);
 
 -- Owner-private named lists of canonical set identities. Client-generated IDs
 -- are owner-scoped, so the same UUID may safely exist in separate accounts.
@@ -690,6 +726,8 @@ CREATE TABLE IF NOT EXISTS user_prefs (
   discord_webhook_url TEXT,
   brickset_user_hash TEXT,
   rebrickable_user_token TEXT,
+  -- Listed in swap matching (routes/swaps.ts).
+  open_to_swaps INTEGER DEFAULT 0,
   is_supporter INTEGER DEFAULT 0,
   supporter_since TEXT,
   stripe_customer_id TEXT,

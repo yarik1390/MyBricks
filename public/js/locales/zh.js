@@ -1788,3 +1788,7 @@ zh.rebrickable = {"importResult": "新加入收藏：{fresh}。已存在：{alre
 
 // Lot checker (views/lot.js).
 zh.lot = {"unpriced": "暂无价格的套装：{missing}。总计不含这些。"};
+
+// Family vault and swaps (views/family.js, views/swaps.js).
+zh.family = {"memberStat": "套装：{sets} · {value}", "removeMember": "移除 {name}", "shareText": "用邀请码 {code} 加入我们在 BricksVault 的家庭收藏库", "shareTitle": "BricksVault 家庭收藏库"};
+zh.swaps = {"stopOffering": "不再提供 {name}", "from": "来自 {name}", "to": "发给 {name}", "proposeTo": "与 {name} 交换"};

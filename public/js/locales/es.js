@@ -1788,3 +1788,7 @@ es.rebrickable = {"importResult": "Nuevos en tu colección: {fresh}. Ya estaban:
 
 // Lot checker (views/lot.js).
 es.lot = {"unpriced": "Sets sin precio todavía: {missing}. El total no los incluye."};
+
+// Family vault and swaps (views/family.js, views/swaps.js).
+es.family = {"memberStat": "Sets: {sets} · {value}", "removeMember": "Quitar a {name}", "shareText": "Únete a nuestra colección familiar en BricksVault con el código {code}", "shareTitle": "Colección familiar de BricksVault"};
+es.swaps = {"stopOffering": "Dejar de ofrecer {name}", "from": "De {name}", "to": "Para {name}", "proposeTo": "Intercambio con {name}"};

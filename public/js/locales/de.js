@@ -1806,3 +1806,7 @@ de.rebrickable = {"importResult": "Neu im Tresor: {fresh}. Schon vorhanden: {alr
 
 // Lot checker (views/lot.js).
 de.lot = {"unpriced": "Sets ohne Preis bisher: {missing}. Die Summe lässt sie aus."};
+
+// Family vault and swaps (views/family.js, views/swaps.js).
+de.family = {"memberStat": "Sets: {sets} · {value}", "removeMember": "{name} entfernen", "shareText": "Tritt unserem Familien-Tresor in BricksVault bei, mit dem Einladungscode {code}", "shareTitle": "BricksVault Familien-Tresor"};
+de.swaps = {"stopOffering": "{name} nicht mehr anbieten", "from": "Von {name}", "to": "An {name}", "proposeTo": "Tausch mit {name}"};
