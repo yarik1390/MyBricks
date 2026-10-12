@@ -699,6 +699,7 @@
   {
     "text": "As an Amazon Associate, Brickvault earns from qualifying purchases.",
     "files": [
+      "components/store-prices.js",
       "lib/amazon-affiliate.js"
     ]
   },
@@ -12052,6 +12053,12 @@
     "files": [
       "runtime-exact",
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "sponsored nofollow noopener",
+    "files": [
+      "components/store-prices.js"
     ]
   },
   {
