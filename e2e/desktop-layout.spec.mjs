@@ -25,6 +25,24 @@ test.describe('desktop (1440 wide)', () => {
     await expect(row.locator('.bv-setrow__col--paid')).toHaveText('$700');
   });
 
+  test('table headings sort the Vault', async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await page.locator('.vault-row').first().waitFor();
+    const year = page.locator('.vault-list-head [data-vault-sort="year_desc"]');
+    await year.click();
+    await expect(year).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#vaultSortBtn')).toContainText('Year');
+  });
+
+  test('Insights lays out as a dashboard', async ({ page }) => {
+    await page.goto('/#/insights', { waitUntil: 'domcontentloaded' });
+    const stats = page.locator('.insights-cell--stats');
+    await stats.waitFor();
+    const chart = await page.locator('.insights-cell--chart').boundingBox();
+    const side = await stats.boundingBox();
+    expect(side.x).toBeGreaterThan(chart.x + chart.width - 1);
+  });
+
   test('the sidebar stays on the set page', async ({ page }) => {
     await page.goto('/#/set/75192-1', { waitUntil: 'domcontentloaded' });
     await page.getByText('Millennium Falcon').first().waitFor();

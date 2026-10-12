@@ -66,12 +66,13 @@ function paint(pval) {
   $('#root').innerHTML = `<main class="bv-page no-nav vault-insights" id="insightsPage">
     ${topbar({ title: t('bvVault.insights'), sub, back: 'history', actionsHtml: share })}
     <div class="insights-range">${rangeSeg()}</div>
-    ${chartCard()}
-    ${statsGrid(totals)}
-    ${themeCard(items, pval)}
-    ${radarCard(items)}
-    ${gainersCard(items, pval)}
-    ${confidenceCard(p)}
+    <div class="insights-board">
+      <div class="insights-cell insights-cell--chart">${chartCard()}</div>
+      <div class="insights-cell insights-cell--stats">${statsGrid(totals)}</div>
+      <div class="insights-cell">${themeCard(items, pval)}</div>
+      <div class="insights-cell">${radarCard(items)}${confidenceCard(p)}</div>
+      <div class="insights-cell">${gainersCard(items, pval)}</div>
+    </div>
     <section class="insights-toolkit" aria-labelledby="insightsToolkitTitle">
       ${sectionTitle(t('bvVault.toolkitTitle'), { id: 'insightsToolkitTitle' })}
       <div id="insightsPanelContent">${renderInsightsTab(items, state.historyPro)}</div>

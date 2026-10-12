@@ -169,10 +169,10 @@ function desktopCols(item) {
     + cell('paid', paid != null ? moneyWhole(paid) : '—');
 }
 
-/** Column headings for the desktop Vault table; hidden on phones. */
-export function vaultListHead() {
-  const h = (cls, key) => `<span class="vault-list-head__${cls}">${esc(t(key))}</span>`;
-  return `<div class="vault-list-head" aria-hidden="true">${h('set', 'desktop.colSet')}${h('year', 'desktop.colYear')}${h('pcs', 'desktop.colPieces')}${h('paid', 'desktop.colPaid')}${h('value', 'desktop.colValue')}</div>`;
+/** Column headings for the desktop Vault table (they sort it); hidden on phones. */
+export function vaultListHead(sort) {
+  const h = (cls, key, value) => `<button type="button" class="vault-list-head__${cls}" data-vault-sort="${value}" aria-pressed="${sort === value}">${esc(t(key))}${icon('down', { size: 14 })}</button>`;
+  return `<div class="vault-list-head" role="group"${attrs({ 'aria-label': t('bvVault.sortTitle') })}>${h('set', 'desktop.colSet', 'az')}${h('year', 'desktop.colYear', 'year_desc')}${h('pcs', 'desktop.colPieces', 'pieces_desc')}${h('paid', 'desktop.colPaid', 'paid_desc')}${h('value', 'desktop.colValue', 'value_desc')}</div>`;
 }
 
 /** Collectible-figure rarity label (existing catalogue keys). */

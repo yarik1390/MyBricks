@@ -1801,4 +1801,4 @@ ja.swaps = {"stopOffering": "{name} の出品をやめる", "from": "{name} か�
 // Price It! refresh (views/game.js, components/price-it-card.js).
 ja.priceIt = {"you": "あなた", "market": "相場", "marketValue": "相場価格", "tierTop": "相場の天才", "tierMid": "鋭い目", "tierLow": "あと少し", "tierZero": "今日は難しい相場", "statStreak": "連続", "statBest": "最高", "statAvgOff": "平均誤差", "nextIn": "次のセットまで {time}", "cardTodo": "今日の5セットを査定", "play": "プレイ", "seeScore": "結果を見る", "slider": "スライドして予想", "timeHM": "{h}時間{m}分"};
 // Desktop web: sidebar, Vault table and keyboard shortcuts (lib/desktop.js).
-ja.desktop = {"search": "セットを検索", "explore": "探す", "shortcuts": "キーボードショートカット", "goTo": "{place}へ移動", "kSearch": "検索", "kHelp": "キーボードショートカットを表示", "kClose": "ダイアログを閉じる", "colSet": "セット", "colYear": "年", "colPieces": "ピース", "colPaid": "購入額", "colValue": "価値"};
+ja.desktop = {"search": "セットを検索", "explore": "探す", "shortcuts": "キーボードショートカット", "goTo": "{place}へ移動", "kSearch": "検索", "kHelp": "キーボードショートカットを表示", "kClose": "ダイアログを閉じる", "colSet": "セット", "colYear": "年", "colPieces": "ピース", "colPaid": "購入額", "colValue": "価値", "sortYear": "年", "sortPieces": "ピース", "sortPaid": "購入額"};
