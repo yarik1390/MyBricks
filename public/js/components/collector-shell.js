@@ -188,6 +188,8 @@ export function syncCollectorChrome(meta) {
   document.body.classList.toggle('collector-ui', !kids);
   // Details, the scanner and full-screen views hide the bottom bar.
   document.body.classList.toggle('bv-nav-off', !kids && (!!meta.fullscreen || !!meta.navOff));
+  // Desktop keeps the sidebar on detail pages; only full-screen views drop it.
+  document.body.classList.toggle('bv-fullscreen', !kids && !!meta.fullscreen);
   // The legacy "+ Add" nav button is superseded by the Scan FAB.
   $('#collectorAdd')?.remove();
   advisorWanted = !!meta.fab;

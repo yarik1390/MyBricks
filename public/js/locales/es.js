@@ -1795,3 +1795,5 @@ es.swaps = {"stopOffering": "Dejar de ofrecer {name}", "from": "De {name}", "to"
 
 // Price It! refresh (views/game.js, components/price-it-card.js).
 es.priceIt = {"you": "Tú", "market": "Mercado", "marketValue": "Valor de mercado", "tierTop": "Genio del mercado", "tierMid": "Buen ojo", "tierLow": "Vas mejorando", "tierZero": "Mercado difícil hoy", "statStreak": "Racha", "statBest": "Mejor", "statAvgOff": "Desvío medio", "nextIn": "Nuevos sets en {time}", "cardTodo": "5 sets nuevos para tasar hoy", "play": "Jugar", "seeScore": "Ver resultado", "slider": "Desliza para ajustar tu precio", "timeHM": "{h} h {m} min"};
+// Desktop web: sidebar, Vault table and keyboard shortcuts (lib/desktop.js).
+es.desktop = {"search": "Buscar sets", "explore": "Explorar", "shortcuts": "Atajos de teclado", "goTo": "Ir a {place}", "kSearch": "Buscar", "kHelp": "Mostrar atajos de teclado", "kClose": "Cerrar un cuadro de diálogo", "colSet": "Set", "colYear": "Año", "colPieces": "Piezas", "colPaid": "Pagado", "colValue": "Valor"};

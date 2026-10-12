@@ -1795,3 +1795,5 @@ hi.swaps = {"stopOffering": "{name} की पेशकश बंद करे�
 
 // Price It! refresh (views/game.js, components/price-it-card.js).
 hi.priceIt = {"you": "आप", "market": "बाज़ार", "marketValue": "बाज़ार मूल्य", "tierTop": "बाज़ार के उस्ताद", "tierMid": "पैनी नज़र", "tierLow": "करीब पहुँच रहे हैं", "tierZero": "आज बाज़ार कठिन है", "statStreak": "स्ट्रीक", "statBest": "सर्वश्रेष्ठ", "statAvgOff": "औसत अंतर", "nextIn": "नए सेट {time} में", "cardTodo": "आज कीमत लगाने के लिए 5 नए सेट", "play": "खेलें", "seeScore": "स्कोर देखें", "slider": "अनुमान के लिए खिसकाएँ", "timeHM": "{h} घं {m} मि"};
+// Desktop web: sidebar, Vault table and keyboard shortcuts (lib/desktop.js).
+hi.desktop = {"search": "सेट खोजें", "explore": "एक्सप्लोर करें", "shortcuts": "कीबोर्ड शॉर्टकट", "goTo": "{place} पर जाएँ", "kSearch": "खोजें", "kHelp": "कीबोर्ड शॉर्टकट दिखाएँ", "kClose": "डायलॉग बंद करें", "colSet": "सेट", "colYear": "वर्ष", "colPieces": "पीस", "colPaid": "भुगतान", "colValue": "मूल्य"};

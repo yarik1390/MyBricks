@@ -14,6 +14,7 @@ import { openScan, closeScan, capturePhoto } from './components/scanner-lazy.js'
 import { installMethodologySheet } from './components/methodology.js';
 import { closeNativeAuthBrowser, getCapacitorPlugin, isNativeCapacitor, nativeOAuthCallbackFromWebBridge, oauthHashFromCallbackUrl } from './lib/native-auth.js';
 import { deepLinkHash } from './lib/deep-links.js';
+import { installDesktop } from './lib/desktop.js';
 
 // Number history entries before anything pushes or replaces one (OAuth
 // cleanup, the first route) so back arrows know what is behind them.
@@ -586,6 +587,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   $("#advisorFab")?.addEventListener("click", toggleAdvisor);
+  // Wide screens: labelled sidebar extras and keyboard shortcuts.
+  installDesktop();
 
   // Re-assert the stored theme (the inline bootstrap set it pre-paint; this
   // wires up meta theme-color + keeps state consistent after hydration).
