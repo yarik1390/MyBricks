@@ -87,7 +87,34 @@ describe('store offers', () => {
     expect(res.status).toBe(200);
     const body = await res.json() as any;
     expect(body.offers.map((o: any) => [o.store, o.price])).toEqual([['walmart', 89.99], ['lego', 100]]);
-    expect(body.links.map((l: any) => l.store)).toEqual(['target', 'ebay', 'bricklink', 'brickowl']);
+    expect(body.links.map((l: any) => l.store)).toEqual(['ebay', 'bricklink', 'brickowl']);
+    expect(body.stores.map((s: any) => [s.store, s.status])).toEqual([['walmart', 'priced'], ['target', 'not_listed']]);
     expect(body.value).toBe(120);
+  });
+
+  it('POST /api/stores/:set/check looks up a set nobody checked yet, for members only', async () => {
+    const secret = 'store-check-test-secret-at-least-32-chars';
+    const e = { ...withKey, SUPABASE_JWT_SECRET: secret, SUPABASE_URL: 'https://supabase.mock.io' };
+    const encode = (v: unknown) => btoa(JSON.stringify(v)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const unsigned = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ sub: 'u1', role: 'authenticated', aud: 'authenticated', iss: 'https://supabase.mock.io/auth/v1', exp: Math.floor(Date.now() / 1000) + 3600 })}`;
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(unsigned));
+    const token = `${unsigned}.${btoa(String.fromCharCode(...new Uint8Array(sig))).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')}`;
+    const post = (auth: boolean) => app.fetch(new Request('https://example.test/api/stores/10001-1/check', {
+      method: 'POST', headers: auth ? { Authorization: `Bearer ${token}` } : {},
+    }), e, ctx);
+
+    expect((await post(false)).status).toBe(401);
+    scrape.mockImplementation(async (opts: any) => (opts.url.includes('target')
+      ? { data: { products: [{ title: 'LEGO 10001 Fresh', price: 79.99, in_stock: true, url: 'https://www.target.com/p/1' }] } }
+      : { data: { products: [] } }) as any);
+    const body = await (await post(true)).json() as any;
+    expect(body.checked).toBe(true);
+    expect(body.offers.map((o: any) => [o.store, o.price])).toEqual([['target', 79.99], ['lego', 100]]);
+    expect(body.stores.map((s: any) => [s.store, s.status])).toEqual([['walmart', 'not_listed'], ['target', 'priced']]);
+    // Already checked: no second lookup.
+    scrape.mockClear();
+    expect((await (await post(true)).json() as any).checked).toBe(false);
+    expect(scrape).not.toHaveBeenCalled();
   });
 });

@@ -109,10 +109,12 @@ test('replayed app tour paints controls synchronously and remains dismissible', 
   const tour = page.locator('.bv-tour');
   await expect(tour).toBeVisible();
   await expect(tour.locator('.bv-tour-card h4')).toContainText('Welcome');
-  await expect(tour.getByRole('button', { name: 'Next' })).toBeVisible();
-  await expect(tour.getByRole('button', { name: 'Skip' })).toBeVisible();
-  await tour.getByRole('button', { name: 'Skip' }).click();
+  await expect(tour.getByRole('button', { name: 'Start tour' })).toBeVisible();
+  await expect(tour.getByRole('button', { name: 'Not now' })).toBeVisible();
+  await tour.getByRole('button', { name: 'Not now' }).click();
   await expect(tour).toHaveCount(0);
+  // Dismissing leaves the user on the screen they replayed it from.
+  await expect(page).toHaveURL(/#\/me$/);
 });
 
 test('guest remove undo waits for restore and synchronizes the visible detail state', async ({ page }) => {

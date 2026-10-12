@@ -1799,7 +1799,7 @@ de.copies = {"paid": "Bezahlt {price}", "soldToast": "Verkauft für {price}", "e
 // Sales & taxes (views/me-sales.js).
 de.sales = {"checkReady": "Bei {sales} Verkäufen, die Sammler im letzten Jahr eingetragen haben, lag unser Wert bei {w10}% innerhalb von 10% des echten Preises und bei {w20}% innerhalb von 20%. Die typische Abweichung lag bei {miss}%.", "checkPending": "Wir veröffentlichen das, sobald Sammler {min} Verkäufe versiegelter Sets in einem Jahr eingetragen haben. Bisher: {sales}.", "salesIn": "Verkäufe {year}", "net": "Netto {amount}", "cost": "Kosten {amount}", "costMissing": "Kosten nicht erfasst", "longTerm": "Langfristig", "shortTerm": "Kurzfristig", "locked": "Der Bericht pro Verkauf mit Haltedauer, Kosten und Gewinn sowie CSV- und PDF-Downloads für deine Steuererklärung ist in Pro enthalten."};
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
-de.stores = {"best": "Bester Preis", "outOfStock": "Nicht vorrätig", "belowValue": "{pct}% unter dem Wert", "aboveValue": "{pct}% über dem Wert"};
+de.stores = {"best": "Bester Preis", "outOfStock": "Nicht vorrätig", "belowValue": "{pct}% unter dem Wert", "aboveValue": "{pct}% über dem Wert", "checking": "Wird gerade geprüft…", "notListed": "Dort derzeit nicht erhältlich", "unchecked": "Noch nicht geprüft"};
 de.promos = {"until": "Bis {date}", "starts": "Ab {date}", "fromTo": "{start} bis {end}", "whileItLasts": "Solange der Vorrat reicht", "spend": "Ab {amount} Einkaufswert"};
 // Rebrickable sync (components/rebrickable-card.js).
 de.rebrickable = {"importResult": "Neu im Tresor: {fresh}. Schon vorhanden: {already}. Noch nicht im Katalog: {unknown}.", "exportPartial": "Bisher gesendet: {sent}. Noch offen: {left}. Tippe in einer Minute erneut auf Senden.", "exportDone": "An Rebrickable gesendet: {sent}."};
@@ -1811,5 +1811,7 @@ de.lot = {"unpriced": "Sets ohne Preis bisher: {missing}. Die Summe lässt sie a
 de.family = {"memberStat": "Sets: {sets} · {value}", "removeMember": "{name} entfernen", "shareText": "Tritt unserem Familien-Tresor in BricksVault bei, mit dem Einladungscode {code}", "shareTitle": "BricksVault Familien-Tresor"};
 de.swaps = {"stopOffering": "{name} nicht mehr anbieten", "from": "Von {name}", "to": "An {name}", "proposeTo": "Tausch mit {name}"};
 
+// Price It! refresh (views/game.js, components/price-it-card.js).
+de.priceIt = {"you": "Du", "market": "Markt", "marketValue": "Marktwert", "tierTop": "Marktgenie", "tierMid": "Scharfes Auge", "tierLow": "Fast geschafft", "tierZero": "Harter Markt heute", "statStreak": "Serie", "statBest": "Rekord", "statAvgOff": "Ø daneben", "nextIn": "Neue Sets in {time}", "cardTodo": "Heute 5 neue Sets zum Schätzen", "play": "Spielen", "seeScore": "Ergebnis", "slider": "Schieben, um zu schätzen", "timeHM": "{h} Std. {m} Min."};
 // Desktop web: sidebar, Vault table and keyboard shortcuts (lib/desktop.js).
 de.desktop = {"search": "Sets suchen", "explore": "Entdecken", "shortcuts": "Tastenkürzel", "goTo": "Gehe zu {place}", "kSearch": "Suchen", "kHelp": "Tastenkürzel anzeigen", "kClose": "Dialog schließen", "colSet": "Set", "colYear": "Jahr", "colPieces": "Teile", "colPaid": "Bezahlt", "colValue": "Wert"};

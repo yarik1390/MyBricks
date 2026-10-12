@@ -1,9 +1,12 @@
 // "Compare stores" on the set page: today's price at LEGO.com, Walmart and
-// Target when we hold one (cheapest in stock first), plus links to check the
-// price anywhere else. Data: GET /api/stores/:setnum (worker/src/routes/stores.ts).
+// Target (cheapest in stock first), what each store check found, plus links to
+// check the price anywhere else. A set nobody checked recently is checked on
+// the spot for signed-in members. Data: GET /api/stores/:setnum and
+// POST /api/stores/:setnum/check (worker/src/routes/stores.ts).
 // Store prices are US prices in USD; fmtMoney shows them in the user's currency.
 import { escapeHtml, fmtMoney } from '../utils.js';
-import { api } from '../api.js';
+import { api, isGuestMode } from '../api.js';
+import { state } from '../state.js';
 import { icon, pill } from '../ui/kit.js';
 import { t } from '../lib/i18n.js';
 
@@ -23,20 +26,42 @@ function offerRowHTML(o, best, value) {
   </li>`;
 }
 
-export function storePricesHTML(data) {
+// A store we checked (or are checking) that has no price to show.
+function statusRowHTML(s, checking) {
+  const note = t(checking ? 'stores.checking' : s.status === 'not_listed' ? 'stores.notListed' : 'stores.unchecked');
+  return `<li class="bv-stores__row is-out"${checking ? ' aria-busy="true"' : ''}>
+    <a class="bv-stores__link" href="${escapeHtml(s.url)}" target="_blank" rel="noopener">
+      <span class="bv-stores__name">${escapeHtml(s.label)}</span>
+      <span class="bv-stores__note">${escapeHtml(note)}</span>
+      <span class="bv-stores__price">—</span>
+      ${icon('ext', { size: 16 })}
+    </a>
+  </li>`;
+}
+
+export function storePricesHTML(data, { checking = false } = {}) {
   const offers = data?.offers || [];
-  const links = data?.links || [];
-  if (!offers.length && !links.length) return '';
+  const stores = data?.stores || [];
+  const priced = new Set(offers.map((o) => o.store));
+  const statusRows = stores.filter((s) => !priced.has(s.store));
+  const links = (data?.links || []).filter((l) => !stores.some((s) => s.store === l.store));
+  if (!offers.length && !statusRows.length && !links.length) return '';
   const value = Number(data.value) || 0;
   const bestIndex = offers.findIndex((o) => o.in_stock);
+  const usd = (state.me?.currency || 'USD') === 'USD';
+  const usStores = stores.length > 0;
   return `<section class="detail-card bv-stores" aria-labelledby="storesTitle">
     <div class="detail-card-title" id="storesTitle">Compare stores</div>
-    ${offers.length
-      ? `<ul class="bv-stores__list">${offers.map((o, i) => offerRowHTML(o, i === bestIndex, value)).join('')}</ul>`
+    ${offers.length || statusRows.length
+      ? `<ul class="bv-stores__list">${offers.map((o, i) => offerRowHTML(o, i === bestIndex, value)).join('')}${statusRows.map((s) => statusRowHTML(s, checking && s.status === 'unchecked')).join('')}</ul>`
       : '<p class="bv-stores__empty">No store has a price for this set today.</p>'}
     ${links.length ? `<div class="bv-stores__more"><span class="bv-label">Check the price at</span>
       <div class="bv-stores__chips">${links.map((l) => `<a class="bv-chip" href="${escapeHtml(l.url)}" target="_blank" rel="noopener">${escapeHtml(l.label)}${icon('ext', { size: 14 })}</a>`).join('')}</div></div>` : ''}
-    ${offers.length ? '<p class="bv-stores__foot">US store prices, checked daily, before tax and shipping.</p>' : ''}
+    ${usStores
+      ? `<p class="bv-stores__foot">${usd
+        ? 'Walmart and Target are US stores. Prices are checked daily, before tax and shipping.'
+        : 'Walmart and Target are US stores, so their dollar prices are converted to your currency. Checked daily, before tax, shipping and import costs.'}</p>`
+      : ''}
   </section>`;
 }
 
@@ -46,6 +71,12 @@ export async function mountStorePrices(el, setNum) {
   try {
     const data = await api(`/api/stores/${encodeURIComponent(setNum)}`);
     if (!el.isConnected) return;
-    el.innerHTML = storePricesHTML(data);
+    const due = (data?.stores || []).some((s) => s.status === 'unchecked');
+    const canCheck = due && !isGuestMode();
+    el.innerHTML = storePricesHTML(data, { checking: canCheck });
+    if (!canCheck) return;
+    const fresh = await api(`/api/stores/${encodeURIComponent(setNum)}/check`, { method: 'POST', retry: false }).catch(() => null);
+    if (!el.isConnected) return;
+    el.innerHTML = storePricesHTML(fresh || data);
   } catch { el.innerHTML = ''; }
 }

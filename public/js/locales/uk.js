@@ -1919,7 +1919,7 @@ uk.copies = {"paid": "Сплачено {price}", "soldToast": "Продано з
 // Sales & taxes (views/me-sales.js).
 uk.sales = {"checkReady": "Серед {sales} продажів, які колекціонери записали за останній рік, наша оцінка відрізнялася від реальної ціни менш ніж на 10% у {w10}% випадків і менш ніж на 20% у {w20}%. Типове відхилення — {miss}%.", "checkPending": "Ми опублікуємо це, коли колекціонери запишуть {min} продажів запечатаних наборів за рік. Поки що: {sales}.", "salesIn": "Продажі за {year}", "net": "Чиста сума {amount}", "cost": "вартість {amount}", "costMissing": "вартість не вказано", "longTerm": "Довгострокові", "shortTerm": "Короткострокові", "locked": "Звіт по кожному продажу з терміном володіння, вартістю і прибутком, а також завантаження CSV і PDF для декларації — у Pro."};
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
-uk.stores = {"best": "Найкраща ціна", "outOfStock": "Немає в наявності", "belowValue": "на {pct}% нижче оцінки", "aboveValue": "на {pct}% вище оцінки"};
+uk.stores = {"best": "Найкраща ціна", "outOfStock": "Немає в наявності", "belowValue": "на {pct}% нижче оцінки", "aboveValue": "на {pct}% вище оцінки", "checking": "Перевіряємо…", "notListed": "Зараз там не продається", "unchecked": "Ще не перевірено"};
 uk.promos = {"until": "До {date}", "starts": "З {date}", "fromTo": "З {start} до {end}", "whileItLasts": "Поки є в наявності", "spend": "Покупка від {amount}"};
 // Rebrickable sync (components/rebrickable-card.js).
 uk.rebrickable = {"importResult": "Нових у сховищі: {fresh}. Уже були: {already}. Ще немає в каталозі: {unknown}.", "exportPartial": "Надіслано: {sent}. Залишилося: {left}. Натисніть «Надіслати» ще раз за хвилину.", "exportDone": "Надіслано до Rebrickable: {sent}."};
@@ -1931,5 +1931,7 @@ uk.lot = {"unpriced": "Набори без ціни поки що: {missing}. П
 uk.family = {"memberStat": "Наборів: {sets} · {value}", "removeMember": "Видалити {name}", "shareText": "Приєднуйтеся до нашого сімейного сховища в BricksVault за кодом {code}", "shareTitle": "Сімейне сховище BricksVault"};
 uk.swaps = {"stopOffering": "Більше не пропонувати {name}", "from": "Від {name}", "to": "Для {name}", "proposeTo": "Обмін із {name}"};
 
+// Price It! refresh (views/game.js, components/price-it-card.js).
+uk.priceIt = {"you": "Ви", "market": "Ринок", "marketValue": "Ринкова ціна", "tierTop": "Геній ринку", "tierMid": "Гостре око", "tierLow": "Вже близько", "tierZero": "Складний ринок сьогодні", "statStreak": "Серія", "statBest": "Рекорд", "statAvgOff": "Сер. похибка", "nextIn": "Нові набори через {time}", "cardTodo": "Сьогодні 5 нових наборів для оцінки", "play": "Грати", "seeScore": "Результат", "slider": "Пересуньте, щоб оцінити", "timeHM": "{h} год {m} хв"};
 // Desktop web: sidebar, Vault table and keyboard shortcuts (lib/desktop.js).
 uk.desktop = {"search": "Шукати набори", "explore": "Огляд", "shortcuts": "Комбінації клавіш", "goTo": "Перейти до: {place}", "kSearch": "Пошук", "kHelp": "Показати комбінації клавіш", "kClose": "Закрити вікно", "colSet": "Набір", "colYear": "Рік", "colPieces": "Деталі", "colPaid": "Сплачено", "colValue": "Вартість"};

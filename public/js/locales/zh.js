@@ -1781,7 +1781,7 @@ zh.copies = {"paid": "购入价 {price}", "soldToast": "以 {price} 售出", "ed
 // Sales & taxes (views/me-sales.js).
 zh.sales = {"checkReady": "在收藏者过去一年记录的 {sales} 笔出售中，我们的估值有 {w10}% 与实际价格相差在 10% 以内，{w20}% 在 20% 以内。典型偏差为 {miss}%。", "checkPending": "当收藏者在一年内记录 {min} 笔未拆封套装的出售后，我们会公布此数据。目前：{sales} 笔。", "salesIn": "{year} 年的出售", "net": "净额 {amount}", "cost": "成本 {amount}", "costMissing": "未记录成本", "longTerm": "长期", "shortTerm": "短期", "locked": "逐笔出售报告（含持有时间、成本和收益）以及用于报税的 CSV 和 PDF 下载，包含在 Pro 中。"};
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
-zh.stores = {"best": "最低价", "outOfStock": "缺货", "belowValue": "比估值低 {pct}%", "aboveValue": "比估值高 {pct}%"};
+zh.stores = {"best": "最低价", "outOfStock": "缺货", "belowValue": "比估值低 {pct}%", "aboveValue": "比估值高 {pct}%", "checking": "正在查询…", "notListed": "目前该店未售", "unchecked": "尚未查询"};
 zh.promos = {"until": "截至 {date}", "starts": "{date} 开始", "fromTo": "{start} 至 {end}", "whileItLasts": "售完即止", "spend": "满 {amount}"};
 // Rebrickable sync (components/rebrickable-card.js).
 zh.rebrickable = {"importResult": "新加入收藏：{fresh}。已存在：{already}。尚未收录：{unknown}。", "exportPartial": "已发送：{sent}。待发送：{left}。一分钟后再次点击发送。", "exportDone": "已发送到 Rebrickable：{sent}。"};
@@ -1793,5 +1793,7 @@ zh.lot = {"unpriced": "暂无价格的套装：{missing}。总计不含这些。
 zh.family = {"memberStat": "套装：{sets} · {value}", "removeMember": "移除 {name}", "shareText": "用邀请码 {code} 加入我们在 BricksVault 的家庭收藏库", "shareTitle": "BricksVault 家庭收藏库"};
 zh.swaps = {"stopOffering": "不再提供 {name}", "from": "来自 {name}", "to": "发给 {name}", "proposeTo": "与 {name} 交换"};
 
+// Price It! refresh (views/game.js, components/price-it-card.js).
+zh.priceIt = {"you": "你", "market": "市场", "marketValue": "市场价", "tierTop": "市场天才", "tierMid": "眼光敏锐", "tierLow": "渐入佳境", "tierZero": "今天行情难猜", "statStreak": "连续", "statBest": "最佳", "statAvgOff": "平均偏差", "nextIn": "{time} 后更新", "cardTodo": "今天有 5 套新套装待估价", "play": "开始", "seeScore": "查看成绩", "slider": "滑动来猜价", "timeHM": "{h} 小时 {m} 分"};
 // Desktop web: sidebar, Vault table and keyboard shortcuts (lib/desktop.js).
 zh.desktop = {"search": "搜索套装", "explore": "探索", "shortcuts": "键盘快捷键", "goTo": "前往{place}", "kSearch": "搜索", "kHelp": "显示键盘快捷键", "kClose": "关闭对话框", "colSet": "套装", "colYear": "年份", "colPieces": "颗粒", "colPaid": "买入价", "colValue": "价值"};

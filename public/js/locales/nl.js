@@ -1781,7 +1781,7 @@ nl.copies = {"paid": "Betaald {price}", "soldToast": "Verkocht voor {price}", "e
 // Sales & taxes (views/me-sales.js).
 nl.sales = {"checkReady": "Bij {sales} verkopen die verzamelaars het afgelopen jaar vastlegden, zat onze waarde voor {w10}% binnen 10% van de echte prijs en voor {w20}% binnen 20%. De gebruikelijke afwijking was {miss}%.", "checkPending": "We publiceren dit zodra verzamelaars in een jaar {min} verkopen van verzegelde sets hebben vastgelegd. Tot nu toe: {sales}.", "salesIn": "Verkopen in {year}", "net": "Netto {amount}", "cost": "kosten {amount}", "costMissing": "kosten niet vastgelegd", "longTerm": "Lange termijn", "shortTerm": "Korte termijn", "locked": "Het overzicht per verkoop, met bezitsduur, kosten en winst, plus CSV- en PDF-downloads voor je aangifte, hoort bij Pro."};
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
-nl.stores = {"best": "Beste prijs", "outOfStock": "Niet op voorraad", "belowValue": "{pct}% onder de waarde", "aboveValue": "{pct}% boven de waarde"};
+nl.stores = {"best": "Beste prijs", "outOfStock": "Niet op voorraad", "belowValue": "{pct}% onder de waarde", "aboveValue": "{pct}% boven de waarde", "checking": "Nu aan het checken…", "notListed": "Daar nu niet te koop", "unchecked": "Nog niet gecheckt"};
 nl.promos = {"until": "Tot {date}", "starts": "Vanaf {date}", "fromTo": "{start} tot {end}", "whileItLasts": "Zolang de voorraad strekt", "spend": "Vanaf {amount} besteding"};
 // Rebrickable sync (components/rebrickable-card.js).
 nl.rebrickable = {"importResult": "Nieuw in je kluis: {fresh}. Stond er al: {already}. Nog niet in onze catalogus: {unknown}.", "exportPartial": "Tot nu toe verstuurd: {sent}. Nog te versturen: {left}. Tik over een minuut opnieuw op Versturen.", "exportDone": "Naar Rebrickable verstuurd: {sent}."};
@@ -1793,5 +1793,7 @@ nl.lot = {"unpriced": "Sets nog zonder prijs: {missing}. Het totaal laat ze weg.
 nl.family = {"memberStat": "Sets: {sets} · {value}", "removeMember": "{name} verwijderen", "shareText": "Doe mee met onze familiekluis in BricksVault met de uitnodigingscode {code}", "shareTitle": "BricksVault familiekluis"};
 nl.swaps = {"stopOffering": "{name} niet meer aanbieden", "from": "Van {name}", "to": "Aan {name}", "proposeTo": "Ruilen met {name}"};
 
+// Price It! refresh (views/game.js, components/price-it-card.js).
+nl.priceIt = {"you": "Jij", "market": "Markt", "marketValue": "Marktwaarde", "tierTop": "Marktgenie", "tierMid": "Scherp oog", "tierLow": "Bijna", "tierZero": "Lastige markt vandaag", "statStreak": "Reeks", "statBest": "Record", "statAvgOff": "Gem. afwijking", "nextIn": "Nieuwe sets over {time}", "cardTodo": "Vandaag 5 nieuwe sets om te prijzen", "play": "Spelen", "seeScore": "Bekijk score", "slider": "Schuif om te raden", "timeHM": "{h} u {m} min"};
 // Desktop web: sidebar, Vault table and keyboard shortcuts (lib/desktop.js).
 nl.desktop = {"search": "Sets zoeken", "explore": "Ontdekken", "shortcuts": "Sneltoetsen", "goTo": "Ga naar {place}", "kSearch": "Zoeken", "kHelp": "Sneltoetsen tonen", "kClose": "Venster sluiten", "colSet": "Set", "colYear": "Jaar", "colPieces": "Stenen", "colPaid": "Betaald", "colValue": "Waarde"};

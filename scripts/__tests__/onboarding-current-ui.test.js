@@ -16,16 +16,18 @@ describe('current first-run onboarding', () => {
   });
 
   it('keeps onboarding copy within the translated exact-match catalog', () => {
-    assert.match(onboarding, /Swipe through to see where everything lives\./);
-    assert.match(onboarding, /Search 27,000\+ sets and add them to your vault\./);
-    assert.match(onboarding, /Point it at a box barcode — instant match\./);
+    assert.match(onboarding, /Take a one-minute look around your new vault\./);
+    assert.match(onboarding, /Search 27,000\+ sets by name, set number or barcode\./);
+    assert.match(onboarding, /Scan a box barcode or photograph a whole shelf, and the sets land in your vault\./);
+    // The card is translated in place after every render.
+    assert.match(onboarding, /translateDOM\(card\)/);
     assert.equal(en.setup.privacy, 'Start privately on this device — sign in later if you want to sync.');
     assert.match(onboarding, /t\('setup.privacy'\)/);
   });
 
   it('exposes meaningful progress and labels for both dialogs', () => {
     assert.match(onboarding, /role="progressbar" aria-label="Tour progress"/);
-    assert.match(onboarding, /aria-valuemax="\$\{STEPS\.length\}" aria-valuenow="\$\{idx \+ 1\}"/);
+    assert.match(onboarding, /aria-valuemax="\$\{steps\.length\}" aria-valuenow="\$\{pos \+ 1\}"/);
     assert.match(onboarding, /role="progressbar" aria-label="Setup progress"/);
     assert.match(onboarding, /aria-valuemax="\$\{SETUP_STEPS\.length\}" aria-valuenow="\$\{suIdx \+ 1\}"/);
     assert.match(onboarding, /setAttribute\('aria-labelledby', 'bv-tour-title'\)/);

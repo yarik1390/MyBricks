@@ -1781,7 +1781,7 @@ hi.copies = {"paid": "भुगतान {price}", "soldToast": "{price} मे�
 // Sales & taxes (views/me-sales.js).
 hi.sales = {"checkReady": "पिछले साल कलेक्टरों द्वारा दर्ज {sales} बिक्रियों में, हमारी वैल्यू {w10}% मामलों में असली कीमत से 10% के भीतर और {w20}% में 20% के भीतर थी। आम अंतर {miss}% रहा।", "checkPending": "जब कलेक्टर एक साल में सील्ड सेट्स की {min} बिक्रियाँ दर्ज कर लेंगे, हम इसे प्रकाशित करेंगे। अब तक: {sales}।", "salesIn": "{year} की बिक्रियाँ", "net": "नेट {amount}", "cost": "लागत {amount}", "costMissing": "लागत दर्ज नहीं", "longTerm": "लॉन्ग-टर्म", "shortTerm": "शॉर्ट-टर्म", "locked": "हर बिक्री की रिपोर्ट, रखने की अवधि, लागत और लाभ के साथ, और टैक्स रिटर्न के लिए CSV और PDF डाउनलोड, Pro में मिलते हैं।"};
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
-hi.stores = {"best": "सबसे अच्छी कीमत", "outOfStock": "स्टॉक में नहीं", "belowValue": "वैल्यू से {pct}% कम", "aboveValue": "वैल्यू से {pct}% ज़्यादा"};
+hi.stores = {"best": "सबसे अच्छी कीमत", "outOfStock": "स्टॉक में नहीं", "belowValue": "वैल्यू से {pct}% कम", "aboveValue": "वैल्यू से {pct}% ज़्यादा", "checking": "अभी जाँच रहे हैं…", "notListed": "अभी वहाँ नहीं बिक रहा", "unchecked": "अभी जाँचा नहीं गया"};
 hi.promos = {"until": "{date} तक", "starts": "{date} से शुरू", "fromTo": "{start} से {end}", "whileItLasts": "स्टॉक रहने तक", "spend": "{amount}+ खर्च करें"};
 // Rebrickable sync (components/rebrickable-card.js).
 hi.rebrickable = {"importResult": "वॉल्ट में नए: {fresh}। पहले से मौजूद: {already}। अभी कैटलॉग में नहीं: {unknown}।", "exportPartial": "अब तक भेजे: {sent}। बाकी: {left}। एक मिनट बाद फिर से भेजें दबाएँ।", "exportDone": "Rebrickable को भेजे: {sent}।"};
@@ -1793,5 +1793,7 @@ hi.lot = {"unpriced": "अभी बिना कीमत वाले से�
 hi.family = {"memberStat": "सेट: {sets} · {value}", "removeMember": "{name} को हटाएँ", "shareText": "BricksVault पर हमारे फ़ैमिली वॉल्ट से जुड़ें, आमंत्रण कोड {code}", "shareTitle": "BricksVault फ़ैमिली वॉल्ट"};
 hi.swaps = {"stopOffering": "{name} की पेशकश बंद करें", "from": "{name} से", "to": "{name} को", "proposeTo": "{name} के साथ अदला-बदली"};
 
+// Price It! refresh (views/game.js, components/price-it-card.js).
+hi.priceIt = {"you": "आप", "market": "बाज़ार", "marketValue": "बाज़ार मूल्य", "tierTop": "बाज़ार के उस्ताद", "tierMid": "पैनी नज़र", "tierLow": "करीब पहुँच रहे हैं", "tierZero": "आज बाज़ार कठिन है", "statStreak": "स्ट्रीक", "statBest": "सर्वश्रेष्ठ", "statAvgOff": "औसत अंतर", "nextIn": "नए सेट {time} में", "cardTodo": "आज कीमत लगाने के लिए 5 नए सेट", "play": "खेलें", "seeScore": "स्कोर देखें", "slider": "अनुमान के लिए खिसकाएँ", "timeHM": "{h} घं {m} मि"};
 // Desktop web: sidebar, Vault table and keyboard shortcuts (lib/desktop.js).
 hi.desktop = {"search": "सेट खोजें", "explore": "एक्सप्लोर करें", "shortcuts": "कीबोर्ड शॉर्टकट", "goTo": "{place} पर जाएँ", "kSearch": "खोजें", "kHelp": "कीबोर्ड शॉर्टकट दिखाएँ", "kClose": "डायलॉग बंद करें", "colSet": "सेट", "colYear": "वर्ष", "colPieces": "पीस", "colPaid": "भुगतान", "colValue": "मूल्य"};
