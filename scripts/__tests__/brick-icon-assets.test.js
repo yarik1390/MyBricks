@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const renderer = readFileSync(new URL('../render-brick-icons.py', import.meta.url), 'utf8');
+const renderer = readFileSync(new URL('../render-vault-icons.mjs', import.meta.url), 'utf8');
 const manifest = JSON.parse(readFileSync(new URL('../../public/manifest.json', import.meta.url), 'utf8'));
 const serviceWorker = readFileSync(new URL('../../public/sw.js', import.meta.url), 'utf8');
 const launcher = readFileSync(new URL('../../android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml', import.meta.url), 'utf8');
@@ -23,15 +23,17 @@ function pngInfo(path) {
 const densityPx = { ldpi: 36, mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
 const adaptivePx = { ldpi: 81, mdpi: 108, hdpi: 162, xhdpi: 216, xxhdpi: 324, xxxhdpi: 432 };
 
-describe('orange brick icon package', () => {
-  it('keeps the selected launcher and glow artwork as reproducible source assets', () => {
-    const primary = readFileSync(new URL('../../assets/brand/icon-brick-primary.jpg', import.meta.url));
-    const glow = readFileSync(new URL('../../assets/brand/icon-brick-glow.jpg', import.meta.url));
-    assert.ok(primary.length > 60_000);
-    assert.ok(glow.length > 60_000);
-    assert.match(renderer, /icon-brick-primary\.jpg/);
-    assert.match(renderer, /icon-brick-glow\.jpg/);
-    assert.match(renderer, /Image\.Resampling\.LANCZOS/);
+describe('Vault Dial icon package', () => {
+  it('keeps the classic and gold Vault Dial masters reproducible from one renderer', () => {
+    for (const name of ['icon-vault.svg', 'icon-vault-gold.svg']) {
+      const master = readFileSync(new URL(`../../assets/brand/${name}`, import.meta.url), 'utf8');
+      assert.match(master, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 512 512"/);
+    }
+    assert.match(readFileSync(new URL('../../public/icon.svg', import.meta.url), 'utf8'), /viewBox="0 0 512 512"/);
+    assert.match(renderer, /classic: \{/);
+    assert.match(renderer, /gold: \{/);
+    assert.match(renderer, /store\/play\/icon-512\.png/);
+    assert.deepEqual(pngInfo('../../store/play/icon-512.png'), { width: 512, height: 512, bitDepth: 8, colorType: 6 });
   });
 
   it('ships the generated PWA, Apple, Open Graph, and Android splash outputs', () => {
@@ -64,15 +66,17 @@ describe('orange brick icon package', () => {
   });
 
   it('renders complete launcher density sets with Android-compatible modes', () => {
-    for (const [density, size] of Object.entries(densityPx)) {
-      const regular = pngInfo(`../../android/app/src/main/res/mipmap-${density}/ic_launcher.png`);
-      const round = pngInfo(`../../android/app/src/main/res/mipmap-${density}/ic_launcher_round.png`);
-      assert.deepEqual(regular, { width: size, height: size, bitDepth: 8, colorType: 6 });
-      assert.deepEqual(round, { width: size, height: size, bitDepth: 8, colorType: 6 });
-    }
-    for (const [density, size] of Object.entries(adaptivePx)) {
-      assert.deepEqual(pngInfo(`../../android/app/src/main/res/mipmap-${density}/ic_launcher_background.png`), { width: size, height: size, bitDepth: 8, colorType: 2 });
-      assert.deepEqual(pngInfo(`../../android/app/src/main/res/mipmap-${density}/ic_launcher_foreground.png`), { width: size, height: size, bitDepth: 8, colorType: 6 });
+    for (const prefix of ['ic_launcher', 'ic_launcher_gold']) {
+      for (const [density, size] of Object.entries(densityPx)) {
+        const regular = pngInfo(`../../android/app/src/main/res/mipmap-${density}/${prefix}.png`);
+        const round = pngInfo(`../../android/app/src/main/res/mipmap-${density}/${prefix}_round.png`);
+        assert.deepEqual(regular, { width: size, height: size, bitDepth: 8, colorType: 6 });
+        assert.deepEqual(round, { width: size, height: size, bitDepth: 8, colorType: 6 });
+      }
+      for (const [density, size] of Object.entries(adaptivePx)) {
+        assert.deepEqual(pngInfo(`../../android/app/src/main/res/mipmap-${density}/${prefix}_background.png`), { width: size, height: size, bitDepth: 8, colorType: 2 });
+        assert.deepEqual(pngInfo(`../../android/app/src/main/res/mipmap-${density}/${prefix}_foreground.png`), { width: size, height: size, bitDepth: 8, colorType: 6 });
+      }
     }
   });
 });

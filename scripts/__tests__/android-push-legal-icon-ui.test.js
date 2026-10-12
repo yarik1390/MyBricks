@@ -11,7 +11,7 @@ const sw = readFileSync(new URL('../../public/sw.js', import.meta.url), 'utf8');
 const deploy = readFileSync(new URL('../../.github/workflows/deploy-worker.yml', import.meta.url), 'utf8');
 const roundAdaptive = readFileSync(new URL('../../android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml', import.meta.url), 'utf8');
 const roundMonochrome = readFileSync(new URL('../../android/app/src/main/res/drawable/ic_launcher_round_monochrome.xml', import.meta.url), 'utf8');
-const iconRenderer = readFileSync(new URL('../render-brick-icons.py', import.meta.url), 'utf8');
+const iconRenderer = readFileSync(new URL('../render-vault-icons.mjs', import.meta.url), 'utf8');
 
 const densityPx = { ldpi: 36, mdpi: 48, hdpi: 72, xhdpi: 96, xxhdpi: 144, xxxhdpi: 192 };
 function pngSize(path) {
@@ -95,17 +95,17 @@ describe('Android push, legal sheets, and launcher icon', () => {
     assert.match(sw, /\'\/js\/components\/legal-sheet\.js\'/);
   });
 
-  it('uses the approved orange brick artwork for legacy, adaptive, and themed round icons', () => {
-    assert.ok(readFileSync(new URL('../../assets/brand/icon-brick-primary.jpg', import.meta.url)).length > 60_000);
+  it('uses the Vault Dial artwork for legacy, adaptive, and themed round icons', () => {
     assert.deepEqual(pngSize('../../android/app/src/main/icon-round-preview.png'), [1024, 1024]);
-    assert.match(iconRenderer, /icon-brick-primary\.jpg/);
-    assert.match(iconRenderer, /adaptive safe zone/);
+    assert.match(iconRenderer, /launcher shows the middle 72 of 108dp/);
+    assert.match(iconRenderer, /foreground: \(p\) => svg\(p, dial\(p, 72 \/ 108\)\)/);
     assert.match(roundAdaptive, /@mipmap\/ic_launcher_foreground/);
     assert.match(roundAdaptive, /@mipmap\/ic_launcher_background/);
     assert.match(roundAdaptive, /@drawable\/ic_launcher_round_monochrome/);
     assert.match(roundMonochrome, /android:fillColor="#000000"/);
-    for (const [density, size] of Object.entries(densityPx)) {
-      const path = `../../android/app/src/main/res/mipmap-${density}/ic_launcher_round.png`;
+    assert.match(roundMonochrome, /Vault Dial/);
+    for (const [density, size] of Object.entries(densityPx)) for (const name of ['ic_launcher_round', 'ic_launcher_gold_round']) {
+      const path = `../../android/app/src/main/res/mipmap-${density}/${name}.png`;
       assert.deepEqual(pngSize(path), [size, size]);
       const { alphaAt } = pngAlpha(path);
       assert.equal(alphaAt(0, 0), 0, `${density} round icon corners must be transparent`);
