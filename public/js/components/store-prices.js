@@ -10,6 +10,7 @@ import { api, isGuestMode } from '../api.js';
 import { state } from '../state.js';
 import { icon, pill } from '../ui/kit.js';
 import { t, tPlural } from '../lib/i18n.js';
+import { amazonOfferIsFresh } from '../lib/amazon-affiliate.js';
 
 function offerRowHTML(o, best, value) {
   const below = value > 0 && o.in_stock ? Math.round((1 - o.price / value) * 100) : null;
@@ -56,25 +57,43 @@ function statusRowHTML(s, checking) {
   </li>`;
 }
 
-export function storePricesHTML(data, { checking = false } = {}) {
+// Amazon (Associates): a tagged search link, or the live Creators API price when
+// one under 23 hours old is held. Off until the platform is approved
+// (GET /api/sets/:set/amazon answers available: false).
+function amazonRowHTML(a) {
+  const price = a.mode === 'creators_api' && amazonOfferIsFresh(a) ? Number(a.price) : null;
+  return `<li class="bv-stores__row">
+    <a class="bv-stores__link" href="${escapeHtml(a.url)}" target="_blank" rel="sponsored nofollow noopener">
+      <span class="bv-stores__name">Amazon</span>
+      <span class="bv-stores__note">${escapeHtml(a.availability || '')}</span>
+      <span class="bv-num bv-stores__price">${escapeHtml(new Intl.NumberFormat(undefined, { style: 'currency', currency: a.currency || 'EUR' }).format(price))}</span>
+      ${icon('ext', { size: 16 })}
+    </a>
+  </li>`;
+}
+
+export function storePricesHTML(data, { checking = false, amazon = null } = {}) {
   const offers = data?.offers || [];
   const stores = data?.stores || [];
   const priced = new Set(offers.map((o) => o.store));
   const statusRows = stores.filter((s) => !priced.has(s.store));
   const market = data?.market || [];
   const links = (data?.links || []).filter((l) => !stores.some((s) => s.store === l.store) && !market.some((m) => m.store === l.store));
-  if (!offers.length && !statusRows.length && !market.length && !links.length) return '';
+  const az = amazon?.available && amazon.url ? amazon : null;
+  const azPriced = !!az && az.mode === 'creators_api' && amazonOfferIsFresh(az);
+  if (az && !azPriced) links.push({ store: 'amazon', label: 'Amazon', url: az.url, sponsored: true });
+  if (!offers.length && !statusRows.length && !market.length && !links.length && !azPriced) return '';
   const value = Number(data.value) || 0;
   const bestIndex = offers.findIndex((o) => o.in_stock);
   const usd = (state.me?.currency || 'USD') === 'USD';
   const usStores = stores.length > 0;
   return `<section class="detail-card bv-stores" aria-labelledby="storesTitle">
     <div class="detail-card-title" id="storesTitle">Compare stores</div>
-    ${offers.length || statusRows.length || market.length
-      ? `<ul class="bv-stores__list">${offers.map((o, i) => offerRowHTML(o, i === bestIndex, value)).join('')}${statusRows.map((s) => statusRowHTML(s, checking && s.status === 'unchecked')).join('')}${market.map(marketRowHTML).join('')}</ul>`
+    ${offers.length || statusRows.length || market.length || azPriced
+      ? `<ul class="bv-stores__list">${offers.map((o, i) => offerRowHTML(o, i === bestIndex, value)).join('')}${azPriced ? amazonRowHTML(az) : ''}${statusRows.map((s) => statusRowHTML(s, checking && s.status === 'unchecked')).join('')}${market.map(marketRowHTML).join('')}</ul>`
       : '<p class="bv-stores__empty">No store has a price for this set today.</p>'}
     ${links.length ? `<div class="bv-stores__more"><span class="bv-label">Check the price at</span>
-      <div class="bv-stores__chips">${links.map((l) => `<a class="bv-chip" href="${escapeHtml(l.url)}" target="_blank" rel="noopener">${escapeHtml(l.label)}${icon('ext', { size: 14 })}</a>`).join('')}</div></div>` : ''}
+      <div class="bv-stores__chips">${links.map((l) => `<a class="bv-chip" href="${escapeHtml(l.url)}" target="_blank" rel="${l.sponsored ? 'sponsored nofollow noopener' : 'noopener'}">${escapeHtml(l.label)}${icon('ext', { size: 14 })}</a>`).join('')}</div></div>` : ''}
     ${usStores
       ? `<p class="bv-stores__foot">${usd
         ? 'Walmart and Target are US stores. Prices are checked daily, before tax and shipping.'
@@ -85,6 +104,7 @@ export function storePricesHTML(data, { checking = false } = {}) {
         ? 'eBay and BrickLink figures come from US listings and sales of new sets. Check the listing for its own price and shipping.'
         : 'eBay and BrickLink figures come from US listings and sales of new sets, converted to your currency. Check the listing for its own price and shipping.'}</p>`
       : ''}
+    ${az ? `<p class="bv-stores__foot">${escapeHtml(az.disclosure || 'As an Amazon Associate, Brickvault earns from qualifying purchases.')}${azPriced && az.price_disclaimer ? ` ${escapeHtml(az.price_disclaimer)}` : ''}</p>` : ''}
   </section>`;
 }
 
@@ -92,14 +112,18 @@ export function storePricesHTML(data, { checking = false } = {}) {
 export async function mountStorePrices(el, setNum) {
   if (!el) return;
   try {
-    const data = await api(`/api/stores/${encodeURIComponent(setNum)}`);
+    const market = encodeURIComponent(state.me?.retail_market || 'FR');
+    const [data, amazon] = await Promise.all([
+      api(`/api/stores/${encodeURIComponent(setNum)}`),
+      api(`/api/sets/${encodeURIComponent(setNum)}/amazon?market=${market}`, { retry: false }).catch(() => null),
+    ]);
     if (!el.isConnected) return;
     const due = (data?.stores || []).some((s) => s.status === 'unchecked');
     const canCheck = due && !isGuestMode();
-    el.innerHTML = storePricesHTML(data, { checking: canCheck });
+    el.innerHTML = storePricesHTML(data, { checking: canCheck, amazon });
     if (!canCheck) return;
     const fresh = await api(`/api/stores/${encodeURIComponent(setNum)}/check`, { method: 'POST', retry: false }).catch(() => null);
     if (!el.isConnected) return;
-    el.innerHTML = storePricesHTML(fresh || data);
+    el.innerHTML = storePricesHTML(fresh || data, { amazon });
   } catch { el.innerHTML = ''; }
 }

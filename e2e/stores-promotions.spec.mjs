@@ -66,6 +66,25 @@ test('eBay and BrickLink show the prices we hold instead of a bare link', async 
   await expect(card).toContainText('eBay and BrickLink figures come from US listings');
 });
 
+test('Amazon shows as a tagged link with the Associates disclosure when enabled', async ({ page }) => {
+  await page.route(`**/api/sets/${SET.set_num}`, route => route.fulfill({ json: { set: SET, entry: null } }));
+  await page.route(`**/api/sets/${SET.set_num}/amazon**`, route => route.fulfill({ json: {
+    available: true, platform: 'web', market: 'FR', currency: 'EUR', mode: 'link_only',
+    url: 'https://www.amazon.fr/s?k=LEGO&tag=bricksvault-21', price: null, checked_at: null,
+    disclosure: 'As an Amazon Associate, Brickvault earns from qualifying purchases.', price_disclaimer: null,
+  } }));
+  await page.route(`**/api/stores/${SET.set_num}`, route => route.fulfill({ json: {
+    set_num: SET.set_num, msrp: 100, value: 120, retired: true, offers: [], stores: [], market: [],
+    links: [{ store: 'bricklink', label: 'BrickLink', url: 'https://www.bricklink.com/v2/catalog/catalogitem.page?S=1' }],
+  } }));
+  await page.goto(`/#/set/${SET.set_num}`);
+  const card = page.locator('.bv-stores');
+  const amazon = card.getByRole('link', { name: /Amazon/ });
+  await expect(amazon).toHaveAttribute('href', /tag=bricksvault-21/);
+  await expect(amazon).toHaveAttribute('rel', /sponsored/);
+  await expect(card).toContainText('As an Amazon Associate, Brickvault earns from qualifying purchases.');
+});
+
 test('promotions page splits offers into on now and coming up', async ({ page }) => {
   await page.route('**/api/promotions', route => route.fulfill({ json: {
     now: [{ id: 1, kind: 'gwp', title: 'Free Christmas Tree', starts_on: '2026-10-01', ends_on: '2099-12-31', min_spend: 150, gift_set_num: '40573-1', gift_name: 'Christmas Tree', gift_image: null, url: 'https://www.lego.com/en-us/offers' }],
