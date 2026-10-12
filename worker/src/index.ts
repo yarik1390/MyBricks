@@ -49,7 +49,7 @@ import { runPriceChartingVerify } from './jobs/pricecharting-verify';
 import { runPriceChartingEnrich } from './jobs/pricecharting-enrich';
 import { runCommunityComps } from './jobs/community-comps';
 import { runMinifigVerify } from './jobs/minifig-verify';
-import { runPriceChartingBulkFetch } from './jobs/pricecharting-bulk';
+import { priceChartingBulkNeedsRetry, runPriceChartingBulkFetch } from './jobs/pricecharting-bulk';
 import { importSets, importFigs } from './jobs/import-catalog';
 import { runBrickInsightsBackfill } from './jobs/brickinsights';
 import { runEbaySoldScrape } from './jobs/ebay-sold-scrape';
@@ -494,6 +494,11 @@ export default {
         // sweep when nothing promoted). The daily 04:00 run does the full
         // signal refresh.
         await run('pricecharting-verify-drain', () => runPriceChartingVerify(env, { limit: 400, refreshSignals: false }));
+        // Retry today's PriceCharting download if the 04:30 attempt hit an
+        // outage; a no-op settings read otherwise.
+        if (await priceChartingBulkNeedsRetry(env)) {
+          await run('pricecharting-bulk-fetch', () => runPriceChartingBulkFetch(env));
+        }
         // Image mirror backfill: hourly x100 warms the full ~44k set+minifig
         // catalog in ~3 weeks, then degrades to a no-op SELECT. Shares this
         // invocation comfortably: ~300 subrequests each against the 1000 cap.
