@@ -92,7 +92,7 @@ app.post('/value', async (c) => {
   const rows = items.map((i) => {
     const s = bySet.get(i.set_num);
     if (!s) { unpriced++; return { ...i, name: null, image_url: null, unit_value: null, value: null }; }
-    const sealed = holdingValueForRollout({ ...s, condition: 'sealed' });
+    const sealed = holdingValueForRollout({ ...s, condition: 'sealed' }, Number(c.env.PRICING_V3_READ_PERCENT || 0));
     // A used price falls back to the sealed one only when no used signal exists at all.
     const used = Number(s.v3_used_fair) || Number(s.ebay_used_value) || Number(s.used_value) || sealed;
     const unit = i.condition === 'sealed' ? sealed : i.condition === 'used' ? used : used * INCOMPLETE_SHARE;
