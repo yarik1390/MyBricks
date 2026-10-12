@@ -52,11 +52,48 @@ export interface FirecrawlScrapeOptions {
   actions?: Array<Record<string, unknown>>;
   /** Serve a cached copy if younger than this many ms (faster; same credit cost). */
   maxAge?: number;
+  /** Throw FirecrawlRateLimitedError instead of returning null when every key is
+   *  still rate-limited after backing off, so batch jobs can defer the item
+   *  instead of counting a healthy-but-busy provider as a failure. */
+  throwOnRateLimit?: boolean;
 }
+
+/** Every live key answered 429 even after backing off. The account is fine;
+ *  the work should simply be retried on a later run. */
+export class FirecrawlRateLimitedError extends Error {
+  constructor() {
+    super('rate limit (HTTP 429) on every Firecrawl key');
+    this.name = 'FirecrawlRateLimitedError';
+  }
+}
+
+// Shared per-isolate backoff, per key (Firecrawl's per-minute ceiling is per
+// key). After a 429 every concurrent scrape on that key waits it out together
+// instead of each one re-hitting the limit; that stampede is what turned 40 of
+// 60 BrickEconomy scrapes per run into failures. Another key is still borrowed
+// immediately.
+const throttledUntil = new Map<string, number>();
+const DEFAULT_BACKOFF_MS = 6_000;
+const MAX_BACKOFF_MS = 20_000;
+
+function backoffFrom(retryAfter: string | null): number {
+  const secs = Number(retryAfter);
+  const ms = Number.isFinite(secs) && secs > 0 ? secs * 1000 : DEFAULT_BACKOFF_MS;
+  return Math.min(Math.max(ms, 1_000), MAX_BACKOFF_MS);
+}
+
+async function waitForThrottle(hash: string): Promise<void> {
+  const wait = (throttledUntil.get(hash) ?? 0) - Date.now();
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, Math.min(wait, MAX_BACKOFF_MS)));
+}
+
+/** Test hook: clear the shared backoff between cases. */
+export function __resetFirecrawlThrottleForTests(): void { throttledUntil.clear(); }
 
 /**
  * Call Firecrawl /v2/scrape and return the parsed response data.
- * Returns null on any failure — never throws.
+ * Returns null on any failure. Throws only FirecrawlRateLimitedError, and only
+ * when the caller opts in with throwOnRateLimit.
  * Health is recorded via integration_health regardless of outcome.
  */
 export async function firecrawlScrape<T = unknown>(
@@ -117,12 +154,12 @@ export async function firecrawlScrape<T = unknown>(
   // specifically NOT the same signal as a hung/blocked request).
   let sameKeyRetries = 0;
   let rateLimited = false;
-  const MAX_SAME_KEY_RETRIES = 1;
-  const RATE_LIMIT_BACKOFF_MS = 1500;
-  for (let attempt = 0; attempt < 3 && picked; attempt++) {
+  const MAX_SAME_KEY_RETRIES = 2;
+  for (let attempt = 0; attempt < 4 && picked; attempt++) {
     if (attempted.has(picked.hash) && sameKeyRetries === 0) break;   // pool didn't advance; don't loop
     attempted.add(picked.hash);
 
+    await waitForThrottle(picked.hash);
     const out = await scrapeOnce<T>(picked, body, opts, env, creditCost);
     if (out.kind === 'ok') return { data: out.data };
     if (out.kind === 'failed') return null;
@@ -138,7 +175,6 @@ export async function firecrawlScrape<T = unknown>(
     if (next) { picked = next; continue; }
     if (sameKeyRetries >= MAX_SAME_KEY_RETRIES) { picked = null; break; }
     sameKeyRetries++;
-    await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_BACKOFF_MS * sameKeyRetries));
     attempted.delete(picked.hash); // intentional same-key retry, not a stuck pool
   }
   if (!picked) {
@@ -147,6 +183,7 @@ export async function firecrawlScrape<T = unknown>(
     await recordIntegrationAttempt(env, 'firecrawl', false, rateLimited
       ? 'rate limit (HTTP 429) on every Firecrawl key'
       : 'no Firecrawl key has credits left');
+    if (rateLimited && opts.throwOnRateLimit) throw new FirecrawlRateLimitedError();
   }
   return null;
 }
@@ -193,7 +230,12 @@ async function scrapeOnce<T>(
       await recordFirecrawlSpend(env, picked, 0, { exhausted });
       await recordIntegrationAttempt(env, 'firecrawl', false, msg);
       if (exhausted) return { kind: 'exhausted' };
-      return { kind: throttled ? 'rate_limited' : 'failed' };
+      if (throttled) {
+        const until = Date.now() + backoffFrom(resp.headers.get('retry-after'));
+        throttledUntil.set(picked.hash, Math.max(throttledUntil.get(picked.hash) ?? 0, until));
+        return { kind: 'rate_limited' };
+      }
+      return { kind: 'failed' };
     }
 
     // Book the credits only on a call Firecrawl actually served — a rejected

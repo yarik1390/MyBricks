@@ -2,7 +2,7 @@ import type { Env } from '../types';
 import { fetchStockXViaFirecrawl } from '../lib/stockx';
 import { firecrawlEnabled, stockxEnabled } from '../lib/pricing-flags';
 import { quotaRemaining } from '../lib/api-quota';
-import { FIRECRAWL_MAX_CONCURRENCY } from '../lib/firecrawl';
+import { FIRECRAWL_MAX_CONCURRENCY, FirecrawlRateLimitedError } from '../lib/firecrawl';
 import { recordIntegrationHealth } from '../lib/integration-health';
 import { sourceEnabled } from '../lib/source-config';
 import { pricingWritesAllowed } from '../lib/pricing-budget';
@@ -29,7 +29,7 @@ import { recomputeBlendedValues } from '../lib/market-sources';
 export async function runStockXEnrich(
   env: Env,
   options: { limit?: number; concurrency?: number } = {},
-): Promise<{ processed: number; updated: number; rejected: number; failed?: number; no_data?: number; limit: number; skipped?: string }> {
+): Promise<{ processed: number; updated: number; rejected: number; failed?: number; no_data?: number; deferred?: number; limit: number; skipped?: string }> {
   if (!stockxEnabled(env)) {
     return { processed: 0, updated: 0, rejected: 0, limit: 0, skipped: 'StockX disabled (STOCKX_ENABLED=1 or the stockx flag to enable)' };
   }
@@ -95,6 +95,7 @@ export async function runStockXEnrich(
   let rejected = 0;
   let failed = 0;
   let no_data = 0;
+  let deferred = 0;
   const health = { ok: 0, fail: 0, lastError: undefined as string | undefined };
   const stmts: D1PreparedStatement[] = [];
   const touched: string[] = []; // sets that got a new ask → re-blend so it folds in
@@ -113,10 +114,14 @@ export async function runStockXEnrich(
     const outs = await Promise.all(batch.map(async (set) => ({
       set,
       r: await fetchStockXViaFirecrawl(set.set_num, set.name, env)
-        .catch((e: unknown) => ({ status: 'error' as const, ask: null, url: null, error: (e as Error)?.message })),
+        .catch((e: unknown) => e instanceof FirecrawlRateLimitedError
+          ? ({ status: 'deferred' as const, ask: null, url: null, error: e.message })
+          : ({ status: 'error' as const, ask: null, url: null, error: (e as Error)?.message })),
     })));
     for (const { set, r } of outs) {
       processed++;
+      // Firecrawl was only busy: retry this set next run, not a failure.
+      if (r.status === 'deferred') { deferred++; continue; }
       if (r.status === 'ok' || r.status === 'no_data') health.ok++;
       else { health.fail++; if (r.error) health.lastError = r.error; }
 
@@ -156,5 +161,5 @@ export async function runStockXEnrich(
   }
   await flush();
   await recordIntegrationHealth(env, 'stockx', health);
-  return { processed, updated, rejected, failed, no_data, limit: effLimit };
+  return { processed, updated, rejected, failed, no_data, deferred, limit: effLimit };
 }

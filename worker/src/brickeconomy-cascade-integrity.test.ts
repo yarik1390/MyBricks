@@ -4,9 +4,10 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { applyTestTables } from './test-schema';
 vi.mock('./lib/scrapingant', () => ({ scrapingAntEnabled: () => true, scrapingAntFetchHtml: vi.fn() }));
 vi.mock('./lib/brightdata-keys', () => ({ brightDataEnabled: () => false }));
-vi.mock('./lib/firecrawl', () => ({ FIRECRAWL_MAX_CONCURRENCY: 2, firecrawlScrape: vi.fn() }));
+vi.mock('./lib/firecrawl', () => ({ FIRECRAWL_MAX_CONCURRENCY: 2, firecrawlScrape: vi.fn(), FirecrawlRateLimitedError: class extends Error {} }));
 import { scrapingAntFetchHtml } from './lib/scrapingant';
 import { runBrickEconomyEnrich } from './jobs/brickeconomy-enrich';
+import { firecrawlScrape, FirecrawlRateLimitedError } from './lib/firecrawl';
 const db = (env as any).DB as D1Database;
 const htmlOnly = { ...env, FIRECRAWL_API_KEY: '', FIRECRAWL_API_KEYS: '' } as any;
 beforeEach(async () => {
@@ -22,4 +23,12 @@ it.each([null, '<html>blocked or unparseable</html>'])('HTML-only failure does n
   expect((await runBrickEconomyEnrich(htmlOnly, { limit: 1 })).processed).toBe(0);
   await db.prepare(`UPDATE set_market_ext SET be_attempted_at=datetime('now','-2 hours')`).run();
   expect((await runBrickEconomyEnrich(htmlOnly, { limit: 1 })).processed).toBe(1);
+});
+
+it('defers a set when Firecrawl is only rate-limited, leaving its attempt clock alone', async () => {
+  vi.mocked(scrapingAntFetchHtml).mockResolvedValue(null);
+  vi.mocked(firecrawlScrape).mockRejectedValue(new FirecrawlRateLimitedError());
+  const withFirecrawl = { ...env, FIRECRAWL_API_KEY: 'fc-test' } as any;
+  expect(await runBrickEconomyEnrich(withFirecrawl, { limit: 1 })).toMatchObject({ processed: 1, failed: 0, deferred: 1 });
+  expect(await db.prepare(`SELECT be_attempt_status FROM set_market_ext`).first()).toBeNull();
 });

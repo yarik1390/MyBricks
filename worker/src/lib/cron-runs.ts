@@ -35,6 +35,8 @@ export function summarizeResult(res: unknown): string | null {
     if (Number(r[key]) > 0) add(key, key.replace('_', ' '));
   }
   add('updated', 'updated');
+  // Items postponed because a provider was busy (429): retried next run.
+  if (Number(r.deferred) > 0) add('deferred', 'deferred');
   add('matched', 'matched');
   add('fired', 'fired');
   add('discovered', 'found');

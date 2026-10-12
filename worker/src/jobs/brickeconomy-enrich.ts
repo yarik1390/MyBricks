@@ -2,7 +2,7 @@ import type { Env } from '../types';
 import { fetchBrickEconomy } from '../lib/brickeconomy-firecrawl';
 import { firecrawlEnabled } from '../lib/pricing-flags';
 import { quotaRemaining } from '../lib/api-quota';
-import { FIRECRAWL_MAX_CONCURRENCY } from '../lib/firecrawl';
+import { FIRECRAWL_MAX_CONCURRENCY, FirecrawlRateLimitedError } from '../lib/firecrawl';
 import { sourceEnabled } from '../lib/source-config';
 import { brightDataEnabled } from '../lib/brightdata-keys';
 import { scrapingAntEnabled } from '../lib/scrapingant';
@@ -133,6 +133,7 @@ export async function runBrickEconomyEnrich(
   let failures = 0;
   let no_data = 0;
   let partial = 0;
+  let deferred = 0;
   const stmts: D1PreparedStatement[] = [];
 
   // Scrape in small concurrent batches (default 5, matching ebay-sold-scrape) so
@@ -144,14 +145,17 @@ export async function runBrickEconomyEnrich(
     const batch = results.slice(i, i + concurrency);
     const outs = await Promise.all(batch.map(async ({ set_num }) => {
       try {
-        return { set_num, scrape: await fetchBrickEconomy(set_num, env), failed: false };
-      } catch {
-        return { set_num, scrape: null, failed: true };
+        return { set_num, scrape: await fetchBrickEconomy(set_num, env), failed: false, deferred: false };
+      } catch (e) {
+        return { set_num, scrape: null, failed: !(e instanceof FirecrawlRateLimitedError), deferred: e instanceof FirecrawlRateLimitedError };
       }
     }));
 
-    for (const { set_num, scrape, failed } of outs) {
+    for (const { set_num, scrape, failed, deferred: wasDeferred } of outs) {
       processed++;
+      // Firecrawl was only busy (429 after backing off). Leave the attempt clock
+      // alone so the set is first in line next run; it is not a failure.
+      if (wasDeferred) { deferred++; continue; }
       const hasNew = Number.isFinite(scrape?.current_value_new) && Number(scrape?.current_value_new) > 0;
       const hasUsed = Number.isFinite(scrape?.current_value_used) && Number(scrape?.current_value_used) > 0;
       const status = failed ? 'error' : !hasNew && !hasUsed ? 'no_data' : hasNew && hasUsed ? 'ok' : 'partial';
@@ -208,5 +212,5 @@ export async function runBrickEconomyEnrich(
   // No aggregate health write — firecrawlScrape records each scrape attempt
   // (real ok/fail + error message) inside the wrapper. Writing a batch tally
   // here would double-count and clobber the real error with "unknown error".
-  return { processed, updated, failed: failures, no_data, partial, limit: effLimit };
+  return { processed, updated, failed: failures, no_data, partial, deferred, limit: effLimit };
 }

@@ -840,6 +840,10 @@ app.put('/feature-flags', async (c) => {
 // admin console's per-service Test button. See lib/service-tests.ts for probes.
 app.post('/test/:service', async (c) => {
   const service = c.req.param('service');
+  // Load admin cap overrides first; without this the probe checked the code
+  // default (Bright Data 300/day) and reported "no usable page" after the cap
+  // had been raised in the console.
+  await applySourceConfig(c.env).catch(() => {});
   const result = await runServiceTest(c.env, service);
   if (!result) return c.json({ error: `Unknown service '${service}'. Valid: ${TESTABLE_SERVICES.join(', ')}` }, 400);
   return c.json(result);

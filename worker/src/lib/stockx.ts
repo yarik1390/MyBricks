@@ -32,10 +32,12 @@ export async function fetchStockXViaFirecrawl(
       ],
       waitFor: 5000,
       timeoutMs: options.timeoutMs ?? 60_000,
+      throwOnRateLimit: true,
     },
     env,
   );
-  const html = res?.data?.html;
+  if (!res) return { status: 'error', ask: null, url: null, error: 'firecrawl: request failed' };
+  const html = res.data?.html;
   if (!html || html.length < 20_000) return { status: 'error', ask: null, url: null, error: 'firecrawl: empty/short body' };
   const parsed = parseStockXSearch(html, setNum);
   if (parsed.ask == null) return { status: 'no_data', ask: null, url: parsed.url };

@@ -9,7 +9,7 @@ import {
   getFirecrawlKeyPoolStatus,
   resetFirecrawlKeyPool,
 } from './lib/firecrawl-keys';
-import { firecrawlScrape } from './lib/firecrawl';
+import { firecrawlScrape, FirecrawlRateLimitedError, __resetFirecrawlThrottleForTests } from './lib/firecrawl';
 import { applyTestTables } from './test-schema';
 
 const db = (env as any).DB as D1Database;
@@ -32,6 +32,7 @@ describe('firecrawl key pool', () => {
   beforeEach(async () => {
     await applyTestTables(db, ['firecrawl_keys', 'api_quota', 'integration_health']);
     vi.unstubAllGlobals();
+    __resetFirecrawlThrottleForTests();
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -136,12 +137,25 @@ describe('firecrawl key pool', () => {
 
         const out = firecrawlScrape({ url: 'https://x.test', formats: ['markdown'] }, pool);
         // Only the LAST key gets the same-key backoff-and-retry (there's no
-        // fallback left to borrow instead); flush that single 1.5s delay.
-        await vi.advanceTimersByTimeAsync(1_500);
+        // fallback left to borrow instead); flush its two backoff waits.
+        await vi.advanceTimersByTimeAsync(20_000);
 
         expect(await out).toBeNull();
-        expect(fetchSpy).toHaveBeenCalledTimes(3); // fc-small, fc-big, fc-big retry, then stop
-        expect((fetchSpy.mock.calls[2] as any)[1].headers.Authorization).toBe('Bearer fc-big');
+        expect(fetchSpy).toHaveBeenCalledTimes(4); // fc-small, fc-big, then two fc-big retries
+        expect((fetchSpy.mock.calls[3] as any)[1].headers.Authorization).toBe('Bearer fc-big');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('throws FirecrawlRateLimitedError for opted-in callers once every key stays throttled', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.stubGlobal('fetch', vi.fn(async () => new Response('rate limited', { status: 429, headers: { 'Retry-After': '2' } })));
+        const out = firecrawlScrape({ url: 'https://x.test', formats: ['markdown'], throwOnRateLimit: true }, pool);
+        const settled = out.then(() => 'resolved', (e) => e);
+        await vi.advanceTimersByTimeAsync(10_000);
+        expect(await settled).toBeInstanceOf(FirecrawlRateLimitedError);
       } finally {
         vi.useRealTimers();
       }
@@ -160,7 +174,7 @@ describe('firecrawl key pool', () => {
         vi.stubGlobal('fetch', fetchSpy);
 
         const out = firecrawlScrape<{ hit: number }>({ url: 'https://x.test', formats: ['markdown'] }, pool);
-        await vi.advanceTimersByTimeAsync(1_500);
+        await vi.advanceTimersByTimeAsync(10_000);
 
         expect((await out)?.data).toEqual({ hit: 1 });
         expect(fetchSpy).toHaveBeenCalledTimes(2);

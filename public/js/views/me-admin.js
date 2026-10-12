@@ -1421,9 +1421,11 @@ async function runServiceProbe(svc, btn) {
   if (box) { box.hidden = false; box.className = 'admin-svc-test-result'; box.textContent = 'Testing…'; }
   haptic('light');
   try {
-    // Live scrape probes (BrightData → StockX, etc.) can take ~30–45s, well past
-    // the default 15s abort — give the probe room to actually return a result.
-    const r = await api(`/api/admin/test/${encodeURIComponent(svc)}`, { method: 'POST', timeoutMs: 60000 });
+    // Live scrape probes (StockX renders for up to 60s server-side, plus any
+    // Firecrawl rate-limit backoff) need well over the default 15s abort. The
+    // old 60s limit aborted the StockX probe mid-render, and the automatic retry
+    // started a second paid scrape, which surfaced as "Failed to fetch".
+    const r = await api(`/api/admin/test/${encodeURIComponent(svc)}`, { method: 'POST', timeoutMs: 120000, retry: false });
     const degraded = r.status === 'degraded';
     const tone = degraded ? 'warn' : r.ok ? 'ok' : r.status === 'unconfigured' ? 'warn' : 'danger';
     const head = degraded ? 'Degraded' : r.ok ? 'OK' : r.status || 'error';
