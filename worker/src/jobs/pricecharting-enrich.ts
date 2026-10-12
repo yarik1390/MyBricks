@@ -124,10 +124,24 @@ export async function runPriceChartingEnrich(
       }
     }));
 
-    for (const { set, result, failed } of outs) {
+    // A product a reviewer (or the triage) rejected, or pinned to another set,
+    // must not be re-linked by the next lookup that happens to return it.
+    const foundIds = outs.flatMap(({ result }) => (result?.pc_id ? [result.pc_id] : []));
+    const pinned = new Map<string, { set_num: string | null; status: string }>();
+    if (foundIds.length) {
+      const { results: rows } = await env.DB.prepare(`SELECT source_item_id, set_num, status
+        FROM pricing_source_map WHERE source='pricecharting' AND status IN ('rejected','manual')
+          AND source_item_id IN (SELECT value FROM json_each(?1))`).bind(JSON.stringify(foundIds))
+        .all<{ source_item_id: string; set_num: string | null; status: string }>();
+      for (const row of rows || []) pinned.set(row.source_item_id, row);
+    }
+
+    for (const { set, result: found, failed } of outs) {
       processed++;
 
       if (failed) continue;
+      const pin = found?.pc_id ? pinned.get(found.pc_id) : undefined;
+      const result = pin && (pin.status === 'rejected' || pin.set_num !== set.set_num) ? null : found;
       if (!result) {
         // A no-data response must not make an old observation look fresh — so
         // stamp the ATTEMPT marker instead of pc_cached_at. The set drops out of

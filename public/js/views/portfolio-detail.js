@@ -1,5 +1,6 @@
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg, capturedMoneyContext, advisorEnabled } from '../utils.js';
 import { goBackOr } from '../lib/nav-history.js';
+import { installHeroScrim } from '../lib/hero-scrim.js';
 import { icon as kitIcon, iconBtn as kitIconBtn, row as kitRow, seg as kitSeg, field as kitField, pill as kitPill, delta as kitDelta, topbar as kitTopbar, emptyState as kitEmptyState, sheetBody as kitSheetBody, brickSvg as kitBrick } from '../ui/kit.js';
 import { localMoneyToUsd, usdMoneyInputValue } from '../lib/money-input.js';
 import { derivePartOutDecision } from '../lib/part-out-decision.js';
@@ -401,6 +402,7 @@ function setImagesFor(setNum) {
 }
 
 function wireSetHero(set, entry) {
+  installHeroScrim();
   const main = proxyImg(set.image_url);
   const hasMain = main && !main.startsWith("data:");
   // A dead image (or the proxy's 1×1 "no photo" GIF) falls back to the brick.

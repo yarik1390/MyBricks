@@ -119,6 +119,7 @@ const STATIC_ASSETS = [
   '/js/lib/native-back.js',
   '/js/lib/native-barcode.js',
   '/js/lib/nav-history.js',
+  '/js/lib/hero-scrim.js',
   '/js/lib/native-biometric.js',
   '/js/lib/app-lock-boot.js',
   '/js/lib/app-lock.js',

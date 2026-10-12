@@ -76,6 +76,29 @@ describe('runPriceChartingEnrich', () => {
     expect(q!.used).toBe(1);
   });
 
+  it('refuses a barcode hit whose title names another set, and a rejected product', async () => {
+    await db.batch([
+      db.prepare(`INSERT INTO lego_sets (set_num, name, year, upc) VALUES ('75370-1','Stormtrooper Mech',2024,'673419381369')`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, year, upc) VALUES ('10300-1','Back to the Future',2022,'0673419340373')`),
+      db.prepare(`INSERT INTO pricing_source_map (source,source_item_id,set_num,status) VALUES ('pricecharting','6910',NULL,'rejected')`),
+    ]);
+    const enabled = { ...env, PRICECHARTING_TOKEN: 'tok', PRICECHARTING_VERIFIED_ENABLED: '1' } as any;
+    await saveSourceConfig(enabled, { pricecharting: { enabled: true, weight: 0 } } as any);
+    clearSourceConfigCache();
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(
+      String(url).includes('673419381369')
+        ? { status: 'success', id: '6160891', 'console-name': 'LEGO Ideas', 'product-name': 'The Frog House #21256', 'new-price': 5272 }
+        : { status: 'success', id: '6910', 'console-name': 'LEGO Creator', 'product-name': 'Back to the Future #10300', 'new-price': 12250 },
+    ), { status: 200 })));
+
+    const r = await runPriceChartingEnrich(enabled, { concurrency: 2 });
+
+    expect(r.updated).toBe(0);
+    const maps = await db.prepare(`SELECT source_item_id,set_num,status FROM pricing_source_map ORDER BY source_item_id`).all<any>();
+    expect(maps.results).toEqual([{ source_item_id: '6910', set_num: null, status: 'rejected' }]);
+    expect(await db.prepare(`SELECT count(*) AS n FROM lego_sets WHERE pc_new_value IS NOT NULL`).first()).toEqual({ n: 0 });
+  });
+
   // `legacy:<set_num>` is a synthetic id minted by pricecharting-verify so a
   // price-agreement promotion has a mapping key when lego_sets.pc_id is empty.
   // It is not a PriceCharting product id — 5,531 verified mappings carried one
