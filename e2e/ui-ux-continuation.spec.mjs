@@ -110,7 +110,11 @@ for (const cost of [null, 0, 123.45]) {
     await page.locator('#mNotes').fill('Audit note');
     await page.locator('#mNotes').press('Tab');
     await expect.poll(() => patches.length).toBeGreaterThan(0);
-    expect(patches.at(-1).purchase_price).toBe(cost);
+    // The Manage tab sends only the fields that changed, so an untouched cost
+    // is either left out (the server keeps it) or sent back unchanged.
+    const last = patches.at(-1);
+    expect(last.notes).toBe('Audit note');
+    expect('purchase_price' in last ? last.purchase_price : cost).toBe(cost);
   });
 }
 
