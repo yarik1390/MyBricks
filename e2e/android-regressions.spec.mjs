@@ -163,6 +163,19 @@ test('the set page photo gets most of the hero, below the status bar', async ({ 
   expect(box.width).toBeGreaterThanOrEqual(360);
 });
 
+test('the set hero tint runs up under the status bar until it scrolls away', async ({ page }) => {
+  await page.goto('/#/set/75192-1');
+  await page.addStyleTag({ content: INSETS });
+  await expect(page.locator('.bv-sethero')).toBeVisible();
+  const scrimOpacity = () => page.locator('#statusBarScrim').evaluate((el) => getComputedStyle(el).opacity);
+  // A solid cream strip over the hero's lavender tint left a hard edge at the top.
+  expect(await scrimOpacity()).toBe('0');
+  await page.evaluate(() => window.scrollTo(0, 600));
+  await expect.poll(scrimOpacity).toBe('1');
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect.poll(scrimOpacity).toBe('0');
+});
+
 test('Coming soon rows show the catalog photo', async ({ page }) => {
   await page.route('**/api/upcoming', (route) => route.fulfill({ json: { upcoming: [
     { set_num: '21065-1', name: 'Sagrada Família', price_usd: 799.99, availability: 'Coming Soon', image_url: '/icon-512.png' },

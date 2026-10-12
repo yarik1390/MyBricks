@@ -81,6 +81,9 @@ body.collector-ui:not(:has(#root > .page)),
 :root[data-mode="kids"] body:not(:has(#root > .page)) { padding-top: 0; }
 /* Solid status-bar strip: content scrolling under it stayed readable at .94. */
 body.collector-ui .status-bar-scrim { background: var(--bv-bg); opacity: 1; }
+/* Set page: the hero's tint runs up under the status bar, so the strip steps
+   aside until the hero scrolls under it (lib/hero-scrim.js). */
+body.hero-under-bar:has(.bv-sethero) .status-bar-scrim { opacity: 0; }
 .bv-page {
   --bv-bottom-clear: calc(var(--bv-nav-h) + var(--safe-bottom, 0px) + 24px);
   padding: calc(var(--safe-top, 0px)) 0 var(--bv-bottom-clear);
@@ -964,9 +967,9 @@ body[data-route="set-detail"] .bv-page.detail-page-container { padding-top: 0; p
    sits below the back/share row and uses the full width. */
 .bv-sethero {
   position: relative; height: calc(var(--safe-top, 0px) + 300px); overflow: hidden;
-  background: linear-gradient(180deg, hsl(var(--hue, 210) 60% 86%) 0%, hsl(var(--hue, 210) 38% 93%) 70%, var(--bv-bg) 100%);
+  background: linear-gradient(180deg, hsl(var(--hue, 210) 60% 86%) 0%, hsl(var(--hue, 210) 38% 93%) 55%, color-mix(in srgb, hsl(var(--hue, 210) 38% 93%) 45%, var(--bv-bg)) 80%, var(--bv-bg) 100%);
 }
-:root[data-theme="dark"] .bv-sethero { background: linear-gradient(180deg, hsl(var(--hue, 210) 22% 22%) 0%, hsl(var(--hue, 210) 12% 15%) 70%, var(--bv-bg) 100%); }
+:root[data-theme="dark"] .bv-sethero { background: linear-gradient(180deg, hsl(var(--hue, 210) 22% 22%) 0%, hsl(var(--hue, 210) 12% 15%) 55%, color-mix(in srgb, hsl(var(--hue, 210) 12% 15%) 45%, var(--bv-bg)) 80%, var(--bv-bg) 100%); }
 .bv-sethero__media {
   position: absolute; inset: calc(var(--safe-top, 0px) + 60px) 20px 12px; display: flex; align-items: center; justify-content: center;
 }
