@@ -139,6 +139,7 @@ const STATIC_ASSETS = [
   '/js/components/sheet.js',
   '/js/components/parts-checklist.js',
   '/js/components/copies.js',
+  '/js/components/price-it-card.js',
   '/js/components/store-prices.js',
   '/js/components/rebrickable-card.js',
 

@@ -1792,3 +1792,6 @@ zh.lot = {"unpriced": "暂无价格的套装：{missing}。总计不含这些。
 // Family vault and swaps (views/family.js, views/swaps.js).
 zh.family = {"memberStat": "套装：{sets} · {value}", "removeMember": "移除 {name}", "shareText": "用邀请码 {code} 加入我们在 BricksVault 的家庭收藏库", "shareTitle": "BricksVault 家庭收藏库"};
 zh.swaps = {"stopOffering": "不再提供 {name}", "from": "来自 {name}", "to": "发给 {name}", "proposeTo": "与 {name} 交换"};
+
+// Price It! refresh (views/game.js, components/price-it-card.js).
+zh.priceIt = {"you": "你", "market": "市场", "marketValue": "市场价", "tierTop": "市场天才", "tierMid": "眼光敏锐", "tierLow": "渐入佳境", "tierZero": "今天行情难猜", "statStreak": "连续", "statBest": "最佳", "statAvgOff": "平均偏差", "nextIn": "{time} 后更新", "cardTodo": "今天有 5 套新套装待估价", "play": "开始", "seeScore": "查看成绩", "slider": "滑动来猜价", "timeHM": "{h} 小时 {m} 分"};

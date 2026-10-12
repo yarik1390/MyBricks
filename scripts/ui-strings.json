@@ -10523,18 +10523,6 @@
     ]
   },
   {
-    "text": "bv-card bv-game__score",
-    "files": [
-      "views/game.js"
-    ]
-  },
-  {
-    "text": "bv-card bv-game__set",
-    "files": [
-      "views/game.js"
-    ]
-  },
-  {
     "text": "bv-card bv-listing__field",
     "files": [
       "views/portfolio-detail.js"
@@ -10637,7 +10625,25 @@
     ]
   },
   {
+    "text": "bv-game__fact is-num",
+    "files": [
+      "views/game.js"
+    ]
+  },
+  {
+    "text": "bv-game__mark is-actual",
+    "files": [
+      "views/game.js"
+    ]
+  },
+  {
     "text": "bv-game__stage game-set-photo-stage",
+    "files": [
+      "views/game.js"
+    ]
+  },
+  {
+    "text": "bv-game__thumb game-set-photo-stage",
     "files": [
       "views/game.js"
     ]
@@ -11931,6 +11937,18 @@
     "text": "pieces missing",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "priceIt.tierLow",
+    "files": [
+      "views/game.js"
+    ]
+  },
+  {
+    "text": "priceIt.tierZero",
+    "files": [
+      "views/game.js"
     ]
   },
   {

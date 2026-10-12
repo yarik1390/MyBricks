@@ -1930,3 +1930,6 @@ uk.lot = {"unpriced": "Набори без ціни поки що: {missing}. П
 // Family vault and swaps (views/family.js, views/swaps.js).
 uk.family = {"memberStat": "Наборів: {sets} · {value}", "removeMember": "Видалити {name}", "shareText": "Приєднуйтеся до нашого сімейного сховища в BricksVault за кодом {code}", "shareTitle": "Сімейне сховище BricksVault"};
 uk.swaps = {"stopOffering": "Більше не пропонувати {name}", "from": "Від {name}", "to": "Для {name}", "proposeTo": "Обмін із {name}"};
+
+// Price It! refresh (views/game.js, components/price-it-card.js).
+uk.priceIt = {"you": "Ви", "market": "Ринок", "marketValue": "Ринкова ціна", "tierTop": "Геній ринку", "tierMid": "Гостре око", "tierLow": "Вже близько", "tierZero": "Складний ринок сьогодні", "statStreak": "Серія", "statBest": "Рекорд", "statAvgOff": "Сер. похибка", "nextIn": "Нові набори через {time}", "cardTodo": "Сьогодні 5 нових наборів для оцінки", "play": "Грати", "seeScore": "Результат", "slider": "Пересуньте, щоб оцінити", "timeHM": "{h} год {m} хв"};
