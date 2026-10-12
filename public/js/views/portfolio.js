@@ -16,7 +16,7 @@ import { readCollectorPreferences, writeCollectorPreferences } from '../lib/coll
 import { vaultTotals, changesWindowDays, changeSinceFromSnapshots, changeItems, clipHistory } from '../lib/vault-insights.js';
 import { icon, sparkline, delta as deltaChip, emptyState, btn, banner, skeletonRows, chip } from '../ui/kit.js';
 import { setTile, gainPct } from '../ui/set-ui.js';
-import { vaultTopbar, vaultSearchRow, sortButton, layoutSeg, vaultToolbar, openChoiceSheet, openActionSheet, vaultSetRow, moneyWhole, moneyWholeSigned, holdingValue } from '../ui/vault-ui.js';
+import { vaultTopbar, vaultSearchRow, sortButton, layoutSeg, vaultToolbar, openChoiceSheet, openActionSheet, vaultSetRow, vaultListHead, moneyWhole, moneyWholeSigned, holdingValue } from '../ui/vault-ui.js';
 
 // Concise portfolio source credit: PriceCharting is named only when it
 // contributes to the blended portfolio; otherwise a generic source link.
@@ -282,6 +282,7 @@ function rowHTML(item) {
   return vaultSetRow(item, {
     value, qty, id: ref,
     deltaPct: pct,
+    columns: true,
     hintHref: known ? null : `#/set/${encodeURIComponent(item.set_num)}/edit`,
     selecting: state.selectionMode,
     selected: state.selectedSets.has(ref),
@@ -516,6 +517,7 @@ function paintPortfolio() {
       ${showSearch ? '' : '<div id="collectorPinned"></div>'}
       ${vaultNavigation('sets')}
       ${vaultToolbar(sortButton(t(`bvVault.${sortKeyOf(state.filter.sort)}`)), layoutSeg(layout))}
+      ${vaultListHead()}
       <div id="setList" class="vault-list" aria-live="polite"></div>
       <div id="portfolioSentinel" class="vault-sentinel" hidden><span class="bv-skel"></span></div>
       ${footHTML(p, totals)}`}

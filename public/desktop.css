@@ -1,0 +1,188 @@
+/* BricksVault on a computer (≥1024 px wide).
+ *
+ * Loaded after bv.css. Phones and the Android app never reach the media
+ * queries below, so this file only changes the wide-window web: the 88 px
+ * navigation rail becomes a labelled sidebar (brand, search, Explore links),
+ * pages use the width (Vault as a table, wider grids, a two-column set page,
+ * Profile in two columns), sheets open as centred dialogs, rows get hover
+ * states, and keyboard shortcuts live in js/lib/desktop.js.
+ */
+
+/* Desktop-only pieces stay out of the phone layout. */
+.bv-side, .bv-setrow__col, .vault-list-head { display: none; }
+
+@media (min-width: 1024px) {
+  :root { --bv-side-w: 248px; }
+
+  /* ------------------------------------------------------------- sidebar */
+  body.collector-ui #app { margin-left: var(--bv-side-w); }
+  /* Detail pages keep the sidebar; only full-screen views (scan, room, login,
+     welcome, Wrapped) hide it. */
+  body.collector-ui.bv-nav-off:not(.bv-fullscreen):not(.keyboard-open) #nav { display: flex; }
+  body.collector-ui.bv-nav-off:not(.bv-fullscreen) #app { margin-left: var(--bv-side-w); }
+  body.collector-ui.bv-fullscreen #app { margin-left: 0; }
+
+  body.collector-ui #nav {
+    width: var(--bv-side-w); align-items: stretch; gap: 2px; overflow-y: auto; overscroll-behavior: contain;
+    padding: calc(16px + var(--safe-top, 0px)) 12px calc(16px + var(--safe-bottom, 0px));
+  }
+  body.collector-ui.bv-fab-on #nav { padding-top: calc(16px + var(--safe-top, 0px)); }
+  body.collector-ui #nav .nav-spacer { display: none; }
+  body.collector-ui #nav .nav-tab {
+    flex: 0 0 auto; width: auto; min-height: 48px; padding: 0 16px 0 12px; border-radius: 24px;
+    flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px;
+    font: 500 15px/20px var(--bv-sans); color: var(--bv-ink);
+    transition: background-color .15s var(--bv-ease);
+  }
+  body.collector-ui #nav .nav-tab .nav-icon { width: 24px; height: 24px; border-radius: 0; background: none; color: inherit; }
+  body.collector-ui #nav .nav-tab .nav-label { font: inherit; }
+  body.collector-ui #nav .nav-tab:hover { background: color-mix(in srgb, var(--bv-ink) 6%, transparent); }
+  body.collector-ui #nav .nav-tab.active { background: var(--bv-acc); color: var(--bv-on-acc); }
+  body.collector-ui #nav .nav-tab.active .nav-icon { background: none; color: inherit; animation: none; }
+  body.collector-ui #nav .nav-tab.active .nav-label { font-weight: 700; }
+  body.collector-ui #nav .nav-badge { top: -6px; right: -10px; }
+  body.collector-ui #nav .nav-tab.active .nav-badge { display: flex; background: var(--bv-on-acc); color: var(--bv-acc); }
+
+  body.collector-ui .bv-side { display: flex; flex-direction: column; gap: 2px; }
+  .bv-side--head { gap: 12px !important; margin-bottom: 12px; }
+  .bv-side__brand {
+    display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 8px;
+    color: var(--bv-ink); text-decoration: none; font: 700 19px/24px var(--bv-sans); letter-spacing: -.01em;
+  }
+  .bv-side__brand img { width: 32px; height: 32px; border-radius: 9px; }
+  .bv-side__search {
+    display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 8px 0 12px; box-sizing: border-box;
+    border: 1px solid var(--bv-line); border-radius: 22px; background: var(--bv-s); color: var(--bv-mute);
+    font: 400 14px/20px var(--bv-sans); text-align: left; cursor: pointer;
+  }
+  .bv-side__search:hover { border-color: color-mix(in srgb, var(--bv-ink) 30%, var(--bv-line)); color: var(--bv-ink); }
+  .bv-side__search-ico { display: flex; }
+  .bv-side__search-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bv-side kbd, .bv-keys kbd {
+    min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 6px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--bv-s2); border: 1px solid var(--bv-line); color: var(--bv-mute); font: 600 12px/1 var(--bv-mono);
+  }
+  .bv-side--explore { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--bv-line); }
+  .bv-side__label { padding: 0 12px 6px; font: 600 12px/16px var(--bv-sans); letter-spacing: .04em; text-transform: uppercase; color: var(--bv-mute); }
+  .bv-side__link {
+    display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border: 0; border-radius: 20px;
+    background: transparent; color: var(--bv-ink); text-decoration: none; text-align: left; cursor: pointer;
+    font: 500 14px/20px var(--bv-sans);
+  }
+  .bv-side__link span { flex: 1 1 auto; }
+  .bv-side__link svg { color: var(--bv-mute); flex-shrink: 0; }
+  .bv-side__link:hover { background: color-mix(in srgb, var(--bv-ink) 6%, transparent); }
+  .bv-side__link[aria-current="page"] { background: color-mix(in srgb, var(--bv-acc) 35%, transparent); font-weight: 700; }
+  .bv-side__link[data-bv-shortcuts] { margin-top: 8px; color: var(--bv-mute); }
+  /* An Explore page owns the highlight; its parent tab steps back. */
+  body.collector-ui #nav:has([data-bv-side][aria-current]) .nav-tab.active { background: transparent; color: var(--bv-ink); }
+  .bv-side :is(a, button):focus-visible { outline: 3px solid var(--bv-acct); outline-offset: 2px; }
+
+  /* The primary action is an extended button at the bottom right, label shown. */
+  body.collector-ui .bv-fab {
+    top: auto; left: auto; bottom: calc(24px + var(--safe-bottom, 0px)); right: 32px; width: auto; padding: 0 22px 0 18px; gap: 10px;
+  }
+  body.collector-ui .bv-fab .bv-fab__label, body.collector-ui .bv-fab.is-compact .bv-fab__label { display: inline; }
+  body.collector-ui .bv-fab:hover { filter: brightness(.97); box-shadow: 0 6px 16px var(--bv-shadow), 0 2px 4px var(--bv-shadow); }
+  body.collector-ui .advisor-fab { right: 32px; bottom: 24px; }
+
+  /* Fixed bars and the snackbar start after the sidebar. */
+  body.collector-ui #toast { left: calc(var(--bv-side-w) + 24px); right: 24px; bottom: calc(24px + var(--safe-bottom, 0px)); }
+  body.collector-ui .detail-action-bar,
+  body.collector-ui .bv-setbar.detail-action-bar,
+  .vault-selection-bar, .bv-insurance__bar, .bv-lbbar { left: var(--bv-side-w); }
+  .bv-lbbar { bottom: 0; }
+
+  /* The set page's list pane sits beside the sidebar, not the old rail. */
+  body.bv-two-pane .bv-listpane { left: var(--bv-side-w); }
+  body.bv-two-pane.collector-ui #app, body.bv-two-pane.collector-ui.bv-nav-off #app { margin-left: calc(var(--bv-side-w) + var(--bv-pane-w)); }
+  body.collector-ui.bv-two-pane .bv-setbar.detail-action-bar, body.bv-two-pane .detail-action-bar { left: calc(var(--bv-side-w) + var(--bv-pane-w)); }
+  .bv-listpane .bv-setrow__col, .bv-listpane .vault-list-head { display: none !important; }
+  .bv-listpane .vault-row { display: flex; }
+
+  /* ------------------------------------------------------------- pages */
+  .bv-page { --bv-gutter: 24px; max-width: 960px; padding-left: 16px; padding-right: 16px; }
+  .bv-page.vault-page, .bv-page.bv-discover, .bv-page.vault-figs, .bv-page.bv-wishlist,
+  .bv-page.vault-build, .bv-page.bv-profile, .bv-page.vault-insights { max-width: 1200px; }
+  .bv-topbar h1 { font-size: 30px; line-height: 38px; }
+
+  /* Hover states for everything clickable that is a row or a card. */
+  .bv-row:hover, .bv-setrow:hover, a.bv-card:hover, .bv-tile:hover, .bv-shortcut:hover {
+    background-color: color-mix(in srgb, var(--bv-ink) 4%, var(--bv-s));
+  }
+  .bv-tile { transition: box-shadow .15s var(--bv-ease), transform .15s var(--bv-ease); }
+  .bv-tile:hover { box-shadow: 0 6px 18px var(--bv-shadow); transform: translateY(-2px); }
+  .bv-btn:hover, .bv-iconbtn:hover, .bv-chip:hover { filter: brightness(.96); }
+  :is(.bv-row, .bv-setrow, .bv-tile, .bv-chip, .bv-btn, .bv-iconbtn, .nav-tab, .bv-side__link) { cursor: pointer; }
+
+  /* Grids fill the width: as many columns as fit. */
+  .bv-page .bv-grid:not(.bv-grid--fixed) { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px; }
+
+  /* ------------------------------------------------------------- Vault as a table */
+  .vault-page .vault-hero { margin-top: 8px; }
+  .vault-list-head {
+    display: grid; grid-template-columns: minmax(0, 1fr) 72px 96px 120px 132px; gap: 16px; align-items: end;
+    margin: 12px var(--bv-gutter) 0; padding: 0 16px 8px; border-bottom: 1px solid var(--bv-line);
+    font: 600 12px/16px var(--bv-sans); letter-spacing: .04em; text-transform: uppercase; color: var(--bv-mute);
+  }
+  .vault-list-head > :not(:first-child) { text-align: right; }
+  .vault-list-head:has(+ .vault-list.bv-grid) { display: none; }
+  .vault-page .vault-list:not(.bv-grid) { margin: 0 var(--bv-gutter); }
+  .vault-page .vault-list:not(.bv-grid) .vault-row {
+    display: grid; grid-template-columns: 52px minmax(0, 1fr) 72px 96px 120px 132px; gap: 0 16px;
+    min-height: 68px; border-bottom: 1px solid var(--bv-line); border-radius: 0;
+  }
+  .vault-page .vault-list:not(.bv-grid) .bv-setrow__col {
+    display: block; text-align: right; font: 500 14px/20px var(--bv-mono); font-variant-numeric: tabular-nums; color: var(--bv-mute);
+  }
+  .vault-page .vault-list:not(.bv-grid) .bv-setrow__end { flex-direction: row; justify-content: flex-end; align-items: center; gap: 10px; }
+
+  /* Narrower windows drop the Pieces column so names keep their room. */
+  @media (max-width: 1279px) {
+    .vault-list-head, .vault-page .vault-list:not(.bv-grid) .vault-row { grid-template-columns: 52px minmax(0, 1fr) 64px 96px 132px; }
+    .vault-list-head { grid-template-columns: minmax(0, 1fr) 64px 96px 132px; }
+    .vault-list-head__pcs, .vault-page .vault-list:not(.bv-grid) .bv-setrow__col--pcs { display: none !important; }
+  }
+
+  /* ------------------------------------------------------------- Profile in two columns */
+  .bv-profile .profile-settings-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; align-items: start; margin: 0 var(--bv-gutter); }
+  .bv-profile .profile-settings-nav > .bv-group { margin-left: 0; margin-right: 0; }
+  .bv-profile .profile-settings-nav .bv-group__box { margin-left: 0; margin-right: 0; }
+
+  /* ------------------------------------------------------------- sheets become dialogs */
+  body.collector-ui .sheet {
+    top: 50%; bottom: auto; left: 50%; right: auto; width: min(600px, calc(100vw - 64px)); max-width: none; margin: 0;
+    max-height: min(84dvh, 820px); border-radius: 28px; padding: 24px 28px 28px;
+    transform: translate(-50%, -46%); opacity: 0;
+    transition: transform .22s var(--bv-ease-emph), opacity .18s var(--bv-ease);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, .28);
+  }
+  body.collector-ui .sheet.show { transform: translate(-50%, -50%); opacity: 1; }
+  body.collector-ui .sheet.closing { transform: translate(-50%, -46%); opacity: 0; }
+  body.collector-ui .sheet .sheet-handle { display: none; }
+
+  /* Keyboard shortcuts dialog */
+  .bv-keys__list { display: flex; flex-direction: column; }
+  .bv-keys__row { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; border-bottom: 1px solid var(--bv-line); font-size: 15px; }
+  .bv-keys__row:last-child { border-bottom: 0; }
+  .bv-keys__k { display: inline-flex; gap: 6px; }
+}
+
+/* Wide windows: the set page shows its photo beside the details. With the
+   list pane open there is not room, so it stays one column. */
+@media (min-width: 1200px) {
+  body.collector-ui:not(.bv-two-pane) .bv-page.bv-setpage {
+    max-width: 1240px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); grid-template-rows: auto 1fr; column-gap: 40px; align-items: start;
+    padding: 24px 32px 48px;
+  }
+  body.collector-ui:not(.bv-two-pane) .bv-setpage > .bv-sethero { grid-column: 1; grid-row: 1; height: 460px; border-radius: 28px; position: sticky; top: 24px; }
+  body.collector-ui:not(.bv-two-pane) .bv-setpage > .bv-sethero { background: linear-gradient(180deg, hsl(var(--hue, 210) 60% 86%) 0%, hsl(var(--hue, 210) 38% 93%) 100%); }
+  :root[data-theme="dark"] body.collector-ui:not(.bv-two-pane) .bv-setpage > .bv-sethero { background: linear-gradient(180deg, hsl(var(--hue, 210) 22% 22%) 0%, hsl(var(--hue, 210) 12% 15%) 100%); }
+  body.collector-ui:not(.bv-two-pane) .bv-setpage > .bv-sethero .bv-sethero__media { inset: 64px 24px 24px; }
+  body.collector-ui:not(.bv-two-pane) .bv-setpage > .bv-setpage__body { grid-column: 2; grid-row: 1 / span 2; min-width: 0; }
+  body.collector-ui:not(.bv-two-pane) .bv-setpage > #setBar { grid-column: 1; grid-row: 2; position: sticky; top: 500px; align-self: start; }
+  body.collector-ui:not(.bv-two-pane) .bv-setpage .bv-setbar.detail-action-bar {
+    position: static; margin-top: 16px; min-height: 0; padding: 16px; border: 1px solid var(--bv-line); border-radius: 20px; background: var(--bv-s);
+  }
+}

@@ -1795,3 +1795,5 @@ zh.swaps = {"stopOffering": "不再提供 {name}", "from": "来自 {name}", "to"
 
 // Price It! refresh (views/game.js, components/price-it-card.js).
 zh.priceIt = {"you": "你", "market": "市场", "marketValue": "市场价", "tierTop": "市场天才", "tierMid": "眼光敏锐", "tierLow": "渐入佳境", "tierZero": "今天行情难猜", "statStreak": "连续", "statBest": "最佳", "statAvgOff": "平均偏差", "nextIn": "{time} 后更新", "cardTodo": "今天有 5 套新套装待估价", "play": "开始", "seeScore": "查看成绩", "slider": "滑动来猜价", "timeHM": "{h} 小时 {m} 分"};
+// Desktop web: sidebar, Vault table and keyboard shortcuts (lib/desktop.js).
+zh.desktop = {"search": "搜索套装", "explore": "探索", "shortcuts": "键盘快捷键", "goTo": "前往{place}", "kSearch": "搜索", "kHelp": "显示键盘快捷键", "kClose": "关闭对话框", "colSet": "套装", "colYear": "年份", "colPieces": "颗粒", "colPaid": "买入价", "colValue": "价值"};

@@ -140,7 +140,7 @@ export function valueText(item, value) {
  * stretched link (or a checkbox in selection mode) so the "Add price" hint can
  * be its own 48dp link to the "Your copy" editor.
  */
-export function vaultSetRow(item, { value, deltaPct, hintHref, hintLabel = t('bvVault.addPrice'), selecting = false, selected = false, qty = 1, id } = {}) {
+export function vaultSetRow(item, { value, deltaPct, hintHref, hintLabel = t('bvVault.addPrice'), selecting = false, selected = false, qty = 1, id, columns = false } = {}) {
   const setNum = item.set_num || '';
   const href = `#/set/${encodeURIComponent(setNum)}`;
   const name = esc(item.name || setNum);
@@ -154,7 +154,25 @@ export function vaultSetRow(item, { value, deltaPct, hintHref, hintLabel = t('bv
   return `<div class="bv-setrow vault-row${selected ? ' is-selected' : ''}"${attrs({ 'data-set-num': setNum, 'data-id': id ?? (item.id || setNum) })}>`
     + `<span class="vault-row__thumb">${setThumb(item)}${check}</span>`
     + `<span class="bv-setrow__body"><span class="bv-setrow__name">${main}${qty > 1 ? ` <span class="bv-pill bv-pill--ink">×${qty}</span>` : ''}</span><span class="bv-setrow__meta">${esc(setMeta(item))}</span></span>`
+    + (columns ? desktopCols(item) : '')
     + `<span class="bv-setrow__end"><span class="bv-setrow__value">${esc(valueText(item, value))}</span>${chip}</span></div>`;
+}
+
+// Extra Vault columns that only the desktop table layout shows (desktop.css).
+// Paid is per copy, like the value beside it.
+function desktopCols(item) {
+  const num = (v) => (Number(v) > 0 ? Number(v) : null);
+  const paid = num(item.purchase_price);
+  const cell = (cls, text) => `<span class="bv-setrow__col bv-setrow__col--${cls}">${esc(text)}</span>`;
+  return cell('year', num(item.year) ?? '—')
+    + cell('pcs', num(item.pieces) != null ? num(item.pieces).toLocaleString() : '—')
+    + cell('paid', paid != null ? moneyWhole(paid) : '—');
+}
+
+/** Column headings for the desktop Vault table; hidden on phones. */
+export function vaultListHead() {
+  const h = (cls, key) => `<span class="vault-list-head__${cls}">${esc(t(key))}</span>`;
+  return `<div class="vault-list-head" aria-hidden="true">${h('set', 'desktop.colSet')}${h('year', 'desktop.colYear')}${h('pcs', 'desktop.colPieces')}${h('paid', 'desktop.colPaid')}${h('value', 'desktop.colValue')}</div>`;
 }
 
 /** Collectible-figure rarity label (existing catalogue keys). */
