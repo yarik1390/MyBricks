@@ -47,9 +47,12 @@ export async function route() {
 }
 
 async function _routeImpl(gen) {
+  // Close a sheet first: while one is open the page is pinned (position:fixed)
+  // and window.scrollY reads 0, so a link inside a sheet (Vault ⋯ → Advisor)
+  // used to remember the top of the page instead of where the user was.
+  hideSheet();
   rememberCollectorScroll();
   resetPageFab();
-  hideSheet();
   closeScan();
   cancelActiveStream();
   // Strip query params from the fragment (e.g. #/me?google_sync=success → /me).
