@@ -1930,3 +1930,6 @@ uk.lot = {"unpriced": "Набори без ціни поки що: {missing}. П
 // Family vault and swaps (views/family.js, views/swaps.js).
 uk.family = {"memberStat": "Наборів: {sets} · {value}", "removeMember": "Видалити {name}", "shareText": "Приєднуйтеся до нашого сімейного сховища в BricksVault за кодом {code}", "shareTitle": "Сімейне сховище BricksVault"};
 uk.swaps = {"stopOffering": "Більше не пропонувати {name}", "from": "Від {name}", "to": "Для {name}", "proposeTo": "Обмін із {name}"};
+
+// Desktop web: sidebar, Vault table and keyboard shortcuts (lib/desktop.js).
+uk.desktop = {"search": "Шукати набори", "explore": "Огляд", "shortcuts": "Комбінації клавіш", "goTo": "Перейти до: {place}", "kSearch": "Пошук", "kHelp": "Показати комбінації клавіш", "kClose": "Закрити вікно", "colSet": "Набір", "colYear": "Рік", "colPieces": "Деталі", "colPaid": "Сплачено", "colValue": "Вартість"};

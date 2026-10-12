@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = "v574";
+const VERSION = "v575";
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 // Cross-origin product images live in their own UNVERSIONED, bounded cache:
@@ -21,9 +21,11 @@ const STATIC_ASSETS = [
   '/app.css',
   '/collector.css',
   '/bv.css',
+  '/desktop.css',
   '/js/ui/kit.js',
   '/js/ui/first-ui.js',
   '/js/lib/list-detail.js',
+  '/js/lib/desktop.js',
   '/js/ui/set-ui.js',
   '/js/ui/vault-ui.js',
   '/js/lib/vault-insights.js',

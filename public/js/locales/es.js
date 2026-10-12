@@ -1792,3 +1792,6 @@ es.lot = {"unpriced": "Sets sin precio todavía: {missing}. El total no los incl
 // Family vault and swaps (views/family.js, views/swaps.js).
 es.family = {"memberStat": "Sets: {sets} · {value}", "removeMember": "Quitar a {name}", "shareText": "Únete a nuestra colección familiar en BricksVault con el código {code}", "shareTitle": "Colección familiar de BricksVault"};
 es.swaps = {"stopOffering": "Dejar de ofrecer {name}", "from": "De {name}", "to": "Para {name}", "proposeTo": "Intercambio con {name}"};
+
+// Desktop web: sidebar, Vault table and keyboard shortcuts (lib/desktop.js).
+es.desktop = {"search": "Buscar sets", "explore": "Explorar", "shortcuts": "Atajos de teclado", "goTo": "Ir a {place}", "kSearch": "Buscar", "kHelp": "Mostrar atajos de teclado", "kClose": "Cerrar un cuadro de diálogo", "colSet": "Set", "colYear": "Año", "colPieces": "Piezas", "colPaid": "Pagado", "colValue": "Valor"};

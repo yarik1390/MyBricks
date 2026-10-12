@@ -1792,3 +1792,6 @@ zh.lot = {"unpriced": "暂无价格的套装：{missing}。总计不含这些。
 // Family vault and swaps (views/family.js, views/swaps.js).
 zh.family = {"memberStat": "套装：{sets} · {value}", "removeMember": "移除 {name}", "shareText": "用邀请码 {code} 加入我们在 BricksVault 的家庭收藏库", "shareTitle": "BricksVault 家庭收藏库"};
 zh.swaps = {"stopOffering": "不再提供 {name}", "from": "来自 {name}", "to": "发给 {name}", "proposeTo": "与 {name} 交换"};
+
+// Desktop web: sidebar, Vault table and keyboard shortcuts (lib/desktop.js).
+zh.desktop = {"search": "搜索套装", "explore": "探索", "shortcuts": "键盘快捷键", "goTo": "前往{place}", "kSearch": "搜索", "kHelp": "显示键盘快捷键", "kClose": "关闭对话框", "colSet": "套装", "colYear": "年份", "colPieces": "颗粒", "colPaid": "买入价", "colValue": "价值"};

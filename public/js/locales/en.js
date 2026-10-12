@@ -2091,3 +2091,6 @@ en.lot = {"unpriced": "Sets without a price yet: {missing}. The total leaves the
 // Family vault and swaps (views/family.js, views/swaps.js).
 en.family = {"memberStat": "Sets: {sets} · {value}", "removeMember": "Remove {name}", "shareText": "Join our family vault on BricksVault with the invite code {code}", "shareTitle": "BricksVault family vault"};
 en.swaps = {"stopOffering": "Stop offering {name}", "from": "From {name}", "to": "To {name}", "proposeTo": "Swap with {name}"};
+
+// Desktop web: sidebar, Vault table and keyboard shortcuts (lib/desktop.js).
+en.desktop = {"search": "Search sets", "explore": "Explore", "shortcuts": "Keyboard shortcuts", "goTo": "Go to {place}", "kSearch": "Search", "kHelp": "Show keyboard shortcuts", "kClose": "Close a dialog", "colSet": "Set", "colYear": "Year", "colPieces": "Pieces", "colPaid": "Paid", "colValue": "Value"};

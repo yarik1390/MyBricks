@@ -1792,3 +1792,6 @@ hi.lot = {"unpriced": "अभी बिना कीमत वाले से�
 // Family vault and swaps (views/family.js, views/swaps.js).
 hi.family = {"memberStat": "सेट: {sets} · {value}", "removeMember": "{name} को हटाएँ", "shareText": "BricksVault पर हमारे फ़ैमिली वॉल्ट से जुड़ें, आमंत्रण कोड {code}", "shareTitle": "BricksVault फ़ैमिली वॉल्ट"};
 hi.swaps = {"stopOffering": "{name} की पेशकश बंद करें", "from": "{name} से", "to": "{name} को", "proposeTo": "{name} के साथ अदला-बदली"};
+
+// Desktop web: sidebar, Vault table and keyboard shortcuts (lib/desktop.js).
+hi.desktop = {"search": "सेट खोजें", "explore": "एक्सप्लोर करें", "shortcuts": "कीबोर्ड शॉर्टकट", "goTo": "{place} पर जाएँ", "kSearch": "खोजें", "kHelp": "कीबोर्ड शॉर्टकट दिखाएँ", "kClose": "डायलॉग बंद करें", "colSet": "सेट", "colYear": "वर्ष", "colPieces": "पीस", "colPaid": "भुगतान", "colValue": "मूल्य"};

@@ -1792,3 +1792,6 @@ nl.lot = {"unpriced": "Sets nog zonder prijs: {missing}. Het totaal laat ze weg.
 // Family vault and swaps (views/family.js, views/swaps.js).
 nl.family = {"memberStat": "Sets: {sets} · {value}", "removeMember": "{name} verwijderen", "shareText": "Doe mee met onze familiekluis in BricksVault met de uitnodigingscode {code}", "shareTitle": "BricksVault familiekluis"};
 nl.swaps = {"stopOffering": "{name} niet meer aanbieden", "from": "Van {name}", "to": "Aan {name}", "proposeTo": "Ruilen met {name}"};
+
+// Desktop web: sidebar, Vault table and keyboard shortcuts (lib/desktop.js).
+nl.desktop = {"search": "Sets zoeken", "explore": "Ontdekken", "shortcuts": "Sneltoetsen", "goTo": "Ga naar {place}", "kSearch": "Zoeken", "kHelp": "Sneltoetsen tonen", "kClose": "Venster sluiten", "colSet": "Set", "colYear": "Jaar", "colPieces": "Stenen", "colPaid": "Betaald", "colValue": "Waarde"};

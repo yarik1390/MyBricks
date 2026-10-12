@@ -1797,3 +1797,6 @@ ja.lot = {"unpriced": "まだ価格のないセット: {missing}。合計には�
 // Family vault and swaps (views/family.js, views/swaps.js).
 ja.family = {"memberStat": "セット: {sets} · {value}", "removeMember": "{name} を外す", "shareText": "招待コード {code} でBricksVaultの家族コレクションに参加してください", "shareTitle": "BricksVault 家族コレクション"};
 ja.swaps = {"stopOffering": "{name} の出品をやめる", "from": "{name} から", "to": "{name} へ", "proposeTo": "{name} と交換"};
+
+// Desktop web: sidebar, Vault table and keyboard shortcuts (lib/desktop.js).
+ja.desktop = {"search": "セットを検索", "explore": "探す", "shortcuts": "キーボードショートカット", "goTo": "{place}へ移動", "kSearch": "検索", "kHelp": "キーボードショートカットを表示", "kClose": "ダイアログを閉じる", "colSet": "セット", "colYear": "年", "colPieces": "ピース", "colPaid": "購入額", "colValue": "価値"};
