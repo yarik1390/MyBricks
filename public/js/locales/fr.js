@@ -1800,3 +1800,7 @@ fr.rebrickable = {"importResult": "Nouveaux dans votre coffre : {fresh}. Déjà 
 
 // Lot checker (views/lot.js).
 fr.lot = {"unpriced": "Sets sans prix pour l’instant : {missing}. Le total ne les compte pas."};
+
+// Family vault and swaps (views/family.js, views/swaps.js).
+fr.family = {"memberStat": "Sets : {sets} · {value}", "removeMember": "Retirer {name}", "shareText": "Rejoignez notre collection familiale sur BricksVault avec le code {code}", "shareTitle": "Collection familiale BricksVault"};
+fr.swaps = {"stopOffering": "Ne plus proposer {name}", "from": "De {name}", "to": "À {name}", "proposeTo": "Échange avec {name}"};

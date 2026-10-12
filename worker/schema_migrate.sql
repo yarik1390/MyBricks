@@ -738,3 +738,5 @@ ALTER TABLE lego_sets ADD COLUMN lego_retiring_since TEXT;
 ALTER TABLE user_prefs ADD COLUMN rebrickable_user_token TEXT;
 ALTER TABLE holding_copies ADD COLUMN box_grade TEXT;
 ALTER TABLE holding_copies ADD COLUMN box_notes TEXT;
+ALTER TABLE user_collection ADD COLUMN for_trade INTEGER DEFAULT 0;
+ALTER TABLE user_prefs ADD COLUMN open_to_swaps INTEGER DEFAULT 0;

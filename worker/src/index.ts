@@ -316,6 +316,8 @@ import { promotionsRoute } from './routes/promotions'; app.route('/api/promotion
 import { rebrickableSyncRoute } from './routes/rebrickable-sync'; app.route('/api/rebrickable', rebrickableSyncRoute);
 import { gradeRoute } from './routes/grade'; app.route('/api/grade', gradeRoute);
 import { lotRoute } from './routes/lot'; app.route('/api/lot', lotRoute);
+import { familyRoute } from './routes/family'; app.route('/api/family', familyRoute);
+import { swapsRoute } from './routes/swaps'; app.route('/api/swaps', swapsRoute);
 app.route('/api/game', gameRoute);
 app.route('/api/contributions', contributionsRoute);
 app.route('/api/push', pushRoute);

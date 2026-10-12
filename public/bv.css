@@ -2341,3 +2341,45 @@ body.collector-ui.offline #app { padding-top: 56px; }
 .bv-lot__sum div { display: flex; justify-content: space-between; gap: 12px; }
 .bv-lot__sum dt { color: var(--bv-mute); }
 .bv-lot__sum dd { margin: 0; font-weight: 600; }
+
+/* Family vault (views/family.js) and Swaps (views/swaps.js). */
+.bv-family > p, .bv-family > .bv-card, .bv-family > .bv-btn, .bv-family > .bv-family__filters,
+.bv-swaps > .bv-card, .bv-swaps > p { margin-left: var(--bv-gutter); margin-right: var(--bv-gutter); }
+.bv-family > .bv-card, .bv-swaps > .bv-card, .bv-family > .bv-btn { margin-bottom: 12px; }
+.bv-family .bv-h3, .bv-swaps .bv-h3 { margin: 0 0 8px; font: 600 16px/22px var(--bv-sans); }
+.bv-family__card, .bv-swaps__card { display: flex; flex-direction: column; gap: 8px; }
+.bv-family__lead { color: var(--bv-mute); }
+.bv-family__totals { display: flex; gap: 24px; flex-wrap: wrap; }
+.bv-family__label { display: block; font-size: 13px; color: var(--bv-mute); }
+.bv-family__big { font: 600 22px/28px var(--bv-sans); }
+.bv-family__members, .bv-family__sets, .bv-swaps__list { list-style: none; margin: 0 var(--bv-gutter) 12px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.bv-family__member { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; min-height: 44px; padding: 8px 12px; border: 1px solid var(--bv-line); border-radius: 14px; background: var(--bv-s); }
+.bv-family__who { font-weight: 600; display: flex; align-items: center; gap: 6px; overflow-wrap: anywhere; }
+.bv-family__stat { color: var(--bv-mute); font-size: 13px; }
+.bv-family__code { display: flex; align-items: center; justify-content: space-between; gap: 12px; font: 600 20px/28px var(--bv-mono, monospace); letter-spacing: .08em; }
+.bv-family__filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.bv-family__filters .bv-chip { min-height: 44px; }
+.bv-family__setlink { display: flex; align-items: center; gap: 10px; min-height: 56px; color: var(--bv-ink); text-decoration: none; }
+.bv-family__setlink img, .bv-family__noimg { flex: 0 0 52px; width: 52px; height: 52px; object-fit: contain; border-radius: 8px; background: var(--bv-bg); }
+.bv-family__setbody { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.bv-family__setname { font-weight: 600; overflow-wrap: anywhere; }
+.bv-family__owners { font-size: 13px; color: var(--bv-mute); overflow-wrap: anywhere; }
+.bv-family__value { font-weight: 600; }
+.bv-swaps__switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; cursor: pointer; }
+.bv-swaps__switch input { width: 44px; height: 24px; flex: 0 0 auto; }
+.bv-swaps__switchtitle { display: block; font-weight: 600; }
+.bv-swaps__trade { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.bv-swaps__trade li { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; border-bottom: 1px solid var(--bv-line); overflow-wrap: anywhere; }
+.bv-swaps__match, .bv-swaps__req { padding: 12px; border: 1px solid var(--bv-line); border-radius: 16px; background: var(--bv-s); display: flex; flex-direction: column; gap: 6px; }
+.bv-swaps__who { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-weight: 600; overflow-wrap: anywhere; }
+.bv-swaps__who a { color: var(--bv-ink); min-height: 44px; display: inline-flex; align-items: center; }
+.bv-swaps__label { display: block; margin: 4px 0 0; font-size: 13px; color: var(--bv-mute); }
+.bv-swaps__sets { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.bv-swaps__sets li { display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; }
+.bv-swaps__sets img { width: 36px; height: 36px; object-fit: contain; border-radius: 6px; background: var(--bv-bg); }
+.bv-swaps__note { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bv-swaps__pick { display: flex; align-items: center; gap: 10px; min-height: 44px; overflow-wrap: anywhere; }
+.bv-swaps__pick[hidden] { display: none; }
+.bv-swaps__pick input { width: 20px; height: 20px; flex: 0 0 auto; }
+.bv-swaps__vault { max-height: 50vh; overflow-y: auto; }
+.bv-swaps textarea, #swapForm textarea, #swapAcceptForm textarea { width: 100%; min-height: 72px; resize: vertical; border: 0; background: transparent; color: inherit; font: inherit; }

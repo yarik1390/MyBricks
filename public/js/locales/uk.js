@@ -1926,3 +1926,7 @@ uk.rebrickable = {"importResult": "Нових у сховищі: {fresh}. Уже
 
 // Lot checker (views/lot.js).
 uk.lot = {"unpriced": "Набори без ціни поки що: {missing}. Підсумок їх не враховує."};
+
+// Family vault and swaps (views/family.js, views/swaps.js).
+uk.family = {"memberStat": "Наборів: {sets} · {value}", "removeMember": "Видалити {name}", "shareText": "Приєднуйтеся до нашого сімейного сховища в BricksVault за кодом {code}", "shareTitle": "Сімейне сховище BricksVault"};
+uk.swaps = {"stopOffering": "Більше не пропонувати {name}", "from": "Від {name}", "to": "Для {name}", "proposeTo": "Обмін із {name}"};

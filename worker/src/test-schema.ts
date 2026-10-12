@@ -321,6 +321,7 @@ export const TABLE_DDL: Record<string, string> = {
   sold_fees REAL,
   sell_target REAL,
   sell_target_alerted_at TEXT,
+  for_trade INTEGER DEFAULT 0,
   UNIQUE(user_id, set_num)
 )`,
 
@@ -447,6 +448,7 @@ export const TABLE_DDL: Record<string, string> = {
   discord_webhook_url TEXT,
   brickset_user_hash TEXT,
   rebrickable_user_token TEXT,
+  open_to_swaps INTEGER DEFAULT 0,
   is_supporter INTEGER DEFAULT 0,
   supporter_since TEXT,
   stripe_customer_id TEXT,
@@ -599,6 +601,32 @@ export const TABLE_DDL: Record<string, string> = {
   title TEXT,
   checked_at DATETIME NOT NULL,
   PRIMARY KEY (set_num, store)
+)`,
+  households: `CREATE TABLE IF NOT EXISTS households (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  invite_code TEXT NOT NULL UNIQUE,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)`,
+  household_members: `CREATE TABLE IF NOT EXISTS household_members (
+  household_id INTEGER NOT NULL,
+  user_id TEXT NOT NULL UNIQUE,
+  role TEXT NOT NULL DEFAULT 'member' CHECK(role IN ('owner','member')),
+  joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (household_id, user_id)
+)`,
+  swap_requests: `CREATE TABLE IF NOT EXISTS swap_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  from_user TEXT NOT NULL,
+  to_user TEXT NOT NULL,
+  give_sets TEXT NOT NULL,
+  get_sets TEXT NOT NULL,
+  message TEXT,
+  reply TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','declined','cancelled')),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 )`,
   promotions: `CREATE TABLE IF NOT EXISTS promotions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

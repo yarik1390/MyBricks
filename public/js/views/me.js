@@ -102,6 +102,8 @@ function pageHTML(me) {
     row({ icon: 'plug', title: t('bvAccount.integrations'), sub: t('bvAccount.integrationsSub'), href: '#/me/integrations' }),
     row({ icon: 'db', title: t('bvAccount.importExport'), sub: t('bvAccount.importExportSub'), href: '#/me/data' }),
     guest ? '' : row({ icon: 'shield', title: t('bvAccount.insurance'), sub: t('bvAccount.insuranceSub'), href: '#/me/insurance' }),
+    guest ? '' : row({ icon: 'users', title: 'Family vault', sub: 'One vault for the people you collect with', href: '#/family' }),
+    guest ? '' : row({ icon: 'swap', title: 'Swaps', sub: 'Trade sets with collectors who match your wishlist', href: '#/swaps' }),
     guest ? '' : row({ icon: 'box', title: 'Lot checker', sub: 'Is that bundle worth the price?', href: '#/lot' }),
     guest ? '' : row({ icon: 'tag', title: 'Sales & taxes', sub: 'Realized gains by year, with a tax report', href: '#/me/sales' }),
   ].join('');

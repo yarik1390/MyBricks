@@ -193,6 +193,12 @@
     ]
   },
   {
+    "text": "ABCD2345",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
     "text": "AFOL status: confirmed.",
     "files": [
       "utils.js"
@@ -274,6 +280,24 @@
     "text": "About this set",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Accept",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Accept this swap",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Accepted",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -368,6 +392,12 @@
     ]
   },
   {
+    "text": "Add a note with how to reach you.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Add a photo",
     "files": [
       "components/contribute.js"
@@ -383,6 +413,12 @@
     "text": "Add copy",
     "files": [
       "components/copies.js"
+    ]
+  },
+  {
+    "text": "Add from your vault",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -544,6 +580,12 @@
     ]
   },
   {
+    "text": "All sets",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
     "text": "All six slots filled — flex earned.",
     "files": [
       "views/me.js"
@@ -583,6 +625,12 @@
     "text": "Announced retail price",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "Anyone with this code can join and see the family vault, including values.",
+    "files": [
+      "views/family.js"
     ]
   },
   {
@@ -944,6 +992,12 @@
     ]
   },
   {
+    "text": "Both ways",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Bought on",
     "files": [
       "lib/sales-report.js"
@@ -1069,6 +1123,12 @@
     "text": "BricksVault collectors can log what they actually paid for a set and what it actually sold for. We aggregate those real transactions into a community price signal — published only when",
     "files": [
       "methodology.html"
+    ]
+  },
+  {
+    "text": "BricksVault introduces you; you arrange shipping or a meetup yourselves. Only swap with people you trust.",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -1493,6 +1553,12 @@
     ]
   },
   {
+    "text": "Collectors who are also open see your handle and the sets you offer when they match your wishlist. Nothing else is shared.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Color style",
     "files": [
       "components/onboarding.js"
@@ -1793,6 +1859,12 @@
     ]
   },
   {
+    "text": "Could not answer.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Could not build the wanted list. Try again.",
     "files": [
       "components/parts-checklist.js",
@@ -1866,6 +1938,12 @@
     ]
   },
   {
+    "text": "Could not remove.",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
     "text": "Could not save that change. Check your connection.",
     "files": [
       "components/parts-checklist.js"
@@ -1880,7 +1958,14 @@
   {
     "text": "Could not save.",
     "files": [
-      "views/promotions.js"
+      "views/promotions.js",
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Could not send.",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -1899,6 +1984,12 @@
     "text": "Could not upload",
     "files": [
       "components/contribute.js"
+    ]
+  },
+  {
+    "text": "Could not withdraw.",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -2014,6 +2105,12 @@
     "text": "Crack the Vault requires non-empty sequences using studs 0–3",
     "files": [
       "components/empty-vault-brick-3d.js"
+    ]
+  },
+  {
+    "text": "Create",
+    "files": [
+      "views/family.js"
     ]
   },
   {
@@ -2165,6 +2262,24 @@
     "text": "Decent health, but room to improve on theme diversification or set completeness.",
     "files": [
       "components/advisor.js"
+    ]
+  },
+  {
+    "text": "Decline",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Decline this swap?",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Declined",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -2935,6 +3050,26 @@
     ]
   },
   {
+    "text": "Family value",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
+    "text": "Family vault",
+    "files": [
+      "route-meta.js",
+      "views/family.js",
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "Family vault created",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
     "text": "Fast-sale estimate after fees and a liquidity haircut.",
     "files": [
       "views/portfolio-detail-market.js"
@@ -3002,6 +3137,18 @@
     "text": "Fills in missing UPC barcodes so sets can be scanned.",
     "files": [
       "views/me-admin-config.js"
+    ]
+  },
+  {
+    "text": "Filter",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
+    "text": "Filter by name or number",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -3542,6 +3689,12 @@
     ]
   },
   {
+    "text": "Has sets on your wishlist",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Heartbeat:",
     "files": [
       "runtime-exact"
@@ -3946,6 +4099,18 @@
     ]
   },
   {
+    "text": "Invite code",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
+    "text": "Invite code copied",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
     "text": "Is that bundle worth the price?",
     "files": [
       "views/lot.js",
@@ -3974,6 +4139,18 @@
     "text": "Job",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Join",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
+    "text": "Join with a code",
+    "files": [
+      "views/family.js"
     ]
   },
   {
@@ -4118,9 +4295,27 @@
     ]
   },
   {
+    "text": "Leave",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
     "text": "Leave empty to watch without price-drop alerts.",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Leave family vault",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
+    "text": "Leave the family vault?",
+    "files": [
+      "views/family.js"
     ]
   },
   {
@@ -4570,6 +4765,12 @@
     ]
   },
   {
+    "text": "Matches",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Matching the barcode against blind-box data.",
     "files": [
       "components/scanner.js"
@@ -4592,6 +4793,12 @@
     "text": "Medium confidence",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "Members",
+    "files": [
+      "views/family.js"
     ]
   },
   {
@@ -4795,6 +5002,12 @@
     ]
   },
   {
+    "text": "Name",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
     "text": "Name or set number",
     "files": [
       "views/lot.js"
@@ -4894,9 +5107,21 @@
     ]
   },
   {
+    "text": "New code",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
     "text": "New from retail",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "New invite code ready. The old one no longer works.",
+    "files": [
+      "views/family.js"
     ]
   },
   {
@@ -5053,6 +5278,12 @@
     ]
   },
   {
+    "text": "No matches yet. Add sets you would swap away and keep your wishlist up to date. We match you as more collectors join.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "No minifigs were harmed in this milestone.",
     "files": [
       "utils.js"
@@ -5159,6 +5390,12 @@
     "text": "No sets found",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "No sets here yet.",
+    "files": [
+      "views/family.js"
     ]
   },
   {
@@ -5321,6 +5558,12 @@
     ]
   },
   {
+    "text": "Note: how to reach you",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Notes",
     "files": [
       "components/copies.js",
@@ -5343,6 +5586,12 @@
     "text": "Nothing needs attention.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Nothing offered yet. Pick sets from your vault you would swap away.",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -5386,6 +5635,12 @@
     "text": "Off",
     "files": [
       "lib/pure.js"
+    ]
+  },
+  {
+    "text": "Offer sets for swap",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -5521,6 +5776,12 @@
     ]
   },
   {
+    "text": "One vault for the people you collect with",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
     "text": "One ~2MB download",
     "files": [
       "views/me-admin-config.js"
@@ -5584,6 +5845,12 @@
     "text": "Open the official parts list, mark any pieces you're missing, and export them as a BrickLink or Rebrickable wanted list.",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Open to swaps",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -5704,6 +5971,18 @@
     "text": "Overview could not confirm current service health.",
     "files": [
       "lib/admin-issues.js"
+    ]
+  },
+  {
+    "text": "Owned by more than one of you",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
+    "text": "Owner",
+    "files": [
+      "views/family.js"
     ]
   },
   {
@@ -5923,6 +6202,12 @@
     "text": "Pick another category tab.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Pick at least one set.",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -6366,6 +6651,12 @@
     ]
   },
   {
+    "text": "Propose a swap",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Provider blocked",
     "files": [
       "lib/pure.js"
@@ -6759,9 +7050,11 @@
     "text": "Remove",
     "files": [
       "components/copies.js",
+      "views/family.js",
       "views/lot.js",
       "views/me-sales.js",
-      "views/portfolio-detail.js"
+      "views/portfolio-detail.js",
+      "views/swaps.js"
     ]
   },
   {
@@ -6804,6 +7097,12 @@
     "text": "Remove this copy?",
     "files": [
       "components/copies.js"
+    ]
+  },
+  {
+    "text": "Remove this member?",
+    "files": [
+      "views/family.js"
     ]
   },
   {
@@ -6876,6 +7175,12 @@
     "text": "Report ready",
     "files": [
       "views/me-sales.js"
+    ]
+  },
+  {
+    "text": "Requests for you",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -7629,6 +7934,12 @@
     ]
   },
   {
+    "text": "Send request",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Send reset link",
     "files": [
       "views/login.js"
@@ -7799,6 +8110,12 @@
     ]
   },
   {
+    "text": "Sets",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
     "text": "Sets with BrickLink market data.",
     "files": [
       "views/me-admin.js"
@@ -7820,6 +8137,12 @@
     "text": "Sets with validated used sold comps.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Sets you own more than one of are listed first.",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -7858,9 +8181,16 @@
     "files": [
       "lib/native-file-export.js",
       "lib/native-share.js",
+      "views/family.js",
       "views/me-insurance.js",
       "views/me-sales.js",
       "views/wrapped.js"
+    ]
+  },
+  {
+    "text": "Share one vault with the people you collect with. Everyone keeps their own sets; the family vault shows them together, with who owns what.",
+    "files": [
+      "views/family.js"
     ]
   },
   {
@@ -8193,6 +8523,7 @@
   {
     "text": "Something went wrong.",
     "files": [
+      "views/family.js",
       "views/me.js"
     ]
   },
@@ -8296,6 +8627,12 @@
     "text": "Stalled",
     "files": [
       "lib/pure.js"
+    ]
+  },
+  {
+    "text": "Start a family vault",
+    "files": [
+      "views/family.js"
     ]
   },
   {
@@ -8448,6 +8785,32 @@
     "text": "Supporter revoked.",
     "files": [
       "runtime-exact"
+    ]
+  },
+  {
+    "text": "Swap accepted",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Swap request sent",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Swaps",
+    "files": [
+      "route-meta.js",
+      "views/me.js",
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Swaps could not load.",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -8658,6 +9021,12 @@
     ]
   },
   {
+    "text": "The family vault could not load.",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
     "text": "The last observation is too old to certify current health. Check the latest background process before acting.",
     "files": [
       "views/me-admin.js"
@@ -8724,6 +9093,24 @@
     ]
   },
   {
+    "text": "Their note",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Their reply",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Their sets leave the family vault. They keep their own vault.",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
     "text": "Theme",
     "files": [
       "components/onboarding.js"
@@ -8746,6 +9133,18 @@
     "text": "Theme group",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "They have nothing from your wishlist up for swap. You can still offer sets they want.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "They will see your note, so share how to reach you.",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -8912,6 +9311,18 @@
     ]
   },
   {
+    "text": "Trade sets with collectors who match your wishlist",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "Trade sets with other collectors",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Transactional email delivery.",
     "files": [
       "views/me-admin-config.js"
@@ -8957,6 +9368,12 @@
     "text": "Tub",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Turn on Open to swaps to see matches.",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -9094,6 +9511,12 @@
     "text": "Untitled provider product",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Up for swap",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -9452,9 +9875,21 @@
     ]
   },
   {
+    "text": "Waiting for an answer",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Wanted list",
     "files": [
       "components/parts-checklist.js"
+    ]
+  },
+  {
+    "text": "Wants sets you offer",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -9591,6 +10026,18 @@
     ]
   },
   {
+    "text": "Withdraw",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Withdrawn",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Wooden box",
     "files": [
       "views/portfolio-detail.js"
@@ -9663,9 +10110,45 @@
     ]
   },
   {
+    "text": "You get",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "You give",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "You have no sets up for swap.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "You joined the family vault",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
     "text": "You keep after selling fees",
     "files": [
       "views/lot.js"
+    ]
+  },
+  {
+    "text": "You left the family vault",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
+    "text": "You need a public handle first. Set it in",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -9767,9 +10250,33 @@
     ]
   },
   {
+    "text": "Your note",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Your profile just got a display case.",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Your reply",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Your requests",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Your sets stay in your own vault. You can join again with a code.",
+    "files": [
+      "views/family.js"
     ]
   },
   {
@@ -9782,6 +10289,12 @@
     "text": "Your turn — repeat the combination.",
     "files": [
       "components/empty-vault-brick-3d.js"
+    ]
+  },
+  {
+    "text": "Your vault could not load.",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -10020,6 +10533,24 @@
     ]
   },
   {
+    "text": "bv-family__big bv-num",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
+    "text": "bv-family__stat bv-num",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
+    "text": "bv-family__value bv-num",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
     "text": "bv-field__box vault-stepper",
     "files": [
       "views/minifigs.js"
@@ -10064,10 +10595,12 @@
   {
     "text": "bv-group__box bv-gap",
     "files": [
+      "views/family.js",
       "views/me-insurance.js",
       "views/me-sales.js",
       "views/promotions.js",
       "views/retiring.js",
+      "views/swaps.js",
       "views/upcoming.js"
     ]
   },
@@ -11123,6 +11656,18 @@
     ]
   },
   {
+    "text": "e.g. The Smiths",
+    "files": [
+      "views/family.js"
+    ]
+  },
+  {
+    "text": "e.g. email, Discord or city for a meetup",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "eBay asking",
     "files": [
       "views/portfolio-detail-market.js"
@@ -11463,6 +12008,12 @@
     "text": "xMidYMid meet",
     "files": [
       "lib/fig-avatar.js"
+    ]
+  },
+  {
+    "text": "your profile",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {

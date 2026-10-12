@@ -1788,3 +1788,7 @@ nl.rebrickable = {"importResult": "Nieuw in je kluis: {fresh}. Stond er al: {alr
 
 // Lot checker (views/lot.js).
 nl.lot = {"unpriced": "Sets nog zonder prijs: {missing}. Het totaal laat ze weg."};
+
+// Family vault and swaps (views/family.js, views/swaps.js).
+nl.family = {"memberStat": "Sets: {sets} · {value}", "removeMember": "{name} verwijderen", "shareText": "Doe mee met onze familiekluis in BricksVault met de uitnodigingscode {code}", "shareTitle": "BricksVault familiekluis"};
+nl.swaps = {"stopOffering": "{name} niet meer aanbieden", "from": "Van {name}", "to": "Aan {name}", "proposeTo": "Ruilen met {name}"};
