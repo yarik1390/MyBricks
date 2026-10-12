@@ -520,15 +520,16 @@ function paintPortfolio() {
       ${saveStatusHTML()}
       <div id="bvReachSlot"></div>
       ${isEmptyVault ? `${emptyVaultHTML()}${hasFigs ? vaultNavigation('sets') : ''}` : `
-      ${showSearch ? '' : heroHTML(p, totals)}
-      ${showSearch ? '' : `<div id="vaultSinceSlot">${state.vaultChanges?.owner === getSessionUserId() ? sinceCardHTML(state.vaultChanges.data) : ''}</div>`}
-      ${showSearch ? '' : '<div id="collectorPinned"></div>'}
+      ${showSearch ? '' : `<div class="vault-aside">${heroHTML(p, totals)}
+      <div id="vaultSinceSlot">${state.vaultChanges?.owner === getSessionUserId() ? sinceCardHTML(state.vaultChanges.data) : ''}</div>
+      <div id="collectorPinned"></div></div>`}
+      <div class="vault-main">
       ${vaultNavigation('sets')}
       ${vaultToolbar(sortButton(sortLabel(state.filter.sort)), layoutSeg(layout))}
       ${vaultListHead(state.filter.sort)}
       <div id="setList" class="vault-list" aria-live="polite"></div>
       <div id="portfolioSentinel" class="vault-sentinel" hidden><span class="bv-skel"></span></div>
-      ${footHTML(p, totals)}`}
+      ${footHTML(p, totals)}</div>`}
     </main>`;
 
   // The empty vault's actions ARE the primary actions: no Scan FAB there. A
