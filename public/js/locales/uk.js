@@ -1919,3 +1919,5 @@ uk.sales = {"checkReady": "Серед {sales} продажів, які коле�
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
 uk.stores = {"best": "Найкраща ціна", "outOfStock": "Немає в наявності", "belowValue": "на {pct}% нижче оцінки", "aboveValue": "на {pct}% вище оцінки"};
 uk.promos = {"until": "До {date}", "starts": "З {date}", "fromTo": "З {start} до {end}", "whileItLasts": "Поки є в наявності", "spend": "Покупка від {amount}"};
+// Rebrickable sync (components/rebrickable-card.js).
+uk.rebrickable = {"importResult": "Нових у сховищі: {fresh}. Уже були: {already}. Ще немає в каталозі: {unknown}.", "exportPartial": "Надіслано: {sent}. Залишилося: {left}. Натисніть «Надіслати» ще раз за хвилину.", "exportDone": "Надіслано до Rebrickable: {sent}."};

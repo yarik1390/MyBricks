@@ -1,5 +1,18 @@
 /** Japanese exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Connect Rebrickable": "Rebrickableに接続",
+  "Enter your Rebrickable username and password": "Rebrickableのユーザー名とパスワードを入力してください",
+  "Import finished": "インポート完了",
+  "Import from Rebrickable": "Rebrickableからインポート",
+  "Keep your Rebrickable set lists and your vault in step.": "Rebrickableのセットリストとコレクションを同期します。",
+  "Rebrickable already has every set in your vault.": "Rebrickableにはコレクションのセットがすべて登録済みです。",
+  "Rebrickable connected": "Rebrickableに接続しました",
+  "Rebrickable disconnected": "Rebrickableとの接続を解除しました",
+  "Rebrickable password": "Rebrickableのパスワード",
+  "Rebrickable username or email": "Rebrickableのユーザー名またはメール",
+  "Send to Rebrickable": "Rebrickableに送信",
+  "Sent to Rebrickable": "Rebrickableに送信しました",
+  "We keep only the access key Rebrickable gives us, never your password.": "保存するのはRebrickableが発行するアクセスキーだけで、パスワードは保存しません。",
   "Add a promotion": "プロモーションを追加",
   "Check the price at": "価格を確認",
   "Coming up": "近日開始",

@@ -1781,3 +1781,5 @@ zh.sales = {"checkReady": "在收藏者过去一年记录的 {sales} 笔出售�
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
 zh.stores = {"best": "最低价", "outOfStock": "缺货", "belowValue": "比估值低 {pct}%", "aboveValue": "比估值高 {pct}%"};
 zh.promos = {"until": "截至 {date}", "starts": "{date} 开始", "fromTo": "{start} 至 {end}", "whileItLasts": "售完即止", "spend": "满 {amount}"};
+// Rebrickable sync (components/rebrickable-card.js).
+zh.rebrickable = {"importResult": "新加入收藏：{fresh}。已存在：{already}。尚未收录：{unknown}。", "exportPartial": "已发送：{sent}。待发送：{left}。一分钟后再次点击发送。", "exportDone": "已发送到 Rebrickable：{sent}。"};

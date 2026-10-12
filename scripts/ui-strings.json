@@ -1630,6 +1630,12 @@
     ]
   },
   {
+    "text": "Connect Rebrickable",
+    "files": [
+      "components/rebrickable-card.js"
+    ]
+  },
+  {
     "text": "Connecting…",
     "files": [
       "views/me-integrations.js"
@@ -2202,6 +2208,7 @@
   {
     "text": "Disconnect",
     "files": [
+      "components/rebrickable-card.js",
       "views/me-integrations.js"
     ]
   },
@@ -2522,6 +2529,12 @@
     "text": "Enter your 4-digit PIN.",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Enter your Rebrickable username and password",
+    "files": [
+      "components/rebrickable-card.js"
     ]
   },
   {
@@ -3647,9 +3660,21 @@
     ]
   },
   {
+    "text": "Import finished",
+    "files": [
+      "components/rebrickable-card.js"
+    ]
+  },
+  {
     "text": "Import from BrickLink orders",
     "files": [
       "views/me-data.js"
+    ]
+  },
+  {
+    "text": "Import from Rebrickable",
+    "files": [
+      "components/rebrickable-card.js"
     ]
   },
   {
@@ -3839,6 +3864,12 @@
     "text": "Keep monitoring; retry a smaller batch if needed.",
     "files": [
       "lib/pure.js"
+    ]
+  },
+  {
+    "text": "Keep your Rebrickable set lists and your vault in step.",
+    "files": [
+      "components/rebrickable-card.js"
     ]
   },
   {
@@ -6309,9 +6340,27 @@
     ]
   },
   {
+    "text": "Rebrickable already has every set in your vault.",
+    "files": [
+      "components/rebrickable-card.js"
+    ]
+  },
+  {
     "text": "Rebrickable catalog",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Rebrickable connected",
+    "files": [
+      "components/rebrickable-card.js"
+    ]
+  },
+  {
+    "text": "Rebrickable disconnected",
+    "files": [
+      "components/rebrickable-card.js"
     ]
   },
   {
@@ -6324,6 +6373,18 @@
     "text": "Rebrickable part list",
     "files": [
       "views/build.js"
+    ]
+  },
+  {
+    "text": "Rebrickable password",
+    "files": [
+      "components/rebrickable-card.js"
+    ]
+  },
+  {
+    "text": "Rebrickable username or email",
+    "files": [
+      "components/rebrickable-card.js"
     ]
   },
   {
@@ -7342,6 +7403,18 @@
     "text": "Send reset link",
     "files": [
       "views/login.js"
+    ]
+  },
+  {
+    "text": "Send to Rebrickable",
+    "files": [
+      "components/rebrickable-card.js"
+    ]
+  },
+  {
+    "text": "Sent to Rebrickable",
+    "files": [
+      "components/rebrickable-card.js"
     ]
   },
   {
@@ -9147,6 +9220,12 @@
     "text": "We check LEGO.com every day. New gifts with purchase and double points weeks show up here.",
     "files": [
       "views/promotions.js"
+    ]
+  },
+  {
+    "text": "We keep only the access key Rebrickable gives us, never your password.",
+    "files": [
+      "components/rebrickable-card.js"
     ]
   },
   {

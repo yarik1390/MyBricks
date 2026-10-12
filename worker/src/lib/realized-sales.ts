@@ -88,3 +88,21 @@ export const SALES_CTE = `sales AS (
         WHERE r2.user_id = uc.user_id AND r2.set_num = uc.set_num AND r2.sold_at = uc.sold_at
      )
 )`;
+
+/**
+ * Copy a sold holding's sale into the ledger before the holding is reused (the
+ * set added back), unless the ledger already has it. Sales recorded through the
+ * app are already there; this catches ones written straight onto the row.
+ */
+export async function preserveLegacySale(db: D1Database, userId: string, setNum: string): Promise<void> {
+  await db.prepare(
+    `INSERT INTO realized_sales (user_id, set_num, quantity, condition, cost_basis, purchased_at, sold_price, sold_fees, sold_at, source)
+     SELECT uc.user_id, uc.set_num, COALESCE(uc.quantity, 1), uc.condition,
+            CASE WHEN uc.purchase_price IS NOT NULL THEN uc.purchase_price * COALESCE(uc.quantity, 1) END,
+            uc.purchased_at, uc.sold_price, uc.sold_fees, uc.sold_at, 'holding'
+       FROM user_collection uc
+      WHERE uc.user_id = ? AND uc.set_num = ? AND uc.deleted_at IS NOT NULL
+        AND uc.sold_at IS NOT NULL AND uc.sold_price IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM realized_sales r WHERE r.user_id = uc.user_id AND r.set_num = uc.set_num AND r.sold_at = uc.sold_at)`,
+  ).bind(userId, setNum).run();
+}

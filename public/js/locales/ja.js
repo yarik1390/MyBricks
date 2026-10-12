@@ -1786,3 +1786,5 @@ ja.sales = {"checkReady": "過去1年にコレクターが記録した {sales} �
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
 ja.stores = {"best": "最安値", "outOfStock": "在庫切れ", "belowValue": "評価額より {pct}% 安い", "aboveValue": "評価額より {pct}% 高い"};
 ja.promos = {"until": "{date} まで", "starts": "{date} 開始", "fromTo": "{start}〜{end}", "whileItLasts": "なくなり次第終了", "spend": "{amount} 以上の購入で"};
+// Rebrickable sync (components/rebrickable-card.js).
+ja.rebrickable = {"importResult": "新しく追加：{fresh}。すでに登録済み：{already}。カタログ未登録：{unknown}。", "exportPartial": "送信済み：{sent}。残り：{left}。1分後にもう一度「送信」をタップしてください。", "exportDone": "Rebrickableに送信：{sent}。"};

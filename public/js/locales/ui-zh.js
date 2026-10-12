@@ -1,5 +1,18 @@
 /** Chinese (Simplified) exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Connect Rebrickable": "连接 Rebrickable",
+  "Enter your Rebrickable username and password": "请输入 Rebrickable 用户名和密码",
+  "Import finished": "导入完成",
+  "Import from Rebrickable": "从 Rebrickable 导入",
+  "Keep your Rebrickable set lists and your vault in step.": "让你的 Rebrickable 套装清单与收藏保持一致。",
+  "Rebrickable already has every set in your vault.": "Rebrickable 已包含你收藏中的所有套装。",
+  "Rebrickable connected": "已连接 Rebrickable",
+  "Rebrickable disconnected": "已断开 Rebrickable",
+  "Rebrickable password": "Rebrickable 密码",
+  "Rebrickable username or email": "Rebrickable 用户名或邮箱",
+  "Send to Rebrickable": "发送到 Rebrickable",
+  "Sent to Rebrickable": "已发送到 Rebrickable",
+  "We keep only the access key Rebrickable gives us, never your password.": "我们只保存 Rebrickable 提供的访问密钥，绝不保存你的密码。",
   "Add a promotion": "添加促销",
   "Check the price at": "查看价格",
   "Coming up": "即将开始",

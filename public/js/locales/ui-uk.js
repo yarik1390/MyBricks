@@ -1,5 +1,18 @@
 /** Ukrainian exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Connect Rebrickable": "Підключити Rebrickable",
+  "Enter your Rebrickable username and password": "Введіть ім'я користувача та пароль Rebrickable",
+  "Import finished": "Імпорт завершено",
+  "Import from Rebrickable": "Імпортувати з Rebrickable",
+  "Keep your Rebrickable set lists and your vault in step.": "Тримайте списки наборів Rebrickable і сховище синхронними.",
+  "Rebrickable already has every set in your vault.": "У Rebrickable вже є всі набори з вашого сховища.",
+  "Rebrickable connected": "Rebrickable підключено",
+  "Rebrickable disconnected": "Rebrickable відключено",
+  "Rebrickable password": "Пароль Rebrickable",
+  "Rebrickable username or email": "Ім'я користувача або email Rebrickable",
+  "Send to Rebrickable": "Надіслати в Rebrickable",
+  "Sent to Rebrickable": "Надіслано в Rebrickable",
+  "We keep only the access key Rebrickable gives us, never your password.": "Ми зберігаємо лише ключ доступу від Rebrickable, а не ваш пароль.",
   "Add a promotion": "Додати акцію",
   "Check the price at": "Перевірити ціну в",
   "Coming up": "Незабаром",

@@ -1799,3 +1799,5 @@ de.sales = {"checkReady": "Bei {sales} Verkäufen, die Sammler im letzten Jahr e
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
 de.stores = {"best": "Bester Preis", "outOfStock": "Nicht vorrätig", "belowValue": "{pct}% unter dem Wert", "aboveValue": "{pct}% über dem Wert"};
 de.promos = {"until": "Bis {date}", "starts": "Ab {date}", "fromTo": "{start} bis {end}", "whileItLasts": "Solange der Vorrat reicht", "spend": "Ab {amount} Einkaufswert"};
+// Rebrickable sync (components/rebrickable-card.js).
+de.rebrickable = {"importResult": "Neu im Tresor: {fresh}. Schon vorhanden: {already}. Noch nicht im Katalog: {unknown}.", "exportPartial": "Bisher gesendet: {sent}. Noch offen: {left}. Tippe in einer Minute erneut auf Senden.", "exportDone": "An Rebrickable gesendet: {sent}."};

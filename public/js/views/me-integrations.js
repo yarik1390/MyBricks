@@ -1,4 +1,5 @@
 import { $, haptic, escapeHtml, toast, setBtnLoading } from '../utils.js';
+import { rebrickableCardHTML, wireRebrickableCard } from '../components/rebrickable-card.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, isGuestMode } from '../api.js';
 import { checkGemma3Downloaded, downloadGemma3Model, importGemma3ModelFile, deleteGemma3Model, getLocalAiAvailability, getDownloadMetadata, checkStoragePersisted, DEFAULT_MODEL_URL, MODEL_LICENSE_PAGE } from '../lib/local-ai.js';
@@ -92,6 +93,8 @@ export async function renderMeIntegrations() {
           </div>
         `}
       </section>
+
+      ${guest ? '' : rebrickableCardHTML(me, head)}
 
       <section class="bv-intcard" aria-label="Discord">
         ${head('chat', t('bvAccount.intDiscord'), me.discord_webhook_url ? pill(t('bvAccount.on'), 'gain') : pill(t('bvAccount.off')))}
@@ -276,6 +279,8 @@ export async function renderMeIntegrations() {
       if (btn) { btn.disabled = false; btn.textContent = "Sync Now"; }
     }
   });
+
+  wireRebrickableCard(renderMeIntegrations);
 
   // --- Push notification hooks ---
   const pushBtn = $("#pushNotifBtn");

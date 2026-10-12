@@ -13,7 +13,7 @@ const FREE_TEXT_MAX = 500;
 import { awardXpForAdd } from '../lib/kids-xp';
 import { scheduleBuildCacheRecompute } from '../lib/build-matcher';
 import { activeCopies, applyHoldingFieldsToCopies, closeCopies, syncCopiesToQuantity, syncHoldingFromCopies } from '../lib/holding-copies';
-import { recordSale } from '../lib/realized-sales';
+import { recordSale, preserveLegacySale } from '../lib/realized-sales';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -299,6 +299,7 @@ app.post('/', async (c) => {
 
   const prior = await c.env.DB.prepare('SELECT deleted_at FROM user_collection WHERE user_id = ? AND set_num = ?')
     .bind(userId, set_num).first<{ deleted_at: string | null }>();
+  if (prior?.deleted_at) await preserveLegacySale(c.env.DB, userId, set_num).catch(() => {});
   await c.env.DB.prepare(`
     INSERT INTO user_collection (user_id, set_num, quantity, condition, purchase_price, notes, purchased_at, last_modified)
     VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))

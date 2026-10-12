@@ -1,5 +1,18 @@
 /** Hindi exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Connect Rebrickable": "Rebrickable कनेक्ट करें",
+  "Enter your Rebrickable username and password": "अपना Rebrickable यूज़रनेम और पासवर्ड डालें",
+  "Import finished": "इंपोर्ट पूरा हुआ",
+  "Import from Rebrickable": "Rebrickable से इंपोर्ट करें",
+  "Keep your Rebrickable set lists and your vault in step.": "अपनी Rebrickable सेट सूचियाँ और वॉल्ट एक जैसे रखें।",
+  "Rebrickable already has every set in your vault.": "Rebrickable में आपके वॉल्ट के सभी सेट पहले से हैं।",
+  "Rebrickable connected": "Rebrickable कनेक्ट हो गया",
+  "Rebrickable disconnected": "Rebrickable डिस्कनेक्ट हो गया",
+  "Rebrickable password": "Rebrickable पासवर्ड",
+  "Rebrickable username or email": "Rebrickable यूज़रनेम या ईमेल",
+  "Send to Rebrickable": "Rebrickable को भेजें",
+  "Sent to Rebrickable": "Rebrickable को भेजा गया",
+  "We keep only the access key Rebrickable gives us, never your password.": "हम सिर्फ़ Rebrickable की दी हुई एक्सेस कुंजी रखते हैं, आपका पासवर्ड कभी नहीं।",
   "Add a promotion": "प्रमोशन जोड़ें",
   "Check the price at": "कीमत देखें",
   "Coming up": "जल्द आ रहा है",

@@ -313,6 +313,7 @@ import { copiesRoute } from './routes/copies'; app.route('/api/collection', copi
 import { salesRoute } from './routes/sales'; app.route('/api/sales', salesRoute);
 import { storesRoute } from './routes/stores'; app.route('/api/stores', storesRoute);
 import { promotionsRoute } from './routes/promotions'; app.route('/api/promotions', promotionsRoute);
+import { rebrickableSyncRoute } from './routes/rebrickable-sync'; app.route('/api/rebrickable', rebrickableSyncRoute);
 app.route('/api/game', gameRoute);
 app.route('/api/contributions', contributionsRoute);
 app.route('/api/push', pushRoute);

@@ -415,7 +415,7 @@ describe('BrickVault API Worker Tests', () => {
         notify_sell_targets INTEGER, notify_big_moves INTEGER, notify_retiring INTEGER, notify_back_in_stock INTEGER,
         quiet_hours INTEGER DEFAULT 0, quiet_start INTEGER DEFAULT 22, quiet_end INTEGER DEFAULT 8, timezone TEXT,
         expose_public_value INTEGER NOT NULL DEFAULT 1,
-        email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT,
+        email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT, rebrickable_user_token TEXT,
         is_supporter INTEGER DEFAULT 0, supporter_since TEXT, stripe_customer_id TEXT,
         kids_pin_hash TEXT, kids_xp INTEGER NOT NULL DEFAULT 0, kids_level INTEGER NOT NULL DEFAULT 1,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
