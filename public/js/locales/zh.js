@@ -860,6 +860,8 @@ export const zh = {
     proWallSub: "个人资料公开时显示在下方",
     proTax: "出售与税务报告",
     proTaxSub: "每笔出售含成本和收益，可导出 CSV 或 PDF",
+    proLots: "盒况评级与套装批次检查",
+    proLotsSub: "拍照评估盒况，检查任意数量的批次",
     proWallTitle: "感谢我们的支持者",
     proSkin: "处处金色",
     proExportsSub: 'CSV 中包含市场价值和收益列，外加保险报告',
@@ -1775,7 +1777,7 @@ Object.assign(zh.contributions, {
 Object.assign(zh.bvSet, {"removeAskTitle": "你卖掉了吗？", "removeAskSub": "如果 {name} 已售出，请填写售价。售价保持私密，只以匿名平均值帮助大家的估值。", "removeAskSold": "是，记录这次出售", "removeAskJust": "否，仅移除"});
 Object.assign(zh.data, {"blSalesTitle": "导入 BrickLink 销售记录", "blSalesSub": "从你的 BrickLink 店铺导出 “Orders Received” CSV。已售套装会带着售价离开收藏，并计入已实现收益。 价格也会用于匿名的社区价格中位数，只有至少五位收藏者贡献数据后才会公布。", "blSalesPick": "选择销售 CSV", "blSalesImport": "导入销售记录", "blSalesResult": "✓ {sold}，{skipped}。{errors}", "salesRecordedCountOne": "已记录 {n} 笔销售", "salesRecordedCountOther": "已记录 {n} 笔销售"});
 // Set page → Your copies (components/copies.js).
-zh.copies = {"paid": "购入价 {price}", "soldToast": "以 {price} 售出", "editN": "编辑第 {index} 件", "sellN": "出售第 {index} 件"};
+zh.copies = {"paid": "购入价 {price}", "soldToast": "以 {price} 售出", "editN": "编辑第 {index} 件", "sellN": "出售第 {index} 件", "boxGrade": "盒子：{grade}", "boxShare": "通常约为完美盒子价格的 {share}%"};
 // Sales & taxes (views/me-sales.js).
 zh.sales = {"checkReady": "在收藏者过去一年记录的 {sales} 笔出售中，我们的估值有 {w10}% 与实际价格相差在 10% 以内，{w20}% 在 20% 以内。典型偏差为 {miss}%。", "checkPending": "当收藏者在一年内记录 {min} 笔未拆封套装的出售后，我们会公布此数据。目前：{sales} 笔。", "salesIn": "{year} 年的出售", "net": "净额 {amount}", "cost": "成本 {amount}", "costMissing": "未记录成本", "longTerm": "长期", "shortTerm": "短期", "locked": "逐笔出售报告（含持有时间、成本和收益）以及用于报税的 CSV 和 PDF 下载，包含在 Pro 中。"};
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
@@ -1783,3 +1785,6 @@ zh.stores = {"best": "最低价", "outOfStock": "缺货", "belowValue": "比估�
 zh.promos = {"until": "截至 {date}", "starts": "{date} 开始", "fromTo": "{start} 至 {end}", "whileItLasts": "售完即止", "spend": "满 {amount}"};
 // Rebrickable sync (components/rebrickable-card.js).
 zh.rebrickable = {"importResult": "新加入收藏：{fresh}。已存在：{already}。尚未收录：{unknown}。", "exportPartial": "已发送：{sent}。待发送：{left}。一分钟后再次点击发送。", "exportDone": "已发送到 Rebrickable：{sent}。"};
+
+// Lot checker (views/lot.js).
+zh.lot = {"unpriced": "暂无价格的套装：{missing}。总计不含这些。"};

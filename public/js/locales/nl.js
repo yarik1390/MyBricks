@@ -860,6 +860,8 @@ export const nl = {
     proWallSub: "Hieronder zichtbaar zolang je profiel openbaar is",
     proTax: "Verkoop- & belastingrapport",
     proTaxSub: "Elke verkoop met kosten en winst, als CSV of PDF",
+    proLots: "Doosbeoordeling en lotcheck",
+    proLotsSub: "Beoordeel een doos met een foto en check loten van elke omvang",
     proWallTitle: "Dank aan onze supporters",
     proSkin: "Overal goud",
     proExportsSub: 'Kolommen voor marktwaarde en rendement in CSV, plus het verzekeringsrapport',
@@ -1775,7 +1777,7 @@ Object.assign(nl.contributions, {
 Object.assign(nl.bvSet, {"removeAskTitle": "Heb je het verkocht?", "removeAskSub": "Als {name} verkocht is, vul dan de prijs in. Die blijft privé en helpt alleen als anoniem gemiddelde ieders waarden.", "removeAskSold": "Ja, verkoop vastleggen", "removeAskJust": "Nee, alleen verwijderen"});
 Object.assign(nl.data, {"blSalesTitle": "BrickLink-verkopen importeren", "blSalesSub": "Exporteer “Orders Received” uit je BrickLink-winkel als CSV. Verkochte sets verlaten je kluis met hun verkoopprijs en tellen mee in gerealiseerde winst. Prijzen dragen ook bij aan anonieme communitymedianen, die pas worden gepubliceerd nadat minstens vijf verzamelaars hebben bijgedragen.", "blSalesPick": "Verkoop-CSV kiezen", "blSalesImport": "Verkopen importeren", "blSalesResult": "✓ {sold}, {skipped}. {errors}", "salesRecordedCountOne": "{n} verkoop vastgelegd", "salesRecordedCountOther": "{n} verkopen vastgelegd"});
 // Set page → Your copies (components/copies.js).
-nl.copies = {"paid": "Betaald {price}", "soldToast": "Verkocht voor {price}", "editN": "Exemplaar {index} bewerken", "sellN": "Exemplaar {index} verkopen"};
+nl.copies = {"paid": "Betaald {price}", "soldToast": "Verkocht voor {price}", "editN": "Exemplaar {index} bewerken", "sellN": "Exemplaar {index} verkopen", "boxGrade": "Doos: {grade}", "boxShare": "Brengt meestal zo’n {share}% van de prijs van een perfecte doos op"};
 // Sales & taxes (views/me-sales.js).
 nl.sales = {"checkReady": "Bij {sales} verkopen die verzamelaars het afgelopen jaar vastlegden, zat onze waarde voor {w10}% binnen 10% van de echte prijs en voor {w20}% binnen 20%. De gebruikelijke afwijking was {miss}%.", "checkPending": "We publiceren dit zodra verzamelaars in een jaar {min} verkopen van verzegelde sets hebben vastgelegd. Tot nu toe: {sales}.", "salesIn": "Verkopen in {year}", "net": "Netto {amount}", "cost": "kosten {amount}", "costMissing": "kosten niet vastgelegd", "longTerm": "Lange termijn", "shortTerm": "Korte termijn", "locked": "Het overzicht per verkoop, met bezitsduur, kosten en winst, plus CSV- en PDF-downloads voor je aangifte, hoort bij Pro."};
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
@@ -1783,3 +1785,6 @@ nl.stores = {"best": "Beste prijs", "outOfStock": "Niet op voorraad", "belowValu
 nl.promos = {"until": "Tot {date}", "starts": "Vanaf {date}", "fromTo": "{start} tot {end}", "whileItLasts": "Zolang de voorraad strekt", "spend": "Vanaf {amount} besteding"};
 // Rebrickable sync (components/rebrickable-card.js).
 nl.rebrickable = {"importResult": "Nieuw in je kluis: {fresh}. Stond er al: {already}. Nog niet in onze catalogus: {unknown}.", "exportPartial": "Tot nu toe verstuurd: {sent}. Nog te versturen: {left}. Tik over een minuut opnieuw op Versturen.", "exportDone": "Naar Rebrickable verstuurd: {sent}."};
+
+// Lot checker (views/lot.js).
+nl.lot = {"unpriced": "Sets nog zonder prijs: {missing}. Het totaal laat ze weg."};

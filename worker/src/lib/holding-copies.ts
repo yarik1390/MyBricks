@@ -20,6 +20,8 @@ export interface CopyRow {
   storage_location: string | null;
   acquisition_source: string | null;
   notes: string | null;
+  box_grade?: string | null;
+  box_notes?: string | null;
   sold_price: number | null;
   sold_at: string | null;
   sold_fees: number | null;

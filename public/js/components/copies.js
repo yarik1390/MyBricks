@@ -3,7 +3,7 @@
 // Backed by /api/collection/:id/copies (worker/src/routes/copies.ts); the
 // holding stays the aggregate of its copies, so the rest of the app keeps
 // reading one row per set.
-import { escapeHtml, toast, fmtMoney, haptic, setBtnLoading, CURRENCY_SYMBOLS, capturedMoneyContext } from '../utils.js';
+import { escapeHtml, toast, fmtMoney, haptic, setBtnLoading, CURRENCY_SYMBOLS, capturedMoneyContext, readFileAsDataURL, resizeImage } from '../utils.js';
 import { api } from '../api.js';
 import { showSheet, hideSheet, confirmSheet } from './sheet.js';
 import { icon, field, sheetBody } from '../ui/kit.js';
@@ -16,6 +16,14 @@ const CONDITIONS = [
   ['used_good', 'Used — good'],
   ['used_acceptable', 'Used — acceptable'],
 ];
+const BOX_GRADES = [
+  ['mint', 'Mint'],
+  ['near_mint', 'Near mint'],
+  ['good', 'Good'],
+  ['fair', 'Fair'],
+  ['poor', 'Poor'],
+];
+const boxGradeLabel = (g) => (BOX_GRADES.find(([v]) => v === g) || [g, ''])[1];
 const SOURCES = ['Store', 'BrickLink', 'eBay', 'Facebook Marketplace', 'Trade', 'Gift', 'Other'];
 const conditionLabel = (c) => (CONDITIONS.find(([v]) => v === c) || [c, c])[1];
 const symbol = (ctx) => CURRENCY_SYMBOLS[ctx.currency] || '$';
@@ -23,6 +31,7 @@ const symbol = (ctx) => CURRENCY_SYMBOLS[ctx.currency] || '$';
 function copyRowHTML(copy, index) {
   const bits = [
     conditionLabel(copy.condition),
+    copy.box_grade ? t('copies.boxGrade', { grade: boxGradeLabel(copy.box_grade) }) : '',
     copy.purchase_price != null ? t('copies.paid', { price: fmtMoney(copy.purchase_price) }) : 'Price not set',
     copy.purchased_at ? copy.purchased_at.slice(0, 10) : '',
     copy.storage_location || '',
@@ -56,6 +65,15 @@ function editSheetHTML(copy, ctx, isNew) {
         <option value="">— select —</option>
         ${SOURCES.map((s) => `<option value="${s}" ${copy.acquisition_source === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('')}
       </select></div></div>
+      <div class="bv-field"><label for="copyBoxGrade">Box condition</label><div class="bv-field__box"><select id="copyBoxGrade">
+        <option value="">Not graded</option>
+        ${BOX_GRADES.map(([v, l]) => `<option value="${v}" ${copy.box_grade === v ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('')}
+      </select></div></div>
+      <div class="bv-boxgrade">
+        <label class="bv-btn bv-btn--tonal bv-btn--sm" id="copyGradeBtn">${icon('camera', { size: 18 })}<span>Grade from a photo</span>
+          <input type="file" accept="image/*" capture="environment" id="copyGradePhoto" hidden></label>
+        <p class="bv-field__help" id="copyGradeResult" role="status">${escapeHtml(copy.box_notes || 'Take a photo of the whole box. Pro, or your own AI key.')}</p>
+      </div>
       ${field({ id: 'copyLocation', label: 'Where it is', value: copy.storage_location || '', placeholder: 'Shelf, box, room…', maxlength: 500 })}
       ${field({ id: 'copyNotes', label: 'Notes', value: copy.notes || '', placeholder: 'Box dents, receipt, signed…', maxlength: 500 })}
       <div class="bv-btn-row">
@@ -122,6 +140,41 @@ export async function mountCopies(root, _set, entry, { onChange } = {}) {
   const openEdit = (copy, isNew) => {
     const ctx = capturedMoneyContext();
     showSheet(editSheetHTML(copy, ctx, isNew));
+    let boxNotes = copy.box_notes || null;
+    document.getElementById('copyGradePhoto')?.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+      const out = document.getElementById('copyGradeResult');
+      const label = document.getElementById('copyGradeBtn');
+      label?.classList.add('is-loading');
+      if (out) out.textContent = 'Looking at the box…';
+      try {
+        const image = await resizeImage(await readFileAsDataURL(file), 1280);
+        const r = await api('/api/grade/box', { method: 'POST', body: { image, set_num: entry.set_num }, retry: false });
+        if (!r.is_box || !r.grade) {
+          if (out) out.textContent = r.summary || 'That does not look like a LEGO box. Try again with the whole box in view.';
+          return;
+        }
+        document.getElementById('copyBoxGrade').value = r.grade;
+        boxNotes = [r.summary, ...(r.issues || [])].filter(Boolean).join(' · ').slice(0, 500) || null;
+        if (out) {
+          out.textContent = [
+            t('copies.boxGrade', { grade: boxGradeLabel(r.grade) }),
+            r.seal_intact === true ? 'Seals intact' : r.seal_intact === false ? 'Seals broken' : '',
+            r.price_share != null && r.price_share < 1 ? t('copies.boxShare', { share: Math.round(r.price_share * 100) }) : '',
+            boxNotes || '',
+          ].filter(Boolean).join(' · ');
+        }
+        haptic('light');
+      } catch (err) {
+        if (err?.status === 402) {
+          if (out) out.innerHTML = `${escapeHtml('Box grading comes with Pro, or add your own Gemini key in Settings.')} <a href="#/pro">Pro</a>`;
+        } else if (out) out.textContent = err?.message || 'Could not grade this photo.';
+      } finally {
+        label?.classList.remove('is-loading');
+      }
+    });
     document.getElementById('copyForm')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const price = localMoneyToUsd(document.getElementById('copyPrice')?.value, ctx);
@@ -133,6 +186,8 @@ export async function mountCopies(root, _set, entry, { onChange } = {}) {
         acquisition_source: document.getElementById('copySource').value || null,
         storage_location: document.getElementById('copyLocation').value.trim() || null,
         notes: document.getElementById('copyNotes').value.trim() || null,
+        box_grade: document.getElementById('copyBoxGrade').value || null,
+        box_notes: boxNotes,
       };
       const btn = document.getElementById('copySave');
       setBtnLoading(btn, true);

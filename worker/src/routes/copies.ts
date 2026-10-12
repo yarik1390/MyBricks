@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { requireMember } from '../auth';
 import type { Env, Variables } from '../types';
+import { BOX_GRADES } from '../lib/box-grade';
 import {
   activeCopies, closeCopies, COPY_CONDITIONS, materializeCopies, syncCopiesToQuantity, syncHoldingFromCopies,
   type CopyRow, type HoldingRow,
@@ -24,9 +25,9 @@ app.use('/:id/copies', requireMember);
 app.use('/:id/copies/*', requireMember);
 
 const FREE_TEXT_MAX = 500;
-const TEXT_FIELDS = ['storage_location', 'acquisition_source', 'notes'] as const;
+const TEXT_FIELDS = ['storage_location', 'acquisition_source', 'notes', 'box_notes'] as const;
 
-type CopyFields = Partial<Pick<CopyRow, 'condition' | 'purchase_price' | 'purchased_at' | 'storage_location' | 'acquisition_source' | 'notes'>>;
+type CopyFields = Partial<Pick<CopyRow, 'condition' | 'purchase_price' | 'purchased_at' | 'storage_location' | 'acquisition_source' | 'notes' | 'box_grade' | 'box_notes'>>;
 
 /** Validate copy fields; returns the cleaned subset or an error message. */
 export function parseCopyFields(body: Record<string, unknown>): { ok: true; fields: CopyFields } | { ok: false; error: string } {
@@ -46,6 +47,10 @@ export function parseCopyFields(body: Record<string, unknown>): { ok: true; fiel
       return { ok: false, error: 'Purchased at must be a valid YYYY-MM-DD date string' };
     }
     fields.purchased_at = (d || null) as string | null;
+  }
+  if ('box_grade' in body) {
+    if (body.box_grade !== null && body.box_grade !== '' && !BOX_GRADES.includes(body.box_grade as never)) return { ok: false, error: 'Invalid box grade' };
+    fields.box_grade = (body.box_grade || null) as string | null;
   }
   for (const key of TEXT_FIELDS) {
     if (key in body) fields[key] = body[key] == null || body[key] === '' ? null : String(body[key]).slice(0, FREE_TEXT_MAX);
@@ -96,10 +101,11 @@ app.post('/:id/copies', async (c) => {
   if (copies.length >= 999) return c.json({ error: 'Too many copies' }, 400);
   const f = parsed.fields;
   await c.env.DB.prepare(
-    `INSERT INTO holding_copies (user_id, set_num, condition, purchase_price, purchased_at, storage_location, acquisition_source, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO holding_copies (user_id, set_num, condition, purchase_price, purchased_at, storage_location, acquisition_source, notes, box_grade, box_notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).bind(h.user_id, h.set_num, f.condition ?? h.condition ?? 'sealed', f.purchase_price ?? null,
-    f.purchased_at ?? null, f.storage_location ?? null, f.acquisition_source ?? null, f.notes ?? null).run();
+    f.purchased_at ?? null, f.storage_location ?? null, f.acquisition_source ?? null, f.notes ?? null,
+    f.box_grade ?? null, f.box_notes ?? null).run();
   await syncHoldingFromCopies(c.env.DB, h.user_id, h.set_num);
   return respond(c, h, 201);
 });

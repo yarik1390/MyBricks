@@ -956,6 +956,8 @@ export const uk = {
     proWallSub: "Показується нижче, поки ваш профіль публічний",
     proTax: "Звіт про продажі та податки",
     proTaxSub: "Кожен продаж із вартістю і прибутком, у CSV або PDF",
+    proLots: "Оцінка коробки й перевірка лотів",
+    proLotsSub: "Оцініть коробку за фото й перевіряйте лоти будь-якого розміру",
     proWallTitle: "Дякуємо нашим прихильникам",
     proSkin: "Золото всюди",
     proExportsSub: 'Ринкова вартість і прибутковість у CSV, а також страховий звіт',
@@ -1913,7 +1915,7 @@ Object.assign(uk.contributions, {
 Object.assign(uk.bvSet, {"removeAskTitle": "Ви його продали?", "removeAskSub": "Якщо {name} продано, вкажіть ціну. Вона залишається приватною і допомагає оцінкам лише як анонімне середнє.", "removeAskSold": "Так, записати продаж", "removeAskJust": "Ні, просто прибрати"});
 Object.assign(uk.data, {"blSalesTitle": "Імпорт продажів BrickLink", "blSalesSub": "Експортуйте «Orders Received» зі свого магазину BrickLink у CSV. Продані набори залишають сховище з ціною продажу й враховуються в реалізованому прибутку. Ціни також враховуються в анонімних медіанах спільноти, які публікуються лише після внесків щонайменше п’яти колекціонерів.", "blSalesPick": "Вибрати CSV продажів", "blSalesImport": "Імпортувати продажі", "blSalesResult": "✓ {sold}, {skipped}. {errors}", "salesRecordedCountOne": "Записано {n} продаж", "salesRecordedCountFew": "Записано {n} продажі", "salesRecordedCountMany": "Записано {n} продажів", "salesRecordedCountOther": "Записано {n} продажу"});
 // Set page → Your copies (components/copies.js).
-uk.copies = {"paid": "Сплачено {price}", "soldToast": "Продано за {price}", "editN": "Редагувати примірник {index}", "sellN": "Продати примірник {index}"};
+uk.copies = {"paid": "Сплачено {price}", "soldToast": "Продано за {price}", "editN": "Редагувати примірник {index}", "sellN": "Продати примірник {index}", "boxGrade": "Коробка: {grade}", "boxShare": "Зазвичай продається приблизно за {share}% ціни ідеальної коробки"};
 // Sales & taxes (views/me-sales.js).
 uk.sales = {"checkReady": "Серед {sales} продажів, які колекціонери записали за останній рік, наша оцінка відрізнялася від реальної ціни менш ніж на 10% у {w10}% випадків і менш ніж на 20% у {w20}%. Типове відхилення — {miss}%.", "checkPending": "Ми опублікуємо це, коли колекціонери запишуть {min} продажів запечатаних наборів за рік. Поки що: {sales}.", "salesIn": "Продажі за {year}", "net": "Чиста сума {amount}", "cost": "вартість {amount}", "costMissing": "вартість не вказано", "longTerm": "Довгострокові", "shortTerm": "Короткострокові", "locked": "Звіт по кожному продажу з терміном володіння, вартістю і прибутком, а також завантаження CSV і PDF для декларації — у Pro."};
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
@@ -1921,3 +1923,6 @@ uk.stores = {"best": "Найкраща ціна", "outOfStock": "Немає в �
 uk.promos = {"until": "До {date}", "starts": "З {date}", "fromTo": "З {start} до {end}", "whileItLasts": "Поки є в наявності", "spend": "Покупка від {amount}"};
 // Rebrickable sync (components/rebrickable-card.js).
 uk.rebrickable = {"importResult": "Нових у сховищі: {fresh}. Уже були: {already}. Ще немає в каталозі: {unknown}.", "exportPartial": "Надіслано: {sent}. Залишилося: {left}. Натисніть «Надіслати» ще раз за хвилину.", "exportDone": "Надіслано до Rebrickable: {sent}."};
+
+// Lot checker (views/lot.js).
+uk.lot = {"unpriced": "Набори без ціни поки що: {missing}. Підсумок їх не враховує."};

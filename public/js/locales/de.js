@@ -860,6 +860,8 @@ export const de = {
     proWallSub: "Unten sichtbar, solange dein Profil öffentlich ist",
     proTax: "Verkaufs- & Steuerbericht",
     proTaxSub: "Jeder Verkauf mit Kosten und Gewinn, als CSV oder PDF",
+    proLots: "Kartonbewertung und Konvolut-Check",
+    proLotsSub: "Karton per Foto bewerten und Konvolute jeder Größe prüfen",
     proWallTitle: "Danke an unsere Unterstützer",
     proSkin: "Überall Gold",
     proExportsSub: 'Marktwert- und Rendite-Spalten im CSV plus Versicherungsbericht',
@@ -1793,7 +1795,7 @@ Object.assign(de.contributions, {
 Object.assign(de.bvSet, {"removeAskTitle": "Hast du es verkauft?", "removeAskSub": "Wenn {name} verkauft wurde, trag den Preis ein. Er bleibt privat und fließt nur anonym in einen Durchschnitt ein, der allen Werten hilft.", "removeAskSold": "Ja, Verkauf eintragen", "removeAskJust": "Nein, nur entfernen"});
 Object.assign(de.data, {"blSalesTitle": "BrickLink-Verkäufe importieren", "blSalesSub": "Exportiere „Orders Received“ aus deinem BrickLink-Shop als CSV. Verkaufte Sets verlassen deinen Tresor mit ihrem Verkaufspreis und zählen zu realisierten Gewinnen. Preise fließen außerdem in anonyme Community-Medianwerte ein, die erst veröffentlicht werden, wenn mindestens fünf Sammler beigetragen haben.", "blSalesPick": "Verkaufs-CSV wählen", "blSalesImport": "Verkäufe importieren", "blSalesResult": "✓ {sold}, {skipped}. {errors}", "salesRecordedCountOne": "{n} Verkauf eingetragen", "salesRecordedCountOther": "{n} Verkäufe eingetragen"});
 // Set page → Your copies (components/copies.js).
-de.copies = {"paid": "Bezahlt {price}", "soldToast": "Verkauft für {price}", "editN": "Exemplar {index} bearbeiten", "sellN": "Exemplar {index} verkaufen"};
+de.copies = {"paid": "Bezahlt {price}", "soldToast": "Verkauft für {price}", "editN": "Exemplar {index} bearbeiten", "sellN": "Exemplar {index} verkaufen", "boxGrade": "Karton: {grade}", "boxShare": "Erzielt meist etwa {share} % des Preises eines neuwertigen Kartons"};
 // Sales & taxes (views/me-sales.js).
 de.sales = {"checkReady": "Bei {sales} Verkäufen, die Sammler im letzten Jahr eingetragen haben, lag unser Wert bei {w10}% innerhalb von 10% des echten Preises und bei {w20}% innerhalb von 20%. Die typische Abweichung lag bei {miss}%.", "checkPending": "Wir veröffentlichen das, sobald Sammler {min} Verkäufe versiegelter Sets in einem Jahr eingetragen haben. Bisher: {sales}.", "salesIn": "Verkäufe {year}", "net": "Netto {amount}", "cost": "Kosten {amount}", "costMissing": "Kosten nicht erfasst", "longTerm": "Langfristig", "shortTerm": "Kurzfristig", "locked": "Der Bericht pro Verkauf mit Haltedauer, Kosten und Gewinn sowie CSV- und PDF-Downloads für deine Steuererklärung ist in Pro enthalten."};
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
@@ -1801,3 +1803,6 @@ de.stores = {"best": "Bester Preis", "outOfStock": "Nicht vorrätig", "belowValu
 de.promos = {"until": "Bis {date}", "starts": "Ab {date}", "fromTo": "{start} bis {end}", "whileItLasts": "Solange der Vorrat reicht", "spend": "Ab {amount} Einkaufswert"};
 // Rebrickable sync (components/rebrickable-card.js).
 de.rebrickable = {"importResult": "Neu im Tresor: {fresh}. Schon vorhanden: {already}. Noch nicht im Katalog: {unknown}.", "exportPartial": "Bisher gesendet: {sent}. Noch offen: {left}. Tippe in einer Minute erneut auf Senden.", "exportDone": "An Rebrickable gesendet: {sent}."};
+
+// Lot checker (views/lot.js).
+de.lot = {"unpriced": "Sets ohne Preis bisher: {missing}. Die Summe lässt sie aus."};

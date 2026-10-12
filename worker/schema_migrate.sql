@@ -736,3 +736,5 @@ ALTER TABLE user_wishlist ADD COLUMN notify_stock INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE native_push_tokens ADD COLUMN supports_actions INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE lego_sets ADD COLUMN lego_retiring_since TEXT;
 ALTER TABLE user_prefs ADD COLUMN rebrickable_user_token TEXT;
+ALTER TABLE holding_copies ADD COLUMN box_grade TEXT;
+ALTER TABLE holding_copies ADD COLUMN box_notes TEXT;
