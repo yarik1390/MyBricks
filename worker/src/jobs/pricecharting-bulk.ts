@@ -4,6 +4,7 @@ import { recomputeBlendedValues } from '../lib/market-sources';
 import { isPlausibleMarketValue } from '../lib/valuation';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { sourceEnabled } from '../lib/source-config';
+import { runPriceChartingTriage, type TriageResult } from './pricecharting-triage';
 
 // ---------------------------------------------------------------------------
 // PriceCharting bulk LEGO CSV import (Legendary tier).
@@ -134,6 +135,8 @@ export interface BulkResult {
   updated: number;
   /** Verified mappings demoted because the feed's own title names another set. */
   contradicted?: number;
+  /** Outcome of the quarantine triage that runs after the contradiction sweep. */
+  triaged?: { verified: number; manual: number; rejected: number; dropped: number; kept: number };
   skipped?: string;
   detail?: string;
   finished_at?: string;
@@ -511,12 +514,24 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
   // link to 42177-1 for "Wizard Trader #2891"). The identity gate above already
   // refuses fresh observations for it, but its old signals would keep feeding
   // valuations as stale evidence. Demote both. Ambiguity (duplicate base or UPC
-  // in the feed) is not a contradiction and is left alone.
+  // in the feed) is not a contradiction and is left alone, and neither is a
+  // number the catalog does not know: shop item numbers ("Cassette Player
+  // #6471611") name no set, so they cannot contradict one.
   const CONTRADICTED_PCIDS = `SELECT s.pcid FROM ${STAGE} s JOIN pricing_source_map pm
       ON pm.source='pricecharting' AND pm.source_item_id=s.pcid AND pm.status='verified'
-    WHERE (s.setnum IS NOT NULL AND s.setnum<>pm.set_num)
-       OR (s.setnum IS NULL AND s.setbase IS NOT NULL AND NOT EXISTS (
-         SELECT 1 FROM ${SETBASE} b WHERE b.base=s.setbase AND b.set_num=pm.set_num))`;
+    WHERE (s.setnum IS NOT NULL AND s.setnum<>pm.set_num
+         AND EXISTS (SELECT 1 FROM lego_sets known WHERE known.set_num=s.setnum))
+       OR (s.setnum IS NULL AND s.setbase IS NOT NULL
+         AND EXISTS (SELECT 1 FROM ${SETBASE} b WHERE b.base=s.setbase)
+         AND NOT EXISTS (SELECT 1 FROM ${SETBASE} b WHERE b.base=s.setbase AND b.set_num=pm.set_num))`;
+  // The wrong set's provider-native columns feed its legacy blend too.
+  const contradictedColumns = env.DB.prepare(`
+    UPDATE lego_sets SET pc_id=NULL, pc_new_value=NULL, pc_complete_value=NULL, pc_cached_at=NULL
+    WHERE set_num IN (SELECT pm.set_num FROM pricing_source_map pm
+        WHERE pm.source='pricecharting' AND pm.status='verified'
+          AND pm.source_item_id IN (${CONTRADICTED_PCIDS}))
+      AND pc_id IN (${CONTRADICTED_PCIDS})
+  `);
   const contradictedSignals = env.DB.prepare(`
     UPDATE pricing_signals SET match_status='quarantined', updated_at=datetime('now')
     WHERE source='pricecharting' AND match_status='verified'
@@ -527,8 +542,17 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
     WHERE source='pricecharting' AND status='verified'
       AND source_item_id IN (${CONTRADICTED_PCIDS})
   `);
-  const [, contradictedResult] = await env.DB.batch([contradictedSignals, contradictedMaps]);
+  const [, , contradictedResult] = await env.DB.batch([contradictedColumns, contradictedSignals, contradictedMaps]);
   const contradicted = Number(contradictedResult.meta?.changes || 0);
+  // Settle what the sweep (and any earlier run) quarantined: re-point products to
+  // the set their title names, reject the provable mismatches. Runs before the
+  // signal writes below so a re-pointed product is priced in this same import.
+  let triaged: TriageResult | null = null;
+  try {
+    triaged = await runPriceChartingTriage(env);
+  } catch (e) {
+    console.warn('[pc-bulk] quarantine triage failed:', (e as Error).message);
+  }
 
   await env.DB.batch([
     signalInsert('new_sealed', 'newv'),
@@ -568,6 +592,7 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
     unmatched: rows.length - matched,
     updated: touched.size,
     ...(contradicted ? { contradicted } : {}),
+    ...(triaged?.scanned ? { triaged: { verified: triaged.verified, manual: triaged.manual, rejected: triaged.rejected, dropped: triaged.dropped, kept: triaged.kept } } : {}),
   };
   } catch (e) {
     importError = e;

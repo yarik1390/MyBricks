@@ -1,5 +1,6 @@
 import type { Env } from '../types';
 import { isPlausibleMarketValue } from './valuation';
+import { namesAgree, parseTitleToken } from './pricecharting-identity';
 
 const PC_BASE = 'https://www.pricecharting.com/api';
 
@@ -123,6 +124,17 @@ const normalizeTitle = (value: string): string[] => String(value || '')
   .split(/\s+/)
   .filter(token => token.length > 2);
 
+/**
+ * Whether a product found by barcode can be this set: its title names this set
+ * number, names no set number, or (for shop item numbers like "Cassette Player
+ * #6471611") at least carries this set's name.
+ */
+export function priceChartingTitleFits(setNum: string, setName: string, productTitle: string): boolean {
+  const { base } = parseTitleToken(productTitle);
+  if (!base || base === setNum.replace(/-\d+$/, '')) return true;
+  return namesAgree(productTitle, setName);
+}
+
 /** Strict title guard used by API discovery and the Finch Dallow regression. */
 export function isExactPriceChartingMatch(setNum: string, setName: string, productTitle: string): boolean {
   const base = setNum.replace(/-\d+$/, '');
@@ -181,7 +193,9 @@ export async function fetchPriceChartingData(
   // 2. Known UPC → exact one-call lookup (id + prices together).
   if (upc) {
     const byUpc = await fetchPCByUpc(upc, token);
-    if (byUpc) {
+    // PriceCharting files some products under another set's barcode ("The Frog
+    // House #21256" carries 75370-1's UPC), so the title must not contradict us.
+    if (byUpc && priceChartingTitleFits(setNum, _setName, byUpc['product-name'] || '')) {
       return toResult(byUpc.id, byUpc, {
         upc,
         variant_key: setNum,

@@ -18,6 +18,7 @@ import { runEbaySoldScrape } from '../jobs/ebay-sold-scrape';
 import { runPriceChartingEnrich } from '../jobs/pricecharting-enrich';
 import { runStockXEnrich } from '../jobs/stockx-enrich';
 import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricecharting-bulk';
+import { runPriceChartingTriage } from '../jobs/pricecharting-triage';
 import { indexMissingAlts } from '../lib/build-alts';
 import { runMinifigVerify } from '../jobs/minifig-verify';
 import { runCommunityComps } from '../jobs/community-comps';
@@ -1095,9 +1096,16 @@ app.patch('/pricing/source-matches', async (c) => {
     const exists = await c.env.DB.prepare('SELECT 1 AS ok FROM lego_sets WHERE set_num=?').bind(body.set_num).first();
     if (!exists) return c.json({ error: 'set_num not found' }, 404);
   }
+  const previous = await c.env.DB.prepare(`SELECT set_num FROM pricing_source_map WHERE source=? AND source_item_id=?`)
+    .bind(body.source, body.source_item_id).first<{ set_num: string | null }>();
+  // Rejecting a real product says "this product is not that set". Keeping the
+  // set on the row would bar every other product from the set (the bulk import
+  // treats a rejected row as owning its set, which is right only for the
+  // synthetic legacy:<set> keys).
   const result = await c.env.DB.prepare(`
     UPDATE pricing_source_map SET
-      set_num=COALESCE(?1, set_num), status=?2,
+      set_num=CASE WHEN ?2='rejected' AND source_item_id NOT LIKE 'legacy:%' THEN NULL ELSE COALESCE(?1, set_num) END,
+      status=?2,
       match_method=CASE WHEN ?2='manual' THEN 'manual' ELSE match_method END,
       match_confidence=CASE WHEN ?2 IN ('manual','verified') THEN 1 ELSE match_confidence END,
       verified_at=CASE WHEN ?2 IN ('manual','verified') THEN datetime('now') ELSE NULL END,
@@ -1108,6 +1116,12 @@ app.patch('/pricing/source-matches', async (c) => {
   if (body.status === 'rejected' || body.status === 'quarantined') {
     await c.env.DB.prepare(`DELETE FROM pricing_signals WHERE source=? AND source_item_id=?`)
       .bind(body.source, body.source_item_id).run();
+    // The set's provider-native PriceCharting columns still feed its legacy blend.
+    if (body.source === 'pricecharting' && previous?.set_num) {
+      await c.env.DB.prepare(`UPDATE lego_sets SET pc_id=NULL, pc_new_value=NULL,
+        pc_complete_value=NULL, pc_cached_at=NULL WHERE set_num=?1 AND pc_id=?2`)
+        .bind(previous.set_num, body.source_item_id).run();
+    }
   } else {
     await c.env.DB.prepare(`UPDATE pricing_signals SET match_status=?, updated_at=datetime('now') WHERE source=? AND source_item_id=?`)
       .bind(body.status, body.source, body.source_item_id).run();
@@ -1165,6 +1179,7 @@ const JOB_LIMITS: Record<string, number> = {
   'community-comps': 1,
   'pricecharting-bulk-fetch': 1,
   'pricecharting-verify-drain': 400,
+  'pricecharting-triage': 1000,
   'build-alts-index': 40,
 };
 
@@ -1177,6 +1192,8 @@ const JOB_LIMIT_OVERRIDES: Record<string, number> = {
   // A 4,937-set attribution backlog cannot be drained 50 at a time; the job
   // self-caps at 200 and the daily quota cap for PriceCharting is 500 calls.
   'pricecharting-link-backfill': 200,
+  // Pure D1 work over the quarantine queue (no provider calls).
+  'pricecharting-triage': 5000,
 };
 
 app.post('/jobs/:job', async (c) => {
@@ -1248,6 +1265,12 @@ app.post('/jobs/:job', async (c) => {
       // no limit override applies; the job self-paces.
       const bulk = await runPriceChartingBulkFetch(c.env);
       result = { ...bulk };
+    } else if (job === 'pricecharting-triage') {
+      // Settles the "Quarantined source matches" queue (hourly cron). ?dry_run=1
+      // returns every decision without writing; ?all=1 rescans past the cursor.
+      result = { ...(await runPriceChartingTriage(c.env, {
+        limit, dryRun: c.req.query('dry_run') === '1', all: c.req.query('all') === '1',
+      })) };
     } else if (job === 'build-alts-index') {
       // Alternate-builds indexer (05:30 cron). ?limit= advances the backfill
       // faster than the default 40 sets per call.
