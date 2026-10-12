@@ -49,7 +49,7 @@ with **RevenueCat**. Patreon stays on **web only**; it's auto-hidden in the nati
   into the deployed `env.js` automatically (deploy-worker.yml).
 
 ## 4. Assets
-- [x] **[DONE]** App icons: `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon.png`; approved masters live in `assets/brand/` and regenerate through `scripts/render-brick-icons.py`.
+- [x] **[DONE]** App icons: `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon.png`; the Vault Dial masters (`assets/brand/icon-vault.svg`, gold Pro `icon-vault-gold.svg`) regenerate every web, Android and Play Store size through `node scripts/render-vault-icons.mjs`; the Play Console icon is `store/play/icon-512.png`.
 - [x] **[DONE]** Play screenshots (4× 1080×1920) + **feature graphic 1024×500** in
   `store/play/` — regenerate with `npx playwright test --config=e2e/screenshots.config.mjs`.
   Optionally re-shoot on a real device with your own vault for more authentic data.

@@ -1,6 +1,6 @@
 import { getCapacitorPlugin, isNativeCapacitor } from './native-auth.js';
 
-// Android launcher icon: the classic brick or the gold brick (a Pro perk).
+// Android launcher icon: the classic Vault Dial or the gold one (a Pro perk).
 // Backed by AppIconPlugin, which enables one of two activity-aliases. On the
 // web, or in an app build without the plugin, every call is a safe no-op.
 function plugin() {
