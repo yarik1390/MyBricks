@@ -251,8 +251,13 @@ const SORTS = [
   { value: 'value_desc', key: 'sortValue' },
   { value: 'roi_desc', key: 'sortGrowth' },
   { value: 'az', key: 'sortAz' },
+  // Desktop table headings only (not in the sort sheet).
+  { value: 'year_desc', key: 'desktop.sortYear', table: true },
+  { value: 'pieces_desc', key: 'desktop.sortPieces', table: true },
+  { value: 'paid_desc', key: 'desktop.sortPaid', table: true },
 ];
 const sortKeyOf = (value) => (SORTS.find(s => s.value === value) || SORTS[0]).key;
+const sortLabel = (value) => { const key = sortKeyOf(value); return t(key.includes('.') ? key : `bvVault.${key}`); };
 
 // Filter + sort the vault items according to current state.filter. Pure — no DOM.
 function sortedPortfolioItems() {
@@ -267,6 +272,9 @@ function sortedPortfolioItems() {
     case "value_desc": items.sort((a, b) => pval(b) - pval(a)); break;
     case "roi_desc":   items.sort((a, b) => (b.annualized_roi ?? -1) - (a.annualized_roi ?? -1)); break;
     case "az":         items.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))); break;
+    case "year_desc":   items.sort((a, b) => (Number(b.year) || 0) - (Number(a.year) || 0)); break;
+    case "pieces_desc": items.sort((a, b) => (Number(b.pieces) || 0) - (Number(a.pieces) || 0)); break;
+    case "paid_desc":   items.sort((a, b) => (Number(b.purchase_price) || 0) - (Number(a.purchase_price) || 0)); break;
   }
   return items;
 }
@@ -516,8 +524,8 @@ function paintPortfolio() {
       ${showSearch ? '' : `<div id="vaultSinceSlot">${state.vaultChanges?.owner === getSessionUserId() ? sinceCardHTML(state.vaultChanges.data) : ''}</div>`}
       ${showSearch ? '' : '<div id="collectorPinned"></div>'}
       ${vaultNavigation('sets')}
-      ${vaultToolbar(sortButton(t(`bvVault.${sortKeyOf(state.filter.sort)}`)), layoutSeg(layout))}
-      ${vaultListHead()}
+      ${vaultToolbar(sortButton(sortLabel(state.filter.sort)), layoutSeg(layout))}
+      ${vaultListHead(state.filter.sort)}
       <div id="setList" class="vault-list" aria-live="polite"></div>
       <div id="portfolioSentinel" class="vault-sentinel" hidden><span class="bv-skel"></span></div>
       ${footHTML(p, totals)}`}
@@ -569,6 +577,8 @@ function wireVaultChrome() {
   });
   $("#portfolioSearch")?.addEventListener("keydown", (e) => { if (e.key === 'Escape' && !state.filter.q) { searchOpen = false; paintPortfolio(); } });
   $("#vaultSortBtn")?.addEventListener("click", openSortSheet);
+  // Desktop table headings sort the list.
+  $$('#vaultPage [data-vault-sort]').forEach(b => b.addEventListener('click', () => applySort(b.dataset.vaultSort)));
   $$('#vaultPage [data-layout]').forEach(b => b.addEventListener('click', () => {
     const layout = b.dataset.layout;
     if (layout === currentLayout()) return;
@@ -593,17 +603,20 @@ function openSortSheet() {
   openChoiceSheet({
     title: t('bvVault.sortTitle'),
     current: state.filter.sort,
-    options: SORTS.filter(s => !(simple && s.value === 'roi_desc')).map(s => ({ value: s.value, label: t(`bvVault.${s.key}`), sub: t(`bvVault.${s.key}Sub`) })),
-    onPick: (value) => {
-      if (value === state.filter.sort) return;
-      state.filter.sort = value;
-      try { localStorage.setItem("bv_sort", value); } catch { /* per-session only */ }
-      const btnEl = $("#vaultSortBtn");
-      if (btnEl) btnEl.outerHTML = sortButton(t(`bvVault.${sortKeyOf(value)}`));
-      $("#vaultSortBtn")?.addEventListener("click", openSortSheet);
-      repaintSetList();
-    },
+    options: SORTS.filter(s => !s.table && !(simple && s.value === 'roi_desc')).map(s => ({ value: s.value, label: t(`bvVault.${s.key}`), sub: t(`bvVault.${s.key}Sub`) })),
+    onPick: applySort,
   });
+}
+
+function applySort(value) {
+  if (value === state.filter.sort) return;
+  state.filter.sort = value;
+  try { localStorage.setItem("bv_sort", value); } catch { /* per-session only */ }
+  const btnEl = $("#vaultSortBtn");
+  if (btnEl) btnEl.outerHTML = sortButton(sortLabel(value));
+  $("#vaultSortBtn")?.addEventListener("click", openSortSheet);
+  $$('#vaultPage [data-vault-sort]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.vaultSort === value)));
+  repaintSetList();
 }
 
 // Daily price-game state for the More options row (the game lives at #/game).
