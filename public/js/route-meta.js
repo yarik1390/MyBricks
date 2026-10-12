@@ -6,6 +6,7 @@ const ROUTES = [
   { match: (hash) => hash === "/upcoming", key: "upcoming", nav: "/add", title: "Coming soon", fab: false },
   { match: (hash) => hash === "/me/notifications", key: "notifications", nav: "/me", title: "Notifications", fab: false, navOff: true },
   { match: (hash) => hash === "/me/insurance", key: "insurance", nav: "/me", title: "Insurance report", protected: true, fab: false, navOff: true },
+  { match: (hash) => hash === "/me/sales", key: "sales", nav: "/me", title: "Sales & taxes", protected: true, fab: false, navOff: true },
   { match: (hash) => hash === "/pro", key: "pro", nav: "/me", title: "BricksVault Pro", fab: false, navOff: true },
   { match: (hash) => hash === "/wrapped", key: "wrapped", nav: "/me", title: "Brick Wrapped", fullscreen: true, fab: false },
   { match: (hash) => hash === "/advisor", key: "advisor", nav: "/", title: "Advisor", fab: false, navOff: true },

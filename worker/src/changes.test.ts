@@ -52,7 +52,7 @@ describe('GET /api/changes — What changed digest', () => {
     (env as any).SUPABASE_JWT_SECRET = secret;
     (env as any).SUPABASE_URL = 'https://supabase.mock.io';
     (env as any).SUPABASE_ANON_KEY = 'fixture-anon-key';
-    await applyTestTables(db, ['lego_sets', 'user_collection', 'set_value_history', 'set_valuation_state']);
+    await applyTestTables(db, ['lego_sets', 'user_collection', 'set_value_history', 'set_valuation_state', 'realized_sales']);
   });
 
   it('requires a member and is private, no-store', async () => {

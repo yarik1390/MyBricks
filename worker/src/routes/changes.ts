@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { requireMember } from '../auth';
 import type { Env, Variables } from '../types';
 import { holdingValueForRollout } from '../lib/market-sources';
+import { SALES_CTE } from '../lib/realized-sales';
 
 // GET /api/changes?days=N — the Vault's "What changed" digest.
 //
@@ -151,23 +152,26 @@ app.get('/', async (c) => {
       LEFT JOIN set_valuation_state svu ON svu.set_num = s.set_num AND svu.condition = 'used_complete'
       WHERE uc.user_id = ? AND uc.deleted_at IS NULL
     `).bind(userId).all<Record<string, unknown>>(),
+    // Every recorded sale: the realized_sales ledger (whole holdings, single
+    // copies, BrickLink imports) plus older sold holdings it doesn't cover.
     c.env.DB.prepare(`
+      WITH ${SALES_CTE}
       SELECT CAST(COUNT(*) AS INTEGER) AS sales,
-             CAST(COALESCE(SUM(CASE WHEN purchase_price IS NOT NULL THEN 1 ELSE 0 END), 0) AS INTEGER) AS priced_sales,
+             CAST(COALESCE(SUM(CASE WHEN cost_basis IS NOT NULL THEN 1 ELSE 0 END), 0) AS INTEGER) AS priced_sales,
              COALESCE(SUM(sold_price), 0) AS proceeds,
-             -- Net of sale fees; sold_price covers the whole holding, so every copy's cost comes off.
-             COALESCE(SUM(CASE WHEN purchase_price IS NOT NULL THEN sold_price - COALESCE(sold_fees, 0) - purchase_price * COALESCE(quantity, 1) ELSE 0 END), 0) AS gain
-      FROM user_collection
-      WHERE user_id = ? AND sold_at IS NOT NULL AND sold_price IS NOT NULL
-    `).bind(userId).first<{ sales: number; priced_sales: number; proceeds: number; gain: number }>(),
+             -- Net of sale fees and of the cost of every unit sold.
+             COALESCE(SUM(CASE WHEN cost_basis IS NOT NULL THEN sold_price - COALESCE(sold_fees, 0) - cost_basis ELSE 0 END), 0) AS gain
+      FROM sales
+    `).bind(userId, userId).first<{ sales: number; priced_sales: number; proceeds: number; gain: number }>(),
     c.env.DB.prepare(`
-      SELECT uc.set_num, s.name, uc.sold_at, uc.sold_price, uc.sold_fees, uc.quantity, uc.purchase_price
-      FROM user_collection uc
-      JOIN lego_sets s ON s.set_num = uc.set_num
-      WHERE uc.user_id = ? AND uc.sold_at IS NOT NULL AND uc.sold_price IS NOT NULL
-      ORDER BY uc.sold_at DESC
+      WITH ${SALES_CTE}
+      SELECT x.set_num, s.name, x.sold_at, x.sold_price, x.sold_fees, x.quantity,
+             CASE WHEN x.cost_basis IS NOT NULL THEN x.cost_basis * 1.0 / MAX(1, x.quantity) END AS purchase_price
+      FROM sales x
+      JOIN lego_sets s ON s.set_num = x.set_num
+      ORDER BY x.sold_at DESC, x.id DESC
       LIMIT ${SALES_LIMIT}
-    `).bind(userId).all<{ set_num: string; name: string | null; sold_at: string; sold_price: number; sold_fees: number | null; quantity: number | null; purchase_price: number | null }>(),
+    `).bind(userId, userId).all<{ set_num: string; name: string | null; sold_at: string; sold_price: number; sold_fees: number | null; quantity: number | null; purchase_price: number | null }>(),
   ]);
 
   const rolloutPercent = Number(c.env.PRICING_V3_READ_PERCENT || 0);

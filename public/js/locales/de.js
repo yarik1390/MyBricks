@@ -858,6 +858,8 @@ export const de = {
     proAlertsFirstSub: "Erfahre einen Tag vor allen anderen, welche Sets auslaufen",
     proWall: "Dein Name auf der Dankeswand",
     proWallSub: "Unten sichtbar, solange dein Profil öffentlich ist",
+    proTax: "Verkaufs- & Steuerbericht",
+    proTaxSub: "Jeder Verkauf mit Kosten und Gewinn, als CSV oder PDF",
     proWallTitle: "Danke an unsere Unterstützer",
     proSkin: "Überall Gold",
     proExportsSub: 'Marktwert- und Rendite-Spalten im CSV plus Versicherungsbericht',
@@ -1792,3 +1794,5 @@ Object.assign(de.bvSet, {"removeAskTitle": "Hast du es verkauft?", "removeAskSub
 Object.assign(de.data, {"blSalesTitle": "BrickLink-Verkäufe importieren", "blSalesSub": "Exportiere „Orders Received“ aus deinem BrickLink-Shop als CSV. Verkaufte Sets verlassen deinen Tresor mit ihrem Verkaufspreis und zählen zu realisierten Gewinnen. Preise fließen außerdem in anonyme Community-Medianwerte ein, die erst veröffentlicht werden, wenn mindestens fünf Sammler beigetragen haben.", "blSalesPick": "Verkaufs-CSV wählen", "blSalesImport": "Verkäufe importieren", "blSalesResult": "✓ {sold}, {skipped}. {errors}", "salesRecordedCountOne": "{n} Verkauf eingetragen", "salesRecordedCountOther": "{n} Verkäufe eingetragen"});
 // Set page → Your copies (components/copies.js).
 de.copies = {"paid": "Bezahlt {price}", "soldToast": "Verkauft für {price}", "editN": "Exemplar {index} bearbeiten", "sellN": "Exemplar {index} verkaufen"};
+// Sales & taxes (views/me-sales.js).
+de.sales = {"checkReady": "Bei {sales} Verkäufen, die Sammler im letzten Jahr eingetragen haben, lag unser Wert bei {w10}% innerhalb von 10% des echten Preises und bei {w20}% innerhalb von 20%. Die typische Abweichung lag bei {miss}%.", "checkPending": "Wir veröffentlichen das, sobald Sammler {min} Verkäufe versiegelter Sets in einem Jahr eingetragen haben. Bisher: {sales}.", "salesIn": "Verkäufe {year}", "net": "Netto {amount}", "cost": "Kosten {amount}", "costMissing": "Kosten nicht erfasst", "longTerm": "Langfristig", "shortTerm": "Kurzfristig", "locked": "Der Bericht pro Verkauf mit Haltedauer, Kosten und Gewinn sowie CSV- und PDF-Downloads für deine Steuererklärung ist in Pro enthalten."};

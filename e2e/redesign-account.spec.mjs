@@ -140,7 +140,7 @@ test('insurance report preview is open to everyone; export points to Pro', async
 test('Pro on the web shows the benefits and the Patreon route; members see their status', async ({ page }) => {
   await stubMe(page);
   await page.goto('/#/pro', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('.bv-probenefits li')).toHaveCount(7);
+  await expect(page.locator('.bv-probenefits li')).toHaveCount(8);
   await expect(page.getByRole('link', { name: 'Support on Patreon' })).toHaveAttribute('href', /patreon\.com/);
 
   await page.evaluate(async () => {

@@ -158,6 +158,7 @@ async function _routeImpl(gen) {
     else if (hash === "/upcoming") await (await import('./views/upcoming.js')).renderUpcoming();
     else if (hash === "/me/notifications") await (await import('./views/me-notifications.js')).renderMeNotifications();
     else if (hash === "/me/insurance") await (await import('./views/me-insurance.js')).renderMeInsurance();
+    else if (hash === "/me/sales") await (await import('./views/me-sales.js')).renderMeSales();
     else if (hash === "/pro") await (await import('./views/pro.js')).renderPro();
     else if (hash === "/wrapped") await (await import('./views/wrapped.js')).renderWrapped();
     else if (hash === "/advisor") await (await import('./views/advisor-page.js')).renderAdvisorPage();
