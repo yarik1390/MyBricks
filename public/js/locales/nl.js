@@ -1781,3 +1781,5 @@ nl.sales = {"checkReady": "Bij {sales} verkopen die verzamelaars het afgelopen j
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
 nl.stores = {"best": "Beste prijs", "outOfStock": "Niet op voorraad", "belowValue": "{pct}% onder de waarde", "aboveValue": "{pct}% boven de waarde"};
 nl.promos = {"until": "Tot {date}", "starts": "Vanaf {date}", "fromTo": "{start} tot {end}", "whileItLasts": "Zolang de voorraad strekt", "spend": "Vanaf {amount} besteding"};
+// Rebrickable sync (components/rebrickable-card.js).
+nl.rebrickable = {"importResult": "Nieuw in je kluis: {fresh}. Stond er al: {already}. Nog niet in onze catalogus: {unknown}.", "exportPartial": "Tot nu toe verstuurd: {sent}. Nog te versturen: {left}. Tik over een minuut opnieuw op Versturen.", "exportDone": "Naar Rebrickable verstuurd: {sent}."};

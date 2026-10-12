@@ -1781,3 +1781,5 @@ hi.sales = {"checkReady": "पिछले साल कलेक्टरों
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
 hi.stores = {"best": "सबसे अच्छी कीमत", "outOfStock": "स्टॉक में नहीं", "belowValue": "वैल्यू से {pct}% कम", "aboveValue": "वैल्यू से {pct}% ज़्यादा"};
 hi.promos = {"until": "{date} तक", "starts": "{date} से शुरू", "fromTo": "{start} से {end}", "whileItLasts": "स्टॉक रहने तक", "spend": "{amount}+ खर्च करें"};
+// Rebrickable sync (components/rebrickable-card.js).
+hi.rebrickable = {"importResult": "वॉल्ट में नए: {fresh}। पहले से मौजूद: {already}। अभी कैटलॉग में नहीं: {unknown}।", "exportPartial": "अब तक भेजे: {sent}। बाकी: {left}। एक मिनट बाद फिर से भेजें दबाएँ।", "exportDone": "Rebrickable को भेजे: {sent}।"};

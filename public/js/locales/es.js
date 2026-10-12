@@ -1781,3 +1781,5 @@ es.sales = {"checkReady": "En {sales} ventas que los coleccionistas registraron 
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
 es.stores = {"best": "Mejor precio", "outOfStock": "Agotado", "belowValue": "{pct}% por debajo de su valor", "aboveValue": "{pct}% por encima de su valor"};
 es.promos = {"until": "Hasta el {date}", "starts": "Empieza el {date}", "fromTo": "Del {start} al {end}", "whileItLasts": "Hasta agotar existencias", "spend": "Compra de {amount} o más"};
+// Rebrickable sync (components/rebrickable-card.js).
+es.rebrickable = {"importResult": "Nuevos en tu colección: {fresh}. Ya estaban: {already}. Aún no están en nuestro catálogo: {unknown}.", "exportPartial": "Enviados hasta ahora: {sent}. Pendientes: {left}. Vuelve a tocar Enviar dentro de un minuto.", "exportDone": "Enviados a Rebrickable: {sent}."};

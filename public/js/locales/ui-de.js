@@ -1,5 +1,18 @@
 /** German exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Connect Rebrickable": "Rebrickable verbinden",
+  "Enter your Rebrickable username and password": "Gib deinen Rebrickable-Benutzernamen und dein Passwort ein",
+  "Import finished": "Import abgeschlossen",
+  "Import from Rebrickable": "Von Rebrickable importieren",
+  "Keep your Rebrickable set lists and your vault in step.": "Halte deine Rebrickable-Setlisten und deinen Tresor auf dem gleichen Stand.",
+  "Rebrickable already has every set in your vault.": "Rebrickable hat schon jedes Set aus deinem Tresor.",
+  "Rebrickable connected": "Rebrickable verbunden",
+  "Rebrickable disconnected": "Rebrickable getrennt",
+  "Rebrickable password": "Rebrickable-Passwort",
+  "Rebrickable username or email": "Rebrickable-Benutzername oder E-Mail",
+  "Send to Rebrickable": "An Rebrickable senden",
+  "Sent to Rebrickable": "An Rebrickable gesendet",
+  "We keep only the access key Rebrickable gives us, never your password.": "Wir speichern nur den Zugangsschlüssel von Rebrickable, nie dein Passwort.",
   "Add a promotion": "Aktion hinzufügen",
   "Check the price at": "Preis prüfen bei",
   "Coming up": "Demnächst",

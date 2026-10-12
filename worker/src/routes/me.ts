@@ -85,7 +85,7 @@ app.get('/', async (c) => {
     // credentials) and other columns the client never needs.
     db.prepare(
       `SELECT display_name, handle, is_public, expose_public_value, currency, retail_market,
-              notify_price_drops, notify_weekly_digest, discord_webhook_url, brickset_user_hash, email, is_supporter,
+              notify_price_drops, notify_weekly_digest, discord_webhook_url, brickset_user_hash, rebrickable_user_token, email, is_supporter,
               notify_sell_targets, notify_big_moves, notify_retiring, notify_back_in_stock,
               quiet_hours, quiet_start, quiet_end, timezone,
               kids_pin_hash, kids_xp, kids_level
@@ -157,6 +157,7 @@ app.get('/', async (c) => {
     // The address alert emails go to (the user's own; shown on Notifications).
     email: (p.email as string | null) ?? userEmail ?? null,
     brickset_connected: !!(p.brickset_user_hash),
+    rebrickable_connected: !!(p.rebrickable_user_token),
     is_supporter: p.is_supporter === 1,
     has_kids_pin: !!(p.kids_pin_hash),
     kids_xp: Number(p.kids_xp ?? 0),

@@ -268,7 +268,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         quiet_hours INTEGER DEFAULT 0, quiet_start INTEGER DEFAULT 22, quiet_end INTEGER DEFAULT 8, timezone TEXT,
         expose_public_value INTEGER NOT NULL DEFAULT 1,
         google_refresh_token TEXT, google_spreadsheet_id TEXT,
-        email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT,
+        email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT, rebrickable_user_token TEXT,
         is_supporter INTEGER DEFAULT 0, supporter_since TEXT, stripe_customer_id TEXT,
         kids_pin_hash TEXT, kids_xp INTEGER NOT NULL DEFAULT 0, kids_level INTEGER NOT NULL DEFAULT 1,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -2546,7 +2546,7 @@ describe('Kids PIN and XP', () => {
         quiet_hours INTEGER DEFAULT 0, quiet_start INTEGER DEFAULT 22, quiet_end INTEGER DEFAULT 8, timezone TEXT,
         expose_public_value INTEGER NOT NULL DEFAULT 1,
         google_refresh_token TEXT, google_spreadsheet_id TEXT,
-        email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT,
+        email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT, rebrickable_user_token TEXT,
         is_supporter INTEGER DEFAULT 0, supporter_since TEXT, stripe_customer_id TEXT,
         kids_pin_hash TEXT, kids_xp INTEGER NOT NULL DEFAULT 0, kids_level INTEGER NOT NULL DEFAULT 1,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -2946,7 +2946,7 @@ describe('RevenueCat webhook', () => {
       user_id TEXT PRIMARY KEY, handle TEXT, display_name TEXT, currency TEXT DEFAULT 'USD',
       notify_price_drops INTEGER DEFAULT 1, notify_weekly_digest INTEGER DEFAULT 0, is_public INTEGER NOT NULL DEFAULT 0,
       expose_public_value INTEGER NOT NULL DEFAULT 1, email TEXT, discord_webhook_url TEXT,
-      brickset_user_hash TEXT, is_supporter INTEGER DEFAULT 0, supporter_since TEXT,
+      brickset_user_hash TEXT, rebrickable_user_token TEXT, is_supporter INTEGER DEFAULT 0, supporter_since TEXT,
       stripe_customer_id TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )`).run();
     // Partner revenue meter (lib/partner-revenue.ts) writes here on every event.

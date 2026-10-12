@@ -446,6 +446,7 @@ export const TABLE_DDL: Record<string, string> = {
   email TEXT,
   discord_webhook_url TEXT,
   brickset_user_hash TEXT,
+  rebrickable_user_token TEXT,
   is_supporter INTEGER DEFAULT 0,
   supporter_since TEXT,
   stripe_customer_id TEXT,

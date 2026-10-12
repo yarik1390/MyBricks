@@ -1,5 +1,18 @@
 /** Dutch exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "Connect Rebrickable": "Rebrickable koppelen",
+  "Enter your Rebrickable username and password": "Vul je Rebrickable-gebruikersnaam en wachtwoord in",
+  "Import finished": "Import klaar",
+  "Import from Rebrickable": "Importeren uit Rebrickable",
+  "Keep your Rebrickable set lists and your vault in step.": "Houd je Rebrickable-setlijsten en je kluis gelijk.",
+  "Rebrickable already has every set in your vault.": "Rebrickable heeft al elke set uit je kluis.",
+  "Rebrickable connected": "Rebrickable gekoppeld",
+  "Rebrickable disconnected": "Rebrickable ontkoppeld",
+  "Rebrickable password": "Rebrickable-wachtwoord",
+  "Rebrickable username or email": "Rebrickable-gebruikersnaam of e-mail",
+  "Send to Rebrickable": "Naar Rebrickable versturen",
+  "Sent to Rebrickable": "Naar Rebrickable verstuurd",
+  "We keep only the access key Rebrickable gives us, never your password.": "We bewaren alleen de toegangssleutel van Rebrickable, nooit je wachtwoord.",
   "Add a promotion": "Actie toevoegen",
   "Check the price at": "Prijs bekijken bij",
   "Coming up": "Binnenkort",
