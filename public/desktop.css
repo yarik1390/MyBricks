@@ -193,6 +193,28 @@
   .bv-keys__k { display: inline-flex; gap: 6px; }
 }
 
+/* Large monitors: pages grow with the window, and the Vault puts its value
+   card beside the table instead of above it. */
+@media (min-width: 1440px) {
+  .bv-page { max-width: 1040px; }
+  .bv-page.vault-page, .bv-page.bv-discover, .bv-page.vault-figs, .bv-page.bv-wishlist,
+  .bv-page.vault-build, .bv-page.bv-profile, .bv-page.vault-insights { max-width: 2200px; padding-left: 40px; padding-right: 40px; }
+  /* Start beside the sidebar rather than floating in the middle of a big screen. */
+  .bv-page { margin-left: 0; }
+  .bv-page.vault-page:has(> .vault-aside) {
+    display: grid; grid-template-columns: minmax(0, 1fr) clamp(340px, 24vw, 420px); grid-auto-flow: row dense; column-gap: 32px; align-items: start;
+  }
+  /* Top bar, search and notices span both columns; then the table and the aside. */
+  .vault-page:has(> .vault-aside) > * { grid-column: 1 / -1; min-width: 0; }
+  .vault-page:has(> .vault-aside) > .vault-main { grid-column: 1; }
+  .vault-page > .vault-aside { grid-column: 2 !important; position: sticky; top: 24px; display: flex; flex-direction: column; gap: 12px; padding-top: 8px; }
+  .vault-page > .vault-aside > *, .vault-page > .vault-aside > * > * { margin-left: 0; margin-right: 0; }
+  .vault-page > .vault-aside .vault-hero { margin-top: 0; }
+  .vault-page .vault-main > * { margin-left: 0; margin-right: 0; }
+  .vault-page .vault-main .vault-list:not(.bv-grid) { margin: 0; }
+  .vault-page .vault-main .vault-list-head { margin-left: 0; margin-right: 0; }
+}
+
 /* Wide windows: the set page shows its photo beside the details. With the
    list pane open there is not room, so it stays one column. */
 @media (min-width: 1200px) {
@@ -209,4 +231,11 @@
   body.collector-ui:not(.bv-two-pane) .bv-setpage .bv-setbar.detail-action-bar {
     position: static; margin-top: 16px; min-height: 0; padding: 16px; border: 1px solid var(--bv-line); border-radius: 20px; background: var(--bv-s);
   }
+}
+
+/* Big monitors: the set page grows too, with a taller photo. */
+@media (min-width: 1680px) {
+  body.collector-ui:not(.bv-two-pane) .bv-page.bv-setpage { max-width: 1520px; }
+  body.collector-ui:not(.bv-two-pane) .bv-setpage > .bv-sethero { height: 560px; }
+  body.collector-ui:not(.bv-two-pane) .bv-setpage > #setBar { top: 600px; }
 }

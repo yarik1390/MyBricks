@@ -65,6 +65,19 @@ test.describe('desktop (1440 wide)', () => {
   });
 });
 
+test.describe('big monitor (1920 wide)', () => {
+  test.use({ viewport: { width: 1920, height: 1080 } });
+
+  test('Vault value card sits beside the table', async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await page.locator('.vault-row').first().waitFor();
+    const table = await page.locator('.vault-main').boundingBox();
+    const card = await page.locator('.vault-aside').boundingBox();
+    expect(card.x).toBeGreaterThan(table.x + table.width - 1);
+    expect(table.width).toBeGreaterThan(1000);
+  });
+});
+
 test.describe('phone (393 wide)', () => {
   test.use({ viewport: { width: 393, height: 852 } });
 
