@@ -1,5 +1,4 @@
 import { $, $$, haptic, escapeHtml, fmtMoney, parseMarkdown, toast, advisorEnabled } from '../utils.js';
-import { goBackOr } from '../lib/nav-history.js';
 import { state } from '../state.js';
 import { api } from '../api.js';
 import { I } from '../icons.js';
@@ -81,7 +80,6 @@ export async function renderAdvisorPage() {
   if (!root) return;
   if (!advisorEnabled()) {
     root.innerHTML = `<main class="bv-page bv-advoff">${topbar({ title: t('bvCommunity.advTitle'), back: 'history' })}${emptyState({ icon: 'chat', title: t('bvCommunity.advOffTitle'), body: t('bvCommunity.advOffBody'), actionsHtml: btn(t('bvCommunity.advTurnOn'), { id: 'advTurnOn' }) })}</main>`;
-    $('[data-bv-back]')?.addEventListener('click', () => goBackOr('#/'));
     $('#advTurnOn')?.addEventListener('click', () => { localStorage.setItem('bv_advisor', 'on'); renderAdvisorPage(); });
     return;
   }
@@ -111,7 +109,6 @@ export async function renderAdvisorPage() {
     </div>
   </main>`;
 
-  $('[data-bv-back]')?.addEventListener('click', () => goBackOr('#/'));
   $("#advMenu")?.addEventListener("click", openAdvisorMenu);
   $$("[data-prompt]").forEach(chip => {
     chip.addEventListener("click", () => sendAdvisorMessage(t(chip.dataset.prompt)));

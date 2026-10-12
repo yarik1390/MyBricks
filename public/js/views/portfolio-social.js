@@ -4,7 +4,6 @@
 // land. A public profile shows only what its owner exposes; the owner can
 // preview it before going public.
 import { $, $$, escapeHtml, haptic, toast, publicOrigin, themeHue, THEME_COLORS, fmtMoneyShort } from '../utils.js';
-import { goBackOr } from '../lib/nav-history.js';
 import { state } from '../state.js';
 import { api, isGuestMode } from '../api.js';
 import { t, tPlural, intlLocale } from '../lib/i18n.js';
@@ -27,7 +26,6 @@ function initial(name) {
   const ch = String(name || '?').trim().replace(/^@/, '').charAt(0);
   return (ch || '?').toUpperCase();
 }
-function back() { goBackOr('#/me'); }
 
 function readCache(sort) {
   try {
@@ -125,7 +123,7 @@ export async function renderLeaderboard() {
       <div id="lbBody" aria-busy="${loading ? 'true' : 'false'}">${loading ? `<div class="bv-lb__list">${skeletonRows(6)}</div>` : boardHTML(data, sort, who)}</div>
       ${loading ? '' : joinBarHTML(data, sort, who)}
     </main>`;
-    $('[data-bv-back]')?.addEventListener('click', back);
+    $('[data-bv-back]')?.setAttribute('data-bv-back-fallback', '#/me');
     $$('[data-lb-sort]').forEach((b) => b.addEventListener('click', () => {
       const next = b.dataset.lbSort;
       if (next === sort) return;
@@ -242,7 +240,7 @@ export async function renderPublicProfile(handle) {
       ${topbar({ title: `@${handle}`, back: 'history' })}
       ${emptyState({ icon: missing ? 'lock' : 'cloudOff', title: t(missing ? 'bvCommunity.notFoundTitle' : 'bvCommunity.loadFailedTitle'), body: t(missing ? 'bvCommunity.notFoundBody' : 'bvCommunity.loadFailedBody'), actionsHtml: btn(t('bvCommunity.leaderboard'), { href: '#/leaderboard', kind: 'tonal' }) })}
     </main>`;
-    $('[data-bv-back]')?.addEventListener('click', back);
+    $('[data-bv-back]')?.setAttribute('data-bv-back-fallback', '#/me');
     return;
   }
   if (!onProfile()) return;
@@ -255,7 +253,7 @@ export async function renderPublicProfile(handle) {
     ${shelfHTML(p)}
     ${themesHTML(p)}
   </main>`;
-  $('[data-bv-back]')?.addEventListener('click', back);
+  $('[data-bv-back]')?.setAttribute('data-bv-back-fallback', '#/me');
   $('#pubShare')?.addEventListener('click', async () => {
     haptic('light');
     const url = `${publicOrigin()}/#/u/${encodeURIComponent(p.handle || handle)}`;
