@@ -848,6 +848,8 @@ export const hi = {
     proRestore: 'खरीदारी बहाल करें',
     proContinue: 'आगे बढ़ें',
     planCancel: 'कभी भी रद्द करें',
+    planLifetime: 'आजीवन',
+    planOnce: 'एक बार भुगतान, हमेशा के लिए Pro',
     planBest: 'सबसे किफ़ायती',
     planMonthly: 'मासिक',
     planYearly: 'सालाना',

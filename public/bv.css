@@ -1793,6 +1793,7 @@ body.collector-ui .bv-discover #catalogSortBtn { grid-column: auto; grid-row: au
 .bv-proactions .bv-btn { margin: 0; }
 .bv-proplans { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 4px; }
 .bv-proplan { font: inherit; color: inherit; text-align: left; cursor: pointer; padding: 14px; border-radius: 16px; border: 1px solid var(--bv-line); background: var(--bv-s); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.bv-proplan[data-plan="LIFETIME"] { grid-column: 1 / -1; }
 .bv-proplan.is-best { border: 2px solid var(--bv-ink); padding: 13px; }
 .bv-proplan__title { font: 600 15px/20px var(--bv-sans); }
 .bv-proplan__price { font: 600 18px/24px var(--bv-mono); overflow-wrap: anywhere; }

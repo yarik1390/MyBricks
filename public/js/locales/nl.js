@@ -848,6 +848,8 @@ export const nl = {
     proRestore: 'Aankopen herstellen',
     proContinue: 'Doorgaan',
     planCancel: 'Altijd opzegbaar',
+    planLifetime: 'Levenslang',
+    planOnce: 'Eén keer betalen, voor altijd Pro',
     planBest: 'Beste prijs',
     planMonthly: 'Maandelijks',
     planYearly: 'Jaarlijks',

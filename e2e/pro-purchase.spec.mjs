@@ -20,6 +20,7 @@ function mockBilling(page, { purchaseError = null } = {}) {
         getOfferings: () => Promise.resolve({ current: { availablePackages: [
           { identifier: '$rc_annual', packageType: 'ANNUAL', product: { priceString: '€47.99' } },
           { identifier: '$rc_monthly', packageType: 'MONTHLY', product: { priceString: '€4.79' } },
+          { identifier: '$rc_lifetime', packageType: 'LIFETIME', product: { priceString: '€99.99' } },
         ] } }),
         purchasePackage: ({ aPackage }) => {
           window.__purchases.push(aPackage.identifier);
@@ -49,6 +50,19 @@ test('Continue buys the picked plan in Google Play without a second paywall', as
   await page.locator('#rcUpgradeBtn').click();
   await expect.poll(() => page.evaluate(() => window.__purchases)).toEqual(['$rc_monthly']);
   expect(await page.evaluate(() => window.__paywalls)).toBe(0);
+});
+
+test('a Lifetime package shows as a one-time plan and can be bought', async ({ page }) => {
+  await mockBilling(page);
+  await page.goto('/#/pro');
+  const lifetime = page.locator('.bv-proplan[data-plan="LIFETIME"]');
+  await expect(lifetime).toContainText('Lifetime');
+  await expect(lifetime).toContainText('€99.99');
+  await expect(lifetime).toHaveAttribute('aria-pressed', 'false');
+  await lifetime.click();
+  await page.locator('#rcUpgradeBtn').click();
+  await expect.poll(() => page.evaluate(() => window.__purchases)).toEqual(['$rc_lifetime']);
+  await page.screenshot({ path: process.env.PRO_SHOT || 'test-results/pro-lifetime.png' });
 });
 
 test('a refused purchase says why', async ({ page }) => {

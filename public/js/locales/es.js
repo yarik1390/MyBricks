@@ -848,6 +848,8 @@ export const es = {
     proRestore: 'Restaurar compras',
     proContinue: 'Continuar',
     planCancel: 'Cancela cuando quieras',
+    planLifetime: 'De por vida',
+    planOnce: 'Paga una vez, Pro para siempre',
     planBest: 'Mejor precio',
     planMonthly: 'Mensual',
     planYearly: 'Anual',

@@ -857,6 +857,8 @@ export const en = {
     proRestore: 'Restore purchases',
     proContinue: 'Continue',
     planCancel: 'Cancel anytime',
+    planLifetime: 'Lifetime',
+    planOnce: 'Pay once, Pro forever',
     planBest: 'Best value',
     planMonthly: 'Monthly',
     planYearly: 'Yearly',
