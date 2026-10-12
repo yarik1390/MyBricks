@@ -1576,6 +1576,8 @@ function manageTabHTML(set, entry) {
         <span class="manage-save-copy"><strong>Set details</strong><small>Changes save automatically</small></span>
         <span id="manageSaveState" class="badge badge--neutral" aria-live="polite" style="visibility:hidden;">Saved ✓</span>
       </div>
+      ${isGuestMode() ? "" : `<section class="bv-card bv-copies" id="copiesCard" aria-label="Your copies"><p class="bv-field__help">${escapeHtml(t("common.loading"))}</p></section>
+      <p class="bv-field__help" id="copiesDifferHint" hidden>Your copies differ, so price and condition are set per copy above.</p>`}
       <fieldset class="form-group manage-group">
         <legend>Purchase</legend>
         <p class="manage-group-description">Record what you paid and where this set joined your collection.</p>
@@ -1837,23 +1839,36 @@ function wireManageTab(set, entry) {
     el.className = `badge badge--${tone}`;
   }
 
+  // Send only the fields that changed: holding-level price, condition, date,
+  // source and shelf apply to every tracked copy on the server, so re-sending
+  // unchanged values on an unrelated blur would flatten per-copy details.
+  let lastSaved = null;
+  const readManageFields = () => {
+    const isComplete = $("#mComplete")?.checked ?? true;
+    const fields = {
+      purchase_price: optionalMoneyInput($("#mPrice")?.value),
+      purchased_at: $("#mDate")?.value || null,
+      condition: $("#mCondition")?.value,
+      notes: $("#mNotes")?.value || "",
+      storage_location: $("#mStorage")?.value || null,
+      acquisition_source: $("#mAcquisition")?.value || null,
+      is_complete: isComplete,
+      missing_pieces: isComplete ? 0 : (parseInt($("#mMissing")?.value) || 0),
+    };
+    if ($("#mPrice")?.disabled) delete fields.purchase_price;
+    if ($("#mCondition")?.disabled) delete fields.condition;
+    return fields;
+  };
+  lastSaved = readManageFields();
+
   async function persist() {
+    const current = readManageFields();
+    const body = Object.fromEntries(Object.entries(current).filter(([k, v]) => lastSaved[k] !== v));
+    if (!Object.keys(body).length) return;
     setSaveState("Saving…", "neutral");
     try {
-      const isComplete = $("#mComplete")?.checked ?? true;
-      await api("/api/collection/" + entry.id, {
-        method: "PATCH",
-        body: {
-          purchase_price: optionalMoneyInput($("#mPrice")?.value),
-          purchased_at: $("#mDate")?.value || null,
-          condition: $("#mCondition")?.value,
-          notes: $("#mNotes")?.value || "",
-          storage_location: $("#mStorage")?.value || null,
-          acquisition_source: $("#mAcquisition")?.value || null,
-          is_complete: isComplete,
-          missing_pieces: isComplete ? 0 : (parseInt($("#mMissing")?.value) || 0),
-        }
-      });
+      await api("/api/collection/" + entry.id, { method: "PATCH", body });
+      lastSaved = { ...lastSaved, ...body };
       invalidatePortfolio();
       delete state.detail.cache[set.set_num];
       setSaveState("Saved ✓", "up");
@@ -1956,6 +1971,27 @@ function wireManageTab(set, entry) {
       await paintSetDetail(set, { ...entry, custom_image_url: null });
     } catch (err) { toast(t('detail.removeFailed', { error: err.message || err }), "error"); }
   });
+
+  // Per-copy tracking: the holding becomes the aggregate of its copies.
+  const copiesCard = $("#copiesCard");
+  if (copiesCard && entry?.id) {
+    import('../components/copies.js').then(({ mountCopies }) => mountCopies(copiesCard, set, entry, {
+      onChange: (item) => {
+        invalidatePortfolio();
+        delete state.detail.cache[set.set_num];
+        if (!item) { markSetOwned(set.set_num, false); go("#/"); return; }
+        Object.assign(entry, item);
+        const q = $("#qtyNum");
+        if (q) q.textContent = String(Number(item.quantity) || 1);
+        const price = $("#mPrice");
+        if (price && !price.disabled) price.value = moneyInputValue(item.purchase_price);
+        const cond = $("#mCondition");
+        if (cond && !cond.disabled && item.condition) cond.value = item.condition;
+        // The server already holds these aggregates; don't echo them back to every copy.
+        lastSaved = readManageFields();
+      },
+    })).catch(() => {});
+  }
 
   // Parts completeness
   $("#loadPartsBtn")?.addEventListener("click", async () => {

@@ -138,6 +138,7 @@ const STATIC_ASSETS = [
   '/js/lib/provider-credentials.js',
   '/js/components/sheet.js',
   '/js/components/parts-checklist.js',
+  '/js/components/copies.js',
 
   '/js/components/kids-pin.js',
   '/js/components/methodology.js',

@@ -263,6 +263,8 @@ app.patch('/', async (c) => {
 // (integration_health, *_keys) are never user-scoped, so they're untouched.
 export const USER_SCOPED_TABLES = [
   'user_collection',
+  'holding_copies',
+  'realized_sales',
   'user_minifigs',
   'user_subcollections',
   'user_wishlist',

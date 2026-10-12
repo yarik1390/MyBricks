@@ -553,6 +553,40 @@ export const TABLE_DDL: Record<string, string> = {
   PRIMARY KEY (set_num, part_num, color_id)
 )`,
 
+  holding_copies: `CREATE TABLE IF NOT EXISTS holding_copies (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  set_num TEXT NOT NULL,
+  condition TEXT NOT NULL DEFAULT 'sealed' CHECK(condition IN ('new','used_good','used_acceptable','sealed')),
+  purchase_price REAL,
+  purchased_at DATE,
+  storage_location TEXT,
+  acquisition_source TEXT,
+  notes TEXT,
+  sold_price REAL,
+  sold_at DATE,
+  sold_fees REAL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  deleted_at DATETIME
+)`,
+  realized_sales: `CREATE TABLE IF NOT EXISTS realized_sales (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  set_num TEXT NOT NULL,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  condition TEXT,
+  cost_basis REAL,
+  purchased_at DATE,
+  sold_price REAL NOT NULL,
+  sold_fees REAL,
+  sold_at DATE NOT NULL,
+  value_at_sale REAL,
+  source TEXT NOT NULL DEFAULT 'holding',
+  source_ref TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  deleted_at DATETIME
+)`,
   user_missing_parts: `CREATE TABLE IF NOT EXISTS user_missing_parts (
     user_id TEXT NOT NULL,
     set_num TEXT NOT NULL,

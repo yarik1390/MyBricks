@@ -45,7 +45,7 @@ describe('POST /api/bricklink/import-csv', () => {
     (env as any).SUPABASE_JWT_SECRET = secret;
     (env as any).SUPABASE_URL = 'https://supabase.mock.io';
     (env as any).SUPABASE_ANON_KEY = 'fixture-anon-key';
-    await applyTestTables(db, ['lego_sets', 'user_collection', 'user_wishlist', 'community_comps', 'pricing_signals', 'pricing_write_ledger']);
+    await applyTestTables(db, ['lego_sets', 'user_collection', 'user_wishlist', 'community_comps', 'pricing_signals', 'pricing_write_ledger', 'realized_sales', 'holding_copies', 'set_value_history']);
     await db.batch(['10001-1', '10002-1', '10003-1', '10004-1'].map(n =>
       db.prepare(`INSERT INTO lego_sets (set_num, name, blended_value) VALUES (?, ?, 100)`).bind(n, n)));
     await (env as any).CACHE_KV?.put('fx:usd', JSON.stringify({ USD: 1, EUR: 0.5, GBP: 0.8 }));
@@ -114,7 +114,7 @@ describe('POST /api/bricklink/import-csv', () => {
 
 describe('community comps from multi-copy sales', () => {
   beforeEach(async () => {
-    await applyTestTables(db, ['lego_sets', 'user_collection', 'user_wishlist', 'community_comps', 'pricing_signals', 'pricing_write_ledger']);
+    await applyTestTables(db, ['lego_sets', 'user_collection', 'user_wishlist', 'community_comps', 'pricing_signals', 'pricing_write_ledger', 'realized_sales', 'holding_copies', 'set_value_history']);
   });
 
   it('divides a whole-holding sale price back to a per-set comp', async () => {

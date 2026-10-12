@@ -102,6 +102,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
   const auth = (t = token) => ({ Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' });
 
   beforeEach(async () => {
+    await applyTestTables((env as any).DB as D1Database, ['holding_copies', 'realized_sales']);
     (env as any).SUPABASE_JWT_SECRET = JWT_SECRET;
     (env as any).SUPABASE_URL = 'https://supabase.mock.io';
     (env as any).SUPABASE_ANON_KEY = 'supabase-anon-key-mock';

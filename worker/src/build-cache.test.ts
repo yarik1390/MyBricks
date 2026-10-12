@@ -1,4 +1,5 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
+import { applyTestTables } from './test-schema';
 import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { app } from './index';
@@ -48,6 +49,7 @@ describe('build matcher cache pre-warm', () => {
   }
 
   beforeEach(async () => {
+    await applyTestTables((env as any).DB as D1Database, ['holding_copies', 'realized_sales']);
     (env as { SUPABASE_JWT_SECRET?: string }).SUPABASE_JWT_SECRET = JWT_SECRET;
     token = await createMockJWT(uid, JWT_SECRET);
     const db = (env as { DB: D1Database }).DB;
