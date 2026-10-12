@@ -50,6 +50,7 @@ import { runPriceChartingEnrich } from './jobs/pricecharting-enrich';
 import { runCommunityComps } from './jobs/community-comps';
 import { runMinifigVerify } from './jobs/minifig-verify';
 import { priceChartingBulkNeedsRetry, runPriceChartingBulkFetch } from './jobs/pricecharting-bulk';
+import { runPriceChartingTriage } from './jobs/pricecharting-triage';
 import { importSets, importFigs } from './jobs/import-catalog';
 import { runBrickInsightsBackfill } from './jobs/brickinsights';
 import { runEbaySoldScrape } from './jobs/ebay-sold-scrape';
@@ -494,6 +495,8 @@ export default {
         // sweep when nothing promoted). The daily 04:00 run does the full
         // signal refresh.
         await run('pricecharting-verify-drain', () => runPriceChartingVerify(env, { limit: 400, refreshSignals: false }));
+        // Quarantine triage: one SELECT per hour once its cursor is caught up.
+        await run('pricecharting-triage', () => runPriceChartingTriage(env));
         // Retry today's PriceCharting download if the 04:30 attempt hit an
         // outage; a no-op settings read otherwise.
         if (await priceChartingBulkNeedsRetry(env)) {

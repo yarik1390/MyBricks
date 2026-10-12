@@ -343,9 +343,10 @@ describe('PriceCharting bulk identity verification', () => {
     expect(mapping).toEqual({ status: 'quarantined', match_method: 'set_token_conflict' });
   });
 
-  it('quarantines a verified UPC mapping whose feed title names a different set, and its signals', async () => {
+  it('re-points a verified UPC mapping whose feed title names a different catalog set', async () => {
     await db.batch([
-      db.prepare(`INSERT INTO lego_sets (set_num,name,upc,category) VALUES ('42177-1','Wrong Link','673419389198','Normal')`),
+      db.prepare(`INSERT INTO lego_sets (set_num,name,upc,category,pc_id,pc_new_value) VALUES ('42177-1','Wrong Link','673419389198','Normal','5845932',30)`),
+      db.prepare(`INSERT INTO lego_sets (set_num,name,category) VALUES ('2891-1','Wizard Trader','Normal')`),
       db.prepare(`INSERT INTO lego_sets (set_num,name,upc,category) VALUES ('6661-1','TV Van','042884066611','Normal')`),
       db.prepare(`INSERT INTO pricing_source_map (source,source_item_id,set_num,source_title,upc,variant_key,match_method,match_confidence,status,verified_at,updated_at)
                   VALUES ('pricecharting','5845932','42177-1','Wizard Trader #2891','673419389198','42177-1','upc',1,'verified','2026-07-01','2026-07-01')`),
@@ -362,17 +363,33 @@ describe('PriceCharting bulk identity verification', () => {
       '5890041,LEGO Sets,042884066611,TV Van #6661,$50,$70,$90,6',
     ]);
 
-    expect(result).toMatchObject({ matched: 1, contradicted: 1 });
-    const maps = await db.prepare(`SELECT source_item_id,status FROM pricing_source_map ORDER BY source_item_id`).all<any>();
+    expect(result).toMatchObject({ matched: 1, contradicted: 1, triaged: { verified: 1 } });
+    const maps = await db.prepare(`SELECT source_item_id,set_num,status,match_method FROM pricing_source_map ORDER BY source_item_id`).all<any>();
     expect(maps.results).toEqual([
-      { source_item_id: '5845932', status: 'quarantined' },
-      { source_item_id: '5890041', status: 'verified' },
+      { source_item_id: '5845932', set_num: '2891-1', status: 'verified', match_method: 'title_review' },
+      { source_item_id: '5890041', set_num: '6661-1', status: 'verified', match_method: 'upc' },
     ]);
+    // The wrong set loses the product's evidence, legacy columns included. The
+    // product's UPC still belongs to 42177-1 in the catalog, so the identity gate
+    // keeps it from pricing 2891-1 until that conflict is gone.
     const signals = await db.prepare(`SELECT set_num,match_status,checked_at>'2026-09-01' AS fresh FROM pricing_signals WHERE condition='new_sealed' ORDER BY set_num`).all<any>();
     expect(signals.results).toEqual([
-      { set_num: '42177-1', match_status: 'quarantined', fresh: 0 },
       { set_num: '6661-1', match_status: 'verified', fresh: 1 },
     ]);
+    expect(await db.prepare(`SELECT pc_id,pc_new_value FROM lego_sets WHERE set_num='42177-1'`).first())
+      .toEqual({ pc_id: null, pc_new_value: null });
+  });
+
+  it('does not treat a shop item number the catalog does not know as a contradiction', async () => {
+    await db.batch([
+      db.prepare(`INSERT INTO lego_sets (set_num,name,upc,category) VALUES ('5007869-1','Portable Cassette Player','5702017589183','Normal')`),
+      db.prepare(`INSERT INTO pricing_source_map (source,source_item_id,set_num,source_title,upc,variant_key,match_method,match_confidence,status,verified_at,updated_at)
+                  VALUES ('pricecharting','6114854','5007869-1','Cassette Player #6471611','5702017589183','5007869-1','upc',1,'verified','2026-07-01','2026-07-01')`),
+    ]);
+    const result = await importRows(['6114854,LEGO Sets,5702017589183,Cassette Player #6471611,$10,$20,$30,4']);
+    expect(result.contradicted).toBeUndefined();
+    expect(await db.prepare(`SELECT status FROM pricing_source_map WHERE source_item_id='6114854'`).first())
+      .toEqual({ status: 'verified' });
   });
 
   it('does not reopen rejected/manual mappings during a later bulk import', async () => {
