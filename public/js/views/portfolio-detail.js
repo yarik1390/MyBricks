@@ -1222,7 +1222,7 @@ function infoTabHTML(set, entry) {
   const externalLinks = `
     <div class="bv-setlinks">
       <a class="bl-buy-link bv-btn bv-btn--text" href="${bricklinkBuyURL(set.set_num)}" target="_blank" rel="noopener">${t('market.viewOnBrickLink')}${kitIcon("ext", { size: 18 })}</a>
-      <a class="bl-buy-link bv-btn bv-btn--text" href="https://www.google.com/search?q=LEGO+${encodeURIComponent(set.set_num)}+building+instructions+PDF" target="_blank" rel="noopener">Building instructions (PDF)${kitIcon("ext", { size: 18 })}</a>
+      <a class="bl-buy-link bv-btn bv-btn--text" href="https://www.lego.com/service/building-instructions/${encodeURIComponent(String(set.set_num).replace(/-\d+$/, ""))}" target="_blank" rel="noopener">Building instructions (LEGO.com)${kitIcon("ext", { size: 18 })}</a>
     </div>`;
 
   return `
@@ -1642,11 +1642,11 @@ function manageTabHTML(set, entry) {
       </fieldset>
     <div class="detail-card" id="partsCard">
       <div class="detail-card-title" style="justify-content:space-between;">
-        <span>Parts completeness</span>
-        <button class="btn-secondary" id="loadPartsBtn" style="font-size:11px;padding:4px 10px;">Refresh parts</button>
+        <span>Parts checklist</span>
+        <button class="btn-secondary" id="loadPartsBtn" style="font-size:11px;padding:4px 10px;">Show parts</button>
       </div>
       <div id="partsContent" style="font-size:13px;color:var(--ink-mute);line-height:1.45;">
-        Compares the official parts list with missing pieces you mark for this set. 100% means no missing parts are recorded.
+        Open the official parts list, mark any pieces you're missing, and export them as a BrickLink or Rebrickable wanted list.
       </div>
     </div>
     <details class="detail-card bv-passport__flip" ${entry.purchase_price ? "open" : ""}>
@@ -1972,31 +1972,8 @@ function wireManageTab(set, entry) {
         btn.disabled = false;
         return;
       }
-      const { parts, completeness, total_owned, total_missing } = data;
-      const pct = completeness ?? (total_owned > 0 ? Math.round((total_owned - total_missing) / total_owned * 100) : null);
-      const pctStr = pct !== null ? `${pct}%` : "—";
-      const color = pct === null ? "var(--ink-mute)" : pct >= 95 ? "var(--up)" : pct >= 80 ? "var(--bv-yellow)" : "var(--down)";
-      const missingParts = parts.filter(p => p.missing_qty > 0 && !p.is_spare);
-      content.innerHTML = `
-        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
-          <span style="font-size:22px;font-weight:700;color:${color};">${pctStr}</span>
-          <span style="color:var(--ink-mute);font-size:12px;">${t('detail.partsComplete')}${total_missing > 0 ? ` · ${escapeHtml(tPlural('detail.partsMissing', Number(total_missing)))}` : ` · ${t('detail.allPartsPresent')}`}</span>
-        </div>
-        <div style="color:var(--ink-mute);font-size:12px;line-height:1.45;margin-bottom:8px;">Based on the Rebrickable parts list and your saved missing-parts marks. Spares are ignored.</div>
-        ${missingParts.length ? `
-          <div style="font-size:12px;color:var(--ink-mute);margin-bottom:4px;">Missing:</div>
-          <div style="display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto;">
-            ${missingParts.slice(0, 20).map(p => `
-              <div style="display:flex;align-items:center;gap:8px;font-size:12px;">
-                ${p.part_img_url ? `<img src="${escapeHtml(p.part_img_url)}" alt="" style="width:24px;height:24px;object-fit:contain;">` : `<div style="width:24px;height:24px;background:var(--surface-2);border-radius:3px;"></div>`}
-                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.part_name || p.part_num)}</span>
-                <span style="font-family:var(--mono);color:var(--down);">×${p.missing_qty}</span>
-              </div>
-            `).join('')}
-            ${missingParts.length > 20 ? `<div style="color:var(--ink-mute);font-size:11px;">${tPlural('detail.tagsMore', missingParts.length - 20)}</div>` : ''}
-          </div>
-        ` : ''}
-      `;
+      const { renderPartsChecklist } = await import('../components/parts-checklist.js');
+      renderPartsChecklist(content, set, data);
       btn.textContent = "Refresh";
       btn.disabled = false;
     } catch (_e) {

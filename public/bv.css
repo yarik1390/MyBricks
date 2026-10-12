@@ -918,6 +918,7 @@ body.collector-ui.selection-mode #nav { display: none; }
 .vault-build-row .bv-bar.is-ready > span { background: var(--bv-gain); }
 .vault-build-row__glyph { --size: 52px; color: var(--bv-mute); }
 .vault-build-row.is-alt { min-height: 80px; }
+.vault-build-row__wanted { align-self: flex-start; margin: -8px 0 6px 82px; min-height: 44px; font-size: 13px; gap: 6px; }
 .vault-build .bv-empty__actions .bv-btn { width: 100%; }
 
 

@@ -91,7 +91,7 @@ describe('set-detail Manage UI hierarchy', () => {
 
   it('keeps supporting tools and separates the destructive vault removal action', () => {
     assert.match(manageTemplate, /Flip calculator/);
-    assert.match(manageTemplate, /Parts completeness/);
+    assert.match(manageTemplate, /Parts checklist/);
     assert.match(manageTemplate, /bvSet\.yourPhotos/);
     assert.match(manageTemplate, /bvSet\.memories/);
     assert.match(manageTemplate, /sellTimingHTML\(set, entry\)/);
