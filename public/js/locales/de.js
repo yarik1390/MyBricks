@@ -1810,3 +1810,6 @@ de.lot = {"unpriced": "Sets ohne Preis bisher: {missing}. Die Summe lässt sie a
 // Family vault and swaps (views/family.js, views/swaps.js).
 de.family = {"memberStat": "Sets: {sets} · {value}", "removeMember": "{name} entfernen", "shareText": "Tritt unserem Familien-Tresor in BricksVault bei, mit dem Einladungscode {code}", "shareTitle": "BricksVault Familien-Tresor"};
 de.swaps = {"stopOffering": "{name} nicht mehr anbieten", "from": "Von {name}", "to": "An {name}", "proposeTo": "Tausch mit {name}"};
+
+// Price It! refresh (views/game.js, components/price-it-card.js).
+de.priceIt = {"you": "Du", "market": "Markt", "marketValue": "Marktwert", "tierTop": "Marktgenie", "tierMid": "Scharfes Auge", "tierLow": "Fast geschafft", "tierZero": "Harter Markt heute", "statStreak": "Serie", "statBest": "Rekord", "statAvgOff": "Ø daneben", "nextIn": "Neue Sets in {time}", "cardTodo": "Heute 5 neue Sets zum Schätzen", "play": "Spielen", "seeScore": "Ergebnis", "slider": "Schieben, um zu schätzen", "timeHM": "{h} Std. {m} Min."};

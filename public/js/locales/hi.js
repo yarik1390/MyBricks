@@ -1792,3 +1792,6 @@ hi.lot = {"unpriced": "अभी बिना कीमत वाले से�
 // Family vault and swaps (views/family.js, views/swaps.js).
 hi.family = {"memberStat": "सेट: {sets} · {value}", "removeMember": "{name} को हटाएँ", "shareText": "BricksVault पर हमारे फ़ैमिली वॉल्ट से जुड़ें, आमंत्रण कोड {code}", "shareTitle": "BricksVault फ़ैमिली वॉल्ट"};
 hi.swaps = {"stopOffering": "{name} की पेशकश बंद करें", "from": "{name} से", "to": "{name} को", "proposeTo": "{name} के साथ अदला-बदली"};
+
+// Price It! refresh (views/game.js, components/price-it-card.js).
+hi.priceIt = {"you": "आप", "market": "बाज़ार", "marketValue": "बाज़ार मूल्य", "tierTop": "बाज़ार के उस्ताद", "tierMid": "पैनी नज़र", "tierLow": "करीब पहुँच रहे हैं", "tierZero": "आज बाज़ार कठिन है", "statStreak": "स्ट्रीक", "statBest": "सर्वश्रेष्ठ", "statAvgOff": "औसत अंतर", "nextIn": "नए सेट {time} में", "cardTodo": "आज कीमत लगाने के लिए 5 नए सेट", "play": "खेलें", "seeScore": "स्कोर देखें", "slider": "अनुमान के लिए खिसकाएँ", "timeHM": "{h} घं {m} मि"};

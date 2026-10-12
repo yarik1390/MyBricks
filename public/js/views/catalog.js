@@ -9,6 +9,7 @@ import { getModePref } from '../theme.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { openScan, lookupScanInput } from '../components/scanner-lazy.js';
 import { trustBadgeHTML } from '../components/trust.js';
+import { priceItCardHTML } from '../components/price-it-card.js';
 import { activeCatalogFilterCount, pricePerPiece, estMark, displayValueOf, cleanFacetList } from '../lib/pure.js';
 import { catalogFilterSummaryText } from '../lib/filter-summary.js';
 import { scanIntentFromHash } from '../lib/deep-links.js';
@@ -237,7 +238,9 @@ function shortcutsHTML() {
       <span class="bv-shortcut__text"><span class="bv-shortcut__title">${escapeHtml(title)}</span><span class="bv-shortcut__sub">${escapeHtml(count > 0 ? tPlural("counts.sets", count) : fallback)}</span></span>
     </a>`;
   const upcoming = state.catalog.upcoming || [];
-  return `<nav class="bv-discover__shortcuts" aria-label="${escapeHtml(t("bvAdd.shortcuts"))}">
+  // Price It! leads Discover: a daily game deserves a front-row seat (it used
+  // to hide in Vault's ⋮ menu). Same Kids Mode gate: it shows real prices.
+  return `${priceItCardHTML()}<nav class="bv-discover__shortcuts" aria-label="${escapeHtml(t("bvAdd.shortcuts"))}">
       ${tile({ href: "#/retiring", id: "retiringShortcut", iconName: "clock", title: t("bvAdd.retiringSoon"), count: state.catalog.retiringCount, fallback: t("bvAdd.retiringShortcutSub") })}
       ${tile({ href: "#/upcoming", id: "upcomingShortcut", iconName: "bell", title: t("bvCommon.comingSoon"), count: upcoming.length, fallback: t("bvAdd.upcomingShortcutSub") })}
     </nav>`;

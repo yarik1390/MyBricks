@@ -2091,3 +2091,6 @@ en.lot = {"unpriced": "Sets without a price yet: {missing}. The total leaves the
 // Family vault and swaps (views/family.js, views/swaps.js).
 en.family = {"memberStat": "Sets: {sets} · {value}", "removeMember": "Remove {name}", "shareText": "Join our family vault on BricksVault with the invite code {code}", "shareTitle": "BricksVault family vault"};
 en.swaps = {"stopOffering": "Stop offering {name}", "from": "From {name}", "to": "To {name}", "proposeTo": "Swap with {name}"};
+
+// Price It! refresh (views/game.js, components/price-it-card.js).
+en.priceIt = {"you": "You", "market": "Market", "marketValue": "Market value", "tierTop": "Market genius", "tierMid": "Sharp eye", "tierLow": "Getting there", "tierZero": "Tough market today", "statStreak": "Streak", "statBest": "Best", "statAvgOff": "Avg. off", "nextIn": "New sets in {time}", "cardTodo": "5 new sets to price today", "play": "Play", "seeScore": "See score", "slider": "Slide to set your guess", "timeHM": "{h}h {m}m"};
