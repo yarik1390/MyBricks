@@ -307,6 +307,7 @@ app.route('/api/google', googleSyncRoute);
 app.route('/api/rates', ratesRoute);
 app.route('/api/brickset', bricksetSyncRoute);
 app.route('/api/collection', photosRoute);
+import { copiesRoute } from './routes/copies'; app.route('/api/collection', copiesRoute);
 app.route('/api/game', gameRoute);
 app.route('/api/contributions', contributionsRoute);
 app.route('/api/push', pushRoute);

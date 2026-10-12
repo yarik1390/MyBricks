@@ -12,6 +12,8 @@ import { runSyncProcess } from './google-sync';
 const FREE_TEXT_MAX = 500;
 import { awardXpForAdd } from '../lib/kids-xp';
 import { scheduleBuildCacheRecompute } from '../lib/build-matcher';
+import { activeCopies, applyHoldingFieldsToCopies, closeCopies, syncCopiesToQuantity, syncHoldingFromCopies } from '../lib/holding-copies';
+import { recordSale } from '../lib/realized-sales';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -295,6 +297,8 @@ app.post('/', async (c) => {
   const existing = await c.env.DB.prepare('SELECT 1 FROM lego_sets WHERE set_num=?').bind(set_num).first();
   if (!existing) return c.json({ error: 'Set not found in catalog' }, 404);
 
+  const prior = await c.env.DB.prepare('SELECT deleted_at FROM user_collection WHERE user_id = ? AND set_num = ?')
+    .bind(userId, set_num).first<{ deleted_at: string | null }>();
   await c.env.DB.prepare(`
     INSERT INTO user_collection (user_id, set_num, quantity, condition, purchase_price, notes, purchased_at, last_modified)
     VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
@@ -307,6 +311,15 @@ app.post('/', async (c) => {
       last_modified = datetime('now'),
       deleted_at = NULL
   `).bind(userId, set_num, quantity, condition, purchase_price ?? null, notes ?? null, purchased_at ?? null).run();
+  // Adding back a set that was sold starts a fresh holding: the old sale lives
+  // on in the realized_sales ledger, not on the active row.
+  if (prior?.deleted_at) {
+    await c.env.DB.prepare(
+      'UPDATE user_collection SET sold_price = NULL, sold_at = NULL, sold_fees = NULL WHERE user_id = ? AND set_num = ? AND deleted_at IS NULL'
+    ).bind(userId, set_num).run();
+  }
+  // Tracked copies follow the new quantity (no-op when the set isn't tracked per copy).
+  await syncCopiesToQuantity(c.env.DB, userId, set_num);
 
   const item = await c.env.DB.prepare(
     'SELECT * FROM user_collection WHERE user_id=? AND set_num=? AND deleted_at IS NULL'
@@ -438,12 +451,23 @@ app.post('/sell', async (c) => {
   if (sold_fees !== null && (typeof sold_fees !== 'number' || !Number.isFinite(sold_fees) || sold_fees < 0 || sold_fees >= sold_price)) {
     return c.json({ error: 'sold_fees must be a number >= 0 and below the sold price' }, 400);
   }
+  const holding = await c.env.DB.prepare(
+    'SELECT quantity, condition, purchase_price, purchased_at FROM user_collection WHERE user_id=? AND set_num=? AND deleted_at IS NULL'
+  ).bind(userId, set_num).first<{ quantity: number; condition: string; purchase_price: number | null; purchased_at: string | null }>();
   const res = await c.env.DB.prepare(`
     UPDATE user_collection
     SET sold_price=?, sold_at=?, sold_fees=?, deleted_at=datetime('now'), last_modified=datetime('now')
     WHERE user_id=? AND set_num=? AND deleted_at IS NULL
   `).bind(sold_price, sold_at, sold_fees, userId, set_num).run();
-  if (!res.meta.changes) return c.json({ error: 'Set not in your vault' }, 404);
+  if (!res.meta.changes || !holding) return c.json({ error: 'Set not in your vault' }, 404);
+  const qty = Math.max(1, Number(holding.quantity) || 1);
+  await recordSale(c.env.DB, {
+    userId, setNum: set_num, quantity: qty, condition: holding.condition,
+    costBasis: holding.purchase_price != null ? holding.purchase_price * qty : null,
+    purchasedAt: holding.purchased_at, soldPrice: sold_price, soldFees: sold_fees, soldAt: sold_at,
+    source: 'holding',
+  });
+  await closeCopies(c.env.DB, userId, set_num, { soldAt: sold_at });
   logEvent(c.env, 'set_sold', userId, { setNum: set_num });
   scheduleBuildCacheRecompute(c.env, userId, c.executionCtx);
   return c.json({ ok: true, set_num, sold_price, sold_at, sold_fees });
@@ -671,6 +695,15 @@ app.patch('/:id', async (c) => {
   await c.env.DB.prepare(
     `UPDATE user_collection SET ${fields.join(',')} WHERE id=? AND user_id=?`
   ).bind(...vals).run();
+  // Holdings tracked per copy: holding-level edits apply to every copy, and a
+  // new quantity adds or removes copies, then the aggregate is recomputed.
+  const held = await c.env.DB.prepare('SELECT set_num FROM user_collection WHERE id=? AND user_id=?')
+    .bind(id, userId).first<{ set_num: string }>();
+  if (held && (await activeCopies(c.env.DB, userId, held.set_num)).length) {
+    await applyHoldingFieldsToCopies(c.env.DB, userId, held.set_num, body);
+    if ('quantity' in body) await syncCopiesToQuantity(c.env.DB, userId, held.set_num);
+    else await syncHoldingFromCopies(c.env.DB, userId, held.set_num);
+  }
 
   const item = await c.env.DB.prepare(
     'SELECT * FROM user_collection WHERE id=? AND user_id=? AND deleted_at IS NULL'
@@ -691,9 +724,12 @@ app.delete('/:id', async (c) => {
   ).bind(id, userId).first();
   if (!check) return c.json({ error: 'Not found' }, 404);
 
+  const removed = await c.env.DB.prepare('SELECT set_num FROM user_collection WHERE id=? AND user_id=?')
+    .bind(id, userId).first<{ set_num: string }>();
   await c.env.DB.prepare(
     `UPDATE user_collection SET deleted_at=datetime('now') WHERE id=? AND user_id=?`
   ).bind(id, userId).run();
+  if (removed) await closeCopies(c.env.DB, userId, removed.set_num);
   logEvent(c.env, 'set_removed', userId);
   scheduleBuildCacheRecompute(c.env, userId, c.executionCtx);
   c.executionCtx.waitUntil(triggerGoogleSync(userId, c));

@@ -1,4 +1,5 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
+import { applyTestTables } from './test-schema';
 import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { apiErrorHandler, app } from './index';
@@ -110,6 +111,7 @@ describe('BrickVault API Worker Tests', () => {
   let db: D1Database;
 
   beforeEach(async () => {
+    await applyTestTables((env as any).DB as D1Database, ['holding_copies', 'realized_sales']);
     sharedAmbiguousCalls = 0;
     brickognizeFallbackAiCalls = 0;
     brickognizeAcceptedAiCalls = 0;

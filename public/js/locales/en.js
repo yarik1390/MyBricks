@@ -2071,3 +2071,5 @@ Object.assign(en.data, {
   salesRecordedCountOne: '{n} sale recorded',
   salesRecordedCountOther: '{n} sales recorded',
 });
+// Set page → Your copies (components/copies.js).
+en.copies = {"paid": "Paid {price}", "soldToast": "Sold for {price}", "editN": "Edit copy {index}", "sellN": "Sell copy {index}"};

@@ -350,6 +350,56 @@ CREATE TABLE IF NOT EXISTS user_collection (
   UNIQUE(user_id, set_num)
 );
 
+-- One row per physical copy, for collectors who track copies separately
+-- (different condition, price paid, date or shelf). Optional: a holding has
+-- no copy rows until the collector opens "Your copies", which materializes
+-- one row per unit from the holding. Once copies exist, user_collection keeps
+-- the aggregate (quantity = active copies, purchase_price = average paid,
+-- condition = most common) so every existing reader keeps working.
+CREATE TABLE IF NOT EXISTS holding_copies (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  set_num TEXT NOT NULL,
+  condition TEXT NOT NULL DEFAULT 'sealed' CHECK(condition IN ('new','used_good','used_acceptable','sealed')),
+  purchase_price REAL,
+  purchased_at DATE,
+  storage_location TEXT,
+  acquisition_source TEXT,
+  notes TEXT,
+  sold_price REAL,
+  sold_at DATE,
+  sold_fees REAL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  deleted_at DATETIME
+);
+CREATE INDEX IF NOT EXISTS idx_holding_copies_user_set ON holding_copies(user_id, set_num);
+
+-- Every sale ever recorded: whole-holding sales (POST /api/collection/sell) and
+-- single-copy sales. user_collection's sold_* columns are overwritten when a
+-- sold set is added again, so this ledger is the durable record the tax report
+-- and the public value check read. cost_basis is the total paid for the units
+-- sold; value_at_sale is our displayed per-unit value on the sale day.
+CREATE TABLE IF NOT EXISTS realized_sales (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  set_num TEXT NOT NULL,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  condition TEXT,
+  cost_basis REAL,
+  purchased_at DATE,
+  sold_price REAL NOT NULL,
+  sold_fees REAL,
+  sold_at DATE NOT NULL,
+  value_at_sale REAL,
+  source TEXT NOT NULL DEFAULT 'holding',
+  source_ref TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  deleted_at DATETIME
+);
+CREATE INDEX IF NOT EXISTS idx_realized_sales_user ON realized_sales(user_id, sold_at);
+CREATE INDEX IF NOT EXISTS idx_realized_sales_date ON realized_sales(sold_at);
+
 -- Owner-private named lists of canonical set identities. Client-generated IDs
 -- are owner-scoped, so the same UUID may safely exist in separate accounts.
 CREATE TABLE IF NOT EXISTS user_subcollections (

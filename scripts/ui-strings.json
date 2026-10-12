@@ -309,6 +309,7 @@
   {
     "text": "Acquisition source",
     "files": [
+      "components/copies.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -361,9 +362,21 @@
     ]
   },
   {
+    "text": "Add a copy",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
     "text": "Add a photo",
     "files": [
       "components/contribute.js"
+    ]
+  },
+  {
+    "text": "Add copy",
+    "files": [
+      "components/copies.js"
     ]
   },
   {
@@ -916,6 +929,12 @@
     "text": "Box",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Box dents, receipt, signed…",
+    "files": [
+      "components/copies.js"
     ]
   },
   {
@@ -1508,6 +1527,7 @@
   {
     "text": "Condition",
     "files": [
+      "components/copies.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -1632,15 +1652,39 @@
     ]
   },
   {
+    "text": "Copies could not load. Pull to refresh and try again.",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
     "text": "Copies your active session JWT to the clipboard for API debugging.",
     "files": [
       "views/me-admin.js"
     ]
   },
   {
+    "text": "Copy added",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
     "text": "Copy admin token",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Copy removed",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
+    "text": "Copy saved",
+    "files": [
+      "components/copies.js"
     ]
   },
   {
@@ -1699,9 +1743,27 @@
     ]
   },
   {
+    "text": "Could not record the sale.",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
+    "text": "Could not remove the copy.",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
     "text": "Could not save that change. Check your connection.",
     "files": [
       "components/parts-checklist.js"
+    ]
+  },
+  {
+    "text": "Could not save the copy.",
+    "files": [
+      "components/copies.js"
     ]
   },
   {
@@ -2191,6 +2253,18 @@
     ]
   },
   {
+    "text": "Edit",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
+    "text": "Edit copy",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
     "text": "Elapsed:",
     "files": [
       "runtime-exact"
@@ -2308,6 +2382,12 @@
     ]
   },
   {
+    "text": "Enter a valid price.",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
     "text": "Enter store price…",
     "files": [
       "components/scanner.js",
@@ -2318,6 +2398,12 @@
     "text": "Enter the exact set number before verifying.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Enter the price it sold for.",
+    "files": [
+      "components/copies.js"
     ]
   },
   {
@@ -2591,6 +2677,7 @@
   {
     "text": "Facebook Marketplace",
     "files": [
+      "components/copies.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -2683,6 +2770,18 @@
     "text": "Fees & Ship",
     "files": [
       "components/flip-calc.js"
+    ]
+  },
+  {
+    "text": "Fees and shipping",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
+    "text": "Fees must be below the sale price.",
+    "files": [
+      "components/copies.js"
     ]
   },
   {
@@ -2994,6 +3093,7 @@
   {
     "text": "Gift",
     "files": [
+      "components/copies.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -3541,6 +3641,12 @@
     "text": "Issues",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Its price, date and notes will be deleted.",
+    "files": [
+      "components/copies.js"
     ]
   },
   {
@@ -4430,6 +4536,7 @@
   {
     "text": "New, opened",
     "files": [
+      "components/copies.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -4777,6 +4884,7 @@
   {
     "text": "Notes",
     "files": [
+      "components/copies.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -5557,6 +5665,18 @@
     ]
   },
   {
+    "text": "Price not set",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
+    "text": "Price paid",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
     "text": "Price tracking just started — check back soon for a trend.",
     "files": [
       "views/portfolio-detail.js"
@@ -5776,6 +5896,7 @@
   {
     "text": "Purchase date",
     "files": [
+      "components/copies.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -5984,6 +6105,12 @@
     ]
   },
   {
+    "text": "Record sale",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
     "text": "Record what you paid and where this set joined your collection.",
     "files": [
       "views/portfolio-detail.js"
@@ -6079,6 +6206,7 @@
   {
     "text": "Remove",
     "files": [
+      "components/copies.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -6092,6 +6220,12 @@
     "text": "Remove PIN",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Remove copy",
+    "files": [
+      "components/copies.js"
     ]
   },
   {
@@ -6110,6 +6244,12 @@
     "text": "Remove from vault?",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Remove this copy?",
+    "files": [
+      "components/copies.js"
     ]
   },
   {
@@ -6626,6 +6766,12 @@
     ]
   },
   {
+    "text": "Sale date",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
     "text": "Sales",
     "files": [
       "views/portfolio-detail-market.js"
@@ -6634,6 +6780,7 @@
   {
     "text": "Save",
     "files": [
+      "components/copies.js",
       "views/me-integrations.js"
     ]
   },
@@ -6746,6 +6893,7 @@
   {
     "text": "Sealed (MISB)",
     "files": [
+      "components/copies.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -6819,6 +6967,7 @@
   {
     "text": "Sell",
     "files": [
+      "components/copies.js",
       "runtime-exact"
     ]
   },
@@ -6827,6 +6976,12 @@
     "files": [
       "methodology.html",
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "Sell this copy",
+    "files": [
+      "components/copies.js"
     ]
   },
   {
@@ -6963,6 +7118,12 @@
     ]
   },
   {
+    "text": "Set this per copy in Your copies",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
     "text": "Set up a device PIN, pattern, or password first",
     "files": [
       "lib/native-biometric.js"
@@ -7060,6 +7221,12 @@
     "text": "Sharing isn't available on this device",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Shelf, box, room…",
+    "files": [
+      "components/copies.js"
     ]
   },
   {
@@ -7292,6 +7459,12 @@
     ]
   },
   {
+    "text": "Sold for",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
     "text": "Sold guide values",
     "files": [
       "methodology.html"
@@ -7505,6 +7678,7 @@
   {
     "text": "Store",
     "files": [
+      "components/copies.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -7801,6 +7975,12 @@
     ]
   },
   {
+    "text": "The other copies stay in your vault. Selling the last copy marks the set as sold.",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
     "text": "The provider is returning server errors. Jobs retry on their next run.",
     "files": [
       "lib/admin-issues.js"
@@ -7859,6 +8039,12 @@
     "text": "This feature needs additional setup",
     "files": [
       "api.js"
+    ]
+  },
+  {
+    "text": "This is the only copy. Remove the set instead.",
+    "files": [
+      "components/copies.js"
     ]
   },
   {
@@ -7976,6 +8162,12 @@
     ]
   },
   {
+    "text": "Track each copy on its own: condition, price paid, date and where it's kept. Sell one copy and keep the rest.",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
     "text": "Track minifigs separately from your sets.",
     "files": [
       "components/onboarding.js"
@@ -7996,6 +8188,7 @@
   {
     "text": "Trade",
     "files": [
+      "components/copies.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -8297,12 +8490,14 @@
   {
     "text": "Used — acceptable",
     "files": [
+      "components/copies.js",
       "views/portfolio-detail.js"
     ]
   },
   {
     "text": "Used — good",
     "files": [
+      "components/copies.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -8604,6 +8799,12 @@
     ]
   },
   {
+    "text": "Where it is",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
     "text": "Wide range",
     "files": [
       "views/portfolio-detail-market.js"
@@ -8753,6 +8954,19 @@
     "text": "Your contributions",
     "files": [
       "route-meta.js"
+    ]
+  },
+  {
+    "text": "Your copies",
+    "files": [
+      "components/copies.js",
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Your copies differ, so price and condition are set per copy above.",
+    "files": [
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -8994,6 +9208,12 @@
     "text": "bv-chips bv-discover__themes",
     "files": [
       "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bv-copies__num bv-num",
+    "files": [
+      "components/copies.js"
     ]
   },
   {
@@ -10491,6 +10711,7 @@
   {
     "text": "— select —",
     "files": [
+      "components/copies.js",
       "views/portfolio-detail.js"
     ]
   },

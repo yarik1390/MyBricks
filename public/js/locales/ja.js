@@ -1777,3 +1777,5 @@ Object.assign(ja.contributions, {
 // Sold-or-remove prompt and the BrickLink sales import.
 Object.assign(ja.bvSet, {"removeAskTitle": "売却しましたか？", "removeAskSub": "{name} を売却した場合は価格を入力してください。価格は非公開で、匿名の平均としてのみ全員の評価に役立ちます。", "removeAskSold": "はい、売却を記録", "removeAskJust": "いいえ、削除のみ"});
 Object.assign(ja.data, {"blSalesTitle": "BrickLink の販売をインポート", "blSalesSub": "BrickLink ストアの「Orders Received」を CSV でエクスポートしてください。売却したセットは販売価格とともにコレクションから外れ、実現損益に計上されます。 価格は匿名のコミュニティ中央値にも使用され、少なくとも5人のコレクターが提供した後にのみ公開されます。", "blSalesPick": "販売 CSV を選択", "blSalesImport": "販売をインポート", "blSalesResult": "✓ {sold}、{skipped}。{errors}", "salesRecordedCountOne": "{n} 件の販売を記録", "salesRecordedCountOther": "{n} 件の販売を記録"});
+// Set page → Your copies (components/copies.js).
+ja.copies = {"paid": "購入価格 {price}", "soldToast": "{price} で売却", "editN": "{index} 個目を編集", "sellN": "{index} 個目を売却"};

@@ -176,17 +176,27 @@ app.post('/import-csv', async (c) => {
       }
     }
 
-    const existing = new Map<string, { quantity: number | null; deleted_at: string | null; sold_price: number | null }>();
+    type ExistingRow = { quantity: number | null; deleted_at: string | null; sold_price: number | null; purchase_price: number | null; purchased_at: string | null };
+    const existing = new Map<string, ExistingRow>();
     const saleNums = [...sales.keys()];
     for (let i = 0; i < saleNums.length; i += 90) {
       const chunk = saleNums.slice(i, i + 90);
       const ph = chunk.map(() => '?').join(',');
       const { results } = await c.env.DB.prepare(
-        `SELECT set_num, quantity, deleted_at, sold_price FROM user_collection WHERE user_id = ? AND set_num IN (${ph})`
-      ).bind(userId, ...chunk).all<{ set_num: string; quantity: number | null; deleted_at: string | null; sold_price: number | null }>();
+        `SELECT set_num, quantity, deleted_at, sold_price, purchase_price, purchased_at FROM user_collection WHERE user_id = ? AND set_num IN (${ph})`
+      ).bind(userId, ...chunk).all<ExistingRow & { set_num: string }>();
       for (const r of results) existing.set(r.set_num, r);
     }
 
+    // Every imported sale also lands in the realized-sales ledger, valued at our
+    // displayed price on (or within two weeks before) the order date.
+    const ledger = (setNum: string, qty: number, condition: string, cost: number | null, purchasedAt: string | null, price: number | null, date: string) =>
+      c.env.DB.prepare(`
+        INSERT INTO realized_sales (user_id, set_num, quantity, condition, cost_basis, purchased_at, sold_price, sold_at, value_at_sale, source, source_ref)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(
+          (SELECT current_value FROM set_value_history WHERE set_num = ? AND snapshot_date <= ? AND snapshot_date >= DATE(?, '-14 days') ORDER BY snapshot_date DESC LIMIT 1),
+          (SELECT COALESCE(NULLIF(blended_value, 0), current_value) FROM lego_sets WHERE set_num = ?)), 'holding', 'bricklink')
+      `).bind(userId, setNum, qty, condition, cost, purchasedAt, price, date, setNum, date, date, setNum);
     let vaultChanged = false;
     for (const [setNum, sale] of sales) {
       const unit = sale.totalUsd / sale.qty;
@@ -200,6 +210,7 @@ app.post('/import-csv', async (c) => {
           VALUES (?, ?, ?, ?, ?, ?, 'bricklink', datetime('now'), datetime('now'), datetime('now'))
           ON CONFLICT (user_id, set_num) DO NOTHING
         `).bind(userId, setNum, sale.qty, sale.condition, round2(sale.totalUsd), sale.date));
+        writes.push(ledger(setNum, sale.qty, sale.condition, null, null, round2(sale.totalUsd), sale.date));
         sold++;
       } else if (row.deleted_at === null) {
         const held = Math.max(1, Number(row.quantity) || 1);
@@ -214,6 +225,11 @@ app.post('/import-csv', async (c) => {
           SET sold_price=?, sold_at=?, deleted_at=datetime('now'), last_modified=datetime('now')
           WHERE user_id=? AND set_num=? AND deleted_at IS NULL
         `).bind(round2(unit * held), sale.date, userId, setNum));
+        writes.push(ledger(setNum, held, sale.condition,
+          row.purchase_price != null ? round2(row.purchase_price * held) : null, row.purchased_at, round2(unit * held), sale.date));
+        writes.push(c.env.DB.prepare(
+          `UPDATE holding_copies SET sold_at = ?, updated_at = datetime('now') WHERE user_id = ? AND set_num = ? AND deleted_at IS NULL AND sold_at IS NULL`,
+        ).bind(sale.date, userId, setNum));
         sold++;
         vaultChanged = true;
       } else if (row.sold_price === null) {
@@ -223,6 +239,8 @@ app.post('/import-csv', async (c) => {
           SET sold_price=?, sold_at=?, quantity=?, last_modified=datetime('now')
           WHERE user_id=? AND set_num=? AND deleted_at IS NOT NULL AND sold_price IS NULL
         `).bind(round2(sale.totalUsd), sale.date, sale.qty, userId, setNum));
+        writes.push(ledger(setNum, sale.qty, sale.condition,
+          row.purchase_price != null ? round2(row.purchase_price * sale.qty) : null, row.purchased_at, round2(sale.totalUsd), sale.date));
         sold++;
       } else {
         skipped++;
