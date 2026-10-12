@@ -227,7 +227,7 @@ jobs:
             "SELECT set_num, fig_num, quantity FROM set_minifigs LIMIT 0"
             "SELECT set_num, part_num, color_id, quantity FROM set_parts LIMIT 0"
             "SELECT user_id, set_num, part_num, missing_qty FROM user_missing_parts LIMIT 0"
-            "SELECT id, user_id, set_num, condition, purchase_price, purchased_at, storage_location, sold_price, sold_at, sold_fees, deleted_at FROM holding_copies LIMIT 0"
+            "SELECT id, user_id, set_num, condition, purchase_price, purchased_at, storage_location, box_grade, box_notes, sold_price, sold_at, sold_fees, deleted_at FROM holding_copies LIMIT 0"
             "SELECT id, user_id, set_num, quantity, cost_basis, sold_price, sold_fees, sold_at, value_at_sale, source, source_ref, deleted_at FROM realized_sales LIMIT 0"
             "SELECT set_num, store, price, in_stock, url, title, checked_at FROM store_offers LIMIT 0"
             "SELECT id, dedupe_key, kind, title, details, starts_on, ends_on, min_spend, gift_set_num, url, source, hidden, last_seen_at FROM promotions LIMIT 0"

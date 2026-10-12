@@ -860,6 +860,8 @@ export const ja = {
     proWallSub: "プロフィールが公開中は下に表示されます",
     proTax: "売却・税務レポート",
     proTaxSub: "すべての売却を取得費と利益付きでCSVまたはPDFに",
+    proLots: "箱の状態判定とまとめ売りチェック",
+    proLotsSub: "写真で箱の状態を判定し、何点でもまとめ売りをチェック",
     proWallTitle: "サポーターの皆さんに感謝",
     proSkin: "どこでもゴールド",
     proExportsSub: 'CSVに市場価値と利回りの列、さらに保険用レポート',
@@ -1780,7 +1782,7 @@ Object.assign(ja.contributions, {
 Object.assign(ja.bvSet, {"removeAskTitle": "売却しましたか？", "removeAskSub": "{name} を売却した場合は価格を入力してください。価格は非公開で、匿名の平均としてのみ全員の評価に役立ちます。", "removeAskSold": "はい、売却を記録", "removeAskJust": "いいえ、削除のみ"});
 Object.assign(ja.data, {"blSalesTitle": "BrickLink の販売をインポート", "blSalesSub": "BrickLink ストアの「Orders Received」を CSV でエクスポートしてください。売却したセットは販売価格とともにコレクションから外れ、実現損益に計上されます。 価格は匿名のコミュニティ中央値にも使用され、少なくとも5人のコレクターが提供した後にのみ公開されます。", "blSalesPick": "販売 CSV を選択", "blSalesImport": "販売をインポート", "blSalesResult": "✓ {sold}、{skipped}。{errors}", "salesRecordedCountOne": "{n} 件の販売を記録", "salesRecordedCountOther": "{n} 件の販売を記録"});
 // Set page → Your copies (components/copies.js).
-ja.copies = {"paid": "購入価格 {price}", "soldToast": "{price} で売却", "editN": "{index} 個目を編集", "sellN": "{index} 個目を売却"};
+ja.copies = {"paid": "購入価格 {price}", "soldToast": "{price} で売却", "editN": "{index} 個目を編集", "sellN": "{index} 個目を売却", "boxGrade": "箱: {grade}", "boxShare": "状態の良い箱の価格のおよそ {share}% で売れることが多いです"};
 // Sales & taxes (views/me-sales.js).
 ja.sales = {"checkReady": "過去1年にコレクターが記録した {sales} 件の売却のうち、当社の評価額は {w10}% で実際の価格との差が10%以内、{w20}% で20%以内でした。典型的なずれは {miss}% です。", "checkPending": "1年間に未開封セットの売却が {min} 件記録されたら公開します。現在：{sales} 件。", "salesIn": "{year} 年の売却", "net": "手取り {amount}", "cost": "取得費 {amount}", "costMissing": "取得費未記録", "longTerm": "長期", "shortTerm": "短期", "locked": "保有期間・取得費・利益を含む売却ごとのレポートと、確定申告用のCSV・PDFダウンロードはProで利用できます。"};
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
@@ -1788,3 +1790,6 @@ ja.stores = {"best": "最安値", "outOfStock": "在庫切れ", "belowValue": "�
 ja.promos = {"until": "{date} まで", "starts": "{date} 開始", "fromTo": "{start}〜{end}", "whileItLasts": "なくなり次第終了", "spend": "{amount} 以上の購入で"};
 // Rebrickable sync (components/rebrickable-card.js).
 ja.rebrickable = {"importResult": "新しく追加：{fresh}。すでに登録済み：{already}。カタログ未登録：{unknown}。", "exportPartial": "送信済み：{sent}。残り：{left}。1分後にもう一度「送信」をタップしてください。", "exportDone": "Rebrickableに送信：{sent}。"};
+
+// Lot checker (views/lot.js).
+ja.lot = {"unpriced": "まだ価格のないセット: {missing}。合計には含まれません。"};

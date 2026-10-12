@@ -161,6 +161,7 @@ const STATIC_ASSETS = [
   '/js/views/me-integrations.js',
   '/js/views/me-data.js',
   '/js/views/me-sales.js',
+  '/js/views/lot.js',
   '/js/views/promotions.js',
   '/js/views/me-contributions.js',
   '/js/views/me-admin.js',

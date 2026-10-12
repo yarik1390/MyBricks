@@ -869,6 +869,8 @@ export const en = {
     proWallSub: "Shown below while your profile is public",
     proTax: "Sales & tax report",
     proTaxSub: "Every sale with cost and gain, as CSV or PDF",
+    proLots: "Box grading and lot checker",
+    proLotsSub: "Grade a box from a photo and check lots of any size",
     proWallTitle: "Thanks to our supporters",
     proSkin: "Gold everywhere",
     proExportsSub: 'Market value and ROI columns in CSV, plus the insurance report',
@@ -2074,7 +2076,7 @@ Object.assign(en.data, {
   salesRecordedCountOther: '{n} sales recorded',
 });
 // Set page → Your copies (components/copies.js).
-en.copies = {"paid": "Paid {price}", "soldToast": "Sold for {price}", "editN": "Edit copy {index}", "sellN": "Sell copy {index}"};
+en.copies = {"paid": "Paid {price}", "soldToast": "Sold for {price}", "editN": "Edit copy {index}", "sellN": "Sell copy {index}", "boxGrade": "Box: {grade}", "boxShare": "Usually fetches about {share}% of a mint box's price"};
 // Sales & taxes (views/me-sales.js).
 en.sales = {"checkReady": "Across {sales} sales collectors recorded in the last year, our value was within 10% of the real price for {w10}% of them and within 20% for {w20}%. The typical miss was {miss}%.", "checkPending": "We'll publish this once collectors have recorded {min} sales of sealed sets in a year. So far: {sales}.", "salesIn": "Sales in {year}", "net": "Net {amount}", "cost": "cost {amount}", "costMissing": "cost not recorded", "longTerm": "Long-term", "shortTerm": "Short-term", "locked": "The sale-by-sale report, with dates held, cost and gain for each sale, plus CSV and PDF downloads for your tax return, comes with Pro."};
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
@@ -2082,3 +2084,6 @@ en.stores = {"best": "Best price", "outOfStock": "Out of stock", "belowValue": "
 en.promos = {"until": "Until {date}", "starts": "Starts {date}", "fromTo": "{start} to {end}", "whileItLasts": "While it lasts", "spend": "Spend {amount}+"};
 // Rebrickable sync (components/rebrickable-card.js).
 en.rebrickable = {"importResult": "New in your vault: {fresh}. Already there: {already}. Not in our catalog yet: {unknown}.", "exportPartial": "Sent so far: {sent}. Still to send: {left}. Tap Send again in a minute.", "exportDone": "Sent to Rebrickable: {sent}."};
+
+// Lot checker (views/lot.js).
+en.lot = {"unpriced": "Sets without a price yet: {missing}. The total leaves them out."};

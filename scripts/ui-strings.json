@@ -679,6 +679,12 @@
     ]
   },
   {
+    "text": "Asking price",
+    "files": [
+      "views/lot.js"
+    ]
+  },
+  {
     "text": "Asking the master builder…",
     "files": [
       "components/scanner.js"
@@ -950,7 +956,19 @@
     ]
   },
   {
+    "text": "Box condition",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
     "text": "Box dents, receipt, signed…",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
+    "text": "Box grading comes with Pro, or add your own Gemini key in Settings.",
     "files": [
       "components/copies.js"
     ]
@@ -1352,6 +1370,12 @@
     ]
   },
   {
+    "text": "Check this lot",
+    "files": [
+      "views/lot.js"
+    ]
+  },
+  {
     "text": "Checking compatibility...",
     "files": [
       "views/me-integrations.js"
@@ -1566,6 +1590,7 @@
     "files": [
       "components/copies.js",
       "lib/sales-report.js",
+      "views/lot.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -1775,6 +1800,18 @@
     ]
   },
   {
+    "text": "Could not check the lot.",
+    "files": [
+      "views/lot.js"
+    ]
+  },
+  {
+    "text": "Could not grade this photo.",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
     "text": "Could not identify",
     "files": [
       "components/scanner.js"
@@ -1802,6 +1839,12 @@
     "text": "Could not open tour",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Could not read the listing.",
+    "files": [
+      "views/lot.js"
     ]
   },
   {
@@ -2489,6 +2532,12 @@
     ]
   },
   {
+    "text": "Enter a valid asking price.",
+    "files": [
+      "views/lot.js"
+    ]
+  },
+  {
     "text": "Enter a valid price",
     "files": [
       "components/contribute.js"
@@ -2505,6 +2554,12 @@
     "files": [
       "components/scanner.js",
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Enter the asking price to get a verdict.",
+    "files": [
+      "views/lot.js"
     ]
   },
   {
@@ -2861,6 +2916,18 @@
     ]
   },
   {
+    "text": "Fair",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
+    "text": "Fair price",
+    "files": [
+      "views/lot.js"
+    ]
+  },
+  {
     "text": "Falling",
     "files": [
       "runtime-exact",
@@ -2953,6 +3020,12 @@
     "text": "Find a user",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Find sets in the text",
+    "files": [
+      "views/lot.js"
     ]
   },
   {
@@ -3081,6 +3154,12 @@
     "text": "Formula or local estimate until market data is available.",
     "files": [
       "lib/pure.js"
+    ]
+  },
+  {
+    "text": "Free checks cover small lots of up to three sets.",
+    "files": [
+      "views/lot.js"
     ]
   },
   {
@@ -3285,6 +3364,18 @@
     ]
   },
   {
+    "text": "Good",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
+    "text": "Good deal",
+    "files": [
+      "views/lot.js"
+    ]
+  },
+  {
     "text": "Good estimate",
     "files": [
       "lib/pure.js",
@@ -3359,6 +3450,12 @@
     ]
   },
   {
+    "text": "Grade from a photo",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
     "text": "Grand Master",
     "files": [
       "lib/kids-xp.js"
@@ -3380,6 +3477,12 @@
     "text": "Granting supporter status...",
     "files": [
       "runtime-exact"
+    ]
+  },
+  {
+    "text": "Great deal",
+    "files": [
+      "views/lot.js"
     ]
   },
   {
@@ -3733,6 +3836,12 @@
     ]
   },
   {
+    "text": "In this lot",
+    "files": [
+      "views/lot.js"
+    ]
+  },
+  {
     "text": "In-store price check",
     "files": [
       "components/scanner.js",
@@ -3743,6 +3852,12 @@
     "text": "Included in scheduled jobs and the valuation blend",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Incomplete",
+    "files": [
+      "views/lot.js"
     ]
   },
   {
@@ -3828,6 +3943,13 @@
     "text": "Investor insights: sell/buy signals, top movers, retirement radar",
     "files": [
       "components/onboarding.js"
+    ]
+  },
+  {
+    "text": "Is that bundle worth the price?",
+    "files": [
+      "views/lot.js",
+      "views/me.js"
     ]
   },
   {
@@ -4238,6 +4360,26 @@
     ]
   },
   {
+    "text": "Looking at the box…",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
+    "text": "Lot checker",
+    "files": [
+      "route-meta.js",
+      "views/lot.js",
+      "views/me.js"
+    ]
+  },
+  {
+    "text": "Lots over 3 sets come with Pro.",
+    "files": [
+      "views/lot.js"
+    ]
+  },
+  {
     "text": "Low RAM detected",
     "files": [
       "views/me-integrations.js"
@@ -4532,6 +4674,12 @@
     ]
   },
   {
+    "text": "Mint",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
     "text": "Missing MSRP",
     "files": [
       "views/me-admin.js"
@@ -4647,6 +4795,12 @@
     ]
   },
   {
+    "text": "Name or set number",
+    "files": [
+      "views/lot.js"
+    ]
+  },
+  {
     "text": "Native alerts are waiting for the app's Firebase configuration.",
     "files": [
       "views/me-integrations.js"
@@ -4662,6 +4816,12 @@
     "text": "Native notifications are unavailable",
     "files": [
       "lib/native-push.js"
+    ]
+  },
+  {
+    "text": "Near mint",
+    "files": [
+      "components/copies.js"
     ]
   },
   {
@@ -4941,6 +5101,12 @@
     ]
   },
   {
+    "text": "No price yet",
+    "files": [
+      "views/lot.js"
+    ]
+  },
+  {
     "text": "No projection yet - it appears after at least 180 days and 12 history points.",
     "files": [
       "views/portfolio-detail.js"
@@ -4984,6 +5150,12 @@
     ]
   },
   {
+    "text": "No set numbers found in that text.",
+    "files": [
+      "views/lot.js"
+    ]
+  },
+  {
     "text": "No sets found",
     "files": [
       "views/me.js"
@@ -4993,6 +5165,12 @@
     "text": "No sets selected to add",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "No sets yet. Paste the listing or search above.",
+    "files": [
+      "views/lot.js"
     ]
   },
   {
@@ -5098,6 +5276,12 @@
     "files": [
       "api.js",
       "lib/pure.js"
+    ]
+  },
+  {
+    "text": "Not graded",
+    "files": [
+      "components/copies.js"
     ]
   },
   {
@@ -5469,6 +5653,12 @@
     ]
   },
   {
+    "text": "Or search a set",
+    "files": [
+      "views/lot.js"
+    ]
+  },
+  {
     "text": "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers should sit above the Merge allowance, and the metered backstop last.",
     "files": [
       "views/me-admin.js"
@@ -5490,6 +5680,12 @@
     "text": "Overnight value jumps of ±40% on any set are flagged and reviewed — automatically resolved only when the market genuinely confirms them.",
     "files": [
       "methodology.html"
+    ]
+  },
+  {
+    "text": "Overpriced",
+    "files": [
+      "views/lot.js"
     ]
   },
   {
@@ -5632,9 +5828,21 @@
     ]
   },
   {
+    "text": "Paste a listing",
+    "files": [
+      "views/lot.js"
+    ]
+  },
+  {
     "text": "Paste the Supabase user UUID. This changes supporter status for exactly that account.",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Paste the listing text first.",
+    "files": [
+      "views/lot.js"
     ]
   },
   {
@@ -5807,6 +6015,12 @@
     "text": "Polybag",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Poor",
+    "files": [
+      "components/copies.js"
     ]
   },
   {
@@ -6209,7 +6423,8 @@
   {
     "text": "Quantity",
     "files": [
-      "lib/sales-report.js"
+      "lib/sales-report.js",
+      "views/lot.js"
     ]
   },
   {
@@ -6544,6 +6759,7 @@
     "text": "Remove",
     "files": [
       "components/copies.js",
+      "views/lot.js",
       "views/me-sales.js",
       "views/portfolio-detail.js"
     ]
@@ -7284,7 +7500,8 @@
   {
     "text": "Sealed",
     "files": [
-      "runtime-exact"
+      "runtime-exact",
+      "views/lot.js"
     ]
   },
   {
@@ -7292,6 +7509,18 @@
     "files": [
       "components/copies.js",
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Seals broken",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
+    "text": "Seals intact",
+    "files": [
+      "components/copies.js"
     ]
   },
   {
@@ -7651,6 +7880,12 @@
     "files": [
       "components/scanner.js",
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Short by",
+    "files": [
+      "views/lot.js"
     ]
   },
   {
@@ -8320,6 +8555,12 @@
     ]
   },
   {
+    "text": "Take a photo of the whole box. Pro, or your own AI key.",
+    "files": [
+      "components/copies.js"
+    ]
+  },
+  {
     "text": "Take the guided tour",
     "files": [
       "components/onboarding.js"
@@ -8384,6 +8625,12 @@
     "text": "Testing…",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "That does not look like a LEGO box. Try again with the whole box in view.",
+    "files": [
+      "components/copies.js"
     ]
   },
   {
@@ -9004,6 +9251,12 @@
     ]
   },
   {
+    "text": "Used, complete",
+    "files": [
+      "views/lot.js"
+    ]
+  },
+  {
     "text": "Useful historical and forecast signal when reachable.",
     "files": [
       "views/me-admin-config.js"
@@ -9081,6 +9334,12 @@
     "text": "Value ↓",
     "files": [
       "runtime-exact"
+    ]
+  },
+  {
+    "text": "Values come from recent market prices. Incomplete sets count at about 60% of a complete used one.",
+    "files": [
+      "views/lot.js"
     ]
   },
   {
@@ -9356,6 +9615,12 @@
     ]
   },
   {
+    "text": "Worth",
+    "files": [
+      "views/lot.js"
+    ]
+  },
+  {
     "text": "Worth watching",
     "files": [
       "views/portfolio-detail.js"
@@ -9395,6 +9660,12 @@
     "text": "You can change this anytime in Settings.",
     "files": [
       "components/onboarding.js"
+    ]
+  },
+  {
+    "text": "You keep after selling fees",
+    "files": [
+      "views/lot.js"
     ]
   },
   {
@@ -9876,6 +10147,12 @@
     "text": "bv-intcard__note integration-ready-note",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "bv-lot__meta bv-num",
+    "files": [
+      "views/lot.js"
     ]
   },
   {
@@ -10804,6 +11081,12 @@
     ]
   },
   {
+    "text": "checks lots of any size.",
+    "files": [
+      "views/lot.js"
+    ]
+  },
+  {
     "text": "csv-import-wrap bv-datarow__actions",
     "files": [
       "views/me-data.js"
@@ -10825,6 +11108,12 @@
     "text": "e.g. Display shelf A3, Attic box 2",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "e.g. LEGO lot: 75313 AT-AT, 10497, castle 6086…",
+    "files": [
+      "views/lot.js"
     ]
   },
   {

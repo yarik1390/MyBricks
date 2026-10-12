@@ -366,6 +366,8 @@ CREATE TABLE IF NOT EXISTS holding_copies (
   storage_location TEXT,
   acquisition_source TEXT,
   notes TEXT,
+  box_grade TEXT,
+  box_notes TEXT,
   sold_price REAL,
   sold_at DATE,
   sold_fees REAL,

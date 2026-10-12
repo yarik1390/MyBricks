@@ -2314,3 +2314,30 @@ body.collector-ui.offline #app { padding-top: 56px; }
 .bv-promo__actions { display: flex; gap: 4px; flex-wrap: wrap; }
 .bv-promo__actions .bv-btn { min-height: 44px; }
 .bv-promoform { display: flex; flex-direction: column; gap: 10px; }
+
+/* Box grading in the copy sheet (components/copies.js). */
+.bv-boxgrade { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.bv-boxgrade .bv-btn { min-height: 44px; cursor: pointer; }
+.bv-boxgrade .bv-btn.is-loading { opacity: .6; pointer-events: none; }
+
+/* Lot checker (views/lot.js). */
+.bv-lot > section, .bv-lot > .bv-field, .bv-lot > .bv-btn, .bv-lot > .bv-field__help, .bv-lot > .bv-card { margin-left: var(--bv-gutter); margin-right: var(--bv-gutter); }
+.bv-lot > .bv-btn, .bv-lot > .bv-card, .bv-lot > .bv-field { margin-bottom: 12px; }
+.bv-lot__add { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px; }
+.bv-lot__add textarea { width: 100%; min-height: 72px; resize: vertical; border: 0; background: transparent; color: inherit; font: inherit; }
+.bv-lot__hits { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.bv-lot__hit { width: 100%; min-height: 44px; text-align: left; padding: 8px 4px; border: 0; border-bottom: 1px solid var(--bv-line); background: none; color: var(--bv-ink); font: inherit; cursor: pointer; overflow-wrap: anywhere; }
+.bv-lot__list { list-style: none; margin: 0 var(--bv-gutter) 12px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.bv-lot__item { display: flex; gap: 10px; padding: 10px; border: 1px solid var(--bv-line); border-radius: 14px; background: var(--bv-s); }
+.bv-lot__img { flex: 0 0 56px; width: 56px; height: 56px; object-fit: contain; border-radius: 8px; background: var(--bv-bg); }
+.bv-lot__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.bv-lot__name { font-weight: 600; overflow-wrap: anywhere; }
+.bv-lot__meta { font-size: 13px; color: var(--bv-mute); }
+.bv-lot__controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.bv-lot__controls select, .bv-lot__controls input { min-height: 44px; border: 1px solid var(--bv-line); border-radius: 10px; background: var(--bv-bg); color: var(--bv-ink); font: inherit; padding: 0 8px; }
+.bv-lot__controls input { width: 64px; }
+.bv-lot__verdict { margin-bottom: 8px; }
+.bv-lot__sum { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.bv-lot__sum div { display: flex; justify-content: space-between; gap: 12px; }
+.bv-lot__sum dt { color: var(--bv-mute); }
+.bv-lot__sum dd { margin: 0; font-weight: 600; }

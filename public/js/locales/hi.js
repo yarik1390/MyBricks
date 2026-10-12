@@ -860,6 +860,8 @@ export const hi = {
     proWallSub: "प्रोफ़ाइल सार्वजनिक रहने तक नीचे दिखता है",
     proTax: "बिक्री और टैक्स रिपोर्ट",
     proTaxSub: "हर बिक्री लागत और लाभ के साथ, CSV या PDF में",
+    proLots: "डिब्बे की ग्रेडिंग और लॉट जाँच",
+    proLotsSub: "फ़ोटो से डिब्बे की हालत जानें और किसी भी आकार के लॉट जाँचें",
     proWallTitle: "हमारे समर्थकों का धन्यवाद",
     proSkin: "हर जगह गोल्ड",
     proExportsSub: 'CSV में बाज़ार मूल्य और ROI कॉलम, साथ में बीमा रिपोर्ट',
@@ -1775,7 +1777,7 @@ Object.assign(hi.contributions, {
 Object.assign(hi.bvSet, {"removeAskTitle": "क्या आपने इसे बेच दिया?", "removeAskSub": "अगर {name} बिक गया है, तो कीमत जोड़ें। कीमत निजी रहती है और सिर्फ़ गुमनाम औसत के रूप में सबके मूल्यों में मदद करती है।", "removeAskSold": "हाँ, बिक्री दर्ज करें", "removeAskJust": "नहीं, बस हटाएँ"});
 Object.assign(hi.data, {"blSalesTitle": "BrickLink बिक्री आयात करें", "blSalesSub": "अपने BrickLink स्टोर से “Orders Received” CSV निर्यात करें। बिके सेट अपनी बिक्री कीमत के साथ वॉल्ट से हट जाते हैं और प्राप्त लाभ में गिने जाते हैं। कीमतें समुदाय की अनाम माध्यिका कीमतों में भी योगदान देती हैं, जो कम से कम पाँच संग्रहकर्ताओं के योगदान के बाद ही प्रकाशित होती हैं।", "blSalesPick": "बिक्री CSV चुनें", "blSalesImport": "बिक्री आयात करें", "blSalesResult": "✓ {sold}, {skipped}. {errors}", "salesRecordedCountOne": "{n} बिक्री दर्ज हुई", "salesRecordedCountOther": "{n} बिक्रियाँ दर्ज हुईं"});
 // Set page → Your copies (components/copies.js).
-hi.copies = {"paid": "भुगतान {price}", "soldToast": "{price} में बिका", "editN": "कॉपी {index} बदलें", "sellN": "कॉपी {index} बेचें"};
+hi.copies = {"paid": "भुगतान {price}", "soldToast": "{price} में बिका", "editN": "कॉपी {index} बदलें", "sellN": "कॉपी {index} बेचें", "boxGrade": "डिब्बा: {grade}", "boxShare": "आमतौर पर बिल्कुल नए डिब्बे की कीमत का लगभग {share}% मिलता है"};
 // Sales & taxes (views/me-sales.js).
 hi.sales = {"checkReady": "पिछले साल कलेक्टरों द्वारा दर्ज {sales} बिक्रियों में, हमारी वैल्यू {w10}% मामलों में असली कीमत से 10% के भीतर और {w20}% में 20% के भीतर थी। आम अंतर {miss}% रहा।", "checkPending": "जब कलेक्टर एक साल में सील्ड सेट्स की {min} बिक्रियाँ दर्ज कर लेंगे, हम इसे प्रकाशित करेंगे। अब तक: {sales}।", "salesIn": "{year} की बिक्रियाँ", "net": "नेट {amount}", "cost": "लागत {amount}", "costMissing": "लागत दर्ज नहीं", "longTerm": "लॉन्ग-टर्म", "shortTerm": "शॉर्ट-टर्म", "locked": "हर बिक्री की रिपोर्ट, रखने की अवधि, लागत और लाभ के साथ, और टैक्स रिटर्न के लिए CSV और PDF डाउनलोड, Pro में मिलते हैं।"};
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
@@ -1783,3 +1785,6 @@ hi.stores = {"best": "सबसे अच्छी कीमत", "outOfStock": 
 hi.promos = {"until": "{date} तक", "starts": "{date} से शुरू", "fromTo": "{start} से {end}", "whileItLasts": "स्टॉक रहने तक", "spend": "{amount}+ खर्च करें"};
 // Rebrickable sync (components/rebrickable-card.js).
 hi.rebrickable = {"importResult": "वॉल्ट में नए: {fresh}। पहले से मौजूद: {already}। अभी कैटलॉग में नहीं: {unknown}।", "exportPartial": "अब तक भेजे: {sent}। बाकी: {left}। एक मिनट बाद फिर से भेजें दबाएँ।", "exportDone": "Rebrickable को भेजे: {sent}।"};
+
+// Lot checker (views/lot.js).
+hi.lot = {"unpriced": "अभी बिना कीमत वाले सेट: {missing}। कुल में ये शामिल नहीं हैं।"};
