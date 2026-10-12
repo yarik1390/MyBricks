@@ -92,6 +92,23 @@ describe('store offers', () => {
     expect(body.value).toBe(120);
   });
 
+  it('GET /api/stores shows eBay asks and BrickLink sales we hold, and only recent ones', async () => {
+    // A set of its own: earlier tests leave /api/stores/10001-1 in the edge cache.
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired, retail_price, lego_in_stock, current_value,
+        ebay_ask_value, ebay_ask_qty, ebay_ask_cached_at, bl_new_value, bl_new_qty, bl_cached_at)
+      VALUES ('10003-1', 'Market', CAST(strftime('%Y','now') AS INTEGER), 0, 100, 0, 120,
+        118, 23, datetime('now', '-1 day'), 125.5, 9, datetime('now', '-2 hours'))`).run();
+    // Old set: the ask is past 7 days and the BrickLink guide is past its 24h display window.
+    await db.prepare(`UPDATE lego_sets SET ebay_ask_value = 310, ebay_ask_qty = 4, ebay_ask_cached_at = datetime('now', '-9 days'),
+      bl_new_value = 290, bl_new_qty = 3, bl_cached_at = datetime('now', '-30 hours') WHERE set_num = '10002-1'`).run();
+    const fresh = await (await app.fetch(new Request('https://example.test/api/stores/10003-1'), env as any, ctx)).json() as any;
+    expect(fresh.market.map((m: any) => [m.store, m.kind, m.price, m.count])).toEqual([['ebay', 'ask', 118, 23], ['bricklink', 'sold', 125.5, 9]]);
+    expect(fresh.links.map((l: any) => l.store)).toEqual(['lego', 'brickowl']);
+    const old = await (await app.fetch(new Request('https://example.test/api/stores/10002-1'), env as any, ctx)).json() as any;
+    expect(old.market).toEqual([]);
+    expect(old.links.map((l: any) => l.store)).toEqual(['ebay', 'bricklink', 'brickowl']);
+  });
+
   it('POST /api/stores/:set/check looks up a set nobody checked yet, for members only', async () => {
     const secret = 'store-check-test-secret-at-least-32-chars';
     const e = { ...withKey, SUPABASE_JWT_SECRET: secret, SUPABASE_URL: 'https://supabase.mock.io' };

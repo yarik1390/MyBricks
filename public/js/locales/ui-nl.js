@@ -1,5 +1,7 @@
 /** Dutch exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "eBay and BrickLink figures come from US listings and sales of new sets. Check the listing for its own price and shipping.": "eBay- en BrickLink-cijfers komen uit Amerikaanse advertenties en verkopen van nieuwe sets. Bekijk de advertentie voor de eigen prijs en verzending.",
+  "eBay and BrickLink figures come from US listings and sales of new sets, converted to your currency. Check the listing for its own price and shipping.": "eBay- en BrickLink-cijfers komen uit Amerikaanse advertenties en verkopen van nieuwe sets, omgerekend naar jouw valuta. Bekijk de advertentie voor de eigen prijs en verzending.",
   "Walmart and Target are US stores, so their dollar prices are converted to your currency. Checked daily, before tax, shipping and import costs.": "Walmart en Target zijn Amerikaanse winkels, dus hun dollarprijzen worden omgerekend naar jouw valuta. Dagelijks gecheckt, zonder btw, verzending en invoerkosten.",
   "Walmart and Target are US stores. Prices are checked daily, before tax and shipping.": "Walmart en Target zijn Amerikaanse winkels. Prijzen dagelijks gecheckt, zonder btw en verzending.",
   "Accept": "Accepteren",

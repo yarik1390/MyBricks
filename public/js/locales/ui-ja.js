@@ -1,5 +1,7 @@
 /** Japanese exact-match UI dictionary — see lib/i18n.js translateDOM(). */
 export const ui = {
+  "eBay and BrickLink figures come from US listings and sales of new sets. Check the listing for its own price and shipping.": "eBayとBrickLinkの数値は、米国での新品セットの出品と販売に基づきます。実際の価格と送料は出品ページでご確認ください。",
+  "eBay and BrickLink figures come from US listings and sales of new sets, converted to your currency. Check the listing for its own price and shipping.": "eBayとBrickLinkの数値は、米国での新品セットの出品と販売に基づき、お使いの通貨に換算しています。実際の価格と送料は出品ページでご確認ください。",
   "Walmart and Target are US stores, so their dollar prices are converted to your currency. Checked daily, before tax, shipping and import costs.": "WalmartとTargetは米国の店舗のため、ドル価格をあなたの通貨に換算しています。毎日確認、税・送料・輸入費用は含みません。",
   "Walmart and Target are US stores. Prices are checked daily, before tax and shipping.": "WalmartとTargetは米国の店舗です。価格は毎日確認、税・送料は含みません。",
   "Accept": "承諾",

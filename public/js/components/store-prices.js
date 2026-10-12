@@ -1,5 +1,6 @@
 // "Compare stores" on the set page: today's price at LEGO.com, Walmart and
-// Target (cheapest in stock first), what each store check found, plus links to
+// Target (cheapest in stock first), what each store check found, the eBay
+// asking price and BrickLink sales we already hold, plus links to
 // check the price anywhere else. A set nobody checked recently is checked on
 // the spot for signed-in members. Data: GET /api/stores/:setnum and
 // POST /api/stores/:setnum/check (worker/src/routes/stores.ts).
@@ -8,7 +9,7 @@ import { escapeHtml, fmtMoney } from '../utils.js';
 import { api, isGuestMode } from '../api.js';
 import { state } from '../state.js';
 import { icon, pill } from '../ui/kit.js';
-import { t } from '../lib/i18n.js';
+import { t, tPlural } from '../lib/i18n.js';
 
 function offerRowHTML(o, best, value) {
   const below = value > 0 && o.in_stock ? Math.round((1 - o.price / value) * 100) : null;
@@ -21,6 +22,22 @@ function offerRowHTML(o, best, value) {
       <span class="bv-stores__name">${escapeHtml(o.label)}${best ? ` ${pill(t('stores.best'), 'acc')}` : ''}</span>
       ${note ? `<span class="bv-stores__note">${escapeHtml(note)}</span>` : ''}
       <span class="bv-num bv-stores__price">${escapeHtml(fmtMoney(o.price))}</span>
+      ${icon('ext', { size: 16 })}
+    </a>
+  </li>`;
+}
+
+// A marketplace figure we already hold: eBay's median asking price, or
+// BrickLink's average recent new sale. Not a single listing, so no Best tag.
+function marketRowHTML(m) {
+  const note = m.kind === 'sold'
+    ? (m.count ? tPlural('stores.blSold', m.count) : t('stores.blSoldPlain'))
+    : (m.count ? tPlural('stores.ebayAsk', m.count) : t('stores.ebayAskPlain'));
+  return `<li class="bv-stores__row">
+    <a class="bv-stores__link" href="${escapeHtml(m.url)}" target="_blank" rel="noopener">
+      <span class="bv-stores__name">${escapeHtml(m.label)}</span>
+      <span class="bv-stores__note">${escapeHtml(note)}</span>
+      <span class="bv-num bv-stores__price">${escapeHtml(fmtMoney(m.price))}</span>
       ${icon('ext', { size: 16 })}
     </a>
   </li>`;
@@ -44,16 +61,17 @@ export function storePricesHTML(data, { checking = false } = {}) {
   const stores = data?.stores || [];
   const priced = new Set(offers.map((o) => o.store));
   const statusRows = stores.filter((s) => !priced.has(s.store));
-  const links = (data?.links || []).filter((l) => !stores.some((s) => s.store === l.store));
-  if (!offers.length && !statusRows.length && !links.length) return '';
+  const market = data?.market || [];
+  const links = (data?.links || []).filter((l) => !stores.some((s) => s.store === l.store) && !market.some((m) => m.store === l.store));
+  if (!offers.length && !statusRows.length && !market.length && !links.length) return '';
   const value = Number(data.value) || 0;
   const bestIndex = offers.findIndex((o) => o.in_stock);
   const usd = (state.me?.currency || 'USD') === 'USD';
   const usStores = stores.length > 0;
   return `<section class="detail-card bv-stores" aria-labelledby="storesTitle">
     <div class="detail-card-title" id="storesTitle">Compare stores</div>
-    ${offers.length || statusRows.length
-      ? `<ul class="bv-stores__list">${offers.map((o, i) => offerRowHTML(o, i === bestIndex, value)).join('')}${statusRows.map((s) => statusRowHTML(s, checking && s.status === 'unchecked')).join('')}</ul>`
+    ${offers.length || statusRows.length || market.length
+      ? `<ul class="bv-stores__list">${offers.map((o, i) => offerRowHTML(o, i === bestIndex, value)).join('')}${statusRows.map((s) => statusRowHTML(s, checking && s.status === 'unchecked')).join('')}${market.map(marketRowHTML).join('')}</ul>`
       : '<p class="bv-stores__empty">No store has a price for this set today.</p>'}
     ${links.length ? `<div class="bv-stores__more"><span class="bv-label">Check the price at</span>
       <div class="bv-stores__chips">${links.map((l) => `<a class="bv-chip" href="${escapeHtml(l.url)}" target="_blank" rel="noopener">${escapeHtml(l.label)}${icon('ext', { size: 14 })}</a>`).join('')}</div></div>` : ''}
@@ -61,6 +79,11 @@ export function storePricesHTML(data, { checking = false } = {}) {
       ? `<p class="bv-stores__foot">${usd
         ? 'Walmart and Target are US stores. Prices are checked daily, before tax and shipping.'
         : 'Walmart and Target are US stores, so their dollar prices are converted to your currency. Checked daily, before tax, shipping and import costs.'}</p>`
+      : ''}
+    ${market.length
+      ? `<p class="bv-stores__foot">${usd
+        ? 'eBay and BrickLink figures come from US listings and sales of new sets. Check the listing for its own price and shipping.'
+        : 'eBay and BrickLink figures come from US listings and sales of new sets, converted to your currency. Check the listing for its own price and shipping.'}</p>`
       : ''}
   </section>`;
 }
