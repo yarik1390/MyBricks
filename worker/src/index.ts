@@ -496,17 +496,19 @@ export default {
         }));
         // BrickEconomy replacement: a first BrickLink guide for sets whose only
         // market value is the scraped BrickEconomy figure (~4,200 never asked,
-        // 2026-10-13). Uses BrickLink allowance the two lanes above leave idle.
+        // 2026-10-13). Uses BrickLink allowance the two lanes above leave idle:
+        // other lanes spend ~1,900/day of the 4,000 cap, and 48 sets/h (retired
+        // sets cost 2 calls) adds ~1,700/day, finishing the backlog in ~4 days.
         await run('valuate-bl-discovery', () => runValuateSets(env, {
           scope: 'all',
           blDiscovery: true,
-          limit: 24,
+          limit: 48,
           includeSupplemental: false,
           includeEbay: false,
           includeEbaySold: false,
           includeAiFallback: false,
-          // (200 - 20 overhead) / 7 per BrickLink-only set fits all 24.
-          subrequestBudget: 200,
+          // (360 - 20 overhead) / 7 per BrickLink-only set fits all 48.
+          subrequestBudget: 360,
         }));
         break;
       case '15 * * * *':
