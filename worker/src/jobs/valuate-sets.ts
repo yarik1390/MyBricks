@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import type { Env } from '../types';
-import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
+import { fetchSetPricing, fetchSetPricingDetailed, fetchSetStockAsk, fetchUsedPricing } from '../lib/bricklink';
+import type { BrickLinkStockAsk, BrickLinkThinSold } from '../lib/bricklink';
 import { ebaySoldCompsEnabled } from '../lib/pricing-flags';
 import { callGeminiValuation } from '../lib/gemini';
 import { MODELS, getOpenRouterPools, openAIServerBaseURL, gatewayHeaders, gatewayMetadataHeader, openRouterBaseURL } from '../lib/llm';
@@ -308,12 +309,24 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     // outage, not genuine no-data). Gates the bl_nodata_at stamp below so a
     // source blip never triggers a 90-day skip on a set that may have data.
     let blErrored = false;
+    // Discovery-only fallbacks for sets whose sold guide is too thin (<5 lots).
+    let blThin: BrickLinkThinSold | null = null;
+    let blAsk: BrickLinkStockAsk | null = null;
+    let blAskErrored = false;
     const loadBrickLinkNew = async (): Promise<typeof blPricing> => {
       if (blNewAttempted || !takeQuota('bricklink')) return blPricing;
       blNewAttempted = true;
       blAttempted = true;
-      blPricing = await fetchSetPricing(set.set_num, env, sourceOptions)
-        .catch((err) => { tallyFail('bricklink', err); blErrored = true; return null; });
+      if (options.blDiscovery === true) {
+        // Discovery keeps a 1–4 lot guide as a thin signal instead of dropping it.
+        const detailed = await fetchSetPricingDetailed(set.set_num, env, sourceOptions)
+          .catch((err) => { tallyFail('bricklink', err); blErrored = true; return null; });
+        blPricing = detailed?.pricing ?? null;
+        blThin = detailed?.thin ?? null;
+      } else {
+        blPricing = await fetchSetPricing(set.set_num, env, sourceOptions)
+          .catch((err) => { tallyFail('bricklink', err); blErrored = true; return null; });
+      }
       if (blPricing) tallyOk('bricklink');
       return blPricing;
     };
@@ -369,7 +382,17 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     // headline; selectDueSets reserved BrickLink quota for every row they pick.
     if ((includeSupplemental || forceBrickLink) && bricklinkConfigured && !blBackedOff) {
       blPricing = await loadBrickLinkNew();
-      if (!usedPricing && wantUsed) usedPricing = await loadBrickLinkUsed();
+      if (options.blDiscovery === true) {
+        // Discovery spends its second call where it helps: the used guide only
+        // when the set sells, otherwise current NEW listings as an asking price.
+        if (blPricing) {
+          if (!usedPricing && wantUsed) usedPricing = await loadBrickLinkUsed();
+        } else if (blNewAttempted && !blErrored && takeQuota('bricklink')) {
+          blAsk = await fetchSetStockAsk(set.set_num, env, sourceOptions)
+            .catch((err) => { tallyFail('bricklink', err); blAskErrored = true; return null; });
+          if (blAsk) tallyOk('bricklink');
+        }
+      } else if (!usedPricing && wantUsed) usedPricing = await loadBrickLinkUsed();
     }
 
     if (includeEbay && includeEbaySold) ebayPrices = await loadEbaySold();
@@ -423,7 +446,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
           env.DB.prepare('UPDATE set_market_ext SET bl_nodata_at=NULL WHERE set_num=?').bind(set.set_num)
         );
       }
-    } else if (blAttempted && !blErrored) {
+    } else if (blAttempted && !blErrored && !blAskErrored) {
       // Called BrickLink AND it answered cleanly, but the sold guide had no
       // reliable price (404 / <5 lots / no usable avg). Stamp so the 90-day
       // backoff skips this set on future cycles and the API budget goes to sets
@@ -436,6 +459,20 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
           `INSERT INTO set_market_ext (set_num, bl_nodata_at) VALUES (?1, datetime('now'))
            ON CONFLICT(set_num) DO UPDATE SET bl_nodata_at=datetime('now')`
         ).bind(set.set_num)
+      );
+    }
+    // Thin sold guide and current listings (discovery). Written whenever the
+    // set answered cleanly, so a set that lost its listings drops the old ask.
+    if (options.blDiscovery === true && blNewAttempted && !blErrored && !blPricing && !blAskErrored) {
+      // Assigned inside loadBrickLinkNew, which TS's narrowing cannot see.
+      const thin = blThin as BrickLinkThinSold | null;
+      supplementStmts.push(
+        env.DB.prepare(
+          `INSERT INTO set_market_ext (set_num, bl_thin_value, bl_thin_qty, bl_ask_value, bl_ask_qty, bl_fallback_cached_at)
+           VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'))
+           ON CONFLICT(set_num) DO UPDATE SET bl_thin_value=excluded.bl_thin_value, bl_thin_qty=excluded.bl_thin_qty,
+             bl_ask_value=excluded.bl_ask_value, bl_ask_qty=excluded.bl_ask_qty, bl_fallback_cached_at=excluded.bl_fallback_cached_at`
+        ).bind(set.set_num, thin?.value ?? null, thin?.lot_count ?? null, blAsk?.ask_value ?? null, blAsk?.lot_count ?? null)
       );
     }
     const hasBrickLinkUsedMeta = usedPricing?.lot_count != null

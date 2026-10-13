@@ -137,7 +137,12 @@ export const TABLE_DDL: Record<string, string> = {
   ebay_sold_attempted_at TEXT,
   ebay_used_attempted_at TEXT,
   pc_attempted_at TEXT,
-  bl_nodata_at TEXT
+  bl_nodata_at TEXT,
+  bl_thin_value REAL,
+  bl_thin_qty INTEGER,
+  bl_ask_value REAL,
+  bl_ask_qty INTEGER,
+  bl_fallback_cached_at TEXT
 )`,
 
   pricing_source_map: `CREATE TABLE IF NOT EXISTS pricing_source_map (

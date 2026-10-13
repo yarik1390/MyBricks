@@ -15,7 +15,7 @@ import { computeMinifigRarity, plausibleEbayOnlyFigValue } from './lib/minifig-r
 import { proxyImageUrl, rewriteImages } from './lib/img-proxy';
 import { isSearchIndexCorruption } from './lib/search-index';
 import { formulaValuation, retailAgeMultiplier, isLikelyRetired, isPlausibleMarketValue } from './lib/valuation';
-import { blendMarketValue, computeDealSignal, buildMarketSources, enrichSetRecord, correctedValuationMethod, BLEND_INPUT_COLUMNS, BLEND_EXT_COLUMNS } from './lib/market-sources';
+import { blendMarketValue, computeDealSignal, buildMarketSources, enrichSetRecord, correctedValuationMethod, BLEND_INPUT_COLUMNS, BLEND_EXT_COLUMNS, SERVER_ONLY_BLEND_COLUMNS } from './lib/market-sources';
 import { CATALOG_COLS } from './routes/sets';
 import { computePartOutValue, partKey } from './lib/part-out';
 
@@ -854,7 +854,7 @@ describe('catalog projection covers every blend input', () => {
     );
     const required = [...BLEND_INPUT_COLUMNS.split(','), ...BLEND_EXT_COLUMNS.split(',')]
       .map((c) => c.trim())
-      .filter(Boolean);
+      .filter((c) => c && !SERVER_ONLY_BLEND_COLUMNS.includes(c));
     const missing = required.filter((c) => !present.has(c));
     expect(missing).toEqual([]);
   });

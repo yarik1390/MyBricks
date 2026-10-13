@@ -53,8 +53,8 @@ describe('investment-grade valuation v3', () => {
   });
 
   it('does not borrow unrelated recompute clocks for stored modeled/asking prices', () => {
-    const signals = legacySignalsFor({ set_num: 'CLOCK-1', be_value_new: 100, stockx_ask: 110, cached_at: now });
-    const retained = signals.filter(s => ['brickeconomy_new', 'stockx_ask'].includes(s.source));
+    const signals = legacySignalsFor({ set_num: 'CLOCK-1', be_value_new: 100, bl_ask_value: 110, cached_at: now });
+    const retained = signals.filter(s => ['brickeconomy_new', 'bricklink_ask'].includes(s.source));
     expect(retained).toHaveLength(2);
     for (const signal of retained) {
       expect(signal.checked_at).toBeNull();

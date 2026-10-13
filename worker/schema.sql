@@ -145,7 +145,15 @@ CREATE TABLE IF NOT EXISTS set_market_ext (
   -- BrickLink no-data backoff stamp (sold guide <5 lots): the valuation job skips
   -- this set's BrickLink calls for 90 days so the ~5,000/day budget isn't wasted
   -- re-querying sets that will never have data. Cleared when a BL price returns.
-  bl_nodata_at TEXT
+  bl_nodata_at TEXT,
+  -- BrickLink fallbacks for sets with <5 sold lots (discovery lane): the 1-4 lot
+  -- sold average and the median current NEW listing price. Our own blend input;
+  -- never displayed as BrickLink (bl_cached_at, the 24h display clock, stays unset).
+  bl_thin_value REAL,
+  bl_thin_qty INTEGER,
+  bl_ask_value REAL,
+  bl_ask_qty INTEGER,
+  bl_fallback_cached_at TEXT
 );
 
 -- Pricing Engine v3 keeps identity, normalized observations and condition-aware

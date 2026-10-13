@@ -190,3 +190,61 @@ describe('selectDueSets queue composition', () => {
     expect(picked).toContain('UBS-1');
   });
 });
+
+describe('runValuateSets — BrickLink discovery fallbacks for thin sets', () => {
+  beforeEach(async () => {
+    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'set_valuation_state', 'user_collection', 'user_wishlist', 'api_quota', 'integration_health']);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const ext = (setNum: string) => db.prepare(
+    `SELECT bl_thin_value, bl_thin_qty, bl_ask_value, bl_ask_qty, bl_fallback_cached_at, bl_nodata_at FROM set_market_ext WHERE set_num=?`,
+  ).bind(setNum).first<Record<string, unknown>>();
+  // Sold guide with 3 lots; stock guide with four listings, one absurd.
+  const guides = () => vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input instanceof Request ? input.url : input);
+    const data = url.includes('guide_type=stock')
+      ? { unit_quantity: 4, qty_avg_price: '900.00', price_detail: [
+        { unit_price: '140.00', quantity: 1 }, { unit_price: '150.00', quantity: 1 },
+        { unit_price: '160.00', quantity: 1 }, { unit_price: '2500.00', quantity: 1 }] }
+      : { unit_quantity: 3, qty_avg_price: '120.00', min_price: '100.00', max_price: '135.00' };
+    return new Response(JSON.stringify({ meta: { code: 200 }, data }), { status: 200 });
+  });
+
+  it('keeps a 1-4 lot sold guide and the median listing for a BrickEconomy-only set', async () => {
+    await seedDueSet({ set_num: '99020-1', retired: 1, be_value_new: 130, retail_price: 99.99, brickset_msrp: 99.99, valuation_method: 'brickeconomy', current_value: 130 });
+    const fetchSpy = guides();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await runValuateSets({ ...env, CACHE_KV: undefined, ...blCreds, ...noSources } as any, { ...OPTS, blDiscovery: true });
+
+    const urls = fetchSpy.mock.calls.map(([u]) => String(u));
+    expect(urls.filter(u => u.includes('guide_type=stock'))).toHaveLength(1);
+    // The second call goes to current listings, not the used guide.
+    expect(urls.some(u => u.includes('new_or_used=U'))).toBe(false);
+    const row = await ext('99020-1');
+    expect(row?.bl_thin_value).toBe(120);
+    expect(row?.bl_thin_qty).toBe(3);
+    expect(row?.bl_ask_value).toBe(155); // median, not the $900 average
+    expect(row?.bl_ask_qty).toBe(4);
+    expect(row?.bl_fallback_cached_at).toBeTruthy();
+    expect(row?.bl_nodata_at).toBeTruthy(); // still backed off from the sold guide
+    // BrickLink's 24h display clock is never started by the fallbacks.
+    const ls = await db.prepare(`SELECT bl_cached_at, bl_new_value FROM lego_sets WHERE set_num='99020-1'`).first<Record<string, unknown>>();
+    expect(ls?.bl_cached_at).toBeNull();
+    expect(ls?.bl_new_value).toBeNull();
+  });
+
+  it('does not stamp no-data when the listings call fails, so the set is retried', async () => {
+    await seedDueSet({ set_num: '99021-1', be_value_new: 130, retail_price: 99.99, brickset_msrp: 99.99, valuation_method: 'brickeconomy', current_value: 130 });
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => String(input).includes('guide_type=stock')
+      ? new Response('boom', { status: 503 })
+      : new Response(JSON.stringify({ meta: { code: 200 }, data: { unit_quantity: 2, qty_avg_price: '120.00' } }), { status: 200 })));
+
+    await runValuateSets({ ...env, CACHE_KV: undefined, ...blCreds, ...noSources } as any, { ...OPTS, blDiscovery: true });
+
+    const row = await ext('99021-1');
+    expect(row?.bl_nodata_at ?? null).toBeNull();
+    expect(row?.bl_thin_value ?? null).toBeNull();
+  });
+});

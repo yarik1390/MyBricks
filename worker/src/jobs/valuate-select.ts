@@ -267,11 +267,12 @@ export async function selectDueSets(
   // the provider helpers must not spendQuota again or they would double-charge.
   //
   // Multiplicity:
-  //   BrickLink NEW=1, retired USED=1;
+  //   BrickLink NEW=1, retired USED=1 (discovery: USED or current listings=1);
   //   eBay sold NEW+USED=2 and stale ask=1; Gemini/OpenAI=1 logical call;
   //   OpenRouter <=6 free attempts + 1 paid backstop per set.
   const blReserve = includeBrickLink ? results.reduce(
-    (n, s) => (blBackedOffAt(s.bl_nodata_at) ? n : n + (s.retired ? 2 : 1)),
+    // Discovery always spends a second call: the used guide or current listings.
+    (n, s) => (blBackedOffAt(s.bl_nodata_at) ? n : n + (s.retired || blDiscovery ? 2 : 1)),
     0,
   ) : 0;
   const rawGrants = await reserveQuota(env, {

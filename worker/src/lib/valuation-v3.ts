@@ -538,12 +538,15 @@ export function legacySignalsFor(row: Record<string, unknown>): PricingSignal[] 
   add({ source: 'brickeconomy_new', provider_family: 'brickeconomy', condition: 'new_sealed', signal_type: 'modeled', value: beNew, checked_at: iso(row.be_cached_at) || (positive(row.be_value_new) ? null : cached), match_status: beTrusted ? 'verified' : 'quarantined' });
   add({ source: 'brickeconomy_used', provider_family: 'brickeconomy', condition: 'used_complete', signal_type: 'modeled', value: positive(row.be_value_used), checked_at: iso(row.be_cached_at) });
   add({ source: 'ebay_asking', provider_family: 'ebay_market', condition: 'new_sealed', signal_type: 'asking', value: plausibleAskValue(row), sample_count: positive(row.ebay_ask_qty), checked_at: iso(row.ebay_ask_cached_at) || cached });
-  // StockX lowest ask — a single new/sealed listing ceiling from an INDEPENDENT
-  // marketplace (its own provider_family, so it corroborates rather than collapsing
-  // into ebay_market). Asking signal (0.35 weight): with any sold family it can only
-  // nudge the range ±15%, never move the headline; a lone StockX ask reads as
-  // asking_only (no fair value). StockX only lists sealed, so new_sealed only.
-  add({ source: 'stockx_ask', provider_family: 'stockx', condition: 'new_sealed', signal_type: 'asking', value: positive(row.stockx_ask), checked_at: iso(row.stockx_cached_at) });
+  // BrickLink fallbacks for sets with fewer than 5 sold lots (StockX, retired
+  // 2026-10-13, used to sit here). A 1-4 lot sold average is real sales but too
+  // thin for the 5-lot sold gate, so it counts as a modeled guide: alone it gives
+  // a low-confidence value, next to a sold family it only shapes the range. The
+  // median current NEW listing is an asking signal: alone it is asking_only, never
+  // a fair value. Both sit in the bricklink family, so they never pose as an
+  // independent confirmation of BrickLink's own sold guide.
+  add({ source: 'bricklink_thin_sold', provider_family: 'bricklink', condition: 'new_sealed', signal_type: 'modeled', value: positive(row.bl_thin_value), sample_count: positive(row.bl_thin_qty), checked_at: iso(row.bl_fallback_cached_at) });
+  add({ source: 'bricklink_ask', provider_family: 'bricklink', condition: 'new_sealed', signal_type: 'asking', value: positive(row.bl_ask_value), sample_count: positive(row.bl_ask_qty), checked_at: iso(row.bl_fallback_cached_at) });
 
   // PriceCharting legacy columns are deliberately absent. Existing mappings are
   // quarantined; verified records enter through pricing_signals and collapse into

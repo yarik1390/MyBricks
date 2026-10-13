@@ -202,6 +202,12 @@ filter/sort set added during the audit: `theme_group`, `category`, `year`,
   `stockx_ask` values are dropped by `RETIRED_PRICING_SOURCES` and no longer listed;
   the job is switched off in source tuning and the `stockx` flag). **BrickOwl was retired 2026-09-25** — it is no longer a source; its stored
   `bo_*` values stay in `RETIRED_PRICING_SOURCES` and never reach the blend.
+- **BrickLink discovery** (`valuate-bl-discovery`, hourly :45) asks BrickLink about
+  BrickEconomy-only sets. When the sold guide has <5 lots it keeps the 1-4 lot
+  average (`set_market_ext.bl_thin_*`, a low-weight modeled signal) and fetches the
+  NEW current-listings guide (`bl_ask_*`, median lot price, an asking signal). Both
+  stay server-side (`SERVER_ONLY_BLEND_COLUMNS`) and never start `bl_cached_at`, so
+  BrickLink is not named for them.
 - `lib/market-sources.ts → enrichSetRecord(row)` is the **read-side** blender: it
   builds `market_sources`, `confidence`, `freshness`, `primary_value_source`,
   `valuation_explanation`, and the v2 fields `market_value` / `_low` / `_high` /
