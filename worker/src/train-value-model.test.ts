@@ -46,6 +46,8 @@ describe('runTrainValueModel', () => {
       { set_num: 'SW-NEW-1', name: 'Unpriced SW', year: YEAR - 10, retired: 1, pieces: 500, theme: 'Star Wars', retail_price: 80 },
       { set_num: 'CITY-NEW-1', name: 'Unpriced City', year: YEAR - 10, retired: 1, pieces: 500, theme: 'City', retail_price: 80 },
       { set_num: 'NO-RETAIL-1', name: 'No retail', year: YEAR - 10, retired: 1, pieces: 500, theme: 'City' },
+      // A retail price that only echoes the BrickEconomy scrape is not an anchor.
+      { set_num: 'ECHO-1', name: 'Echoed retail', year: YEAR - 10, retired: 1, pieces: 0, theme: 'Gear', retail_price: 501499, be_retail: 501499, be_value_new: 2500 },
     ]);
 
     const result = await runTrainValueModel(env as any);
@@ -61,6 +63,7 @@ describe('runTrainValueModel', () => {
     expect((await modelValue('SW-NEW-1'))!.model_cached_at).toBeTruthy();
     // No retail price, no estimate.
     expect(await modelValue('NO-RETAIL-1')).toBeNull();
+    expect(await modelValue('ECHO-1')).toBeNull();
   });
 
   it('blends in the BrickLink used guide when one exists', async () => {

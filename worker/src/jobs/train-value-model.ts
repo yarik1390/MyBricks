@@ -16,8 +16,8 @@ import { pricingWritesAllowed } from '../lib/pricing-budget';
  * have for old sets).
  *
  * Backtest 2026-10-13 (half held out, within -20%/+25% of BrickLink sold):
- * 0-3 yrs 59% (BrickEconomy 38%, old formula 49%), 4-10 yrs 36-43% (44%,
- * 35%), 11+ yrs 30-43% (50%, 20%). See pricing-review/own-value-model-test.md.
+ * 0-3 yrs 62% (BrickEconomy 40%), 4-10 yrs 50% (43%), 11+ yrs 37% (49%).
+ * The old formula scored 49% / 35% / 20%. See pricing-review/own-value-model-test.md.
  *
  * The result lands in set_market_ext.model_value and enters the v3 blend as
  * an 'estimate' signal (lib/valuation-v3.ts): it is the headline only when no
@@ -31,6 +31,12 @@ const SHRINK_PIECES = 8;
 // Weight of the used-sales anchor in log space when one exists.
 const USED_WEIGHT = 0.65;
 
+// Independent retail anchor, same rule as independentRetailAnchor(): Brickset
+// MSRP, else retail_price unless it merely echoes the BrickEconomy scrape
+// (be_retail), which carries garbage such as a $501,499 sticker sheet.
+const RETAIL = `COALESCE(NULLIF(ls.brickset_msrp, 0), CASE WHEN ls.retail_price > 0
+  AND (ls.be_retail IS NULL OR ls.be_retail <= 0 OR ls.retail_price <> ls.be_retail) THEN ls.retail_price END)`;
+
 // Shared feature projection. `ac` is the coarse age class the deviations are
 // fitted within (0-3, 4-10, 11+ years since release).
 const FEATURES = `
@@ -42,7 +48,7 @@ const FEATURES = `
   COALESCE(ls.theme, '?') AS th,
   COALESCE(ls.theme, '?') || '/' || COALESCE(ls.subtheme, '') AS st,
   CASE WHEN ls.pieces > 0 THEN MIN(CAST(ln(ls.pieces) * 2 AS INTEGER), 18) ELSE -1 END AS pb,
-  COALESCE(NULLIF(ls.brickset_msrp, 0), ls.retail_price) AS rp,
+  ${RETAIL} AS rp,
   CASE WHEN ls.bl_used_qty > 0 AND ls.used_value > 0 THEN ls.used_value END AS u`;
 
 export const TRAIN_VALUE_MODEL_SQL = `
@@ -51,7 +57,7 @@ WITH
     SELECT ${FEATURES}, ls.bl_new_value AS bl
     FROM lego_sets ls
     WHERE ls.bl_new_value > 0 AND ls.bl_new_qty >= 5 AND ls.year > 0
-      AND COALESCE(NULLIF(ls.brickset_msrp, 0), ls.retail_price) > 0),
+      AND ${RETAIL} > 0),
   base_ar AS (SELECT age, ret, AVG(ln(bl / rp)) AS m FROM train GROUP BY age, ret),
   base_a AS (SELECT age, AVG(ln(bl / rp)) AS m FROM train GROUP BY age),
   base_all AS (SELECT AVG(ln(bl / rp)) AS m FROM train),
@@ -65,7 +71,7 @@ WITH
   target AS (
     SELECT ${FEATURES}
     FROM lego_sets ls
-    WHERE ls.year > 0 AND COALESCE(NULLIF(ls.brickset_msrp, 0), ls.retail_price) > 0),
+    WHERE ls.year > 0 AND ${RETAIL} > 0),
   scored AS (
     SELECT t.set_num, t.rp,
       ln(t.rp) + COALESCE(bar.m, ba.m, (SELECT m FROM base_all))
@@ -97,8 +103,8 @@ export async function runTrainValueModel(env: Env): Promise<{ trained: number; w
     return { trained: 0, written: 0, skipped: 'D1 pricing write budget paused non-critical jobs' };
   }
   const count = await env.DB.prepare(
-    `SELECT COUNT(*) AS n FROM lego_sets WHERE bl_new_value > 0 AND bl_new_qty >= 5 AND year > 0
-       AND COALESCE(NULLIF(brickset_msrp, 0), retail_price) > 0`,
+    `SELECT COUNT(*) AS n FROM lego_sets ls WHERE ls.bl_new_value > 0 AND ls.bl_new_qty >= 5 AND ls.year > 0
+       AND ${RETAIL} > 0`,
   ).first<{ n: number }>();
   const trained = Number(count?.n ?? 0);
   // Too little ground truth would make every group mean noise.
