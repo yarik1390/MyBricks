@@ -181,8 +181,23 @@ jobs:
           # must stop the deploy. Never re-run the whole migration file.
           mapfile -t migrations < <(grep -E '^[[:space:]]*ALTER TABLE .+ ADD COLUMN' schema_migrate.sql)
           [ "${#migrations[@]}" -gt 0 ] || { echo '::error::No column migrations found'; exit 1; }
+          # D1 occasionally answers a single statement with a transient
+          # "internal error" (or a dropped request); retry those up to 3 times
+          # so one blip in ~150 statements can't fail the whole deploy.
+          d1() {
+            local out attempt
+            for attempt in 1 2 3; do
+              if out=$(npx wrangler d1 execute brickvault --remote --command "$1" 2>&1); then
+                printf '%s' "$out"; return 0
+              fi
+              grep -qiE 'internal error|timed out|fetch failed|ECONNRESET|socket hang up' <<< "$out" || break
+              echo "Transient D1 error (attempt $attempt): ${1%%;*}" >&2
+              sleep $((attempt * 3))
+            done
+            printf '%s' "$out"; return 1
+          }
           for sql in "${migrations[@]}"; do
-            if output=$(npx wrangler d1 execute brickvault --remote --command "$sql" 2>&1); then
+            if output=$(d1 "$sql"); then
               continue
             elif grep -qiE 'duplicate column name: [a-zA-Z_][a-zA-Z_0-9]*' <<< "$output" && ! grep -qiE 'error 10[0-9][0-9]|authentication|unauthorized|timed out|network|fetch failed' <<< "$output"; then
               echo "Already present: ${sql%%;*}"
@@ -192,7 +207,7 @@ jobs:
               # whether the column exists before failing the deploy.
               table=$(sed -E 's/^[[:space:]]*ALTER TABLE[[:space:]]+([A-Za-z_0-9]+).*/\1/' <<< "$sql")
               col=$(sed -E 's/.*ADD COLUMN[[:space:]]+([A-Za-z_0-9]+).*/\1/' <<< "$sql")
-              if npx wrangler d1 execute brickvault --remote --command "SELECT $col FROM $table LIMIT 0" >/dev/null 2>&1; then
+              if d1 "SELECT $col FROM $table LIMIT 0" >/dev/null 2>&1; then
                 echo "Already present: ${sql%%;*}"
               else
                 echo "::error::D1 table $table is at the 100-column limit; cannot add $col" >&2
