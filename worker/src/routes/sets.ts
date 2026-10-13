@@ -580,7 +580,7 @@ async function buildSharedSetDetail(
     const setNum = set.set_num as string;
     const [extRes, valuationRows, upcoming, setMinifigsRes, trend, valueHistory, pcMapRes] = await Promise.all([
       c.env.DB.prepare(
-        'SELECT pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, pa_best_merchant, pa_offer_count, pa_market FROM set_market_ext WHERE set_num=?'
+        'SELECT pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, pa_best_merchant, pa_offer_count, pa_market, model_value, model_cached_at FROM set_market_ext WHERE set_num=?'
       ).bind(setNum).first<Record<string, unknown>>().catch(() => null),
       c.env.DB.prepare(`
         SELECT condition, completeness, evidence_quality, fair_value, low, high, liquidation_value, confidence,

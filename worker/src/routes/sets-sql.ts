@@ -74,6 +74,7 @@ export const CATALOG_COLS =
   // cards only through the persisted v3 state below.
   'ext.pc_loose_value, ext.pc_sales_volume, ext.pa_retail_value, ext.pa_lowest_offer, ext.pa_in_stock, ' +
   'ext.pa_best_merchant, ext.pa_offer_count, ext.pa_market, ext.pa_cached_at, ' +
+  'ext.model_value, ext.model_cached_at, ' +
   // Persisted v3 state keeps catalog cards and offline seed confidence aligned
   // with set detail, including history-based anomaly demotions.
   // Pack quality with flags to preserve the wishlist 100-column D1 limit.

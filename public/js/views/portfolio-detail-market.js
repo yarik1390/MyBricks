@@ -21,6 +21,7 @@ function genericSourceLabel(s) {
   if (id.includes('sold') || id.includes('ebay')) return cond === 'used' ? 'eBay sold used' : 'eBay sold new';
   if (id.includes('bricklink') || id === 'market' || /bricklink/i.test(name)) return cond === 'used' ? 'BrickLink used' : 'BrickLink new';
   if (id.includes('brickeconomy') || /brickeconomy/i.test(name)) return 'Market guide';
+  if (id.includes('value_model')) return 'BricksVault estimate';
   if (id.includes('formula')) return 'Formula fallback';
   if (id.includes('ai')) return 'AI estimate';
   if (id === 'retail') return 'MSRP';

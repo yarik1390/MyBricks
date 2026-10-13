@@ -55,6 +55,7 @@ export const PROCESS_REGISTRY: Record<string, ProcessInfo> = {
   // (Barcode coverage: Brickset bulk barcodes; the
   // UPCitemdb trickle lane was removed 2026-08 — provider quota-dead since July.)
   'part-price-backfill': { label: 'Part prices', description: 'Caches individual part prices used to compute part-out values.', schedule: 'Daily 12:00 UTC', group: 'Enrichment' },
+  'train-value-model': { label: 'Value model', description: 'Retrains the BricksVault value model on BrickLink-priced sets and stores each set’s estimate (the fallback when no market source prices a set).', schedule: 'Daily 13:00 UTC', group: 'Pricing' },
   'part-out-compute': { label: 'Part-out value', description: 'Computes each set’s sum-of-parts (part-out) floor value.', schedule: 'Daily 13:00 UTC', group: 'Enrichment' },
 
   // --- Snapshots & Alerts ---

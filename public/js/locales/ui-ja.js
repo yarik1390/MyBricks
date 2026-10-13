@@ -680,6 +680,7 @@ export const ui = {
   "Formula": "計算式",
   "Formula estimate": "計算式による推定",
   "Formula fallback": "数式フォールバック",
+  "BricksVault estimate": "BricksVault推定値",
   "Formula or local estimate until market data is available.": "市場データが利用可能になるまでの計算式またはローカル推定。",
   "Fresh price from a market source.": "市場ソースからの最新価格。",
   "Fresh value with corroborating market signals.": "裏付けとなる市場シグナルを伴う最新の評価額。",

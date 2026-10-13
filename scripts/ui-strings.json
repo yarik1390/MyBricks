@@ -1127,6 +1127,12 @@
     ]
   },
   {
+    "text": "BricksVault estimate",
+    "files": [
+      "views/portfolio-detail-market.js"
+    ]
+  },
+  {
     "text": "BricksVault introduces you; you arrange shipping or a meetup yourselves. Only swap with people you trust.",
     "files": [
       "views/swaps.js"

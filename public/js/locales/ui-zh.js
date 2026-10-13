@@ -680,6 +680,7 @@ export const ui = {
   "Formula": "公式",
   "Formula estimate": "公式估算",
   "Formula fallback": "公式回退",
+  "BricksVault estimate": "BricksVault 估值",
   "Formula or local estimate until market data is available.": "在获得市场数据之前，采用公式或本地估算。",
   "Fresh price from a market source.": "来自市场数据源的最新价格。",
   "Fresh value with corroborating market signals.": "有市场信号佐证的最新数值。",

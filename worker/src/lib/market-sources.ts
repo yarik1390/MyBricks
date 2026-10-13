@@ -1012,7 +1012,9 @@ export const BLEND_EXT_COLUMNS =
   'pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, ' +
   'pa_best_merchant, pa_offer_count, pa_market, pa_cached_at, ' +
   // BrickLink fallbacks for sets with <5 sold lots (thin sold + current listings).
-  'bl_thin_value, bl_thin_qty, bl_ask_value, bl_ask_qty, bl_fallback_cached_at';
+  'bl_thin_value, bl_thin_qty, bl_ask_value, bl_ask_qty, bl_fallback_cached_at, ' +
+  // BricksVault value model estimate (jobs/train-value-model.ts).
+  'model_value, model_cached_at';
 // Blend inputs that never leave the server: raw BrickLink figures with no 24h
 // display clock. The catalog projection omits them and relies on the persisted
 // v3 state, which the recompute rotation keeps current.

@@ -206,8 +206,16 @@ filter/sort set added during the audit: `theme_group`, `category`, `year`,
   BrickEconomy-only sets. When the sold guide has <5 lots it keeps the 1-4 lot
   average (`set_market_ext.bl_thin_*`, a low-weight modeled signal) and fetches the
   NEW current-listings guide (`bl_ask_*`, median lot price, an asking signal). Both
-  stay server-side (`SERVER_ONLY_BLEND_COLUMNS`) and never start `bl_cached_at`, so
-  BrickLink is not named for them.
+  stay server-side (`SERVER_ONLY_BLEND_COLUMNS`) and never start `bl_cached_at`
+  themselves. Sets 4+ years old (or retired) also get the BrickLink USED guide, which
+  does stamp `bl_cached_at` like any used fetch. 28 sets/h, up to 3 calls each.
+- **BricksVault value model** (`jobs/train-value-model.ts`, daily 13:00 after
+  part-out) retrains in one SQL statement on every set with a 5+ lot BrickLink sold
+  guide (retail x age/retired uplift + shrunk theme, subtheme and piece-count
+  deviations, blended 65% with BrickLink used x learned ratio when present) and
+  writes `set_market_ext.model_value`. legacySignalsFor adds it as a `value_model`
+  estimate for every set, replacing the formula/AI guess; it never outranks sold,
+  modeled or multi-source asking evidence. Backtest: pricing-review/own-value-model-test.md.
 - `lib/market-sources.ts → enrichSetRecord(row)` is the **read-side** blender: it
   builds `market_sources`, `confidence`, `freshness`, `primary_value_source`,
   `valuation_explanation`, and the v2 fields `market_value` / `_low` / `_high` /

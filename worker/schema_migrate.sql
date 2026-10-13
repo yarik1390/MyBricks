@@ -746,3 +746,6 @@ ALTER TABLE set_market_ext ADD COLUMN bl_thin_qty INTEGER;
 ALTER TABLE set_market_ext ADD COLUMN bl_ask_value REAL;
 ALTER TABLE set_market_ext ADD COLUMN bl_ask_qty INTEGER;
 ALTER TABLE set_market_ext ADD COLUMN bl_fallback_cached_at TEXT;
+-- BricksVault value model estimate (train-value-model, daily).
+ALTER TABLE set_market_ext ADD COLUMN model_value REAL;
+ALTER TABLE set_market_ext ADD COLUMN model_cached_at TEXT;

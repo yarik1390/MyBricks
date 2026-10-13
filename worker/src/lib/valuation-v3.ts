@@ -551,7 +551,16 @@ export function legacySignalsFor(row: Record<string, unknown>): PricingSignal[] 
   // PriceCharting legacy columns are deliberately absent. Existing mappings are
   // quarantined; verified records enter through pricing_signals and collapse into
   // the same ebay_market family as eBay itself.
-  if (method === 'formula_bulk' || method === 'local' || method === 'ai') {
+  // BricksVault value model (jobs/train-value-model.ts): our own estimate, fitted
+  // on BrickLink-priced sets. Added for every set that has one, so it takes over
+  // as the no-evidence fallback whenever other sources are absent or switched
+  // off (source tuning filters signals after this point). As an estimate it never
+  // outranks sold, modeled or multi-source asking evidence. It replaces the
+  // heuristic formula / AI guess, which backtest worse.
+  const model = positive(row.model_value);
+  if (model) {
+    add({ source: 'value_model', provider_family: 'value_model', condition: 'new_sealed', signal_type: 'estimate', value: model, checked_at: iso(row.model_cached_at) });
+  } else if (method === 'formula_bulk' || method === 'local' || method === 'ai') {
     add({ source: method === 'ai' ? 'ai_estimate' : 'formula', provider_family: method === 'ai' ? 'ai' : 'formula', condition: 'new_sealed', signal_type: 'estimate', value: positive(row.current_value), checked_at: cached });
   }
   return out;

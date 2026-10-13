@@ -680,6 +680,7 @@ export const ui = {
   "Formula": "Формула",
   "Formula estimate": "Оцінка за формулою",
   "Formula fallback": "Резервна формула",
+  "BricksVault estimate": "Оцінка BricksVault",
   "Formula or local estimate until market data is available.": "Формула або локальна оцінка, доки не з'являться ринкові дані.",
   "Fresh price from a market source.": "Свіжа ціна з ринкового джерела.",
   "Fresh value with corroborating market signals.": "Свіжа вартість із підтверджувальними ринковими сигналами.",
