@@ -680,6 +680,7 @@ export const ui = {
   "Formula": "फ़ॉर्मूला",
   "Formula estimate": "फ़ॉर्मूला अनुमान",
   "Formula fallback": "फ़ॉर्मूला फ़ॉलबैक",
+  "BricksVault estimate": "BricksVault अनुमान",
   "Formula or local estimate until market data is available.": "जब तक बाज़ार डेटा उपलब्ध न हो, फ़ॉर्मूला या लोकल अनुमान।",
   "Fresh price from a market source.": "बाज़ार स्रोत से ताज़ा कीमत।",
   "Fresh value with corroborating market signals.": "पुष्ट बाज़ार संकेतों के साथ ताज़ा मूल्य।",

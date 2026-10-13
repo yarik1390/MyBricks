@@ -680,6 +680,7 @@ export const ui = {
   "Formula": "Formule",
   "Formula estimate": "Formuleschatting",
   "Formula fallback": "Formuleterugval",
+  "BricksVault estimate": "BricksVault-schatting",
   "Formula or local estimate until market data is available.": "Formule of lokale schatting totdat marktgegevens beschikbaar zijn.",
   "Fresh price from a market source.": "Recente prijs van een marktbron.",
   "Fresh value with corroborating market signals.": "Recente waarde met onderbouwende marktsignalen.",

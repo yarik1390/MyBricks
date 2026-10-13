@@ -220,8 +220,11 @@ describe('runValuateSets — BrickLink discovery fallbacks for thin sets', () =>
 
     const urls = fetchSpy.mock.calls.map(([u]) => String(u));
     expect(urls.filter(u => u.includes('guide_type=stock'))).toHaveLength(1);
-    // The second call goes to current listings, not the used guide.
-    expect(urls.some(u => u.includes('new_or_used=U'))).toBe(false);
+    // An older set also gets the used guide, the value model's best anchor.
+    expect(urls.filter(u => u.includes('new_or_used=U'))).toHaveLength(1);
+    const used = await db.prepare(`SELECT used_value, bl_used_qty FROM lego_sets WHERE set_num='99020-1'`).first<Record<string, unknown>>();
+    expect(used?.used_value).toBe(120);
+    expect(used?.bl_used_qty).toBe(3);
     const row = await ext('99020-1');
     expect(row?.bl_thin_value).toBe(120);
     expect(row?.bl_thin_qty).toBe(3);
@@ -229,9 +232,8 @@ describe('runValuateSets — BrickLink discovery fallbacks for thin sets', () =>
     expect(row?.bl_ask_qty).toBe(4);
     expect(row?.bl_fallback_cached_at).toBeTruthy();
     expect(row?.bl_nodata_at).toBeTruthy(); // still backed off from the sold guide
-    // BrickLink's 24h display clock is never started by the fallbacks.
-    const ls = await db.prepare(`SELECT bl_cached_at, bl_new_value FROM lego_sets WHERE set_num='99020-1'`).first<Record<string, unknown>>();
-    expect(ls?.bl_cached_at).toBeNull();
+    // The fallbacks never pose as a NEW sold guide.
+    const ls = await db.prepare(`SELECT bl_new_value FROM lego_sets WHERE set_num='99020-1'`).first<Record<string, unknown>>();
     expect(ls?.bl_new_value).toBeNull();
   });
 

@@ -20,7 +20,7 @@ import { valuationExpiryModifier, isPlausibleMarketValue, independentRetailAncho
 import { computeRetirementRisk } from '../lib/retirement-risk';
 import { runValuateMinifigs } from './valuate-minifigs';
 import { sourceEnabled } from '../lib/source-config';
-import { selectDueSets, blBackedOffAt, type ValuationQuotaGrants } from './valuate-select';
+import { discoveryWantsUsed, selectDueSets, blBackedOffAt, type ValuationQuotaGrants } from './valuate-select';
 import {
   clearIntegrationBlock,
   isIntegrationBlocked,
@@ -383,14 +383,22 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     if ((includeSupplemental || forceBrickLink) && bricklinkConfigured && !blBackedOff) {
       blPricing = await loadBrickLinkNew();
       if (options.blDiscovery === true) {
-        // Discovery spends its second call where it helps: the used guide only
-        // when the set sells, otherwise current NEW listings as an asking price.
+        // With no reliable NEW sales, discovery also takes current NEW listings
+        // as an asking price. The BrickLink USED guide is fetched for sets 4+
+        // years old even when a BrickEconomy used figure exists: it is the
+        // strongest input the value model has for older sets.
         if (blPricing) {
           if (!usedPricing && wantUsed) usedPricing = await loadBrickLinkUsed();
-        } else if (blNewAttempted && !blErrored && takeQuota('bricklink')) {
-          blAsk = await fetchSetStockAsk(set.set_num, env, sourceOptions)
-            .catch((err) => { tallyFail('bricklink', err); blAskErrored = true; return null; });
-          if (blAsk) tallyOk('bricklink');
+        } else if (blNewAttempted && !blErrored) {
+          if (takeQuota('bricklink')) {
+            blAsk = await fetchSetStockAsk(set.set_num, env, sourceOptions)
+              .catch((err) => { tallyFail('bricklink', err); blAskErrored = true; return null; });
+            if (blAsk) tallyOk('bricklink');
+          }
+          if (discoveryWantsUsed(set)) {
+            const blUsed = await loadBrickLinkUsed();
+            if (blUsed) usedPricing = blUsed;
+          }
         }
       } else if (!usedPricing && wantUsed) usedPricing = await loadBrickLinkUsed();
     }

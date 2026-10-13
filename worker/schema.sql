@@ -153,7 +153,11 @@ CREATE TABLE IF NOT EXISTS set_market_ext (
   bl_thin_qty INTEGER,
   bl_ask_value REAL,
   bl_ask_qty INTEGER,
-  bl_fallback_cached_at TEXT
+  bl_fallback_cached_at TEXT,
+  -- BricksVault value model (jobs/train-value-model.ts): our own estimate for
+  -- sets with no market sales, retrained daily from BrickLink-priced sets.
+  model_value REAL,
+  model_cached_at TEXT
 );
 
 -- Pricing Engine v3 keeps identity, normalized observations and condition-aware

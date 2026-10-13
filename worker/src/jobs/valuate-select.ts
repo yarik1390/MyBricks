@@ -87,6 +87,14 @@ export const BRICKLINK_REFRESH_ORDER_SQL = `
 
 /** Sets whose only sealed market value is BrickEconomy (no BrickLink,
  *  PriceCharting or eBay sold figure). */
+/**
+ * Discovery fetches the BrickLink USED guide for sets 4+ years old (or retired):
+ * the value model backtests far better on older sets with a used anchor.
+ */
+export function discoveryWantsUsed(set: { year?: number | null; retired?: number | boolean | null }, now = new Date()): boolean {
+  return !!set.retired || (Number(set.year) > 0 && now.getUTCFullYear() - Number(set.year) >= 4);
+}
+
 export const BE_ONLY_PREDICATE = `ls.be_value_new > 0
   AND COALESCE(ls.bl_new_value, 0) <= 0
   AND COALESCE(ls.pc_new_value, 0) <= 0
@@ -267,12 +275,14 @@ export async function selectDueSets(
   // the provider helpers must not spendQuota again or they would double-charge.
   //
   // Multiplicity:
-  //   BrickLink NEW=1, retired USED=1 (discovery: USED or current listings=1);
+  //   BrickLink NEW=1, retired USED=1 (discovery: current listings=1, plus USED=1
+  //   for sets 4+ years old — see discoveryWantsUsed);
   //   eBay sold NEW+USED=2 and stale ask=1; Gemini/OpenAI=1 logical call;
   //   OpenRouter <=6 free attempts + 1 paid backstop per set.
   const blReserve = includeBrickLink ? results.reduce(
     // Discovery always spends a second call: the used guide or current listings.
-    (n, s) => (blBackedOffAt(s.bl_nodata_at) ? n : n + (s.retired || blDiscovery ? 2 : 1)),
+    (n, s) => (blBackedOffAt(s.bl_nodata_at) ? n
+      : n + (blDiscovery ? (discoveryWantsUsed(s) ? 3 : 2) : s.retired ? 2 : 1)),
     0,
   ) : 0;
   const rawGrants = await reserveQuota(env, {

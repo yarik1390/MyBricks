@@ -39,6 +39,7 @@ import { runSnapshotSetValues, detectValueMovers } from './jobs/snapshot-set-val
 import { runModelRefresh } from './jobs/model-refresh';
 import { runPartPriceBackfill } from './jobs/part-price-backfill';
 import { runPartOutCompute } from './jobs/part-out-compute';
+import { runTrainValueModel } from './jobs/train-value-model';
 import { runWishlistAlerts } from './jobs/wishlist-alerts';
 import { runWeeklyDigest } from './jobs/weekly-digest';
 import { runCollectionBackups } from './jobs/collection-backups';
@@ -497,17 +498,18 @@ export default {
         // BrickEconomy replacement: a first BrickLink guide for sets whose only
         // market value is the scraped BrickEconomy figure (~4,200 never asked,
         // 2026-10-13). Uses BrickLink allowance the two lanes above leave idle:
-        // other lanes spend ~1,900/day of the 4,000 cap, and 48 sets/h (retired
-        // sets cost 2 calls) adds ~1,700/day, finishing the backlog in ~4 days.
+        // other lanes spend ~1,800/day of the 4,000 cap. Each set now costs up to
+        // 3 calls (sold, current listings, and the used guide for 4+ year old
+        // sets), so 28 sets/h adds ~2,000/day and stays under the cap.
         await run('valuate-bl-discovery', () => runValuateSets(env, {
           scope: 'all',
           blDiscovery: true,
-          limit: 48,
+          limit: 28,
           includeSupplemental: false,
           includeEbay: false,
           includeEbaySold: false,
           includeAiFallback: false,
-          // (360 - 20 overhead) / 7 per BrickLink-only set fits all 48.
+          // (360 - 20 overhead) / 7 per BrickLink-only set fits all 28.
           subrequestBudget: 360,
         }));
         break;
@@ -566,7 +568,12 @@ export default {
       case '0 12 * * *': await run('part-price-backfill', () => runPartPriceBackfill(env, { limit: 150 })); break;
       // Part-out (E1): recompute sum-of-parts value from the part_prices cache an
       // hour after the price trickle. Pure D1 (no quota); rolling 7-day refresh.
-      case '0 13 * * *': await run('part-out-compute', () => runPartOutCompute(env, { limit: 120 })); break;
+      case '0 13 * * *':
+        await run('part-out-compute', () => runPartOutCompute(env, { limit: 120 }));
+        // BricksVault value model: retrain from BrickLink-priced sets and store
+        // each set's estimate (pure D1, one statement).
+        await run('train-value-model', () => runTrainValueModel(env));
+        break;
       // Image pre-warm: pull Rebrickable set images into the R2 cache so first
       // views are instant. Gentle (limit 100, concurrency 3) to respect
       // Rebrickable's no-automation rule; Rebrickable-only per ToS.
