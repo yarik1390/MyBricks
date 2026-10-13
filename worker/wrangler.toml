@@ -164,10 +164,6 @@ FIRECRAWL_RESERVE_CREDITS = "3000"
 # are "credits left from now", not lifetime plan size. Leave an entry blank to say
 # "unknown" — that key is then retired only when Firecrawl itself answers 402.
 FIRECRAWL_KEY_CREDITS = "19000,650000"
-# pricesAPI.io live-retail layer opt-in. Non-secret toggle; the actual keys live
-# in the PRICESAPI_API_KEYS secret. Both this AND a key are required for the cron
-# to run (deliberate gate — cold calls are precious). Set to 0 to pause.
-PRICESAPI_ENABLED = "1"
 # Pricing v3 reads at 100% (flipped pre-launch with zero users — no live
 # portfolios to protect). Set back to "0" for instant rollback to legacy reads.
 PRICING_V3_READ_PERCENT = "100"

@@ -271,7 +271,7 @@ function positiveNum(value: unknown): number | null {
  * The stored eBay asking median when it is plausible for this set, else null.
  *
  * The reference is the median of the row's SOLD/listing comps (BrickLink,
- * eBay sold, PriceCharting, StockX). BrickEconomy is deliberately excluded:
+ * eBay sold, PriceCharting). BrickEconomy is deliberately excluded:
  * the ask is one of the corroborators that judge a BrickEconomy figure, so
  * letting that figure judge the ask would be circular. With no comps, an
  * independent retail anchor supplies only the floor (retired sets legitimately
@@ -280,7 +280,7 @@ function positiveNum(value: unknown): number | null {
 export function plausibleAskValue(row: Record<string, unknown>): number | null {
   const ask = positiveNum(row.ebay_ask_value);
   if (ask == null) return null;
-  const comps = [row.bl_new_value, row.ebay_new_value, row.pc_new_value, row.stockx_ask]
+  const comps = [row.bl_new_value, row.ebay_new_value, row.pc_new_value]
     .map(positiveNum)
     .filter((n): n is number => n != null)
     .sort((a, b) => a - b);

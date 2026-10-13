@@ -198,7 +198,9 @@ filter/sort set added during the audit: `theme_group`, `category`, `year`,
 - Real signals come from multiple sources: **BrickLink** (workhorse),
   **BrickEconomy**, **eBay ask** (Browse API), **eBay sold** (Firecrawl, plus a
   weekly Apify lane), plus **BrickInsights**/Brickset **ratings** (quality, not
-  price). **BrickOwl was retired 2026-09-25** — it is no longer a source; its stored
+  price). **StockX was retired 2026-10-13** (scraped without a display licence; stored
+  `stockx_ask` values are dropped by `RETIRED_PRICING_SOURCES` and no longer listed;
+  the job is switched off in source tuning and the `stockx` flag). **BrickOwl was retired 2026-09-25** — it is no longer a source; its stored
   `bo_*` values stay in `RETIRED_PRICING_SOURCES` and never reach the blend.
 - `lib/market-sources.ts → enrichSetRecord(row)` is the **read-side** blender: it
   builds `market_sources`, `confidence`, `freshness`, `primary_value_source`,
@@ -470,7 +472,7 @@ exposes client-safe values.**
 | `0 15` | upcoming / coming-soon refresh (Firecrawl) |
 | `0 16` | minifig identity verification (price-agreement settling) |
 | `30 16` | Amazon offers refresh (second slot) |
-| `0 18` | StockX lowest-ask enrich (off unless `STOCKX_ENABLED=1`) |
+| `0 18` | StockX lowest-ask enrich (retired 2026-10-13; off via the `stockx` flag) |
 | `0 20` | AI gap-fill (free Gemini/OpenRouter) |
 | `0 22` | community comps |
 

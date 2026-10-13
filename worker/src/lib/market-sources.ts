@@ -218,19 +218,9 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
     });
   }
 
-  if (num(row.stockx_ask)) {
-    sources.push({
-      id: 'stockx_ask',
-      name: 'StockX ask',
-      value: num(row.stockx_ask),
-      condition: 'new',
-      sample_count: null,
-      last_updated: text(row.stockx_cached_at) || cachedAt,
-      freshness: sourceFreshness(row, 'stockx_cached_at', 'stockx_ask'),
-      reliability: 'corroborating',
-      note: 'StockX lowest ask — a single sealed listing price, not a sold comp.',
-    });
-  }
+  // StockX was retired 2026-10-13 (scraped without a display licence, and its
+  // lowest asks ran >25% above BrickLink sold for two thirds of sets). Stored
+  // stockx_ask values are no longer listed; see RETIRED_PRICING_SOURCES.
 
 
   if (method === 'ai' && num(row.current_value)) {
@@ -443,7 +433,7 @@ export function resetSourceWeightMultipliers(): void {
 
 /** Providers retired from the pricing engine. Their signals are filtered out at
  *  read time so residual rows can never influence a valuation. */
-export const RETIRED_PRICING_SOURCES: readonly string[] = ['brickpicker', 'brickowl'];
+export const RETIRED_PRICING_SOURCES: readonly string[] = ['brickpicker', 'brickowl', 'stockx'];
 
 function sourceOwner(signal: PricingSignal): string {
   if (signal.source.startsWith('bricklink')) return 'bricklink';
