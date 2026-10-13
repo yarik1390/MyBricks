@@ -266,7 +266,7 @@ describe('BrickVault API Worker Tests', () => {
         pa_best_merchant TEXT, pa_offer_count INTEGER, pa_market TEXT, pa_cached_at TEXT,
         stockx_ask REAL, stockx_cached_at TEXT, ebay_sold_attempted_at TEXT, ebay_used_attempted_at TEXT,
         bl_thin_value REAL, bl_thin_qty INTEGER, bl_ask_value REAL, bl_ask_qty INTEGER, bl_fallback_cached_at TEXT,
-        model_value REAL, model_cached_at TEXT
+        model_value REAL, model_cached_at TEXT, bs_retail_alt REAL
       )`,
 
       `CREATE TABLE set_valuation_state (

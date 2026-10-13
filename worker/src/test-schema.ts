@@ -144,7 +144,8 @@ export const TABLE_DDL: Record<string, string> = {
   bl_ask_qty INTEGER,
   bl_fallback_cached_at TEXT,
   model_value REAL,
-  model_cached_at TEXT
+  model_cached_at TEXT,
+  bs_retail_alt REAL
 )`,
 
   pricing_source_map: `CREATE TABLE IF NOT EXISTS pricing_source_map (

@@ -216,6 +216,9 @@ filter/sort set added during the audit: `theme_group`, `category`, `year`,
   writes `set_market_ext.model_value`. legacySignalsFor adds it as a `value_model`
   estimate for every set, replacing the formula/AI guess; it never outranks sold,
   modeled or multi-source asking evidence. Backtest: pricing-review/own-value-model-test.md.
+  Retail anchor: Brickset US MSRP, else `set_market_ext.bs_retail_alt` (Brickset
+  DE/UK/CA price x retail-parity factor, filled by the barcode sweep in
+  `jobs/backfill-upc.ts`), else retail_price unless it echoes `be_retail`.
 - `lib/market-sources.ts → enrichSetRecord(row)` is the **read-side** blender: it
   builds `market_sources`, `confidence`, `freshness`, `primary_value_source`,
   `valuation_explanation`, and the v2 fields `market_value` / `_low` / `_high` /
