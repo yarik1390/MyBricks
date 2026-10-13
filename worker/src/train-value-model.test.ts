@@ -5,6 +5,7 @@ import { applyTestTables } from './test-schema';
 import { runTrainValueModel } from './jobs/train-value-model';
 import { legacySignalsFor, valueSignalsV3 } from './lib/valuation-v3';
 import { discoveryWantsUsed } from './jobs/valuate-select';
+import { altRetailUsd, parseEnrichment } from './lib/brickset';
 
 const db = (env as any).DB as D1Database;
 const YEAR = new Date().getUTCFullYear();
@@ -86,6 +87,20 @@ describe('runTrainValueModel', () => {
     expect(result.written).toBe(0);
     expect(result.skipped).toMatch(/fewer than 200/);
   });
+
+  it('anchors on the Brickset UK/DE/CA price when there is no US one', async () => {
+    await insertSets([
+      ...trainingSets(240),
+      { set_num: 'EU-ONLY-1', name: 'Europe only', year: YEAR - 10, retired: 1, pieces: 500, theme: 'City' },
+    ]);
+    await db.prepare('INSERT INTO set_market_ext (set_num, bs_retail_alt) VALUES (?, ?)').bind('EU-ONLY-1', 80).run();
+
+    await runTrainValueModel(env as any);
+
+    const city = (await modelValue('EU-ONLY-1'))!.model_value!;
+    expect(city).toBeGreaterThan(75);
+    expect(city).toBeLessThanOrEqual(85);
+  });
 });
 
 describe('value model in the v3 blend', () => {
@@ -123,5 +138,19 @@ describe('discoveryWantsUsed', () => {
     expect(discoveryWantsUsed({ year: 2024, retired: 1 }, at)).toBe(true);
     expect(discoveryWantsUsed({ year: 2024, retired: 0 }, at)).toBe(false);
     expect(discoveryWantsUsed({ year: null, retired: 0 }, at)).toBe(false);
+  });
+});
+
+describe('Brickset non-US retail price', () => {
+  it('converts the first of DE, UK, CA at retail parity', () => {
+    expect(altRetailUsd({ DE: { retailPrice: 99.99 }, UK: { retailPrice: 84.99 } })).toBe(99.99);
+    expect(altRetailUsd({ UK: { retailPrice: 734.99 } })).toBeCloseTo(852.59, 2);
+    expect(altRetailUsd({ CA: { retailPrice: 1049.99 } })).toBeCloseTo(850.49, 2);
+    expect(altRetailUsd({ US: {} })).toBeNull();
+  });
+
+  it('is only kept when Brickset has no US price', () => {
+    expect(parseEnrichment({ LEGOCom: { US: { retailPrice: 49.99 }, DE: { retailPrice: 59.99 } } }).msrpAltUsd).toBeNull();
+    expect(parseEnrichment({ LEGOCom: { US: {}, DE: { retailPrice: 59.99 } } }).msrpAltUsd).toBe(59.99);
   });
 });

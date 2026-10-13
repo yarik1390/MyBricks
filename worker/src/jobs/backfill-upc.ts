@@ -213,6 +213,19 @@ async function tryBulkBackfill(
            WHERE set_num = ? AND brickset_enriched_at IS NULL`,
         ).bind(e.msrp, e.launchDate, e.exitDate, e.ageMin, e.ageMax, e.rating, e.reviewCount, e.subtheme, e.retiredYear, e.themeGroup, e.category, e.tags, e.dimensions, e.packagingType, e.instructionsCount, e.additionalImageCount, e.description, e.setId, e.msrp, setNum),
       );
+      // No US price: keep the UK/DE/CA price (USD-equivalent) as the value
+      // model's retail anchor. Not gated on brickset_enriched_at, so sets
+      // enriched before this existed pick it up on the next catalog sweep.
+      if (e.msrpAltUsd) {
+        enrichStmts.push(
+          env.DB.prepare(
+            `INSERT INTO set_market_ext (set_num, bs_retail_alt)
+             SELECT set_num, ?1 FROM lego_sets WHERE set_num = ?2
+             ON CONFLICT(set_num) DO UPDATE SET bs_retail_alt = excluded.bs_retail_alt
+             WHERE set_market_ext.bs_retail_alt IS NOT excluded.bs_retail_alt`,
+          ).bind(e.msrpAltUsd, setNum),
+        );
+      }
     }
     for (let i = 0; i < stmts.length; i += 100) {
       const res = await env.DB.batch(stmts.slice(i, i + 100));

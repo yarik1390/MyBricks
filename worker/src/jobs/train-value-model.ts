@@ -32,9 +32,10 @@ const SHRINK_PIECES = 8;
 const USED_WEIGHT = 0.65;
 
 // Independent retail anchor, same rule as independentRetailAnchor(): Brickset
-// MSRP, else retail_price unless it merely echoes the BrickEconomy scrape
+// MSRP, else Brickset's UK/DE/CA price (ext.bs_retail_alt, USD-equivalent),
+// else retail_price unless it merely echoes the BrickEconomy scrape
 // (be_retail), which carries garbage such as a $501,499 sticker sheet.
-const RETAIL = `COALESCE(NULLIF(ls.brickset_msrp, 0), CASE WHEN ls.retail_price > 0
+const RETAIL = `COALESCE(NULLIF(ls.brickset_msrp, 0), NULLIF(ext.bs_retail_alt, 0), CASE WHEN ls.retail_price > 0
   AND (ls.be_retail IS NULL OR ls.be_retail <= 0 OR ls.retail_price <> ls.be_retail) THEN ls.retail_price END)`;
 
 // Shared feature projection. `ac` is the coarse age class the deviations are
@@ -55,7 +56,7 @@ export const TRAIN_VALUE_MODEL_SQL = `
 WITH
   train AS (
     SELECT ${FEATURES}, ls.bl_new_value AS bl
-    FROM lego_sets ls
+    FROM lego_sets ls LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
     WHERE ls.bl_new_value > 0 AND ls.bl_new_qty >= 5 AND ls.year > 0
       AND ${RETAIL} > 0),
   base_ar AS (SELECT age, ret, AVG(ln(bl / rp)) AS m FROM train GROUP BY age, ret),
@@ -70,7 +71,7 @@ WITH
   used_ratio AS (SELECT ac, AVG(ln(bl / u)) AS m FROM train WHERE u > 0 GROUP BY ac),
   target AS (
     SELECT ${FEATURES}
-    FROM lego_sets ls
+    FROM lego_sets ls LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
     WHERE ls.year > 0 AND ${RETAIL} > 0),
   scored AS (
     SELECT t.set_num, t.rp,
@@ -103,7 +104,8 @@ export async function runTrainValueModel(env: Env): Promise<{ trained: number; w
     return { trained: 0, written: 0, skipped: 'D1 pricing write budget paused non-critical jobs' };
   }
   const count = await env.DB.prepare(
-    `SELECT COUNT(*) AS n FROM lego_sets ls WHERE ls.bl_new_value > 0 AND ls.bl_new_qty >= 5 AND ls.year > 0
+    `SELECT COUNT(*) AS n FROM lego_sets ls LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
+     WHERE ls.bl_new_value > 0 AND ls.bl_new_qty >= 5 AND ls.year > 0
        AND ${RETAIL} > 0`,
   ).first<{ n: number }>();
   const trained = Number(count?.n ?? 0);

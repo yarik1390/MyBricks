@@ -749,3 +749,4 @@ ALTER TABLE set_market_ext ADD COLUMN bl_fallback_cached_at TEXT;
 -- BricksVault value model estimate (train-value-model, daily).
 ALTER TABLE set_market_ext ADD COLUMN model_value REAL;
 ALTER TABLE set_market_ext ADD COLUMN model_cached_at TEXT;
+ALTER TABLE set_market_ext ADD COLUMN bs_retail_alt REAL;

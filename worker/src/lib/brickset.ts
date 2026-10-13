@@ -35,6 +35,8 @@ const strN = (v: unknown): string | null => (typeof v === 'string' && v.trim() ?
 // enrichment) and fetchBricksetDetails (single-set view).
 export interface BricksetEnrichment {
   msrp: number | null;
+  // UK/DE/CA launch price in US-dollar terms, only when there is no US price.
+  msrpAltUsd: number | null;
   launchDate: string | null;
   exitDate: string | null;
   ageMin: number | null;
@@ -54,6 +56,19 @@ export interface BricksetEnrichment {
   setId: number | null;
 }
 
+// LEGO sets regional prices close to a fixed ladder rather than exchange
+// rates (75192: $849.99 / 849.99 EUR / 734.99 GBP / 1,049.99 CAD), so convert
+// a non-US launch price with these retail-parity factors.
+const RETAIL_PARITY_USD = { DE: 1.0, UK: 1.16, CA: 0.81 } as const;
+
+export function altRetailUsd(lc: Record<string, unknown>): number | null {
+  for (const region of ['DE', 'UK', 'CA'] as const) {
+    const price = numN(((lc[region] ?? {}) as Record<string, unknown>).retailPrice);
+    if (price && price > 0) return Math.round(price * RETAIL_PARITY_USD[region] * 100) / 100;
+  }
+  return null;
+}
+
 export function parseEnrichment(s: Record<string, unknown>): BricksetEnrichment {
   const lc = (s.LEGOCom ?? {}) as Record<string, unknown>;
   const us = (lc.US ?? {}) as Record<string, unknown>;
@@ -68,8 +83,10 @@ export function parseEnrichment(s: Record<string, unknown>): BricksetEnrichment 
   const dim = (s.dimensions ?? {}) as Record<string, unknown>;
   const dimObj = { height: numN(dim.height), width: numN(dim.width), depth: numN(dim.depth), weight: numN(dim.weight) };
   const hasDim = Object.values(dimObj).some(v => v !== null);
+  const msrp = numN(us.retailPrice) ?? numN(s.US_retailPrice);
   return {
-    msrp: numN(us.retailPrice) ?? numN(s.US_retailPrice),
+    msrp,
+    msrpAltUsd: msrp && msrp > 0 ? null : altRetailUsd(lc),
     launchDate,
     exitDate,
     ageMin: numN(ar.min) ?? numN(s.ageMin),

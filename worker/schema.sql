@@ -157,7 +157,10 @@ CREATE TABLE IF NOT EXISTS set_market_ext (
   -- BricksVault value model (jobs/train-value-model.ts): our own estimate for
   -- sets with no market sales, retrained daily from BrickLink-priced sets.
   model_value REAL,
-  model_cached_at TEXT
+  model_cached_at TEXT,
+  -- Brickset UK/DE/CA launch price in USD-equivalent, kept only when Brickset
+  -- has no US price (jobs/backfill-upc.ts). Retail anchor for the value model.
+  bs_retail_alt REAL
 );
 
 -- Pricing Engine v3 keeps identity, normalized observations and condition-aware
