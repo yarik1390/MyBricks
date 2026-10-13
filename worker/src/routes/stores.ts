@@ -64,7 +64,7 @@ async function storesBody(env: Env, setNum: string) {
     `SELECT s.set_num, s.retired, s.retail_price, s.brickset_msrp, s.lego_in_stock, s.lego_checked_at,
             COALESCE(NULLIF(s.blended_value, 0), s.current_value) AS value,
             s.ebay_ask_value, s.ebay_ask_qty, s.ebay_ask_cached_at, s.ebay_new_value, s.pc_new_value, s.be_retail,
-            s.bl_new_value, s.bl_new_qty, s.bl_cached_at, ext.stockx_ask
+            s.bl_new_value, s.bl_new_qty, s.bl_cached_at
        FROM lego_sets s LEFT JOIN set_market_ext ext ON ext.set_num = s.set_num
       WHERE s.set_num = ?`,
   ).bind(setNum).first<{ set_num: string; retired: number | null; retail_price: number | null; brickset_msrp: number | null;

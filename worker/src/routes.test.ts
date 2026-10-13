@@ -183,7 +183,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         pa_retail_value REAL, pa_lowest_offer REAL, pa_in_stock INTEGER,
         pa_best_merchant TEXT, pa_offer_count INTEGER, pa_market TEXT, pa_cached_at TEXT,
         stockx_ask REAL, stockx_cached_at TEXT, ebay_sold_attempted_at TEXT, ebay_used_attempted_at TEXT,
-        bl_nodata_at TEXT
+        bl_nodata_at TEXT, bl_thin_value REAL, bl_thin_qty INTEGER, bl_ask_value REAL, bl_ask_qty INTEGER, bl_fallback_cached_at TEXT
       )`,
       `CREATE TABLE set_valuation_state (
         completeness TEXT NOT NULL DEFAULT 'unknown', evidence_quality TEXT NOT NULL DEFAULT 'insufficient',
@@ -2580,7 +2580,7 @@ describe('Kids PIN and XP', () => {
         pa_retail_value REAL, pa_lowest_offer REAL, pa_in_stock INTEGER,
         pa_best_merchant TEXT, pa_offer_count INTEGER, pa_market TEXT, pa_cached_at TEXT,
         stockx_ask REAL, stockx_cached_at TEXT, ebay_sold_attempted_at TEXT, ebay_used_attempted_at TEXT,
-        bl_nodata_at TEXT
+        bl_nodata_at TEXT, bl_thin_value REAL, bl_thin_qty INTEGER, bl_ask_value REAL, bl_ask_qty INTEGER, bl_fallback_cached_at TEXT
       )`,
       `INSERT INTO lego_sets (set_num, name, theme, current_value, retail_price)
        VALUES ('75192', 'Millennium Falcon', 'Star Wars', 849.99, 799.99)`,

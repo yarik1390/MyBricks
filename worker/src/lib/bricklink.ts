@@ -136,12 +136,37 @@ export async function fetchUsedPricing(
   }
 }
 
+/**
+ * A NEW sold guide with 1–4 lots: too thin for the BrickLink headline (which
+ * needs 5), but real sales. Kept as a low-weight signal for sets that have
+ * nothing better, instead of being thrown away.
+ */
+export interface BrickLinkThinSold {
+  value: number;
+  lot_count: number;
+  min_price: number | null;
+  max_price: number | null;
+}
+
 export async function fetchSetPricing(
   setNum: string,
   env: Env,
   options: { recordHealth?: boolean; retries?: number; timeoutMs?: number } = {},
 ): Promise<BrickLinkPricing | null> {
-  if (!env.BRICKLINK_CONSUMER_KEY) return null;
+  return (await fetchSetPricingDetailed(setNum, env, options)).pricing;
+}
+
+/**
+ * Same call as fetchSetPricing, but a guide with 1–4 sold lots comes back as
+ * `thin` instead of being discarded. `pricing` keeps the ≥5-lot contract.
+ */
+export async function fetchSetPricingDetailed(
+  setNum: string,
+  env: Env,
+  options: { recordHealth?: boolean; retries?: number; timeoutMs?: number } = {},
+): Promise<{ pricing: BrickLinkPricing | null; thin: BrickLinkThinSold | null }> {
+  const none = { pricing: null, thin: null };
+  if (!env.BRICKLINK_CONSUMER_KEY) return none;
 
   // BrickLink item numbers always include the variant suffix (e.g. "75192-1")
   const blNum = setNum.includes('-') ? setNum : `${setNum}-1`;
@@ -150,7 +175,7 @@ export async function fetchSetPricing(
     const cacheKey = `bl:new:${blNum}`;
     if (env.CACHE_KV) {
       const cached = normalizeNewPricing(await env.CACHE_KV.get(cacheKey, 'json'));
-      if (cached) return cached;
+      if (cached) return { pricing: cached, thin: null };
     }
 
     const baseUrl = brickLinkPriceUrl('SET', blNum);
@@ -175,32 +200,103 @@ export async function fetchSetPricing(
     // transient/credential failure (429/5xx after retries, or 401/403) — THROW
     // so callers can tell "the source failed" apart from "the set has no data"
     // and never stamp a 90-day no-data backoff on a transient blip.
-    if (resp.status === 404) return null;
+    if (resp.status === 404) return none;
     if (!resp.ok) throw new Error(`bricklink new-sold HTTP ${resp.status}`);
 
     const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
     if (body.meta?.code !== 200) throw new Error(`bricklink new-sold API code ${body.meta?.code ?? 'none'}`);
-    if (!body.data) return null; // code 200 but empty guide → genuine no-data
+    if (!body.data) return none; // code 200 but empty guide → genuine no-data
 
     const d = body.data;
     const lotCount = Number(d.unit_quantity ?? 0);
-    if (lotCount < 5) return null; // require ≥5 sold lots for reliable pricing (genuine no-data)
-
     const current = parseFloat(String(d.qty_avg_price || d.avg_price || '')) || null;
-    if (!current) return null; // lots present but no usable price → no-data
+    if (!current || lotCount < 1) return none; // no usable price → no-data
 
     const minPrice = parseFloat(String(d.min_price || '')) || null;
     const maxPrice = parseFloat(String(d.max_price || '')) || null;
 
+    // Require ≥5 sold lots for the reliable headline; fewer is a thin signal.
+    if (lotCount < 5) {
+      return { pricing: null, thin: { value: current, lot_count: lotCount, min_price: minPrice, max_price: maxPrice } };
+    }
+
     const result = { current_value: current, lot_count: lotCount, min_price: minPrice, max_price: maxPrice };
     if (env.CACHE_KV) env.CACHE_KV.put(cacheKey, JSON.stringify(result), { expirationTtl: 21600 }).catch(() => {});
-    return result;
+    return { pricing: result, thin: null };
   } catch (err) {
     // Re-throw transient failures (network/abort/HTTP/API) so the caller can
     // distinguish a source outage from genuine no-data. The no-key guard sits
     // outside the try, so "not configured" still returns null (not an error).
     throw err instanceof Error ? err : new Error(String(err));
   }
+}
+
+/** What NEW sealed copies are listed for on BrickLink right now. */
+export interface BrickLinkStockAsk {
+  ask_value: number;
+  lot_count: number;
+  min_price: number | null;
+  max_price: number | null;
+}
+
+/**
+ * NEW current-listings ("stock") guide: an asking-price signal for sets with
+ * too few sales to price from the sold guide. The headline is the median lot
+ * price, so one wildly overpriced listing cannot drag it the way the average
+ * would; the average is the fallback when the API omits per-lot detail.
+ * 404/empty → null (no listings); other failures throw, like the sold guide.
+ */
+export async function fetchSetStockAsk(
+  setNum: string,
+  env: Env,
+  options: { recordHealth?: boolean; retries?: number; timeoutMs?: number } = {},
+): Promise<BrickLinkStockAsk | null> {
+  if (!env.BRICKLINK_CONSUMER_KEY) return null;
+  const blNum = setNum.includes('-') ? setNum : `${setNum}-1`;
+  const baseUrl = brickLinkPriceUrl('SET', blNum);
+  const queryParams = { guide_type: 'stock', new_or_used: 'N', currency_code: 'USD' };
+  const authHeader = await oauthHeader(
+    'GET', baseUrl, queryParams,
+    env.BRICKLINK_CONSUMER_KEY, env.BRICKLINK_CONSUMER_SECRET,
+    env.BRICKLINK_TOKEN, env.BRICKLINK_TOKEN_SECRET,
+  );
+  const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
+    headers: { Authorization: authHeader, Accept: 'application/json' },
+  }, {
+    okStatuses: [404],
+    record: options.recordHealth !== false,
+    retries: options.retries,
+    timeoutMs: options.timeoutMs,
+  });
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error(`bricklink new-stock HTTP ${resp.status}`);
+  const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
+  if (body.meta?.code !== 200) throw new Error(`bricklink new-stock API code ${body.meta?.code ?? 'none'}`);
+  return parseStockAsk(body.data);
+}
+
+/** Pure parse of a stock-guide `data` block (exported for tests). */
+export function parseStockAsk(d: Record<string, unknown> | undefined): BrickLinkStockAsk | null {
+  if (!d) return null;
+  const detail = Array.isArray(d.price_detail) ? d.price_detail as Array<Record<string, unknown>> : [];
+  const prices = detail
+    .map(lot => parseFloat(String(lot.unit_price ?? '')))
+    .filter(price => Number.isFinite(price) && price > 0)
+    .sort((a, b) => a - b);
+  const lotCount = prices.length || Number(d.unit_quantity ?? 0);
+  if (!(lotCount > 0)) return null;
+  const mid = Math.floor(prices.length / 2);
+  const median = prices.length
+    ? (prices.length % 2 ? prices[mid] : (prices[mid - 1] + prices[mid]) / 2)
+    : null;
+  const ask = median ?? (parseFloat(String(d.qty_avg_price || d.avg_price || '')) || null);
+  if (!ask) return null;
+  return {
+    ask_value: Math.round(ask * 100) / 100,
+    lot_count: lotCount,
+    min_price: prices[0] ?? (parseFloat(String(d.min_price || '')) || null),
+    max_price: prices[prices.length - 1] ?? (parseFloat(String(d.max_price || '')) || null),
+  };
 }
 
 export interface PartPricing {

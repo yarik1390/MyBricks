@@ -264,6 +264,7 @@ jobs:
             "SELECT blended_value, blended_confidence, blended_low, blended_high FROM lego_sets LIMIT 0"
             "SELECT pc_new_value, pc_complete_value, pc_id, pc_cached_at FROM lego_sets LIMIT 0"
             "SELECT stockx_ask, stockx_cached_at, ebay_sold_attempted_at, ebay_used_attempted_at, pc_attempted_at FROM set_market_ext LIMIT 0"
+            "SELECT bl_nodata_at, bl_thin_value, bl_thin_qty, bl_ask_value, bl_ask_qty, bl_fallback_cached_at FROM set_market_ext LIMIT 0"
             "SELECT set_num, pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, pa_best_merchant, pa_offer_count, pa_market, pa_cached_at FROM set_market_ext LIMIT 0"
             "SELECT key_hash, used, cap, period_month, exhausted_at FROM pricesapi_keys LIMIT 0"
             "SELECT key_hash, used, cap, period_month, exhausted_at FROM brightdata_keys LIMIT 0"

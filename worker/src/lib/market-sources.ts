@@ -1011,8 +1011,14 @@ export const BLEND_INPUT_COLUMNS =
 export const BLEND_EXT_COLUMNS =
   'pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, ' +
   'pa_best_merchant, pa_offer_count, pa_market, pa_cached_at, ' +
-  // StockX lowest ask (corroborating new-sealed asking signal in legacySignalsFor).
-  'stockx_ask, stockx_cached_at';
+  // BrickLink fallbacks for sets with <5 sold lots (thin sold + current listings).
+  'bl_thin_value, bl_thin_qty, bl_ask_value, bl_ask_qty, bl_fallback_cached_at';
+// Blend inputs that never leave the server: raw BrickLink figures with no 24h
+// display clock. The catalog projection omits them and relies on the persisted
+// v3 state, which the recompute rotation keeps current.
+export const SERVER_ONLY_BLEND_COLUMNS: readonly string[] = [
+  'bl_thin_value', 'bl_thin_qty', 'bl_ask_value', 'bl_ask_qty', 'bl_fallback_cached_at',
+];
 const BLEND_FROM = 'lego_sets ls LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num';
 
 // Compute the blended value AND the deal signal together, so the persisted
