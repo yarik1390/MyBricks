@@ -60,6 +60,13 @@ export interface ValuateSetsOptions {
    * first, so a third independent source can outvote the outlier.
    */
   conflictTiebreak?: boolean;
+  /**
+   * BrickEconomy-replacement discovery: fetch a first BrickLink guide for sets
+   * whose only market value is BrickEconomy and that BrickLink has never been
+   * asked about, most valuable first. Builds licensed coverage before the
+   * scraped BrickEconomy source is phased out.
+   */
+  blDiscovery?: boolean;
   minValue?: number;
   includeFresh?: boolean;
   includeSupplemental?: boolean;
@@ -127,7 +134,8 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   const bricklinkEnabled = await sourceEnabled(env, 'bricklink');
   const brickeconomyEnabled = await sourceEnabled(env, 'brickeconomy');
   const includeSupplemental = options.includeSupplemental === true;
-  const forceBrickLink = options.blStale === true || options.conflictTiebreak === true;
+  const forceBrickLink = options.blStale === true || options.conflictTiebreak === true
+    || options.blDiscovery === true;
   const bricklinkConfigured = bricklinkEnabled && !!env.BRICKLINK_CONSUMER_KEY;
   const includeEbay = options.includeEbay === true && await sourceEnabled(env, 'ebay')
     && !!env.EBAY_APP_ID && !!env.EBAY_CLIENT_SECRET;

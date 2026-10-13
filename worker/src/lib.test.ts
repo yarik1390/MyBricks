@@ -683,11 +683,11 @@ describe('blendMarketValue (valuation v2)', () => {
     expect(r.value).toBeLessThanOrEqual(104);                      // no upward drag from the ask
   });
 
-  it('does not promote a lone StockX ask into fair market value', () => {
+  it('ignores a stored StockX ask (source retired 2026-10-13)', () => {
     const r = blendMarketValue({ valuation_method: 'formula_bulk', stockx_ask: 800, stockx_cached_at: now });
     expect(r.value).toBeNull();
     expect(r.confidence).toBeNull();
-    expect(r.basis.some(b => b.id === 'stockx')).toBe(true);   // visible as its own family
+    expect(r.basis.some(b => b.id === 'stockx')).toBe(false);
   });
 
   it('never drags a sold headline up from a StockX ask (corroborating only)', () => {
@@ -701,14 +701,13 @@ describe('blendMarketValue (valuation v2)', () => {
     expect(r.value).toBeLessThanOrEqual(104);                   // ask cannot move the headline
   });
 
-  it('blends StockX + eBay asking as an estimate when no sold comps exist', () => {
+  it('does not let a retired StockX ask corroborate a lone eBay ask', () => {
     const r = blendMarketValue({
       valuation_method: 'formula_bulk',
       ebay_ask_value: 100, ebay_ask_qty: 5, ebay_ask_cached_at: now,
       stockx_ask: 120, stockx_cached_at: now,
     });
-    expect(r.value).not.toBeNull();                             // two asking families → an estimate
-    expect(r.basis.some(b => b.id === 'stockx')).toBe(true);
+    expect(r.basis.some(b => b.id === 'stockx')).toBe(false);
   });
 
   it('treats a stale-only source as low confidence', () => {

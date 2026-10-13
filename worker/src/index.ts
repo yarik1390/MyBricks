@@ -494,6 +494,20 @@ export default {
           // clamp the 30 back to 25. 260 lets the full batch through.
           subrequestBudget: 260,
         }));
+        // BrickEconomy replacement: a first BrickLink guide for sets whose only
+        // market value is the scraped BrickEconomy figure (~4,200 never asked,
+        // 2026-10-13). Uses BrickLink allowance the two lanes above leave idle.
+        await run('valuate-bl-discovery', () => runValuateSets(env, {
+          scope: 'all',
+          blDiscovery: true,
+          limit: 24,
+          includeSupplemental: false,
+          includeEbay: false,
+          includeEbaySold: false,
+          includeAiFallback: false,
+          // (200 - 20 overhead) / 7 per BrickLink-only set fits all 24.
+          subrequestBudget: 200,
+        }));
         break;
       case '15 * * * *':
         await run('valuate-formula-head', () => runValuateSets(env, {

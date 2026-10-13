@@ -188,3 +188,37 @@ describe('conflict tie-break selection', () => {
     expect(results.map((row) => row.set_num).sort()).toEqual(['NO-BL', 'STALE-BL']);
   });
 });
+
+describe('BrickLink discovery selection', () => {
+  beforeEach(async () => {
+    await applyTestTables(db, [
+      'lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist',
+      'api_quota', 'integration_health', 'pricing_signals', 'set_valuation_state',
+    ]);
+  });
+
+  const seed = (setNum: string, value: number, cols: Record<string, number | null> = {}) => db.prepare(
+    `INSERT INTO lego_sets (set_num, name, theme, year, pieces, retired, current_value, blended_value,
+       valuation_method, be_value_new, bl_new_value, bl_cached_at, pc_new_value, ebay_new_value)
+     VALUES (?1, ?1, 'Town', 2015, 500, 1, ?2, ?2, 'brickeconomy', ?3, ?4, ?5, ?6, ?7)`,
+  ).bind(setNum, value, 'be' in cols ? cols.be : value, cols.bl ?? null,
+    cols.bl ? new Date().toISOString() : null, cols.pc ?? null, cols.sold ?? null).run();
+
+  it('picks never-asked BrickEconomy-only sets, most valuable first', async () => {
+    await seed('BE-ONLY-LOW', 50);
+    await seed('BE-ONLY-HIGH', 500);
+    await seed('HAS-BL', 400, { bl: 380 });
+    await seed('HAS-PC', 400, { pc: 390 });
+    await seed('HAS-SOLD', 400, { sold: 410 });
+    await seed('NO-BE', 400, { be: null });
+    await seed('NO-DATA', 300);
+    await db.prepare(`INSERT INTO set_market_ext (set_num, bl_nodata_at) VALUES ('NO-DATA', datetime('now', '-200 days'))`).run();
+
+    const { results } = await selectDueSets({ ...(env as any), BRICKLINK_CONSUMER_KEY: 'test-key' }, {
+      scope: 'all', options: { limit: 20, blDiscovery: true },
+      includeSupplemental: false, includeBrickLink: true, includeEbay: false,
+      includeEbaySold: false, includeAiFallback: false,
+    });
+    expect(results.map((row) => row.set_num)).toEqual(['BE-ONLY-HIGH', 'BE-ONLY-LOW']);
+  });
+});
