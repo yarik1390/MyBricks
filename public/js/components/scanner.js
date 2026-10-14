@@ -1516,7 +1516,7 @@ function priceChipsHTML(set) {
   const market = Number(displayValueOf(set)) || 0;
   const chips = [
     rrp > 0 ? `<button type="button" class="bv-chip" data-price="${rrp}" aria-pressed="false">${escapeHtml(t("bvAdd.chipRrp", { price: fmtMoney(rrp) }))}</button>` : "",
-    market > 0 ? `<button type="button" class="bv-chip" data-price="${market}" aria-pressed="false">${escapeHtml(t("bvAdd.chipMarket", { price: fmtMoney(Math.round(market), { cents: 0 }) }))}</button>` : "",
+    market > 0 ? `<button type="button" class="bv-chip" data-price="${market}" aria-pressed="false">${escapeHtml(t("bvAdd.chipMarket", { price: fmtMoney(market, { cents: 0 }) }))}</button>` : "",
     `<button type="button" class="bv-chip" data-price="other" aria-pressed="false">${escapeHtml(t("bvAdd.chipOther"))}</button>`,
   ].join("");
   const ctx = capturedMoneyContext();
@@ -1556,7 +1556,7 @@ function showSingleSet(el, set) {
       <button type="button" class="bv-scanres__set" id="scanDetails" aria-label="${escapeHtml(t("bvAdd.openSet", { name: set.name || set.set_num }))}">
         ${setThumbHTML(set)}
         <span class="bv-scanres__text"><span class="bv-scanres__name">${escapeHtml(set.name || set.set_num)}</span><span class="bv-scanres__meta">${setMetaLine(set)}</span></span>
-        <span class="bv-scanres__value"><span class="bv-num" data-countup="${value}">${value > 0 ? `${estMark(set)}${escapeHtml(fmtMoney(Math.round(value), { cents: 0 }))}` : "—"}</span><small>${escapeHtml(t("bvAdd.market"))}</small></span>
+        <span class="bv-scanres__value"><span class="bv-num" data-countup="${value}">${value > 0 ? `${estMark(set)}${escapeHtml(fmtMoney(value, { cents: 0 }))}` : "—"}</span><small>${escapeHtml(t("bvAdd.market"))}</small></span>
       </button>
       <div id="scanOwned">${wishlistNoteHTML(set)}</div>
       ${priceChipsHTML(set)}
@@ -1630,7 +1630,7 @@ function countUpValue(node, value, set) {
   const tick = (now) => {
     const k = Math.min(1, (now - start) / dur);
     const eased = 1 - (1 - k) ** 3;
-    node.textContent = estMark(set) + fmtMoney(Math.round(value * eased), { cents: 0 });
+    node.textContent = estMark(set) + fmtMoney(value * eased, { cents: 0 });
     if (k < 1 && node.isConnected) requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
@@ -1727,7 +1727,7 @@ function showShelfChecklist(el, sets, minifigs) {
     return `<label class="bv-scanres__row">
         <span class="bv-scanres__num">${idx + 1}</span>
         <span class="bv-scanres__text"><span class="bv-scanres__name">${escapeHtml(set.name)}</span><span class="bv-scanres__meta"><span class="bv-num">${escapeHtml(set.set_num)}</span>${isOwned ? ` · ${escapeHtml(t("bvAdd.alreadyOwned"))}` : ""}</span></span>
-        ${value > 0 ? `<span class="bv-num">${escapeHtml(fmtMoney(Math.round(value), { cents: 0 }))}</span>` : ""}
+        ${value > 0 ? `<span class="bv-num">${escapeHtml(fmtMoney(value, { cents: 0 }))}</span>` : ""}
         <input type="checkbox" class="scan-select-check" data-idx="${idx}" data-value="${value}"${isOwned ? "" : " checked"}>
       </label>`;
   }).join("");
@@ -1745,7 +1745,7 @@ function showShelfChecklist(el, sets, minifigs) {
     const checked = $$(".scan-select-check:checked");
     const total = checked.reduce((a, b) => a + (Number(b.dataset.value) || 0), 0);
     const s = $("#shelfSummary");
-    if (s) s.textContent = t("bvAdd.shelfSelected", { count: checked.length, total: fmtMoney(Math.round(total), { cents: 0 }) });
+    if (s) s.textContent = t("bvAdd.shelfSelected", { count: checked.length, total: fmtMoney(total, { cents: 0 }) });
     const l = $("#shelfAddLabel");
     if (l) l.textContent = tPlural("bvAdd.addSets", checked.length, { count: checked.length });
   };
@@ -1921,7 +1921,7 @@ function showBulkScanResults(results) {
         </div>`;
     } else {
       controlHTML = `
-        <input type="checkbox" class="bulk-add-check" data-setnum="${escapeHtml(set.set_num)}" data-price="${set.current_value || 0}" checked style="width:18px;height:18px;cursor:pointer;">`;
+        <input type="checkbox" class="bulk-add-check" data-setnum="${escapeHtml(set.set_num)}" checked style="width:18px;height:18px;cursor:pointer;">`;
     }
 
     rowsHTML += `
@@ -1981,7 +1981,7 @@ function showBulkScanResults(results) {
       // and a misleading "updated successfully".
       if (!navigator.onLine) {
         for (const chk of adds) {
-          outboxEnqueue({ path: "/api/collection", method: "POST", body: { set_num: chk.dataset.setnum, quantity: 1, purchase_price: parseFloat(chk.dataset.price) || 0 } });
+          outboxEnqueue({ path: "/api/collection", method: "POST", body: { set_num: chk.dataset.setnum, quantity: 1 } });
         }
         for (const chk of qtys) {
           outboxEnqueue({ path: "/api/collection/" + chk.dataset.ownedId, method: "PATCH", body: { quantity: parseInt(chk.dataset.ownedQty, 10) + 1 } });
@@ -1993,14 +1993,12 @@ function showBulkScanResults(results) {
         return;
       }
 
-      const addPromises = adds.map(chk => {
-        const setNum = chk.dataset.setnum;
-        const price = parseFloat(chk.dataset.price) || 0;
-        return api("/api/collection", {
-          method: "POST",
-          body: { set_num: setNum, quantity: 1, purchase_price: price }
-        });
-      });
+      // Price paid stays empty (like addScannedSet): storing today's market
+      // value as the cost made every batch-added set read "+€0 (+0.0%)".
+      const addPromises = adds.map(chk => api("/api/collection", {
+        method: "POST",
+        body: { set_num: chk.dataset.setnum, quantity: 1 }
+      }));
 
       const qtyPromises = qtys.map(chk => {
         const id = chk.dataset.ownedId;

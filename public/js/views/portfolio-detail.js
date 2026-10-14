@@ -229,7 +229,8 @@ function wirePanel(tab, set, entry) {
   else wireInfoTab(set);
 }
 
-const money0 = (v) => (v == null || !Number.isFinite(Number(v)) ? "—" : fmtMoney(Math.round(Number(v)), { cents: 0 }));
+// Rounds after the currency conversion (inside fmtMoney), like set-ui money0.
+const money0 = (v) => (v == null || !Number.isFinite(Number(v)) ? "—" : fmtMoney(Number(v), { cents: 0 }));
 const signedMoney0 = (v) => `${Number(v) < 0 ? "−" : "+"}${money0(Math.abs(Number(v)))}`;
 const moneySymbol = (ctx) => CURRENCY_SYMBOLS[ctx.currency] || "$";
 const CONDITION_SEG = [["sealed", "bvSet.segSealed"], ["new", "bvSet.segOpened"], ["used_good", "bvSet.segBuilt"], ["used_acceptable", "bvSet.segParts"]];
