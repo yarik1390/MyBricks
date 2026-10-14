@@ -88,6 +88,24 @@ describe('runTrainValueModel', () => {
     expect(result.skipped).toMatch(/fewer than 200/);
   });
 
+  it('leaves sets with a nonsense retail price out of training', async () => {
+    await insertSets([
+      ...trainingSets(240),
+      // A motor listed at $0.11 retail selling for $68 would drag the whole
+      // theme to the 20x clamp if it were trained on.
+      ...Array.from({ length: 6 }, (_, i) => ({
+        set_num: `BAD${i}-1`, name: `Motor ${i}`, year: YEAR - 10, retired: 1, pieces: 500,
+        theme: 'City', retail_price: 0.11, bl_new_value: 68, bl_new_qty: 9,
+      })),
+      { set_num: 'CITY-NEW-1', name: 'Unpriced City', year: YEAR - 10, retired: 1, pieces: 500, theme: 'City', retail_price: 80 },
+    ]);
+    const result = await runTrainValueModel(env as any);
+    expect(result.trained).toBe(240);
+    const city = (await modelValue('CITY-NEW-1'))!.model_value!;
+    expect(city).toBeGreaterThanOrEqual(78);
+    expect(city).toBeLessThan(90);
+  });
+
   it('anchors on the Brickset UK/DE/CA price when there is no US one', async () => {
     await insertSets([
       ...trainingSets(240),

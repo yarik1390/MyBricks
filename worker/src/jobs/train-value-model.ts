@@ -30,6 +30,9 @@ const SHRINK_SUBTHEME = 4;
 const SHRINK_PIECES = 8;
 // Weight of the used-sales anchor in log space when one exists.
 const USED_WEIGHT = 0.65;
+// Training rows outside this sold/retail band are treated as bad retail data.
+const TRAIN_RATIO_MIN = 0.1;
+const TRAIN_RATIO_MAX = 20;
 
 // Independent retail anchor, same rule as independentRetailAnchor(): Brickset
 // MSRP, else Brickset's UK/DE/CA price (ext.bs_retail_alt, USD-equivalent),
@@ -58,7 +61,11 @@ WITH
     SELECT ${FEATURES}, ls.bl_new_value AS bl
     FROM lego_sets ls LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
     WHERE ls.bl_new_value > 0 AND ls.bl_new_qty >= 5 AND ls.year > 0
-      AND ${RETAIL} > 0),
+      AND ${RETAIL} > 0
+      -- A sale more than 20x or under a tenth of retail almost always means a
+      -- wrong retail price (SPIKE motors listed at $0.11 pushed whole themes to
+      -- the 20x clamp in the first live run), so keep those out of the fit.
+      AND ls.bl_new_value BETWEEN ${RETAIL} * ${TRAIN_RATIO_MIN} AND ${RETAIL} * ${TRAIN_RATIO_MAX}),
   base_ar AS (SELECT age, ret, AVG(ln(bl / rp)) AS m FROM train GROUP BY age, ret),
   base_a AS (SELECT age, AVG(ln(bl / rp)) AS m FROM train GROUP BY age),
   base_all AS (SELECT AVG(ln(bl / rp)) AS m FROM train),
@@ -106,7 +113,8 @@ export async function runTrainValueModel(env: Env): Promise<{ trained: number; w
   const count = await env.DB.prepare(
     `SELECT COUNT(*) AS n FROM lego_sets ls LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
      WHERE ls.bl_new_value > 0 AND ls.bl_new_qty >= 5 AND ls.year > 0
-       AND ${RETAIL} > 0`,
+       AND ${RETAIL} > 0
+       AND ls.bl_new_value BETWEEN ${RETAIL} * ${TRAIN_RATIO_MIN} AND ${RETAIL} * ${TRAIN_RATIO_MAX}`,
   ).first<{ n: number }>();
   const trained = Number(count?.n ?? 0);
   // Too little ground truth would make every group mean noise.
