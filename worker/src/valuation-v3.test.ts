@@ -394,3 +394,16 @@ describe('family freshness follows the selected value', () => {
     expect(result.flags).toContain('stale_source');
   });
 });
+
+describe('opened copies', () => {
+  const row = { set_num: '10182-1', condition: 'new', blended_value: 3133, current_value: 3399, bl_new_value: 2122, bl_new_qty: 7 };
+  it('caps an opened copy at the BrickLink new-sale average', () => {
+    expect(holdingValueForRollout(row, 0)).toBe(2122);
+    expect(holdingValueForRollout({ ...row, v3_new_fair: 3000 }, 100)).toBe(2122);
+  });
+  it('keeps the sealed value without BrickLink new sales, for sealed copies, and when BrickLink is higher', () => {
+    expect(holdingValueForRollout({ ...row, bl_new_qty: 0 }, 0)).toBe(3133);
+    expect(holdingValueForRollout({ ...row, condition: 'sealed' }, 0)).toBe(3133);
+    expect(holdingValueForRollout({ ...row, bl_new_value: 4000 }, 0)).toBe(3133);
+  });
+});

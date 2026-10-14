@@ -8,7 +8,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 const HOLDING_VALUE_COLUMNS = `uc.set_num, uc.condition, uc.quantity,
   ls.current_value, ls.blended_value, ls.used_value,
   ls.ebay_used_value, ls.pc_new_value, ls.pc_complete_value,
-  svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair`;
+  svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair, ls.bl_new_value, ls.bl_new_qty`;
 
 // Up to six trophy sets in shelf order, each valued like the rest of the vault.
 async function loadShowcase(env: Env, userId: string) {

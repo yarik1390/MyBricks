@@ -49,7 +49,7 @@ async function familyView(env: Env, userId: string) {
   const { results: holdings } = await env.DB.prepare(
     `SELECT uc.user_id, uc.set_num, COALESCE(uc.quantity, 1) AS quantity, uc.condition,
        s.name, s.theme, s.year, s.image_url, s.current_value, s.blended_value, s.used_value, s.ebay_used_value,
-       s.pc_new_value, s.pc_complete_value, svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair
+       s.pc_new_value, s.pc_complete_value, svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair, s.bl_new_value, s.bl_new_qty
      FROM user_collection uc
      JOIN lego_sets s ON s.set_num = uc.set_num
      LEFT JOIN set_valuation_state svn ON svn.set_num = s.set_num AND svn.condition = 'new_sealed'

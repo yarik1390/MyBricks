@@ -5,7 +5,7 @@ import { icon as kitIcon, iconBtn as kitIconBtn, row as kitRow, seg as kitSeg, f
 import { localMoneyToUsd, usdMoneyInputValue } from '../lib/money-input.js';
 import { derivePartOutDecision } from '../lib/part-out-decision.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML, investmentPricingHTML, investmentPricingDetailHTML, soldEvidenceHTML } from './portfolio-detail-market.js';
-import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, estMark, displayValueOf, flipEconomics, cleanTagLabel, priceMovementSummary, valuationConfidencePresentation } from '../lib/pure.js';
+import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, openedCopyValue, estMark, displayValueOf, flipEconomics, cleanTagLabel, priceMovementSummary, valuationConfidencePresentation } from '../lib/pure.js';
 import { t, tPlural, getLocale, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 import { pricechartingAttributionHTML } from '../lib/partner-attribution.js';
 import { figAvatarSVG } from '../lib/fig-avatar.js';
@@ -244,6 +244,8 @@ function valueRange(set, entry = null) {
     const l = Number(used?.low), h = Number(used?.high);
     return l > 0 && h > l ? { low: l, high: h } : null;
   }
+  // The sealed range doesn't describe an opened copy valued below it.
+  if (isOpenedCopy(entry) && openedCopyValue(set, setDisplayValue(set)) < setDisplayValue(set)) return null;
   const v3 = set.valuation?.read_enabled ? set.valuation?.new : null;
   for (const [lo, hi] of [[v3?.low, v3?.high], [set.market_value_low, set.market_value_high], [set.blended_low, set.blended_high]]) {
     const l = Number(lo), h = Number(hi);
@@ -927,13 +929,17 @@ async function shareSet(set) {
 }
 
 const isUsedCopy = (entry) => String(entry?.condition || "").startsWith("used");
+const isOpenedCopy = (entry) => entry?.condition === "new";
 
 // The value of YOUR copy, as the Vault row and /api/collection value it: a
 // built or parts copy is worth the used market (the v3 used fair value when
-// the v3 read is on, else the legacy used chain); sealed and opened copies —
-// and sets you don't own — use the page's sealed value.
+// the v3 read is on, else the legacy used chain); an opened copy is capped at
+// BrickLink's new-sale average; sealed copies — and sets you don't own — use
+// the page's sealed value.
 function copyValue(set, entry) {
-  if (!isUsedCopy(entry) || set.coming_soon) return setDisplayValue(set);
+  if (set.coming_soon) return setDisplayValue(set);
+  if (isOpenedCopy(entry)) return openedCopyValue(set, setDisplayValue(set));
+  if (!isUsedCopy(entry)) return setDisplayValue(set);
   if (set.valuation?.read_enabled) return Number(set.valuation?.used?.fair_value) || setDisplayValue(set);
   return Number(marketValueForCondition(set, entry.condition)) || setDisplayValue(set);
 }

@@ -401,6 +401,18 @@ export interface HoldingValuationRow {
   pc_complete_value?: unknown;
   v3_new_fair?: unknown;
   v3_used_fair?: unknown;
+  bl_new_value?: unknown;
+  bl_new_qty?: unknown;
+}
+
+/** An OPENED copy (condition 'new': box open, not built) is capped at
+ *  BrickLink's new-sale average when BrickLink has new sales; otherwise it
+ *  keeps the sealed value. Mirrors openedCopyValue() in public/js/lib/pure.js. */
+export function openedHoldingValue(row: { condition?: unknown; bl_new_value?: unknown; bl_new_qty?: unknown }, sealed: number): number {
+  if (row.condition !== 'new') return sealed;
+  const bl = num(row.bl_new_value);
+  if (!bl || !(Number(row.bl_new_qty) > 0)) return sealed;
+  return sealed > 0 ? Math.min(sealed, bl) : bl;
 }
 
 /** One rollout-aware value chain shared by collection, profile and snapshots. */
@@ -413,11 +425,11 @@ export function holdingValueForRollout(
   const isUsed = String(row.condition || '').startsWith('used');
   const quarantineOverride = !!(num(row.pc_new_value) || num(row.pc_complete_value));
   if (!pricingV3ReadEnabled(row.set_num, percent) && !quarantineOverride) {
-    return isUsed ? legacyUsed : legacyNew;
+    return isUsed ? legacyUsed : openedHoldingValue(row, legacyNew);
   }
 
   const v3New = num(row.v3_new_fair) || legacyNew;
-  if (!isUsed) return v3New;
+  if (!isUsed) return openedHoldingValue(row, v3New);
   return num(row.v3_used_fair) || v3New || legacyUsed;
 }
 export function setSourceWeightMultipliers(m: Record<string, number>): void {

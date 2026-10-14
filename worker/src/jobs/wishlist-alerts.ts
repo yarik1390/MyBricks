@@ -327,7 +327,7 @@ export async function runSellTargetAlerts(env: Env): Promise<{ fired: number }> 
            ls.name AS set_name, ls.image_url, ls.blended_confidence, ls.valuation_method,
            ls.current_value, ls.blended_value, ls.used_value,
            ls.ebay_used_value, ls.pc_new_value, ls.pc_complete_value,
-           svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair,
+           svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair, ls.bl_new_value, ls.bl_new_qty,
            ${categoryWanted('up', 'notify_sell_targets')} AS wanted
     FROM user_collection uc
     JOIN lego_sets ls ON ls.set_num = uc.set_num
