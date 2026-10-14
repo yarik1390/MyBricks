@@ -14,16 +14,18 @@ export function setColor(set = {}) {
   return `hsl(${setHue(set)} 52% 56%)`;
 }
 
-/** Whole-currency amount in the user's currency ("$850"). */
+/** Whole-currency amount in the user's currency ("$850"). Rounds AFTER the
+ *  currency conversion (fmtMoney does it), so a set reads the same euro amount
+ *  here as in the Vault rows; rounding the USD first could land €1 lower. */
 export function money0(value) {
   if (value == null || !Number.isFinite(Number(value))) return '—';
-  return fmtMoney(Math.round(Number(value)), { cents: 0 });
+  return fmtMoney(Number(value), { cents: 0 });
 }
 
 /** Signed whole-currency amount ("+$42", "−$4"). */
 export function moneySigned(value) {
   if (value == null || !Number.isFinite(Number(value))) return '—';
-  const v = Math.round(Number(value));
+  const v = Number(value);
   return `${v < 0 ? '−' : '+'}${money0(Math.abs(v))}`;
 }
 
