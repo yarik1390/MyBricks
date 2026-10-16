@@ -181,6 +181,23 @@ export function themeHue(theme = "") {
   return h % 360;
 }
 
+/**
+ * Theme hues come from a name hash, so two themes can land on nearly the same
+ * colour (Icons and Technic were both green on Insights). Nudges each hue
+ * around the wheel until it sits at least `gap` degrees from the ones before
+ * it, keeping the first (largest) themes on their usual colour.
+ */
+export function distinctHues(hues, gap = 45) {
+  const used = [];
+  const dist = (a, b) => { const d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); };
+  return hues.map((h0) => {
+    let h = ((Math.round(Number(h0) || 0) % 360) + 360) % 360;
+    for (let i = 0; i < 16 && used.some(u => dist(u, h) < gap); i++) h = (h + 23) % 360;
+    used.push(h);
+    return h;
+  });
+}
+
 export function bricklinkBuyURL(setNum) {
   const base = setNum.includes("-") ? setNum : setNum + "-1";
   return `https://www.bricklink.com/v2/catalog/catalogitem.page?S=${base}`;

@@ -4,11 +4,11 @@
 // toolkit (market signals, S&P comparison, 90-day movers, part-out and the
 // retirement-risk list) stays a Pro perk, exactly as it was on the old Vault
 // "Insights" tab.
-import { $, $$, escapeHtml, fmtMoney, fmtShortDate, haptic, snackbar } from '../utils.js';
+import { $, $$, escapeHtml, fmtMoney, fmtShortDate, haptic, snackbar, setHue } from '../utils.js';
 import { state } from '../state.js';
 import { getSessionUserId } from '../api.js';
 import { t, tPlural } from '../lib/i18n.js';
-import { computeSpreadSignals } from '../lib/pure.js';
+import { computeSpreadSignals, distinctHues } from '../lib/pure.js';
 import { vaultTotals, themeAllocation, retirementRadar, gainersAndLosers, clipHistory } from '../lib/vault-insights.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { openLegalSheet } from '../components/legal-sheet.js';
@@ -190,8 +190,9 @@ function statsGrid(totals) {
 function themeCard(items, pval) {
   const alloc = themeAllocation(items, pval, { limit: 6, otherLabel: t('room.otherTheme') });
   if (!alloc.rows.length) return '';
-  const rows = alloc.rows.map(r => {
-    const color = setColor({ theme: r.theme });
+  const hues = distinctHues(alloc.rows.map(r => setHue({ theme: r.theme })));
+  const rows = alloc.rows.map((r, i) => {
+    const color = setColor({ hue: hues[i] });
     const pct = Math.round(r.share);
     return `<div class="insights-theme"><span class="insights-theme__dot" style="background:${esc(color)}"></span><span class="insights-theme__name">${esc(r.theme)}</span><span class="bv-num insights-theme__pct">${pct}%</span>
       <span class="bv-bar insights-theme__bar" role="img" aria-label="${esc(t('bvVault.themeShare', { theme: r.theme, pct }))}"><span style="width:${Math.max(2, r.share).toFixed(1)}%;background:${esc(color)}"></span></span></div>`;

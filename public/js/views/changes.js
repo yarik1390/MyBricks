@@ -136,7 +136,8 @@ function paint(portfolio, bell) {
   const since = portfolio.sinceLabel(sinceDate(data));
   let dateText = '';
   try { dateText = new Date(`${sinceDate(data)}T12:00:00`).toLocaleDateString(getLocale(), { day: 'numeric', month: 'short' }); } catch { dateText = ''; }
-  const sub = dateText ? t('bvVault.changesSub', { since, date: dateText }) : since;
+  // "Since Oct 9" already names the date; don't repeat it ("Since Oct 9 · Oct 9").
+  const sub = dateText && !since.includes(dateText) ? t('bvVault.changesSub', { since, date: dateText }) : since;
   const quiet = !alerts.length && !retiring.length && !movers.length;
   const hasSets = (state.portfolio?.items || []).length > 0;
   $('#root').innerHTML = `<main class="bv-page no-nav vault-changes" id="changesPage">

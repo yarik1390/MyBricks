@@ -1,6 +1,7 @@
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  distinctHues,
   escapeHtml, fmtPct, clamp, themeHue, bricklinkBuyURL,
   computeDealScore, valuationTrust, valuationConfidencePresentation, catalogFilterSummary, classifyJobRun,
   annualizedROI, parseMarkdown, jwtSub, ebaySoldSummary, marketValueForCondition, openedCopyValue,
@@ -2326,5 +2327,19 @@ describe('openedCopyValue', () => {
     assert.equal(openedCopyValue({ bl_new_value: 2122, bl_new_qty: 0 }, 3133), 3133);
     assert.equal(openedCopyValue({}, 3133), 3133);
     assert.equal(openedCopyValue({ bl_new_value: 4000, bl_new_qty: 3 }, 3133), 3133);
+  });
+});
+
+describe('distinctHues', () => {
+  const gap = (a, b) => { const d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); };
+  it('keeps the first hue and spreads near-duplicates apart', () => {
+    const out = distinctHues([130, 140, 250, 128, 300]);
+    assert.equal(out[0], 130);
+    assert.equal(out[2], 250);
+    for (let i = 0; i < out.length; i++) for (let j = 0; j < i; j++) assert.ok(gap(out[i], out[j]) >= 45, `${out[i]} vs ${out[j]}`);
+  });
+  it('normalizes and tolerates junk', () => {
+    assert.deepEqual(distinctHues([-10]), [350]);
+    assert.deepEqual(distinctHues(['x']), [0]);
   });
 });
