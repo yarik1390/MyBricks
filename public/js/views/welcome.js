@@ -25,6 +25,7 @@ const MARKETS = ['FR', 'US', 'GB', 'DE', 'CA', 'AU', 'NL'];
 const EURO = new Set(['AT', 'BE', 'CY', 'DE', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PT', 'SI', 'SK']);
 const onWelcome = () => location.hash.split('?')[0].startsWith('#/welcome');
 
+const brick = (c = '#c8431f', w = 40, h = 32) => `<svg viewBox="0 0 40 32" width="${w}" height="${h}" aria-hidden="true" focusable="false"><rect x="7" y="0" width="9" height="7" rx="2" fill="${c}"/><rect x="24" y="0" width="9" height="7" rx="2" fill="${c}"/><rect x="0" y="5" width="40" height="27" rx="4" fill="${c}"/></svg>`;
 
 /** Currency and retail market for a BCP-47 tag (pure: exported for tests). */
 export function detectRegionDefaults(tag) {
@@ -117,7 +118,7 @@ function prefsHTML() {
   return `<main class="bv-wel" id="welcomePage" aria-labelledby="welTitle">
     <div class="bv-wel__top">${btn(t('bvFirst.skip'), { kind: 'text', id: 'welSkip' })}</div>
     <div class="bv-wel__body">
-      <span class="bv-wel__mark"><img src="/icon-192.png" alt="" width="56" height="56"></span>
+      <span class="bv-wel__mark">${brick()}</span>
       <h1 class="bv-wel__title" id="welTitle">${escapeHtml(name ? t('bvFirst.welcomeName', { name }) : t('bvFirst.welcome'))}</h1>
       <p class="bv-wel__lead">${escapeHtml(t('bvFirst.welcomeLead'))}</p>
       ${guest ? `<p class="bv-wel__note bv-note">${escapeHtml(t('setup.privacy'))} <a href="#/login">${escapeHtml(t('bvFirst.signIn'))}</a></p>` : ''}

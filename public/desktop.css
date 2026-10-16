@@ -223,8 +223,8 @@
     padding: 24px 32px 48px;
   }
   body.collector-ui:not(.bv-two-pane) .bv-setpage > .bv-sethero { grid-column: 1; grid-row: 1; height: 460px; border-radius: 28px; position: sticky; top: 24px; }
-  body.collector-ui:not(.bv-two-pane) .bv-setpage > .bv-sethero { background: hsl(var(--hue, 210) 38% 91%); }
-  :root[data-theme="dark"] body.collector-ui:not(.bv-two-pane) .bv-setpage > .bv-sethero { background: hsl(var(--hue, 210) 14% 18%); }
+  body.collector-ui:not(.bv-two-pane) .bv-setpage > .bv-sethero { background: linear-gradient(180deg, hsl(var(--hue, 210) 60% 86%) 0%, hsl(var(--hue, 210) 38% 93%) 100%); }
+  :root[data-theme="dark"] body.collector-ui:not(.bv-two-pane) .bv-setpage > .bv-sethero { background: linear-gradient(180deg, hsl(var(--hue, 210) 22% 22%) 0%, hsl(var(--hue, 210) 12% 15%) 100%); }
   body.collector-ui:not(.bv-two-pane) .bv-setpage > .bv-sethero .bv-sethero__media { inset: 64px 24px 24px; }
   body.collector-ui:not(.bv-two-pane) .bv-setpage > .bv-setpage__body { grid-column: 2; grid-row: 1 / span 2; min-width: 0; }
   body.collector-ui:not(.bv-two-pane) .bv-setpage > #setBar { grid-column: 1; grid-row: 2; position: sticky; top: 500px; align-self: start; }
