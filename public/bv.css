@@ -974,9 +974,9 @@ body[data-route="set-detail"] .bv-page.detail-page-container { padding-top: 0; p
    sits below the back/share row and uses the full width. */
 .bv-sethero {
   position: relative; height: calc(var(--safe-top, 0px) + 300px); overflow: hidden;
-  background: linear-gradient(180deg, hsl(var(--hue, 210) 60% 86%) 0%, hsl(var(--hue, 210) 38% 93%) 55%, color-mix(in srgb, hsl(var(--hue, 210) 38% 93%) 45%, var(--bv-bg)) 80%, var(--bv-bg) 100%);
+  background: hsl(var(--hue, 210) 38% 91%);
 }
-:root[data-theme="dark"] .bv-sethero { background: linear-gradient(180deg, hsl(var(--hue, 210) 22% 22%) 0%, hsl(var(--hue, 210) 12% 15%) 55%, color-mix(in srgb, hsl(var(--hue, 210) 12% 15%) 45%, var(--bv-bg)) 80%, var(--bv-bg) 100%); }
+:root[data-theme="dark"] .bv-sethero { background: hsl(var(--hue, 210) 14% 18%); }
 .bv-sethero__media {
   position: absolute; inset: calc(var(--safe-top, 0px) + 60px) 20px 12px; display: flex; align-items: center; justify-content: center;
 }
@@ -2499,3 +2499,13 @@ body.collector-ui.offline #app { padding-top: 56px; }
 .bv-swaps__pick input { width: 20px; height: 20px; flex: 0 0 auto; }
 .bv-swaps__vault { max-height: 50vh; overflow-y: auto; }
 .bv-swaps textarea, #swapForm textarea, #swapAcceptForm textarea { width: 100%; min-height: 72px; resize: vertical; border: 0; background: transparent; color: inherit; font: inherit; }
+
+/* ------------------------------------------------ set page readability (v586)
+   Design check (taste-skill rules): nothing meant to be read on the set page
+   goes below 13px; cards and chips are told apart by their fill, not a 1px
+   outline. The photo backdrop is a flat theme tint (see .bv-sethero). */
+.bv-setpage :is(.detail-card-title, .detail-tag-chip, .detail-tag-more, .fig-strip-name, .fig-strip-num, .fig-strip-value,
+  .u-mute, .bv-stores__note, .bv-stores__foot, .bv-stores__empty, .bv-delta, .sold-evidence-fam-title, .pricing-model-badge,
+  .more-price-sub, .more-price-note, .more-price-hint) { font-size: 13px; }
+.bv-setpage .fig-strip-num { line-height: 18px; }
+.bv-setpage :is(.bv-card, .detail-card, .detail-tag-chip, .detail-tag-more) { border-color: transparent; box-shadow: none; }
