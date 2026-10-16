@@ -1056,7 +1056,7 @@ function infoTabHTML(set, entry) {
     const retiredYear = b.retiredYear ?? set.retired_year;
 
     const ratingSignal = ratingNum >= 4.0 && reviewCount >= 20
-      ? `<span class="signal-hint" style="color:var(--green);font-size:10px;">High demand set</span>`
+      ? `<span class="signal-hint" style="color:var(--green);font-size:13px;">High demand set</span>`
       : '';
     const growthBadge = (growthRate != null && !isSimpleMode())
       ? `<div class="detail-kv span2"><span class="k" title="Change in market value over the past 12 months">Past year</span> <span class="v" style="color:${growthRate >= 0 ? 'var(--up)' : 'var(--down)'};">${growthRate >= 0 ? t('detail.up', { pct: Math.abs(Number(growthRate)).toFixed(1) }) : t('detail.down', { pct: Math.abs(Number(growthRate)).toFixed(1) })}</span></div>`
@@ -1098,7 +1098,7 @@ function infoTabHTML(set, entry) {
     };
     const lb = legoAvail ? legoBadgeMap[legoAvail] : null;
     const legoStockBadge = lb
-      ? `<div class="detail-kv span2"><span style="background:${lb[1]};color:${lb[2]};font-weight:700;border-radius:4px;padding:2px 8px;font-size:11px;">${lb[0]}</span></div>`
+      ? `<div class="detail-kv span2"><span style="background:${lb[1]};color:${lb[2]};font-weight:700;border-radius:4px;padding:2px 8px;font-size:13px;">${lb[0]}</span></div>`
       : '';
 
     // Retirement likelihood (only meaningful while a set is still active) — shown
@@ -1116,7 +1116,7 @@ function infoTabHTML(set, entry) {
     const biReviewCount = Number(set.brickinsights_review_count) || 0;
     const biReviewsStr = biReviewCount ? tPlural('detail.reviews', biReviewCount) : '';
     const brickInsightsBadge = (biRating && biRating > 0)
-      ? `<div class="detail-kv span2" style="display:flex;align-items:center;gap:8px;"><span class="k">Critics' score</span> <span class="v">${biRating}/100</span> <span style="color:var(--ink-mute);font-size:10px;">${biReviewsStr}</span>${set.brickinsights_url ? ` <a href="${escapeHtml(set.brickinsights_url)}" target="_blank" rel="noopener noreferrer" aria-label="View BrickInsights rating" style="color:var(--ink-faint);font-size:10px;">\u2197</a>` : ''}</div>`
+      ? `<div class="detail-kv span2" style="display:flex;align-items:center;gap:8px;"><span class="k">Critics' score</span> <span class="v">${biRating}/100</span> <span style="color:var(--ink-mute);font-size:13px;">${biReviewsStr}</span>${set.brickinsights_url ? ` <a href="${escapeHtml(set.brickinsights_url)}" target="_blank" rel="noopener noreferrer" aria-label="View BrickInsights rating" style="color:var(--ink-faint);font-size:13px;">\u2197</a>` : ''}</div>`
       : '';
 
     if (ratingNum || ageStr || subthemeStr || themeGroupStr || categoryBadge || tagsArr.length || growthRate != null || retiredYear || set.launch_date || set.exit_date || legoStockBadge || riskBadge || brickInsightsBadge) {
@@ -1128,7 +1128,7 @@ function infoTabHTML(set, entry) {
             ${launchBadge}
             ${retiredYearBadge}
             ${riskBadge}
-            ${ratingNum ? `<div class="detail-kv span2" style="display:flex;align-items:center;gap:8px;"><span class="k">Community</span> <span class="v">⭐ ${ratingNum.toFixed(1)}</span> <span style="color:var(--ink-mute);font-size:10px;">${reviewsStr}</span> ${ratingSignal}</div>` : ''}
+            ${ratingNum ? `<div class="detail-kv span2" style="display:flex;align-items:center;gap:8px;"><span class="k">Community</span> <span class="v">⭐ ${ratingNum.toFixed(1)}</span> <span style="color:var(--ink-mute);font-size:13px;">${reviewsStr}</span> ${ratingSignal}</div>` : ''}
             ${brickInsightsBadge}
             ${growthBadge}
             ${legoStockBadge}
@@ -1194,7 +1194,7 @@ function infoTabHTML(set, entry) {
         <div class="detail-card">
           <div class="detail-card-title">About this set</div>
           <p id="aboutText"${longDesc ? ' data-collapsed="1"' : ''} style="margin:0;font-size:13px;line-height:1.55;color:var(--ink-soft);white-space:pre-line;${clampStyle}">${escapeHtml(descr)}</p>
-          ${longDesc ? `<button id="aboutToggle" type="button" style="margin-top:8px;background:none;border:none;color:var(--ink);font-weight:600;font-size:12px;cursor:pointer;padding:0;text-decoration:underline;">Show more</button>` : ''}
+          ${longDesc ? `<button id="aboutToggle" type="button" style="margin-top:8px;background:none;border:none;color:var(--ink);font-weight:600;font-size:13px;cursor:pointer;padding:0;text-decoration:underline;">Show more</button>` : ''}
         </div>`;
     }
   }
@@ -1209,7 +1209,7 @@ function infoTabHTML(set, entry) {
         <div id="bsGallery" class="bs-gallery" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;">
           <div class="spinner" style="margin:8px auto;"></div>
         </div>
-        <div class="u-mute" style="font-size:10px;margin-top:6px;">Images courtesy of <a href="https://brickset.com" target="_blank" rel="noopener noreferrer" style="color:inherit;">Brickset.com</a></div>
+        <div class="u-mute" style="font-size:13px;margin-top:6px;">Images courtesy of <a href="https://brickset.com" target="_blank" rel="noopener noreferrer" style="color:inherit;">Brickset.com</a></div>
       </div>`
     : '';
 
@@ -1440,7 +1440,7 @@ function forecastTabHTML(set) {
           ? "Based on recent sales and long-term market trends."
           : `Based on theme rarity, piece count, retirement status, and market trends for similar ${escapeHtml(set.theme || "")} sets.`}
       </p>
-      ${set.be_growth_12m != null ? `<p style="margin:8px 0 0;font-size:12px;color:var(--ink-soft);">Past year: <strong style="color:${set.be_growth_12m >= 0 ? 'var(--up)' : 'var(--down)'};">${set.be_growth_12m >= 0 ? t('detail.up', { pct: Math.abs(Number(set.be_growth_12m)).toFixed(1) }) : t('detail.down', { pct: Math.abs(Number(set.be_growth_12m)).toFixed(1) })}</strong></p>` : ''}
+      ${set.be_growth_12m != null ? `<p style="margin:8px 0 0;font-size:13px;color:var(--ink-soft);">Past year: <strong style="color:${set.be_growth_12m >= 0 ? 'var(--up)' : 'var(--down)'};">${set.be_growth_12m >= 0 ? t('detail.up', { pct: Math.abs(Number(set.be_growth_12m)).toFixed(1) }) : t('detail.down', { pct: Math.abs(Number(set.be_growth_12m)).toFixed(1) })}</strong></p>` : ''}
       ${conflictNote}
     </div>
 
@@ -1465,7 +1465,7 @@ function forecastTabHTML(set) {
         <li>${(set.pieces||0) > 2000 ? "Large set, high collector appeal" : (set.pieces||0) > 500 ? "Mid-size set, moderate appeal" : "Compact set, lower aftermarket premium"}</li>
         <li>${(set.minifigs||0) >= 5 ? "Many minifigs — strong parts-out potential" : "Few/no minifigs — value driven by set alone"}</li>
       </ul>
-      <p style="margin:10px 0 0;font-size:11px;color:var(--ink-mute);line-height:1.45;">Projections extrapolate current trends and can be wrong — collectible prices depend on future demand nobody can predict. Not financial advice.</p>
+      <p style="margin:10px 0 0;font-size:13px;color:var(--ink-mute);line-height:1.45;">Projections extrapolate current trends and can be wrong — collectible prices depend on future demand nobody can predict. Not financial advice.</p>
     </div>`;
 }
 
@@ -1497,15 +1497,15 @@ function recentlySoldHTML(set) {
     <div class="detail-card pricing-summary-card">
       <div class="detail-card-title" style="justify-content:space-between;">
         <span>Recently sold</span>
-        <span class="badge" style="font-size:12px; padding:2px 6px; border-radius:4px; font-family:var(--mono); background:var(--surface-3); color:var(--ink-soft);">${ebaySold.legacy ? 'Legacy' : pricingTreatment === 'STP' ? 'Below MSRP' : pricingTreatment === 'APPRECIATED' ? 'Appreciated' : 'Sold data'}</span>
+        <span class="badge" style="font-size:13px; padding:2px 6px; border-radius:4px; font-family:var(--mono); background:var(--surface-3); color:var(--ink-soft);">${ebaySold.legacy ? 'Legacy' : pricingTreatment === 'STP' ? 'Below MSRP' : pricingTreatment === 'APPRECIATED' ? 'Appreciated' : 'Sold data'}</span>
       </div>
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
         <div>
-          <div style="font-size:12px; font-family:var(--mono); color:var(--ink-mute); margin-bottom:2px; text-transform:uppercase;">${t('market.newSold')}${newQty}</div>
+          <div style="font-size:13px; font-family:var(--mono); color:var(--ink-mute); margin-bottom:2px; text-transform:uppercase;">${t('market.newSold')}${newQty}</div>
           <div style="font-size:18px; font-weight:600; color:var(--ink);">${ebayPrice > 0 ? fmtMoney(ebayPrice) : "Pending"}</div>
         </div>
         <div>
-          <div style="font-size:12px; font-family:var(--mono); color:var(--ink-mute); margin-bottom:2px; text-transform:uppercase;">${t('market.usedSold')}${usedQty}</div>
+          <div style="font-size:13px; font-family:var(--mono); color:var(--ink-mute); margin-bottom:2px; text-transform:uppercase;">${t('market.usedSold')}${usedQty}</div>
           <div style="font-size:16px; font-weight:500; color:var(--ink-soft);">${ebayUsedPrice > 0 ? fmtMoney(ebayUsedPrice) : "Pending"}</div>
         </div>
       </div>
@@ -1663,7 +1663,7 @@ function manageTabHTML(set, entry) {
     <div class="detail-card" id="partsCard">
       <div class="detail-card-title" style="justify-content:space-between;">
         <span>Parts checklist</span>
-        <button class="btn-secondary" id="loadPartsBtn" style="font-size:11px;padding:4px 10px;">Show parts</button>
+        <button class="btn-secondary" id="loadPartsBtn" style="font-size:13px;padding:4px 10px;">Show parts</button>
       </div>
       <div id="partsContent" style="font-size:13px;color:var(--ink-mute);line-height:1.45;">
         Open the official parts list, mark any pieces you're missing, and export them as a BrickLink or Rebrickable wanted list.
@@ -1737,7 +1737,7 @@ function sellTimingHTML(set, entry) {
         <span>Sell timing</span>
         <span class="badge" style="background:${look.color};color:#fff;">${look.label}</span>
       </div>
-      <div style="font-size:12px;color:var(--ink-mute);line-height:1.5;">${escapeHtml(localizedSellReasons(s.reasons).join(" · "))}</div>
+      <div style="font-size:13px;color:var(--ink-mute);line-height:1.5;">${escapeHtml(localizedSellReasons(s.reasons).join(" · "))}</div>
     </div>`;
 }
 
@@ -2293,10 +2293,10 @@ function openAddWishlistSheet(set, onConfirm) {
     <div class="field">
       <label class="field-lbl">${escapeHtml(t('wishlist.targetPriceCurrency', { symbol }))}</label>
       <input type="number" step="0.01" id="wlTargetPrice" class="field-input" placeholder="0.00" autocomplete="off" value="${suggestedLocal > 0 ? suggestedLocal.toFixed(2) : ''}">
-      <div id="wlSuggestedChip" style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:4px 8px;background:var(--surface-3);border:1px solid var(--line);border-radius:12px;font-size:12px;cursor:pointer;color:var(--ink);">
+      <div id="wlSuggestedChip" style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:4px 8px;background:var(--surface-3);border:1px solid var(--line);border-radius:12px;font-size:13px;cursor:pointer;color:var(--ink);">
         ${I.sparkles({ w: 14 })} ${escapeHtml(t('wishlist.suggestedPrice', { price: `${symbol}${suggestedLocal.toFixed(2)}` }))}
       </div>
-      <div style="font-size:11px;color:var(--ink-mute);margin-top:6px;line-height:1.4;">Leave empty to watch without price-drop alerts.</div>
+      <div style="font-size:13px;color:var(--ink-mute);margin-top:6px;line-height:1.4;">Leave empty to watch without price-drop alerts.</div>
     </div>
     <div class="field" style="margin-top:14px;">
       <label class="field-lbl">Notes</label>
@@ -2437,7 +2437,7 @@ function wireFlipCalc(set, entry, containerEl = document) {
         if (purchasePrice > 0) {
           const netRoi = ((net - purchasePrice) / purchasePrice) * 100;
           const roiColor = netRoi >= 0 ? 'var(--up)' : 'var(--bv-red)';
-          resultEl.innerHTML = `<div style="font-size:11px;margin-top:4px;">Net ROI: <strong class="flip-roi-val" style="color:${roiColor};">${netRoi >= 0 ? '+' : ''}${netRoi.toFixed(1)}%</strong></div>`;
+          resultEl.innerHTML = `<div style="font-size:13px;margin-top:4px;">Net ROI: <strong class="flip-roi-val" style="color:${roiColor};">${netRoi >= 0 ? '+' : ''}${netRoi.toFixed(1)}%</strong></div>`;
         } else {
           resultEl.innerHTML = '';
         }
