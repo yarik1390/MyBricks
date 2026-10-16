@@ -11262,6 +11262,18 @@
     ]
   },
   {
+    "text": "bvAdd.sortBiggestUpside",
+    "files": [
+      "views/retiring.js"
+    ]
+  },
+  {
+    "text": "bvAdd.sortMostValuable",
+    "files": [
+      "views/retiring.js"
+    ]
+  },
+  {
     "text": "bvAdd.tabWishlist",
     "files": [
       "views/retiring.js"
