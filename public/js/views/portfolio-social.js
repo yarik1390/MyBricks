@@ -256,7 +256,7 @@ export async function renderPublicProfile(handle) {
   $('[data-bv-back]')?.setAttribute('data-bv-back-fallback', '#/me');
   $('#pubShare')?.addEventListener('click', async () => {
     haptic('light');
-    const url = `${publicOrigin()}/#/u/${encodeURIComponent(p.handle || handle)}`;
+    const url = `${publicOrigin()}/u/${encodeURIComponent(p.handle || handle)}`;
     const { shareContent } = await import('../lib/native-share.js');
     const res = await shareContent({ title: t('bvCommunity.shareTitle', { name: p.display_name || p.handle }), url });
     if (res === 'unsupported') {

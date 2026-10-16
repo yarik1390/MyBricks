@@ -3,7 +3,7 @@
 // Account, and the legal footer. Every setting the old page carried is still
 // here — the long tail lives in sheets (Appearance, Currency & region, Public
 // profile) so the hub stays one scannable list.
-import { $, $$, haptic, escapeHtml, fmtMoneyShort, toast, setHue, bvIDB, celebrate, celebrateChime, soundEnabled, advisorEnabled, publicOrigin } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtMoney, fmtMoneyShort, toast, setHue, bvIDB, celebrate, celebrateChime, soundEnabled, advisorEnabled, publicOrigin } from '../utils.js';
 import { state, invalidatePortfolio } from '../state.js';
 import { api, sbSignOut, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
@@ -55,7 +55,7 @@ function identityHTML(me, guest) {
     : [me.handle ? `@${me.handle}` : null, t(me.is_public ? 'bvAccount.publicVault' : 'bvAccount.privateVault'), me.is_supporter ? t('bvAccount.pro') : null].filter(Boolean).join(' · ');
   // No prices paid yet → no honest gain to show.
   const pctText = paid > 0 ? `${up ? '+' : '−'}${Math.abs(pct).toFixed(1)}%` : '—';
-  const moneyText = paid > 0 ? `${up ? '+' : '-'}${fmtMoneyShort(Math.abs(gain))}` : t('bvAccount.noPaid');
+  const moneyText = paid > 0 ? `${up ? '+' : '−'}${statMoney(Math.abs(gain))}` : t('bvAccount.noPaid');
   return `<section class="bv-ident profile-identity-card" aria-label="${escapeHtml(t('bvAccount.overviewLabel'))}">
       <div class="bv-ident__head">
         <span class="bv-ident__avatar" aria-hidden="true">${escapeHtml(initial)}</span>
@@ -64,13 +64,21 @@ function identityHTML(me, guest) {
       </div>
       <div class="bv-ident__stats profile-summary" aria-label="${escapeHtml(t('bvAccount.summaryLabel'))}">
         <a class="bv-ident__stat" href="#/"><span class="bv-ident__num">${escapeHtml(String(sets))}</span><span class="bv-ident__lbl">${escapeHtml(tPlural('bvAccount.setsLabel', sets))}</span></a>
-        <a class="bv-ident__stat" href="#/insights"><span class="bv-ident__num">${escapeHtml(fmtMoneyShort(value))}</span><span class="bv-ident__lbl">${escapeHtml(t('bvAccount.valueLabel'))}</span></a>
+        <a class="bv-ident__stat" href="#/insights"><span class="bv-ident__num">${escapeHtml(statMoney(value))}</span><span class="bv-ident__lbl">${escapeHtml(t('bvAccount.valueLabel'))}</span></a>
         <div class="bv-ident__stat portfolio-change ${up ? 'is-gain' : 'is-loss'}" data-testid="portfolio-change" aria-label="${escapeHtml(t(up ? 'bvAccount.gainAria' : 'bvAccount.lossAria', { money: moneyText, pct: pctText }))}">
           <span class="bv-ident__num">${paid > 0 ? `<span class="arrow" aria-hidden="true">${up ? '▲' : '▼'}</span>` : ''}${escapeHtml(pctText)}</span>
           <span class="bv-ident__lbl">${escapeHtml(t(up ? 'bvAccount.gainLabel' : 'bvAccount.lossLabel'))} · ${escapeHtml(moneyText)}</span>
         </div>
       </div>
     </section>`;
+}
+
+// Profile stat tiles: the exact whole amount (matching the Vault header)
+// while it fits the tile, i.e. under 100,000 in the user's currency; above
+// that the short form ("€123.4K").
+function statMoney(n) {
+  const full = fmtMoney(n, { cents: 0 });
+  return full.replace(/\D/g, '').length <= 5 ? full : fmtMoneyShort(n);
 }
 
 function footerHTML() {
@@ -89,7 +97,7 @@ function pageHTML(me) {
     row({ icon: 'trophy', title: t('bvAccount.leaderboard'), href: '#/leaderboard' }),
     guest ? '' : row({ icon: 'star', title: t('share.wrappedTitle', { year: new Date().getFullYear() }), id: 'wrappedRow' }),
     guest ? '' : row({ icon: 'check', title: t('bvAccount.contributions'), sub: contributions ? tPlural('bvAccount.approvedCount', contributions, { count: contributions }) : t('bvAccount.contributionsSub'), href: '#/me/contributions' }),
-    row({ icon: 'brick', title: t('bvAccount.build'), sub: t('bvAccount.buildSub'), href: '#/build' }),
+    // "What can I build?" lives in the Vault's Build tab (and on each set page).
   ].join('');
   const on = notificationsOn(me);
   const prefs = [
@@ -213,7 +221,7 @@ function wire(me, shelf) {
   $("#kidsModeRow")?.addEventListener("click", () => openKidsMode(me));
   $("#shareProfileBtn")?.addEventListener("click", async () => {
     haptic("light");
-    const url = `${publicOrigin()}/#/u/${encodeURIComponent(me.handle)}`;
+    const url = `${publicOrigin()}/u/${encodeURIComponent(me.handle)}`;
     const { shareContent } = await import("../lib/native-share.js");
     shareContent({ title: t('bvAccount.shareTitle', { name: me.display_name || me.handle }), url });
   });
@@ -506,7 +514,7 @@ function openPublicProfileSheet(me, publicProfile) {
     });
     return;
   }
-  const url = `${publicOrigin()}/#/u/${encodeURIComponent(me.handle)}`;
+  const url = `${publicOrigin()}/u/${encodeURIComponent(me.handle)}`;
   const showcase = publicProfile?.showcase || [];
   // Adding a trophy replaces the whole stored shelf with this list, so the
   // editor only opens when the real shelf loaded — never from an empty stand-in.

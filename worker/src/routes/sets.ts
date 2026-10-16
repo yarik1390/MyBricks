@@ -591,9 +591,14 @@ async function buildSharedSetDetail(
       c.env.DB.prepare('SELECT price_usd FROM upcoming_sets WHERE set_num=?')
         .bind(setNum).first<{ price_usd: number | null }>().catch(() => null),
       c.env.DB.prepare(
-        'SELECT fig_num, quantity, fig_name, fig_img_url FROM set_minifigs WHERE set_num=? ORDER BY quantity DESC'
-      ).bind(setNum).all<{ fig_num: string; quantity: number; fig_name: string; fig_img_url: string | null }>()
-        .catch(() => ({ results: [] as Array<{ fig_num: string; quantity: number; fig_name: string; fig_img_url: string | null }> })),
+        // fig_value: the minifig's own market value (BrickLink/eBay), only
+        // where one was measured — never a rarity estimate.
+        `SELECT sm.fig_num, sm.quantity, sm.fig_name, sm.fig_img_url,
+                CASE WHEN m.current_value > 0 AND m.source IN ('bricklink', 'ebay') THEN m.current_value END AS fig_value
+           FROM set_minifigs sm LEFT JOIN minifigs m ON m.fig_num = sm.fig_num
+          WHERE sm.set_num=? ORDER BY fig_value IS NULL, fig_value DESC, sm.quantity DESC`
+      ).bind(setNum).all<{ fig_num: string; quantity: number; fig_name: string; fig_img_url: string | null; fig_value: number | null }>()
+        .catch(() => ({ results: [] as Array<{ fig_num: string; quantity: number; fig_name: string; fig_img_url: string | null; fig_value: number | null }> })),
       getCachedPriceTrend(setNum, c.env),
       recentValueMedian(c.env.DB, setNum).catch(() => undefined),
       // Verified PriceCharting identity, for partner attribution. Only a

@@ -6,11 +6,13 @@ import { $, $$, escapeHtml, haptic } from '../utils.js';
 import { t, tPlural } from '../lib/i18n.js';
 import { state } from '../state.js';
 import { api } from '../api.js';
-import { topbar, iconBtn, tabs, pill, emptyState, skeletonRows, btn } from '../ui/kit.js';
+import { topbar, iconBtn, tabs, pill, chip, emptyState, skeletonRows, btn } from '../ui/kit.js';
 import { setRow, money0, setValue } from '../ui/set-ui.js';
 
 const TABS = ['yours', 'wishlist', 'all'];
 let _tab = 'yours';
+// All tab order: 'value' (most valuable) or 'upside' (biggest 2-year upside).
+let _allSort = 'value';
 let _gen = 0;
 
 const isRetiring = (s) => !s.retired && (s.lego_retiring_soon === 1 || s.lego_retiring_soon === true || Number(s.retirement_risk_score) >= 70);
@@ -31,11 +33,18 @@ function pillFor(s, kind) {
   return kind === 'wishlist' ? pill(t('bvAdd.pillFairPrice')) : '';
 }
 
+// "+24% in 2 yrs" from the 2-year forecast, or '' with no real forecast.
+function upsidePct(s) {
+  const value = setValue(s), f = Number(s.forecast_2y);
+  if (!(value > 0) || !(f > 0) || s.valuation_method === 'formula_bulk' || s.valuation_method === 'local') return null;
+  return Math.round((f / value - 1) * 100);
+}
+
 function rowFor(s, kind) {
   const meta = [s.theme, s.set_num, kind === 'yours' && Number(s.quantity) > 0 ? t('bvAdd.ownedCount', { count: s.quantity }) : exitLabel(s)].filter(Boolean).join(' · ');
   return setRow(s, {
     meta,
-    endHtml: `<span class="bv-setrow__end"><span class="bv-setrow__value">${escapeHtml(money0(setValue(s)))}</span>${pillFor(s, kind)}</span>`,
+    endHtml: `<span class="bv-setrow__end"><span class="bv-setrow__value">${escapeHtml(money0(setValue(s)))}</span>${kind === 'all' && _allSort === 'upside' && upsidePct(s) != null ? pill(t('bvAdd.upsidePill', { pct: `${upsidePct(s) >= 0 ? '+' : '−'}${Math.abs(upsidePct(s))}` }), upsidePct(s) > 0 ? 'acc' : '') : pillFor(s, kind)}</span>`,
   });
 }
 
@@ -43,7 +52,7 @@ async function loadLists() {
   const [coll, wish, all] = await Promise.all([
     state.portfolio?.items ? Promise.resolve(state.portfolio) : api('/api/collection').catch(() => null),
     Array.isArray(state.wishlist) && state.wishlist.length ? Promise.resolve({ wishlist: state.wishlist }) : api('/api/wishlist').catch(() => null),
-    api('/api/sets/search?retiring=1&sort=value_desc&limit=60').catch(() => null),
+    api(`/api/sets/search?retiring=1&sort=${_allSort === 'upside' ? 'upside_desc' : 'value_desc'}&limit=60`).catch(() => null),
   ]);
   return {
     yours: (coll?.items || []).filter(isRetiring),
@@ -73,7 +82,8 @@ function listHTML(lists) {
   const more = total > lists.all.length
     ? `<div class="bv-gap">${btn(t('bvAdd.seeAllRetiring'), { kind: 'tonal', full: true, href: '#/add?retired=retiring&sort=value_desc', id: 'retiringCatalog' })}</div>`
     : '';
-  return `<h2 class="bv-h2">${escapeHtml(tPlural('bvAdd.retiringCount', total))}</h2><div class="bv-group__box bv-gap">${lists.all.map((s) => rowFor(s, 'all')).join('')}</div>${more}`;
+  const sorts = `<div class="bv-chips bv-gap" role="group" aria-label="${escapeHtml(t('bvAdd.retiringSortLabel'))}">${chip(t('bvAdd.sortMostValuable'), { pressed: _allSort === 'value', attrs: { 'data-all-sort': 'value' } })}${chip(t('bvAdd.sortBiggestUpside'), { pressed: _allSort === 'upside', attrs: { 'data-all-sort': 'upside' } })}</div>`;
+  return `<h2 class="bv-h2">${escapeHtml(tPlural('bvAdd.retiringCount', total))}</h2>${sorts}<div class="bv-group__box bv-gap">${lists.all.map((s) => rowFor(s, 'all')).join('')}</div>${more}`;
 }
 
 export async function renderRetiring() {
@@ -101,6 +111,17 @@ export async function renderRetiring() {
       $(`#retiringTab-${_tab}`)?.focus();
     }));
     $('#retiringSeeAll')?.addEventListener('click', () => { _tab = 'all'; paint(); });
+    $$('[data-all-sort]').forEach((b) => b.addEventListener('click', async () => {
+      if (_allSort === b.dataset.allSort) return;
+      _allSort = b.dataset.allSort;
+      haptic('light');
+      const sort = _allSort === 'upside' ? 'upside_desc' : 'value_desc';
+      const res = await api(`/api/sets/search?retiring=1&sort=${sort}&limit=60`).catch(() => null);
+      if (gen !== _gen || location.hash !== '#/retiring') return;
+      if (res?.sets) { lists.all = res.sets; lists.allTotal = Number(res.total) || res.sets.length; }
+      paint();
+      $(`[data-all-sort="${_allSort}"]`)?.focus();
+    }));
   };
   paint();
 }

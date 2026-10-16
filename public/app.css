@@ -1813,13 +1813,15 @@ ul.set-list > li { display: contents; }
 .fig-ph .fig-avatar { width: 34px; height: 34px; }
 .fig-strip-meta { min-width: 0; }
 .fig-strip-name {
-  color: var(--ink-soft); font-size: 12px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px;
+  color: var(--ink-soft); font-size: 12px; max-width: 220px;
+  /* Two lines: catalog names ("Black Torso, Jacket…") differ only at the end. */
+  overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
 }
 .fig-strip-name span { color: var(--ink-mute); }
 .fig-strip-num {
   color: var(--ink-mute); font-size: 10px; font-family: var(--mono);
 }
+.fig-strip-value { color: var(--ink); font-weight: 600; font-size: 12px; }
 /* 2-column key/value grid (Details card) */
 .detail-kv-grid {
   display: grid; grid-template-columns: repeat(2, 1fr);

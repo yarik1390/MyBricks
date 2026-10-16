@@ -283,12 +283,20 @@ function heroHTML(set, isWish) {
   </div>`;
 }
 
+// "Modular Buildings · Modular Buildings Collection" says the theme twice:
+// drop a subtheme that only repeats the theme's words.
+function themeLine(set) {
+  const theme = String(set.theme || ""), sub = String(set.subtheme || "");
+  const repeats = theme && sub && (sub.toLowerCase().includes(theme.toLowerCase()) || theme.toLowerCase().includes(sub.toLowerCase()));
+  return [theme, repeats ? "" : sub].filter(Boolean).join(" · ");
+}
+
 function titleBlockHTML(set) {
   const len = String(set.name || "").length;
   const size = len > 58 ? " is-very-long" : len > 36 ? " is-long" : "";
   const bits = [
     `<span class="bv-num bv-settitle__num">${escapeHtml(set.set_num)}</span>`,
-    escapeHtml([set.theme, set.subtheme].filter(Boolean).join(" · ")),
+    escapeHtml(themeLine(set)),
     set.year ? escapeHtml(String(set.year)) : "",
     Number(set.pieces) > 0 ? escapeHtml(t("bvSet.pcs", { count: Number(set.pieces).toLocaleString(getLocale()) })) : "",
   ].filter(Boolean);
@@ -385,7 +393,7 @@ function setBarHTML(set, entry, tab) {
   const pct = gain != null && cost > 0 ? (gain / cost) * 100 : null;
   const line = `${paid != null ? t("bvSet.yourCopyPaid", { price: money0(paid) }) : t("bvSet.yourCopy")}${qty > 1 ? ` · ×${qty}` : ""}`;
   const sub = gain != null
-    ? `<span class="bv-setbar__gain"><span class="bv-num ${gain >= 0 ? "bv-up" : "bv-down"}">${escapeHtml(signedMoney0(gain))}</span>${kitDelta(pct)}</span>`
+    ? `<span class="bv-setbar__gain"><span class="bv-num ${Math.round(gain) === 0 ? "" : gain > 0 ? "bv-up" : "bv-down"}">${escapeHtml(signedMoney0(gain))}</span>${kitDelta(pct)}</span>`
     : `<span class="bv-setbar__hint">${escapeHtml(t("bvSet.addPricePaid"))}</span>`;
   return `<div class="bv-setbar detail-action-bar">
     <button type="button" class="bv-setbar__copy" data-set-sheet="edit" aria-label="${escapeHtml(t("bvSet.editTitle"))}"><span class="bv-label">${escapeHtml(line)}</span>${sub}</button>
@@ -911,7 +919,7 @@ async function customPhotoObjectURL(path) {
 }
 
 async function shareSet(set) {
-  const shareUrl = `${publicOrigin()}/#/set/${encodeURIComponent(set.set_num)}`;
+  const shareUrl = `${publicOrigin()}/s/${encodeURIComponent(set.set_num)}`;
   const outcome = await shareContent({
     title: set.name,
     text: t('share.setText', { name: set.name, setNum: set.set_num }),
@@ -1220,7 +1228,7 @@ function infoTabHTML(set, entry) {
                 : `<div class="fig-ph">${figAvatarSVG(String(f.fig_num), String(f.fig_name || ''))}</div>`}
               <div class="fig-strip-meta">
                 <div class="fig-strip-name">${escapeHtml(f.fig_name || 'Minifig')}${f.quantity > 1 ? ` <span>×${f.quantity}</span>` : ''}</div>
-                <div class="fig-strip-num">${escapeHtml(f.fig_num)}</div>
+                <div class="fig-strip-num">${escapeHtml(f.fig_num)}${Number(f.fig_value) > 0 ? ` · <span class="fig-strip-value">${escapeHtml(money0(Number(f.fig_value)))}</span>` : ''}</div>
               </div>
             </div>
           `).join('')}
@@ -2123,6 +2131,12 @@ function switchDetailTab(tab, set, entry) {
   panel.innerHTML = panelHTML(tab, set, entry);
   wirePanel(tab, set, entry);
   if ((prev === "community") !== (tab === "community")) paintSetBar(set, entry, tab);
+  // Switched from the stuck tab bar: start the new tab at its top, not
+  // wherever the old tab's scroll position lands in it.
+  const bar = $("#detailTabs");
+  if (bar && bar.getBoundingClientRect().top <= 1) {
+    window.scrollTo({ top: Math.max(0, window.scrollY + panel.getBoundingClientRect().top - bar.offsetHeight) });
+  }
 }
 
 /* ============================================================

@@ -46,9 +46,10 @@ export function setThumb(set = {}, { size = 52, radius, cls = '' } = {}) {
   return thumb({ color: setColor(set), imgHtml: setImg(set, Math.min(400, size * 3)), size, radius, cls });
 }
 
-/** "Star Wars · 75192-1 · Retired" */
+/** "75192-1 · Star Wars · Retired" — number first, so a long theme name
+ *  truncates instead of the set number collectors identify sets by. */
 export function setMeta(set = {}, { retired = true } = {}) {
-  const parts = [set.theme, set.set_num];
+  const parts = [set.set_num, set.theme];
   if (retired && (set.retired === 1 || set.retired === true)) parts.push(t('bvCommon.retired'));
   return parts.filter(Boolean).join(' · ');
 }
