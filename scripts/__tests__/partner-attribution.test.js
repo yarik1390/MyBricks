@@ -71,14 +71,14 @@ describe('PriceCharting partner registry (public JS)', () => {
 
 describe('Partner page + footer credits', () => {
   it('ships a public data-partners page naming PriceCharting as the sole partner', () => {
-    assert.match(dataPartners, /Confirmed data partner/);
+    assert.match(dataPartners, /our confirmed market-data partner/);
     assert.match(dataPartners, /PriceCharting/);
     assert.doesNotMatch(dataPartners, /BrickLink/);
     assert.doesNotMatch(dataPartners, /BrickEconomy/);
     assert.doesNotMatch(dataPartners, /BrickOwl/);
     assert.doesNotMatch(dataPartners, /Brickset/);
-    // no logos
-    assert.doesNotMatch(dataPartners, /<img/);
+    // no provider logos: the only image is BricksVault's own app icon
+    assert.deepEqual(dataPartners.match(/<img[^>]*>/g), ['<img src="/icon-192.png" alt="" width="32" height="32">']);
   });
 
   it('links the page from the Me footer and methodology, with only PriceCharting as partner', () => {
