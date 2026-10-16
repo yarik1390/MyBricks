@@ -1528,6 +1528,8 @@ body.collector-ui .bv-discover #catalogSortBtn { grid-column: auto; grid-row: au
 .bv-comingsoon__row { cursor: pointer; }
 .bv-themepicker { max-height: 52dvh; overflow-y: auto; margin-top: 8px; }
 .bv-filter { display: flex; flex-direction: column; gap: 4px; }
+/* Desktop-only filter panel beside Discover results (desktop.css shows it ≥1280px). */
+.bv-discover__panel { display: none; }
 .bv-filter__section { display: flex; flex-direction: column; gap: 6px; padding: 6px 0; }
 .bv-filter__section h3 { margin: 0; font: 600 14px/20px var(--bv-sans); color: var(--bv-ink); }
 .bv-filter__section .bv-chips--wrap { gap: 8px; }
@@ -1655,7 +1657,7 @@ body.collector-ui .bv-discover #catalogSortBtn { grid-column: auto; grid-row: au
 }
 .bv-profile a.bv-ident__stat { color: var(--bv-ink); }
 .bv-ident__num { font: 600 18px/22px var(--bv-mono); letter-spacing: -.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bv-ident__lbl { font-size: 13px; line-height: 17px; color: var(--bv-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bv-ident__lbl { font-size: 13px; line-height: 17px; color: var(--bv-mute); overflow-wrap: break-word; }
 .bv-ident__stat.is-gain .bv-ident__num { color: var(--bv-gain); }
 .bv-ident__stat.is-loss .bv-ident__num { color: var(--bv-loss); }
 .bv-ident__stat .arrow { font-size: 11px; margin-right: 3px; vertical-align: 2px; }

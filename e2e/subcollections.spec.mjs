@@ -40,9 +40,9 @@ test('named lists save, deduplicate, link missing records, export, retain failed
   await page.locator('[data-records="cost"]').click();
   await expect(page.locator('.collection-insights a').first()).toHaveAttribute('href', '#/set/456-1/edit');
   await page.keyboard.press('Escape');
-  // "New list" is the Lists tab's FAB.
-  await expect(page.locator('#bvFab')).toHaveAccessibleName('New list');
-  await page.locator('#bvFab').click();
+  // With no lists yet, "New list" sits in the empty state (the FAB steps aside).
+  await expect(page.locator('#bvFab')).toBeHidden();
+  await page.locator('#collectionNewEmpty').click();
   await page.locator('#collectionName').fill('Space <display>');
   await page.locator('#collectionOwnedSet').selectOption('123-1');
   await expect(page.locator('#collectionTargets')).toHaveValue('123-1');
@@ -87,7 +87,7 @@ test('guest lists persist without network writes and storage failures preserve t
   let requests = 0;
   await page.route('**/api/subcollections**', route => { requests++; return route.abort(); });
   await page.goto('/#/collections');
-  await page.locator('#bvFab').click();
+  await page.locator('#collectionNewEmpty').click();
   await page.locator('#collectionName').fill('My shelf');
   await page.locator('#collectionAddOwned').click();
   await page.getByRole('button', { name: 'Save', exact: true }).click();

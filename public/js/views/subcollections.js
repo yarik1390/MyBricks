@@ -55,12 +55,14 @@ export async function renderSubcollections() {
   const message = error => t(error?.status === 409 ? 'collections.conflict' : 'collections.failed');
   const pins = () => readCollectorPreferences(getSessionUserId()).pins;
 
-  setPageFab({ label: t('bvVault.newList'), icon: 'plus', onClick: () => {
+  const newList = () => {
     haptic('light');
     if (lists === null) { toast(t('collections.failed'), 'error'); return; }
     if (lists.length >= 50) { toast(t('collections.invalid'), 'error'); return; }
     if (!busy()) edit(null);
-  } });
+  };
+  const listFab = { label: t('bvVault.newList'), icon: 'plus', onClick: newList };
+  setPageFab(listFab);
 
   const recordsCard = () => card(`
     <span class="vault-hero__head"><span class="vault-hero__label">${esc(t('bvVault.recordsTitle'))}</span><span class="bv-label">${esc(tPlural('bvVault.footSets', insights.distinct))}</span></span>
@@ -115,9 +117,12 @@ export async function renderSubcollections() {
         ? `<div class="bv-empty" role="alert"><p>${esc(t('collections.failed'))}</p>${btn(t('collections.retry'), { kind: 'tonal', id: 'collectionRetry' })}</div>`
         : shown.length ? shown.map(listHTML).join('')
         : lists.length ? `<p class="bv-foot">${esc(t('collector.noResults'))}</p>`
-        : emptyState({ icon: 'list', title: t('bvVault.listsEmptyTitle'), body: t('collections.empty') })}</div>
+        : emptyState({ icon: 'list', title: t('bvVault.listsEmptyTitle'), body: t('collections.empty'), actionsHtml: btn(t('bvVault.newList'), { icon: 'plus', id: 'collectionNewEmpty' }) })}</div>
       <p class="bv-foot vault-lists__storage">${esc(t(isGuestMode() ? 'collections.guestStorage' : 'collections.accountStorage'))}</p>
     </main>`;
+    // No lists yet: the empty state carries "New list" itself, so the floating
+    // button (which covered the empty-state heading on short phones) steps aside.
+    setPageFab(Array.isArray(lists) && !lists.length ? null : listFab);
     wire();
   }
 
@@ -129,6 +134,7 @@ export async function renderSubcollections() {
     $$('[data-open-list]').forEach(button => button.addEventListener('click', () => { haptic('light'); openList(lists.find(list => list.id === button.dataset.openList)); }));
     $$('[data-records]').forEach(row => row.addEventListener('click', () => openRecords(row.dataset.records)));
     $('#collectionRetry')?.addEventListener('click', () => renderSubcollections());
+    $('#collectionNewEmpty')?.addEventListener('click', newList);
     $('#vaultSearchBtn')?.addEventListener('click', () => {
       haptic('light');
       searchOpen = !searchOpen;

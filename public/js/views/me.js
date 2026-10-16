@@ -55,7 +55,7 @@ function identityHTML(me, guest) {
     : [me.handle ? `@${me.handle}` : null, t(me.is_public ? 'bvAccount.publicVault' : 'bvAccount.privateVault'), me.is_supporter ? t('bvAccount.pro') : null].filter(Boolean).join(' · ');
   // No prices paid yet → no honest gain to show.
   const pctText = paid > 0 ? `${up ? '+' : '−'}${Math.abs(pct).toFixed(1)}%` : '—';
-  const moneyText = paid > 0 ? `${up ? '+' : '-'}${statMoney(Math.abs(gain))}` : t('bvAccount.noPaid');
+  const moneyText = paid > 0 ? `${up ? '+' : '−'}${statMoney(Math.abs(gain))}` : t('bvAccount.noPaid');
   return `<section class="bv-ident profile-identity-card" aria-label="${escapeHtml(t('bvAccount.overviewLabel'))}">
       <div class="bv-ident__head">
         <span class="bv-ident__avatar" aria-hidden="true">${escapeHtml(initial)}</span>
