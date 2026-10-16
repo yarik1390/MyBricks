@@ -639,7 +639,7 @@ export async function sharePortfolio() {
   const handle = state.me?.handle;
   if (!handle) return;
   haptic("light");
-  const shareUrl = `${publicOrigin()}/#/u/${encodeURIComponent(handle)}`;
+  const shareUrl = `${publicOrigin()}/u/${encodeURIComponent(handle)}`;
   const outcome = await shareContent({
     title: t('share.portfolioTitle'),
     text: t('share.portfolioText'),

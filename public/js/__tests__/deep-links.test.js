@@ -10,6 +10,13 @@ describe('deep links', () => {
     assert.equal(deepLinkHash('https://bricksvault.app/#/set/75192-1/sell'), '#/set/75192-1/sell');
   });
 
+  it('opens shared profile and set links', () => {
+    assert.equal(deepLinkHash('https://bricksvault.app/u/phantom'), '#/u/phantom');
+    assert.equal(deepLinkHash('https://bricksvault.app/s/10182-1'), '#/set/10182-1');
+    assert.equal(deepLinkHash('https://bricksvault.app/s/10182/'), '#/set/10182-1');
+    assert.equal(deepLinkHash('https://bricksvault.app/u/bad%20name'), '');
+  });
+
   it('accepts path aliases and the root', () => {
     assert.equal(deepLinkHash('https://bricksvault.app/scan'), '#/pile?scan=barcode');
     assert.equal(deepLinkHash('https://bricksvault.app/shelf/'), '#/pile?scan=shelf');

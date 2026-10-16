@@ -32,6 +32,9 @@ export const SORTS: Record<string, string> = {
   // reaching this sort has real momentum; the old CASE/-1 fallback for
   // snapshot-less sets is gone with the LEFT join that produced them.
   trending:   '((s.current_value - svh30.current_value) / svh30.current_value) DESC',
+  // Biggest upside: 2-year forecast over today's shown value. Formula-valued
+  // sets and rows with no forecast or value sink below real ones.
+  upside_desc: "(CASE WHEN valuation_method IN ('formula_bulk', 'local') OR COALESCE(forecast_2y, 0) <= 0 OR COALESCE(NULLIF(blended_value, 0), current_value, 0) <= 0 THEN 1 ELSE 0 END), (forecast_2y / COALESCE(NULLIF(blended_value, 0), current_value)) DESC",
 };
 
 // Non-building merchandise (bag tags, bags, apparel, stationery, books) is

@@ -36,6 +36,13 @@ export function deepLinkHash(url) {
   const path = parsed.protocol === 'https:' ? parsed.pathname : `/${parsed.host}${parsed.pathname}`;
   const key = path.replace(/\/+$/, '').toLowerCase() || '/';
   if (key === '/') return '#/';
+  // Shared profile / set links (bricksvault.app/u/handle, /s/10182-1).
+  const share = path.replace(/\/+$/, '').match(/^\/(u|s)\/([A-Za-z0-9_.-]{1,40})$/);
+  if (share) {
+    if (share[1] === 'u') return `#/u/${encodeURIComponent(share[2])}`;
+    const num = /-\d+$/.test(share[2]) ? share[2] : `${share[2]}-1`;
+    return `#/set/${encodeURIComponent(num)}`;
+  }
   return PATH_ALIASES[key] || PATH_ALIASES[key.replace(/^\/open/, '')] || '';
 }
 
