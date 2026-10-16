@@ -7,7 +7,6 @@ const methodology = read('public/methodology.html');
 const appStyles = read('public/app.css');
 const methodologyComponent = read('public/js/components/methodology.js');
 const serviceWorker = read('public/sw.js');
-const infoStyles = read('public/info-page.css');
 
 describe('How we price UI upgrade', () => {
   it('preserves the methodology promises and evidence rules', () => {
@@ -16,30 +15,39 @@ describe('How we price UI upgrade', () => {
     assert.match(methodology, /No invented numbers: a set without enough verified evidence/);
   });
 
-  it('drops index numbers, hard shadows and boxed grids (taste-skill house rules)', () => {
-    assert.doesNotMatch(methodology, /::before \{ content:'0\d'/);
-    assert.doesNotMatch(methodology, /box-shadow/);
-    assert.match(methodology, /<link rel="stylesheet" href="\/info-page\.css">/);
-    assert.match(methodology, /<p class="lead">The rules behind every number in the app/);
+  it('adds scannable numbered hierarchy and evidence cards without changing semantics', () => {
+    assert.match(methodology, /main > h2::before/);
+    assert.match(methodology, /main > h2:nth-of-type\(1\)::before \{ content:'01'; \}/);
+    assert.match(methodology, /main > h2:first-of-type \+ ol \{[\s\S]*grid-template-columns:repeat\(5/);
+    assert.match(methodology, /main > h2:nth-of-type\(9\) \+ ul \{[\s\S]*grid-template-columns:repeat\(3/);
+  });
+
+  it('defines every standalone visual token used by the redesign', () => {
+    const rootTokens = methodology.match(/:root \{([^}]*)\}/)?.[1] ?? '';
+    for (const token of ['--surface', '--shadow', '--accent-soft']) {
+      assert.match(rootTokens, new RegExp(`${token}:`), `${token} must be defined in methodology.html`);
+    }
   });
 
   it('keeps the confidence table semantic and overflow-safe', () => {
-    assert.match(infoStyles, /@media \(max-width: 600px\)[\s\S]*table \{ display: block; overflow-x: auto; \}/);
+    assert.match(methodology, /main > h2:nth-of-type\(6\) \+ table \{[\s\S]*overflow-x:auto/);
     assert.match(methodology, /<th>Badge<\/th>/);
     assert.match(methodology, /class="tier high">Reliable price<\/span>/);
     assert.match(methodology, /class="tier med">Good estimate<\/span>/);
     assert.match(methodology, /class="tier low">Low confidence \/ Estimated<\/span>/);
   });
 
-  it('uses readable touch targets and visible focus', () => {
-    assert.match(infoStyles, /\.back \{[^}]*min-height: 44px/);
-    assert.match(infoStyles, /a:focus-visible \{ outline: 3px solid/);
-    assert.match(infoStyles, /body \{[^}]*font-size: 17px/);
+  it('uses readable touch targets and a single-column mobile fallback', () => {
+    assert.match(methodology, /\.back \{[\s\S]*min-height:44px/);
+    assert.match(methodology, /a:focus-visible \{ outline:3px solid var\(--accent\)/);
+    assert.match(methodology, /@media \(max-width:600px\)[\s\S]*main > h2:first-of-type \+ ol,[\s\S]*grid-template-columns:1fr/);
   });
 
-  it('keeps the in-app sheet plain and its tables scrollable', () => {
-    assert.doesNotMatch(appStyles, /\.methodology-sheet h2::before/);
-    assert.match(appStyles, /\.methodology-sheet table \{[^}]*overflow-x: auto/);
+  it('upgrades the in-app sheet with the same hierarchy and safe confidence scrolling', () => {
+    assert.match(appStyles, /\.methodology-sheet h2::before/);
+    assert.match(appStyles, /\.methodology-sheet h2:first-of-type \+ ol\s*\{[\s\S]*grid-template-columns: ?repeat\(5/);
+    assert.match(appStyles, /\.methodology-sheet h2:nth-of-type\(6\) \+ table\s*\{[\s\S]*overflow-x: ?auto/);
+    assert.match(appStyles, /@media \(max-width: 430px\)[\s\S]*\.methodology-sheet h2:first-of-type \+ ol,[\s\S]*\.methodology-sheet h2:last-of-type \+ ul[\s\S]*grid-template-columns: 1fr/);
   });
 
   it('preserves loading, close, fallback, and route-safe sheet behavior', () => {
