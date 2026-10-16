@@ -106,6 +106,8 @@
   .bv-page.vault-page, .bv-page.bv-discover, .bv-page.vault-figs, .bv-page.bv-wishlist,
   .bv-page.vault-build, .bv-page.bv-profile, .bv-page.vault-insights { max-width: 1200px; }
   .bv-topbar h1 { font-size: 30px; line-height: 38px; }
+  /* Plenty of width: show every theme chip instead of a rail cut off mid-word. */
+  .bv-discover__themes { flex-wrap: wrap; overflow: visible; }
 
   /* Hover states for everything clickable that is a row or a card. */
   .bv-row:hover, .bv-setrow:hover, a.bv-card:hover, .bv-tile:hover, .bv-shortcut:hover {
@@ -169,6 +171,10 @@
   .insights-board > .insights-cell > :is(.bv-card, .bv-h2, .bv-h2--row, .insights-stats, .insights-movers, a) { margin-left: 0; margin-right: 0; }
   .insights-board > .insights-cell:empty { display: none; }
   .insights-board > .insights-cell--chart { grid-column: span 2; }
+  /* No history yet: the empty-chart card fills its cell instead of leaving a
+     blank gap beside the tall stats column. */
+  .insights-board > .insights-cell--chart:has(.insights-chart__empty) { align-self: stretch; display: flex; }
+  .insights-board > .insights-cell--chart > .insights-chart:has(.insights-chart__empty) { flex: 1; margin: 0; display: flex; align-items: center; justify-content: center; text-align: center; }
   .insights-board .insights-chart__plot, .insights-board .insights-svg { height: 240px; }
   .insights-board > .insights-cell--stats .insights-stats { grid-template-columns: minmax(0, 1fr); margin-top: 0; }
   .insights-board > .insights-cell--stats .insights-stat { padding: 16px 18px; }

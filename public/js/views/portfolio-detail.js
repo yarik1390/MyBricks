@@ -819,6 +819,7 @@ function wireQtyStepper(set, entry) {
       entry.quantity = qty;
       state.detail.cache[set.set_num] = { set, entry, ts: Date.now() };
       mount($("#setBar"), setBarHTML(set, entry, state.detail.tab));
+      fitSetBar();
       invalidatePortfolio();
       maybeCelebrateMilestone(setHue(set));
     } catch (_e) { toast("Save failed", "error"); }
@@ -1106,7 +1107,9 @@ function infoTabHTML(set, entry) {
     const riskScore = set.retirement_risk_score;
     const riskWord = riskScore >= 70 ? 'Likely soon' : riskScore >= 40 ? 'Possible' : 'Unlikely';
     const riskColor = riskScore >= 70 ? 'var(--down)' : riskScore >= 40 ? 'var(--bv-yellow)' : 'var(--ink)';
-    const riskBadge = (riskScore != null && !set.retired && !set.coming_soon)
+    // An announced exit date (or LEGO's own "retiring soon") beats our estimate,
+    // so don't show a second "Retiring" row under it.
+    const riskBadge = (riskScore != null && !set.retired && !set.coming_soon && !exitStr && legoAvail !== 'retiring')
       ? `<div class="detail-kv"><span class="k" title="Estimated chance this set retires soon (${Math.round(riskScore)}%)">Retiring</span> <span class="v" style="color:${riskColor};">${riskWord}</span></div>`
       : '';
 
@@ -1375,7 +1378,22 @@ function wireDetailActions(set, entry) {
   });
 }
 
+// Long labels (German "Verkaufen" / "Bearbeiten") on a narrow phone squeezed
+// "Your copy · paid …" down to a letter or two. When the copy summary gets too
+// narrow, Sell and Edit drop to icon buttons (their labels stay for screen readers).
+function fitSetBar() {
+  const bar = document.querySelector("#setBar .bv-setbar");
+  const copy = bar?.querySelector(".bv-setbar__copy");
+  if (!copy) return;
+  bar.classList.remove("bv-setbar--compact");
+  const w = copy.getBoundingClientRect().width;
+  if (w > 0 && w < 120) bar.classList.add("bv-setbar--compact");
+}
+let _fitSetBarWired = false;
+
 function wireBarActions(set) {
+  fitSetBar();
+  if (!_fitSetBarWired) { _fitSetBarWired = true; window.addEventListener("resize", fitSetBar, { passive: true }); }
   $("#addBtn")?.addEventListener("click", async (e) => {
     if (state.pendingRequests.has(set.set_num)) return;
     state.pendingRequests.add(set.set_num);
@@ -2522,7 +2540,7 @@ async function loadSetImages(setNum) {
     const imgs = await setImagesFor(setNum);
     if (!el.isConnected) return;
     if (!imgs.length) { dropCard(); return; }
-    el.innerHTML = imgs.map((u, i) => `<button type="button" data-lb-idx="${i}" aria-label="Open photo ${i + 1}" style="flex:0 0 auto;display:block;padding:0;border:none;background:none;cursor:pointer;"><img src="${escapeHtml(u)}" loading="lazy" alt="Set photo" style="height:120px;width:auto;border-radius:var(--r-1);border:1px solid var(--line-soft);object-fit:cover;display:block;"></button>`).join("");
+    el.innerHTML = imgs.map((u, i) => `<button type="button" data-lb-idx="${i}" aria-label="Open photo ${i + 1}" style="flex:0 0 auto;display:block;padding:0;border:none;background:none;cursor:pointer;"><img src="${escapeHtml(u)}" loading="lazy" alt="Set photo" style="height:120px;width:auto;aspect-ratio:auto 4/3;border-radius:var(--r-1);border:1px solid var(--line-soft);object-fit:cover;display:block;"></button>`).join("");
     // Tapping a thumbnail opens the in-app viewer (swipe between photos, back
     // button closes) instead of bouncing the user out to the browser.
     el.addEventListener("click", async (e) => {

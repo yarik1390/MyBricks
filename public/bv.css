@@ -1101,6 +1101,9 @@ body.collector-ui .bv-setbar > .bv-btn:first-child:nth-last-child(2) { flex: 1 1
 .bv-setbar__gain { display: flex; align-items: center; gap: 6px; }
 .bv-setbar__gain > .bv-num { font-size: 16px; line-height: 22px; }
 .bv-setbar__hint { font: 600 14px/20px var(--bv-sans); color: var(--bv-acct); }
+/* Cramped bar (long Sell/Edit labels on a narrow phone, see fitSetBar): icon-only buttons. */
+body.collector-ui .bv-setbar--compact > .bv-btn--outline { width: 48px; min-width: 48px; padding: 0; justify-content: center; }
+.bv-setbar--compact > .bv-btn--outline > span { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 @media (min-width: 600px) {
   body.collector-ui .bv-setbar.detail-action-bar { left: 0; }
   .bv-setbar { max-width: none; }
@@ -1497,7 +1500,7 @@ html.bv-scan-native-live .bv-scan__video { display: none; }
 /* One swipeable row of themes (it wrapped to three rows before), bleeding to
    the screen edges like the other chip rows. */
 .bv-discover__themes { margin: 4px calc(-1 * var(--bv-gutter)) 0; }
-.bv-discover__toolbar, body.collector-ui .bv-discover .catalog-primary-toolbar { display: flex; align-items: center; gap: 4px; margin: 12px 8px 0 0; width: auto; }
+.bv-discover__toolbar, body.collector-ui .bv-discover .catalog-primary-toolbar { display: flex; align-items: center; gap: 4px; margin: 12px var(--bv-gutter) 0 0; width: auto; }
 body.collector-ui .bv-discover #catalogSortBtn { grid-column: auto; grid-row: auto; }
 .bv-field__box :is(input, select, textarea):focus-visible { outline: none; }
 :root[data-skin="vivid"] .bv-tile__media, :root[data-skin="vivid"] .bv-tile__media.photo-loaded { background: #f4f4f2; }
@@ -2212,7 +2215,7 @@ body.bv-nav-off .advisor-fab { bottom: calc(var(--safe-bottom, 0px) + 20px); }
 .bv-login__note { margin: 4px 8px 0; font-size: 12px; line-height: 18px; color: var(--bv-mute); text-align: center; }
 /* Inline links in running text (WCAG 2.5.8 inline exception): the global 44px
    button floor pushed the second line of the fine print a full line down. */
-.bv-login__legal { border: 0; background: transparent; padding: 0; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; min-height: 0; min-width: 0; vertical-align: baseline; }
+.bv-login__note .bv-login__legal { border: 0; background: transparent; padding: 0; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; min-height: 0; min-width: 0; vertical-align: baseline; }
 .bv-login__done { display: flex; flex-direction: column; gap: 10px; text-align: center; }
 .bv-login__donetitle { font: 600 16px/22px var(--bv-sans); color: var(--bv-gain); }
 .bv-login__donebody { font-size: 14px; line-height: 20px; color: var(--bv-mute); }
