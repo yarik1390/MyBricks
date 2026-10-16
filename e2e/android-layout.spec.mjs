@@ -63,7 +63,8 @@ for (const language of ['en', 'uk']) for (const theme of ['light', 'dark']) {
         await page.screenshot({ path: `${output}/vault-links-${language}-${theme}-after.png`, animations: 'disabled' });
       }
       if (name === 'collections') {
-        await page.locator('#bvFab').click();
+        // With no lists yet, New list sits in the empty state instead of the FAB.
+        await page.locator('#collectionNewEmpty').click();
         await expect(page.locator('#collectionEditor input').first()).toBeVisible();
       }
       if (name === 'profile') {
