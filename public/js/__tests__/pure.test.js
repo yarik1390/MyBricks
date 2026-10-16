@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   escapeHtml, fmtPct, clamp, themeHue, bricklinkBuyURL,
   computeDealScore, valuationTrust, valuationConfidencePresentation, catalogFilterSummary, classifyJobRun,
-  annualizedROI, parseMarkdown, jwtSub, ebaySoldSummary, marketValueForCondition,
+  annualizedROI, parseMarkdown, jwtSub, ebaySoldSummary, marketValueForCondition, openedCopyValue,
   jobProgressSummary, computeSpreadSignals, buyWindow, pricePerPiece, isStalledJobRun,
   parseCSVTable, parseCollectionCSV, sanitizeMoneyInput, activeCatalogFilterCount, activeFigFilterCount, figFilterSummary,
   liquidityLabel, classifyProviderHealth, validateSourceTuningInput, groupAdminJobRuns,
@@ -2315,5 +2315,16 @@ describe('canonical set market metadata', () => {
     assert.equal(merged.quantity, 3);
     assert.equal(merged.price_paid, 99);
     assert.equal(merged.blended_value, 180);
+  });
+});
+
+describe('openedCopyValue', () => {
+  it('caps the sealed value at the BrickLink new-sale average when it has sales', () => {
+    assert.equal(openedCopyValue({ bl_new_value: 2122, bl_new_qty: 7 }, 3133), 2122);
+  });
+  it('keeps the sealed value with no BrickLink new sales or a higher BrickLink average', () => {
+    assert.equal(openedCopyValue({ bl_new_value: 2122, bl_new_qty: 0 }, 3133), 3133);
+    assert.equal(openedCopyValue({}, 3133), 3133);
+    assert.equal(openedCopyValue({ bl_new_value: 4000, bl_new_qty: 3 }, 3133), 3133);
   });
 });

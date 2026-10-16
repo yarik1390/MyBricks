@@ -2,7 +2,7 @@ import { Hono, type Context } from 'hono';
 import { requireMember } from '../auth';
 import { formulaValuation } from '../lib/valuation';
 import { fetchTracked } from '../lib/http';
-import { enrichSetRecord, holdingValueForRollout, type HoldingValuationRow } from '../lib/market-sources';
+import { enrichSetRecord, holdingValueForRollout, openedHoldingValue, type HoldingValuationRow } from '../lib/market-sources';
 import { logEvent } from '../lib/analytics';
 import type { Env, Variables } from '../types';
 import { runSyncProcess } from './google-sync';
@@ -146,7 +146,7 @@ app.get('/', async (c) => {
     const v3Enabled = valuation?.read_enabled === true;
     const base = (v3Enabled ? Number(valuation?.new?.fair_value) : 0)
       || Number(r.market_value) || Number(r.blended_value) || Number(r.current_value) || 0;
-    if (!String(r.condition || '').startsWith('used')) return base;
+    if (!String(r.condition || '').startsWith('used')) return openedHoldingValue(r, base);
     const used = (v3Enabled ? Number(valuation?.used?.fair_value) : 0) || Number(r.ebay_used_value) || Number(r.used_value)
       || 0;
     return used || base;
@@ -361,7 +361,7 @@ app.get('/export', async (c) => {
       s.brickset_dimensions, s.packaging_type,
       s.retail_price, s.current_value, s.blended_value, s.used_value, s.ebay_used_value,
       s.pc_new_value, s.pc_complete_value,
-      svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair
+      svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair, s.bl_new_value, s.bl_new_qty
     FROM user_collection uc
     JOIN lego_sets s ON s.set_num = uc.set_num
     LEFT JOIN set_valuation_state svn ON svn.set_num = s.set_num AND svn.condition = 'new_sealed'

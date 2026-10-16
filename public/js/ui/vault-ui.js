@@ -8,7 +8,7 @@
 import { escapeHtml, thumbImg, fmtMoney, getExchangeRate } from '../utils.js';
 import { state } from '../state.js';
 import { t } from '../lib/i18n.js';
-import { estMark, marketValueForCondition, displayValueOf } from '../lib/pure.js';
+import { estMark, marketValueForCondition, displayValueOf, openedCopyValue } from '../lib/pure.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { icon, iconBtn, topbar, searchBar, attrs, pill, figSvg, sheetBody, seg, delta, row as kitRow } from './kit.js';
 import { setThumb, setMeta, figTint } from './set-ui.js';
@@ -17,7 +17,7 @@ const esc = (value) => escapeHtml(value == null ? '' : String(value));
 
 /**
  * Per-copy value of a holding. Used holdings are worth their used-market
- * price; new/sealed keep the blended fair value via the shared displayValueOf
+ * price; opened copies are capped at BrickLink's new-sale average; sealed keep the blended fair value via the shared displayValueOf
  * chain (market_value → blended_value → current_value) so the vault, room,
  * catalog and set page show ONE number.
  */
@@ -27,6 +27,7 @@ export function holdingValue(x) {
     if (x?.valuation?.read_enabled && Number(x.valuation?.used?.fair_value)) return Number(x.valuation.used.fair_value);
     return Number(marketValueForCondition(x, x.condition)) || displayValueOf(x);
   }
+  if (x?.condition === 'new') return openedCopyValue(x, displayValueOf(x));
   return displayValueOf(x);
 }
 

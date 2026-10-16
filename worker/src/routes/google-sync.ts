@@ -302,7 +302,7 @@ export async function runSyncProcess(userId: string, refreshToken: string, exist
         SELECT uc.set_num, ls.name, ls.year, ls.theme, ls.pieces, ls.minifigs,
                uc.condition, uc.purchase_price, ls.current_value, uc.quantity, uc.added_at,
                ls.blended_value, ls.used_value, ls.ebay_used_value, ls.pc_new_value, ls.pc_complete_value,
-               svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair
+               svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair, ls.bl_new_value, ls.bl_new_qty
         FROM user_collection uc
         JOIN lego_sets ls ON ls.set_num = uc.set_num
         LEFT JOIN set_valuation_state svn ON svn.set_num = ls.set_num AND svn.condition = 'new_sealed'

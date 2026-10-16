@@ -311,6 +311,19 @@ export function ebaySoldSummary(set = {}) {
   };
 }
 
+/**
+ * Value of an OPENED copy (condition "new": box open, not built). BrickLink's
+ * new-sale average includes opened boxes, so when it has sales it caps the
+ * sealed value; with no BrickLink new sales the sealed value stands. Mirrors
+ * openedHoldingValue() in worker/src/lib/market-sources.ts.
+ */
+export function openedCopyValue(set = {}, sealedValue = 0) {
+  const sealed = Number(sealedValue) || 0;
+  const bl = positiveNumber(set.bl_new_value);
+  if (!bl || !(Number(set.bl_new_qty) > 0)) return sealed;
+  return sealed > 0 ? Math.min(sealed, bl) : bl;
+}
+
 export function marketValueForCondition(set = {}, condition = "new") {
   const summary = ebaySoldSummary(set);
   const isUsed = String(condition || "").startsWith("used");
