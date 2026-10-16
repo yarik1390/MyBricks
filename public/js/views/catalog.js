@@ -391,6 +391,7 @@ function refreshCatalogGrid() {
   const results = $("#catalogResults");
   if (!results) return;
   mount(results, catalogResultsHTML());
+  refreshFilterPanel();
   refreshCatalogSummary();
   wireCatalogCards();
   mountCatalogSentinel();
@@ -499,7 +500,10 @@ function paintAdd() {
       ${kitSearchBar({ id: "catalogSearch", name: "catalog_search", placeholder: t("bvAdd.searchPlaceholder"), label: t("bvAdd.searchLabel"), value: f.catalogQ, trailHtml: kitIconBtn({ icon: "scan", label: t("bvAdd.scanToSearch"), id: "catalogScanBtn" }) })}
       ${discoverNavigation()}
       <p class="bv-sr" id="catalogFilterSummary" aria-live="polite">${escapeHtml(catalogFilterSummaryText(f, t, tPlural))}</p>
-      <div id="catalogResults" class="bv-discover__results">${catalogResultsHTML()}</div>
+      <div class="bv-discover__body">
+        <div id="catalogResults" class="bv-discover__results">${catalogResultsHTML()}</div>
+        <aside class="bv-discover__panel" id="catalogFilterPanel" aria-labelledby="filterPanelTitle">${filterPanelHTML()}</aside>
+      </div>
     </main>`;
 
   const catInput = $("#catalogSearch");
@@ -524,6 +528,7 @@ function paintAdd() {
   $("#discoverMoreBtn")?.addEventListener("click", openDiscoverMore);
 
   wireCatalogCards();
+  wireFilterPanel();
   mountCatalogSentinel();
   if (!state.catalog.retiringPreviewLoaded) {
     loadRetiringPreview().then(() => { if (location.hash.startsWith("#/add") && $("#catalogResults") && isCatalogDefault()) refreshCatalogGrid(); });
@@ -683,21 +688,20 @@ function clearCatalogFilters() {
   loadCatalog({ reset: true }).then(() => paintAdd());
 }
 
-// Filters sheet (canvas: Filters): status, theme, value, deal signal, then the
-// finer facets. "Show N sets" previews the result count before applying.
-// `initial` reopens the sheet with an unapplied draft (after "More themes").
-function showFilterSheet(onApply, initial = null) {
-  const r = state.filter.catalogRanges;
-  const f = initial || state.filter;
-  const shownRanges = initial ? initial.catalogRanges : r;
+// Filters form (canvas: Filters): status, theme, value, deal signal, then the
+// finer facets. One builder serves the phone sheet (ids "f_…") and the desktop
+// panel beside the results (ids "fp_…"), so both stay in step.
+const RANGE_PAIRS = [["min_year", "max_year"], ["min_pieces", "max_pieces"], ["min_value", "max_value"]];
+
+function filterFormHTML(f, shownRanges, p = "f_") {
   const rangeField = (label, minKey, maxKey, ph1, ph2, money = false) => {
     const accessibleLabel = t({ min_year: 'catalog.releaseYear', min_pieces: 'catalog.pieces', min_value: 'catalog.currentValue' }[minKey]);
-    const box = (key, ph, which) => `<div class="bv-field"><label for="f_${key}">${escapeHtml(t(which === "min" ? "bvAdd.min" : "bvAdd.max"))}</label>
-      <div class="bv-field__box">${money ? `<span class="bv-field__prefix">$</span>` : ""}<input class="bv-mono-input" type="number" inputmode="numeric" id="f_${key}" value="${escapeHtml(String(shownRanges[key] ?? ""))}" placeholder="${escapeHtml(ph)}" aria-label="${escapeHtml(accessibleLabel)} — ${escapeHtml(t(which === "min" ? 'catalog.minimum' : 'catalog.maximum'))}" aria-describedby="f_${minKey}_error"></div></div>`;
+    const box = (key, ph, which) => `<div class="bv-field"><label for="${p}${key}">${escapeHtml(t(which === "min" ? "bvAdd.min" : "bvAdd.max"))}</label>
+      <div class="bv-field__box">${money ? `<span class="bv-field__prefix">$</span>` : ""}<input class="bv-mono-input" type="number" inputmode="numeric" id="${p}${key}" data-range="${key}" value="${escapeHtml(String(shownRanges[key] ?? ""))}" placeholder="${escapeHtml(ph)}" aria-label="${escapeHtml(accessibleLabel)} — ${escapeHtml(t(which === "min" ? 'catalog.minimum' : 'catalog.maximum'))}" aria-describedby="${p}${minKey}_error"></div></div>`;
     return `<section class="bv-filter__section">
         <h3>${escapeHtml(label)}</h3>
         <div class="bv-form-grid">${box(minKey, ph1, "min")}${box(maxKey, ph2, "max")}</div>
-        <p id="f_${minKey}_error" class="bv-field__error field-error" role="alert" hidden></p>
+        <p id="${p}${minKey}_error" class="bv-field__error field-error" role="alert" hidden></p>
       </section>`;
   };
   const chipGroup = (key, opts, cur, { allowNone = true } = {}) => `<div class="bv-chips bv-chips--wrap sheet-facet" data-facet="${key}" data-allow-none="${allowNone}">
@@ -707,10 +711,7 @@ function showFilterSheet(onApply, initial = null) {
       <h3>${escapeHtml(label)}</h3>${chipGroup(key, opts.map((o) => [o, o]), cur || "all")}</section>`;
   const themes = popularThemes(state.themes, 4);
   if (f.catalogTheme && f.catalogTheme !== "all" && !themes.includes(f.catalogTheme)) themes.unshift(f.catalogTheme);
-  showSheet(kitSheetBody({
-    title: t("bvAdd.filters"),
-    id: "filterSheet",
-    inner: `<div class="bv-filter advanced-filter-sheet">
+  return `<div class="bv-filter advanced-filter-sheet">
       <section class="bv-filter__section">
         <h3>${escapeHtml(t("bvAdd.status"))}</h3>
         ${chipGroup("retired", [["active", t("bvAdd.available")], ["retiring", t("bvAdd.retiringSoon")], ["retired", t("bvCommon.retired")]], f.catalogRetired || "all")}
@@ -718,7 +719,7 @@ function showFilterSheet(onApply, initial = null) {
       <section class="bv-filter__section">
         <h3>${escapeHtml(t("bvAdd.theme"))}</h3>
         ${chipGroup("theme", themes.map((th) => [th, th]), f.catalogTheme || "all")}
-        ${state.themes.length > 4 ? `<button type="button" class="bv-chip" id="filterMoreThemes">${escapeHtml(t("bvAdd.moreThemes"))}${kitIcon("down", { size: 16 })}</button>` : ""}
+        ${state.themes.length > 4 ? `<button type="button" class="bv-chip"${p === "f_" ? ' id="filterMoreThemes"' : ""} data-more-themes>${escapeHtml(t("bvAdd.moreThemes"))}${kitIcon("down", { size: 16 })}</button>` : ""}
       </section>
       ${rangeField(t("bvAdd.value"), "min_value", "max_value", "0", t("bvAdd.any"), true)}
       <section class="bv-filter__section">
@@ -729,42 +730,87 @@ function showFilterSheet(onApply, initial = null) {
       ${rangeField(t("catalog.pieces"), "min_pieces", "max_pieces", "0", t("bvAdd.any"))}
       ${facetGroup(t("bvAdd.themeGroup"), "theme_group", state.themeGroups, f.catalogThemeGroup)}
       ${facetGroup(t("bvAdd.category"), "category", state.categories, f.catalogCategory)}
-    </div>
-    <div class="bv-btn-row bv-filter__actions sheet-sticky-actions">
-      <button type="button" class="bv-btn bv-btn--outline" id="filterClear">${escapeHtml(t("bvAdd.clear"))}</button>
-      <button type="button" class="bv-btn bv-btn--primary" id="filterApply">${escapeHtml(t("bvAdd.showResults"))}</button>
-    </div>`,
-  }));
+    </div>`;
+}
 
-  $$("#filterSheet .sheet-facet").forEach((group) => group.addEventListener("click", (e) => {
+// The form's current (unapplied) choices, on top of the live filter state.
+function readFilterDraft(root) {
+  const draft = { ...state.filter, catalogRanges: { ...state.filter.catalogRanges } };
+  root.querySelectorAll("[data-range]").forEach((el) => { draft.catalogRanges[el.dataset.range] = el.value !== "" ? parseFloat(el.value) : ""; });
+  const facet = (key) => root.querySelector(`.sheet-facet[data-facet="${key}"] [aria-pressed="true"]`)?.dataset.fval || "all";
+  draft.catalogThemeGroup = facet("theme_group");
+  draft.catalogCategory = facet("category");
+  draft.catalogRetired = facet("retired");
+  draft.catalogTheme = facet("theme");
+  draft.catalogDeal = facet("deal") === "on";
+  return draft;
+}
+
+// Marks min > max pairs; returns the first bad input (or null).
+function validateFilterRanges(root, p) {
+  let firstInvalid = null;
+  for (const [minKey, maxKey] of RANGE_PAIRS) {
+    const min = root.querySelector(`#${p}${minKey}`);
+    const max = root.querySelector(`#${p}${maxKey}`);
+    const error = root.querySelector(`#${p}${minKey}_error`);
+    if (!min || !max || !error) continue;
+    const invalid = min.value !== '' && max.value !== '' && Number(min.value) > Number(max.value);
+    min.setAttribute('aria-invalid', String(invalid));
+    max.setAttribute('aria-invalid', String(invalid));
+    error.textContent = invalid ? t('catalog.rangeOrderError') : '';
+    error.hidden = !invalid;
+    if (invalid && !firstInvalid) firstInvalid = min;
+  }
+  return firstInvalid;
+}
+
+function applyFilterDraft(draft) {
+  Object.assign(state.filter.catalogRanges, draft.catalogRanges);
+  state.filter.catalogThemeGroup = draft.catalogThemeGroup;
+  state.filter.catalogCategory = draft.catalogCategory;
+  state.filter.catalogRetired = draft.catalogRetired;
+  state.filter.catalogTheme = draft.catalogTheme;
+  state.filter.catalogDeal = draft.catalogDeal;
+}
+
+function resetFilterState() {
+  Object.keys(state.filter.catalogRanges).forEach((k) => { state.filter.catalogRanges[k] = ""; });
+  state.filter.catalogThemeGroup = "all";
+  state.filter.catalogCategory = "all";
+  state.filter.catalogRetired = "all";
+  state.filter.catalogTheme = "all";
+  state.filter.catalogDeal = false;
+}
+
+function wireFacetChips(root, onChange) {
+  root.querySelectorAll(".sheet-facet").forEach((group) => group.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-fval]");
     if (!btn) return;
     const on = btn.getAttribute("aria-pressed") !== "true";
     group.querySelectorAll("[data-fval]").forEach((x) => x.setAttribute("aria-pressed", String(x === btn && on)));
     haptic("light");
-    previewCount();
+    onChange();
   }));
-  $("#filterMoreThemes")?.addEventListener("click", () => {
-    const draft = readDraft();
-    openThemePicker({
-      current: draft.catalogTheme,
-      onPick: (theme) => showFilterSheet(onApply, { ...draft, catalogTheme: theme }),
-    });
-  });
-  const readFacet = (key) => document.querySelector(`#filterSheet .sheet-facet[data-facet="${key}"] [aria-pressed="true"]`)?.dataset.fval || "all";
-  const readDraft = () => {
-    const draft = { ...state.filter, catalogRanges: { ...r } };
-    Object.keys(draft.catalogRanges).forEach((k) => {
-      const el = document.getElementById("f_" + k);
-      if (el) draft.catalogRanges[k] = el.value !== "" ? parseFloat(el.value) : "";
-    });
-    draft.catalogThemeGroup = readFacet("theme_group");
-    draft.catalogCategory = readFacet("category");
-    draft.catalogRetired = readFacet("retired");
-    draft.catalogTheme = readFacet("theme");
-    draft.catalogDeal = readFacet("deal") === "on";
-    return draft;
-  };
+}
+
+// Phone / narrow screens: the filters open as a sheet; "Show N sets" previews
+// the result count before applying. `initial` reopens the sheet with an
+// unapplied draft (after "More themes").
+function showFilterSheet(onApply, initial = null) {
+  const f = initial || state.filter;
+  const shownRanges = initial ? initial.catalogRanges : state.filter.catalogRanges;
+  showSheet(kitSheetBody({
+    title: t("bvAdd.filters"),
+    id: "filterSheet",
+    inner: `${filterFormHTML(f, shownRanges, "f_")}
+    <div class="bv-btn-row bv-filter__actions sheet-sticky-actions">
+      <button type="button" class="bv-btn bv-btn--outline" id="filterClear">${escapeHtml(t("bvAdd.clear"))}</button>
+      <button type="button" class="bv-btn bv-btn--primary" id="filterApply">${escapeHtml(t("bvAdd.showResults"))}</button>
+    </div>`,
+  }));
+  const root = $("#filterSheet");
+  if (!root) return;
+
   // Live "Show N sets": a 1-row query with the draft filters.
   let previewTimer = null;
   let previewGen = 0;
@@ -776,7 +822,7 @@ function showFilterSheet(onApply, initial = null) {
       const savedOffset = state.catalog.offset;
       const savedSize = state.catalog.pageSize;
       try {
-        state.filter = readDraft();
+        state.filter = readFilterDraft(root);
         state.catalog.offset = 0;
         state.catalog.pageSize = 1;
         const qs = catalogQuery();
@@ -794,46 +840,77 @@ function showFilterSheet(onApply, initial = null) {
       }
     }, 250);
   };
-  $$("#filterSheet input[type='number']").forEach((i) => i.addEventListener("input", previewCount));
+  wireFacetChips(root, previewCount);
+  root.querySelector("[data-more-themes]")?.addEventListener("click", () => {
+    const draft = readFilterDraft(root);
+    openThemePicker({
+      current: draft.catalogTheme,
+      onPick: (theme) => showFilterSheet(onApply, { ...draft, catalogTheme: theme }),
+    });
+  });
+  root.querySelectorAll("input[type='number']").forEach((i) => i.addEventListener("input", previewCount));
   previewCount();
 
   $("#filterClear").addEventListener("click", () => {
-    Object.keys(r).forEach((k) => { r[k] = ""; });
-    state.filter.catalogThemeGroup = "all";
-    state.filter.catalogCategory = "all";
-    state.filter.catalogRetired = "all";
-    state.filter.catalogTheme = "all";
-    state.filter.catalogDeal = false;
+    resetFilterState();
     hideSheet();
     onApply();
   });
 
   $("#filterApply").addEventListener("click", () => {
-    let firstInvalid = null;
-    for (const [minKey, maxKey] of [['min_year', 'max_year'], ['min_pieces', 'max_pieces'], ['min_value', 'max_value']]) {
-      const min = document.getElementById(`f_${minKey}`);
-      const max = document.getElementById(`f_${maxKey}`);
-      const error = document.getElementById(`f_${minKey}_error`);
-      const invalid = min.value !== '' && max.value !== '' && Number(min.value) > Number(max.value);
-      min.setAttribute('aria-invalid', String(invalid));
-      max.setAttribute('aria-invalid', String(invalid));
-      error.textContent = invalid ? t('catalog.rangeOrderError') : '';
-      error.hidden = !invalid;
-      if (invalid && !firstInvalid) firstInvalid = min;
-    }
+    const firstInvalid = validateFilterRanges(root, "f_");
     if (firstInvalid) {
       firstInvalid.focus();
       return;
     }
-    const draft = readDraft();
-    Object.assign(r, draft.catalogRanges);
-    state.filter.catalogThemeGroup = draft.catalogThemeGroup;
-    state.filter.catalogCategory = draft.catalogCategory;
-    state.filter.catalogRetired = draft.catalogRetired;
-    state.filter.catalogTheme = draft.catalogTheme;
-    state.filter.catalogDeal = draft.catalogDeal;
+    applyFilterDraft(readFilterDraft(root));
     hideSheet();
     onApply();
+  });
+}
+
+// Wide desktop (≥1280px, see desktop.css): the same filters stay open in a
+// panel beside the results and apply as you change them, instead of a sheet.
+// Below that width the panel is hidden and the Filters chip opens the sheet.
+function filterPanelHTML() {
+  const n = activeCatalogFilterCount(state.filter);
+  return `<div class="bv-discover__panelhead"><h2 class="bv-h2" id="filterPanelTitle">${escapeHtml(t("bvAdd.filters"))}</h2>${n ? `<button type="button" class="bv-btn bv-btn--text" id="filterPanelClear">${escapeHtml(t("bvAdd.clear"))}</button>` : ""}</div>
+    ${filterFormHTML(state.filter, state.filter.catalogRanges, "fp_")}`;
+}
+
+function refreshFilterPanel() {
+  const panel = $("#catalogFilterPanel");
+  if (!panel) return;
+  // Don't repaint under the cursor while someone is typing a range.
+  if (panel.contains(document.activeElement) && document.activeElement.matches("input")) return;
+  panel.innerHTML = filterPanelHTML();
+}
+
+function wireFilterPanel() {
+  const panel = $("#catalogFilterPanel");
+  if (!panel || panel._wired) return;
+  panel._wired = true;
+  const apply = () => {
+    if (validateFilterRanges(panel, "fp_")) return;
+    applyFilterDraft(readFilterDraft(panel));
+    reloadGrid();
+  };
+  panel.addEventListener("click", (e) => {
+    if (e.target.closest("#filterPanelClear")) { resetFilterState(); haptic("light"); reloadGrid(); return; }
+    if (e.target.closest("[data-more-themes]")) { openThemePicker(); return; }
+    const btn = e.target.closest(".sheet-facet [data-fval]");
+    if (!btn) return;
+    const group = btn.closest(".sheet-facet");
+    const on = btn.getAttribute("aria-pressed") !== "true";
+    group.querySelectorAll("[data-fval]").forEach((x) => x.setAttribute("aria-pressed", String(x === btn && on)));
+    haptic("light");
+    apply();
+  });
+  let timer = null;
+  panel.addEventListener("input", (e) => {
+    if (!e.target.matches("[data-range]")) return;
+    clearTimeout(timer);
+    timer = setTimeout(apply, 600);
   });
 }
 

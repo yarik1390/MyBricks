@@ -41,7 +41,9 @@ function upsidePct(s) {
 }
 
 function rowFor(s, kind) {
-  const meta = [s.theme, s.set_num, kind === 'yours' && Number(s.quantity) > 0 ? t('bvAdd.ownedCount', { count: s.quantity }) : exitLabel(s)].filter(Boolean).join(' · ');
+  // Always say whether LEGO confirmed the retirement or it is our estimate
+  // ("retiring soon" vs "likely to retire"); "owned 1" on the Yours tab added nothing.
+  const meta = [s.theme, s.set_num, exitLabel(s), kind === 'yours' && Number(s.quantity) > 1 ? t('bvAdd.ownedCount', { count: s.quantity }) : null].filter(Boolean).join(' · ');
   return setRow(s, {
     meta,
     endHtml: `<span class="bv-setrow__end"><span class="bv-setrow__value">${escapeHtml(money0(setValue(s)))}</span>${kind === 'all' && _allSort === 'upside' && upsidePct(s) != null ? pill(t('bvAdd.upsidePill', { pct: `${upsidePct(s) >= 0 ? '+' : '−'}${Math.abs(upsidePct(s))}` }), upsidePct(s) > 0 ? 'acc' : '') : pillFor(s, kind)}</span>`,

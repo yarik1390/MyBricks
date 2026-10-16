@@ -29,7 +29,8 @@ function offerRowHTML(o, best, value) {
 }
 
 // A marketplace figure we already hold: eBay's median asking price, or
-// BrickLink's average recent new sale. Not a single listing, so no Best tag.
+// BrickLink's average recent new sale. Not a single listing, so no Best tag,
+// and whole amounts like every other market value (store shelf prices keep cents).
 function marketRowHTML(m) {
   const note = m.kind === 'sold'
     ? (m.count ? tPlural('stores.blSold', m.count) : t('stores.blSoldPlain'))
@@ -38,7 +39,7 @@ function marketRowHTML(m) {
     <a class="bv-stores__link" href="${escapeHtml(m.url)}" target="_blank" rel="noopener">
       <span class="bv-stores__name">${escapeHtml(m.label)}</span>
       <span class="bv-stores__note">${escapeHtml(note)}</span>
-      <span class="bv-num bv-stores__price">${escapeHtml(fmtMoney(m.price))}</span>
+      <span class="bv-num bv-stores__price">${escapeHtml(fmtMoney(m.price, { cents: 0 }))}</span>
       ${icon('ext', { size: 16 })}
     </a>
   </li>`;

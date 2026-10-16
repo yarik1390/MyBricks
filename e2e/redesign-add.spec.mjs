@@ -94,6 +94,8 @@ test('filter sheet previews the result count before applying', async ({ page }) 
       body: JSON.stringify({ sets: [OTHER], total: retired ? 12 : 340, hasMore: false }),
     });
   });
+  // Phone width: wide desktop shows the filters as a side panel, not a sheet.
+  await page.setViewportSize({ width: 393, height: 852 });
   await page.goto('/#/add', { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: /^Filters/ }).click();
   const apply = page.locator('#filterApply');
@@ -169,6 +171,8 @@ test('filter sheet keeps unapplied choices when a theme comes from More themes',
     queries.push(new URL(route.request().url()).searchParams);
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ sets: [OTHER], total: 3, hasMore: false }) });
   });
+  // Phone width: wide desktop shows the filters as a side panel, not a sheet.
+  await page.setViewportSize({ width: 393, height: 852 });
   await page.goto('/#/add', { waitUntil: 'domcontentloaded' });
   await page.getByRole('button', { name: /^Filters/ }).click();
   const sheet = page.locator('#filterSheet');

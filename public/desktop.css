@@ -245,3 +245,22 @@
   body.collector-ui:not(.bv-two-pane) .bv-setpage > .bv-sethero { height: 560px; }
   body.collector-ui:not(.bv-two-pane) .bv-setpage > #setBar { top: 600px; }
 }
+
+/* ------------------------------------------------------------- Discover filter panel
+   Wide desktop: filters stay open beside the results and apply as you change
+   them (catalog.js filterPanelHTML), so the Filters chip that opens the sheet
+   is not needed. */
+@media (min-width: 1280px) {
+  .bv-discover__body { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 0 24px; align-items: start; }
+  .bv-discover__panel {
+    display: block; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; box-sizing: border-box;
+    margin: 4px var(--bv-gutter) 24px 0; padding: 12px 16px 16px; border: 1px solid var(--bv-line); border-radius: 20px; background: var(--bv-s);
+  }
+  .bv-discover__panelhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; }
+  .bv-discover__panelhead .bv-h2 { margin: 0; padding: 0; }
+  .bv-discover__panel .bv-form-grid { gap: 8px; }
+  .bv-discover__panel .bv-chips { padding: 0; margin: 0; gap: 6px; }
+  .bv-discover__panel .bv-chip { min-height: 40px; padding: 0 12px; }
+  .bv-discover__panel .bv-filter__section > .bv-chip { align-self: flex-start; }
+  .bv-discover #filterChip { display: none; }
+}

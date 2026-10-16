@@ -48,3 +48,45 @@ test.describe('wide', () => {
     await expect(bar).not.toHaveClass(/bv-setbar--compact/);
   });
 });
+
+test.describe('follow-ups', () => {
+  test('empty Vault Minifigs tab has no floating Scan button or duplicate browse link', async ({ page }) => {
+    await page.route('**/api/minifigs*', route => json(route, { items: [], minifigs: [], total: 0, hasMore: false }));
+    await page.goto('/#/minifigs', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.vault-fig-empty')).toBeVisible();
+    await expect(page.locator('#bvFab')).toBeHidden();
+    await expect(page.locator('.vault-fig-hero .vault-fig-progress')).toHaveCount(0);
+  });
+
+  test('empty Lists tab offers New list in place of the floating button', async ({ page }) => {
+    await page.route('**/api/subcollections**', route => json(route, { subcollections: [] }));
+    await page.goto('/#/collections', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#collectionNewEmpty')).toBeVisible();
+    await expect(page.locator('#bvFab')).toBeHidden();
+  });
+});
+
+test.describe('desktop filter panel', () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test('filters stay open beside Discover results and apply on tap', async ({ page, stub }) => {
+    await page.goto('/#/add', { waitUntil: 'domcontentloaded' });
+    const panel = page.locator('#catalogFilterPanel');
+    await expect(panel).toBeVisible();
+    await expect(page.locator('#filterChip')).toBeHidden();
+    const before = stub.calls.filter(c => c.path === '/api/sets/search').length;
+    await panel.locator('[data-facet="retired"] [data-fval="retired"]').click();
+    await expect.poll(() => stub.calls.filter(c => c.path === '/api/sets/search').length).toBeGreaterThan(before);
+    await expect(panel.locator('[data-facet="retired"] [data-fval="retired"]')).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
+test.describe('phone filter sheet', () => {
+  test.use({ viewport: { width: 393, height: 852 } });
+  test('panel stays hidden and the Filters chip opens the sheet', async ({ page }) => {
+    await page.goto('/#/add', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#catalogFilterPanel')).toBeHidden();
+    await page.locator('#filterChip').click();
+    await expect(page.locator('#filterSheet #f_min_year')).toBeVisible();
+  });
+});

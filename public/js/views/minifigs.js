@@ -1,4 +1,5 @@
-import { vaultNavigation, discoverNavigation, setPageFab } from '../components/collector-shell.js';
+import { vaultNavigation, discoverNavigation, setPageFab, resetPageFab, syncCollectorChrome } from '../components/collector-shell.js';
+import { routeMetaFor } from '../route-meta.js';
 import { $, $$, haptic, escapeHtml, toast, debounce, bvIDB, SEARCH_DEBOUNCE_MS, mount, fmtDateUpdated, thumbImg, capturedMoneyContext, CURRENCY_SYMBOLS, setBtnLoading, snackbar } from '../utils.js';
 import { t, tPlural } from '../lib/i18n.js';
 import { state } from '../state.js';
@@ -163,7 +164,7 @@ function paintFigs() {
       <div class="bv-grid bv-grid--3 vault-fig-grid" id="miniGrid">${miniGridHTML()}</div>
       <div id="blindSentinel" class="vault-sentinel"${state.blind.hasMore ? '' : ' hidden'}><span class="bv-skel"></span></div>
     </main>`;
-  if (!owned) setPageFab(null);
+  syncFigFab();
   wireFigsPage();
   wireMiniCards();
   mountBlindSentinel();
@@ -197,6 +198,9 @@ function seriesProgressHTML() {
   const sp = _seriesProgress;
   const series = currentSeries();
   if (ownedMode()) {
+    // Nothing owned yet: the empty state's big "Browse minifigures" button is
+    // the way in, so don't repeat it in the hero.
+    if (ownedEmpty() && !(Number(state.blind.ownedCount) > 0)) return '';
     if (!sp || !sp.total) {
       return `<a class="vault-fig-progress" href="#/minifigs?owned=0"><span class="vault-fig-progress__text"><span class="vault-fig-progress__title">${esc(t('bvVault.figBrowse'))}</span></span><span class="bv-card__link">${esc(t('bvVault.figFind'))}${icon('chev', { size: 16 })}</span></a>`;
     }
@@ -322,6 +326,7 @@ function refreshMiniGrid() {
   const grid = $('#miniGrid');
   if (!grid) return;
   mount(grid, miniGridHTML());
+  syncFigFab();
   refreshFigFilterSummary();
   wireMiniCards();
   mountBlindSentinel();
@@ -348,6 +353,17 @@ async function reloadMiniView() {
     refreshMiniStats();
     loadSeriesProgress();
   }
+}
+
+// Discover has no FAB; an empty Vault Minifigs tab neither — its "Browse
+// minifigures" button is the action, and on short phones the floating Scan
+// button sat on top of the empty-state heading. Same rule as the empty Vault.
+function ownedEmpty() {
+  return ownedMode() && !state.blind.items.length && isFigFilterDefault() && !currentQ();
+}
+function syncFigFab() {
+  if (!ownedMode() || ownedEmpty()) { setPageFab(null); return; }
+  if (!document.getElementById('bvFab')?._bvFab) { resetPageFab(); syncCollectorChrome(routeMetaFor(location.hash.replace('#', '') || '/')); }
 }
 
 function miniGridHTML() {
