@@ -2225,7 +2225,8 @@ body.bv-nav-off .advisor-fab { bottom: calc(var(--safe-bottom, 0px) + 20px); }
 .bv-wel__toptitle { font: 600 20px/26px var(--bv-sans); }
 .bv-wel__topsub { font-size: 13px; line-height: 18px; color: var(--bv-mute); }
 .bv-wel__body { flex: 1 1 auto; padding: 0 var(--bv-gutter) 16px; display: flex; flex-direction: column; gap: 12px; }
-.bv-wel__mark { width: 56px; height: 56px; border-radius: 16px; background: var(--bv-acc); display: flex; align-items: center; justify-content: center; }
+.bv-wel__mark { width: 56px; height: 56px; border-radius: 16px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.bv-wel__mark img { width: 100%; height: 100%; display: block; }
 .bv-wel__title { margin: 4px 0 0; font: 700 28px/34px var(--bv-sans) !important; letter-spacing: -.01em; }
 .bv-wel__lead { margin: 0; font-size: 15px; line-height: 22px; color: var(--bv-mute); }
 .bv-wel__note { margin: 0; padding: 10px 14px; border-radius: 14px; background: var(--bv-s2); font-size: 13px; line-height: 19px; color: var(--bv-mute); }
