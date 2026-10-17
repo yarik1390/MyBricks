@@ -38,9 +38,10 @@ export function logEvent(
 // endpoint can't be used to stuff arbitrary blobs into the dataset.
 export const CLIENT_EVENTS = new Set([
   'route_view',
-  'scan_attempt', 'scan_success', 'scan_fallback',
+  'scan_attempt', 'scan_success', 'scan_fallback', 'scan_path',
   'feature_open',
   'client_error',
+  'api_error',
 ]);
 
 export function logClientEvent(env: Env, event: string, detail: string): void {
@@ -57,12 +58,23 @@ export function logClientEvent(env: Env, event: string, detail: string): void {
 // Events whose daily counts are mirrored into D1 so the admin panel can
 // compute SLOs (scan success rate). route_view is deliberately AE-only —
 // highest volume, no SLO value.
-const MIRROR_EVENTS = new Set(['scan_attempt', 'scan_success', 'scan_fallback', 'client_error']);
+const MIRROR_EVENTS = new Set(['scan_attempt', 'scan_success', 'scan_fallback', 'scan_path', 'client_error', 'api_error', 'server_error']);
+
+// client_error keeps only its "@file.js:line" (or "unhandled") so the D1 key
+// stays bounded by code locations, not by free-form messages.
+function mirrorDetail(event: string, detail: string): string {
+  const d = String(detail || '');
+  if (event === 'client_error') {
+    if (d.startsWith('unhandled')) return 'unhandled';
+    const at = d.lastIndexOf('@');
+    return at >= 0 ? d.slice(at + 1, at + 33) : '';
+  }
+  return d.slice(0, 32);
+}
 
 export async function mirrorClientMetric(env: Env, event: string, detail: string): Promise<void> {
   if (!MIRROR_EVENTS.has(event)) return;
-  // Keep PK cardinality bounded: only scan modes carry a detail dimension.
-  const d = event === 'client_error' ? '' : String(detail || '').slice(0, 24);
+  const d = mirrorDetail(event, detail);
   await env.DB.prepare(`
     INSERT INTO client_metrics_daily (day, event, detail, count)
     VALUES (date('now'), ?, ?, 1)

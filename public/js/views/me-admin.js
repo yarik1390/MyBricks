@@ -1980,6 +1980,30 @@ function renderPricingCenter() {
           rate == null ? 'neutral' : rate >= 95 ? 'ok' : 'warn');
       })()}
       ${(() => {
+        // Where barcode scans end up: "live" = in-app camera started, "mlkit-*"
+        // = Google's scanner screen, "closed-no-result" = closed without a read.
+        const paths = (quality.scanner_slo || [])
+          .filter((r) => r.event === 'scan_path' && String(r.detail || '').startsWith('barcode:'))
+          .map((r) => [String(r.detail).slice(8), Number(r.n || 0)])
+          .sort((x, y) => y[1] - x[1]);
+        if (!paths.length) return '';
+        const total = paths.reduce((s, [, n]) => s + n, 0);
+        return pricingMetricHTML('Barcode scan routes (14d)', formatCount(total),
+          paths.slice(0, 4).map(([p, n]) => `${escapeHtml(p)} ${formatCount(n)}`).join(' · '), 'neutral');
+      })()}
+      ${(() => {
+        // App crashes, failed API calls (5xx or no response) and server 500s,
+        // each with its busiest location so a spike points at the code.
+        const rows = quality.scanner_slo || [];
+        const card = (event, label) => {
+          const hits = rows.filter((r) => r.event === event).map((r) => [String(r.detail || '—'), Number(r.n || 0)]).sort((x, y) => y[1] - x[1]);
+          const total = hits.reduce((s, [, n]) => s + n, 0);
+          const top = hits.slice(0, 3).map(([d, n]) => `${escapeHtml(d)} ${formatCount(n)}`).join(' · ');
+          return pricingMetricHTML(label, formatCount(total), total ? top : 'None recorded', total ? 'warn' : 'ok');
+        };
+        return card('client_error', 'App errors (14d)') + card('api_error', 'Failed API calls (14d)') + card('server_error', 'Server errors (14d)');
+      })()}
+      ${(() => {
         const q = quality.minifig_identity_queue || [];
         const pending = Number((q.find((r) => r.status === 'pending') || {}).figs || 0);
         const verified = Number((q.find((r) => r.status === 'verified') || {}).figs || 0);

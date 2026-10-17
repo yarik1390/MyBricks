@@ -134,6 +134,7 @@ export const ui = {
   "Is that bundle worth the price?": "क्या यह बंडल अपनी कीमत के लायक है?",
   "Looking at the box…": "डिब्बा देख रहे हैं…",
   "Lot checker": "लॉट जाँच",
+  "Theme quests": "थीम क्वेस्ट",
   "Lots over 3 sets come with Pro.": "3 से ज़्यादा सेट वाले लॉट Pro के साथ मिलते हैं।",
   "Mint": "बिल्कुल नया",
   "Name or set number": "नाम या सेट नंबर",

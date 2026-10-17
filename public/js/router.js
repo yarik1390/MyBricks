@@ -162,6 +162,7 @@ async function _routeImpl(gen) {
     else if (hash === "/family") await (await import('./views/family.js')).renderFamily();
     else if (hash === "/swaps") await (await import('./views/swaps.js')).renderSwaps();
     else if (hash === "/lot") await (await import('./views/lot.js')).renderLot();
+    else if (hash === "/quests") await (await import('./views/quests.js')).renderQuests();
     else if (hash === "/promos") await (await import('./views/promotions.js')).renderPromotions();
     else if (hash === "/pro") await (await import('./views/pro.js')).renderPro();
     else if (hash === "/wrapped") await (await import('./views/wrapped.js')).renderWrapped();

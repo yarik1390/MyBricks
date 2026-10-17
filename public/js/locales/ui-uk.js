@@ -134,6 +134,7 @@ export const ui = {
   "Is that bundle worth the price?": "Чи вартий цей лот своєї ціни?",
   "Looking at the box…": "Оглядаємо коробку…",
   "Lot checker": "Перевірка лотів",
+  "Theme quests": "Тематичні квести",
   "Lots over 3 sets come with Pro.": "Лоти понад 3 набори доступні з Pro.",
   "Mint": "Ідеальний",
   "Name or set number": "Назва або номер набору",

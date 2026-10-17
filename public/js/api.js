@@ -1,5 +1,5 @@
 import { state, invalidatePortfolio } from './state.js';
-import { bvIDB, toast } from './utils.js';
+import { bvIDB, toast, track } from './utils.js';
 import { jwtSub, displayValueOf, isCredentialAuthFailure } from './lib/pure-core.js';
 import { t, tPlural } from './lib/i18n.js';
 import { getProviderCredential } from './lib/provider-credentials.js';
@@ -1296,6 +1296,15 @@ async function guestApi(path, opts = {}, streamMode = false) {
 }
 
 /* ---------- API ---------- */
+// Bounded route key for error telemetry: "/api/sets/10305-1/offers?x" ->
+// "sets/:id/offers". Ids (anything with a digit) collapse so the D1 mirror's
+// primary key stays small.
+export function apiRouteKey(path) {
+  const segs = String(path || '').split('?')[0].split('/').filter(Boolean);
+  if (segs[0] === 'api') segs.shift();
+  return segs.slice(0, 3).map((s) => (/\d/.test(s) ? ':id' : s)).join('/').slice(0, 28);
+}
+
 export async function api(path, opts = {}) {
   const token = _authSession?.access_token;
   const requestOwner = getSessionOwnerSnapshot();
@@ -1376,6 +1385,7 @@ export async function api(path, opts = {}) {
     } catch (e2) {
       // Both attempts failed at the network level — signal a confirming probe.
       try { window.dispatchEvent(new Event("bv:api-fail")); } catch { /* non-browser ctx */ }
+      if (navigator.onLine) track("api_error", `net ${apiRouteKey(path)}`);
       // Only queue-and-fake-success when genuinely OFFLINE. When online, a double
       // failure (timeout/DNS/5xx-at-network-level) is a real error and must
       // surface to the caller — never masked as a fake success.
@@ -1436,6 +1446,7 @@ export async function api(path, opts = {}) {
     let msg = r.statusText;
     let body = null;
     try { body = await r.json(); msg = body.error || msg; if (body.reason) msg += ': ' + body.reason; } catch {}
+    if (r.status >= 500) track("api_error", `${r.status} ${apiRouteKey(path)}`);
     // Callers that render the server's own explanation (scan misses) read it here.
     throw Object.assign(new Error(msg), { status: r.status, body });
   }

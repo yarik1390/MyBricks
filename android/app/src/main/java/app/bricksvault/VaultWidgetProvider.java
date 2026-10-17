@@ -30,9 +30,14 @@ public class VaultWidgetProvider extends AppWidgetProvider {
         int sets = prefs.getInt(WidgetBridgePlugin.KEY_SETS, 0);
         long updatedAt = prefs.getLong(WidgetBridgePlugin.KEY_UPDATED, 0L);
 
-        // "N sets · updated 14:57" footer — only once the app has pushed data.
+        // Next wishlist set to retire ("Titanic retires in 12 days", formatted by
+        // the app in the user's language) takes the corner slot when there is one;
+        // otherwise "N sets · updated 14:57" — only once the app has pushed data.
+        String retiring = prefs.getString(WidgetBridgePlugin.KEY_RETIRING, "");
         String meta;
-        if (updatedAt > 0) {
+        if (updatedAt > 0 && retiring != null && !retiring.isEmpty()) {
+            meta = retiring;
+        } else if (updatedAt > 0) {
             String time = DateFormat.getTimeFormat(context).format(new Date(updatedAt));
             meta = sets + (sets == 1 ? " set · " : " sets · ") + "updated " + time;
         } else {

@@ -26,6 +26,7 @@ public class WidgetBridgePlugin extends Plugin {
     static final String KEY_SETS = "sets";
     static final String KEY_UPDATED = "updated_at";
     static final String KEY_OWNER = "owner";
+    static final String KEY_RETIRING = "retiring";
 
     private void refreshWidgets(Context ctx) {
         AppWidgetManager mgr = AppWidgetManager.getInstance(ctx);
@@ -51,6 +52,7 @@ public class WidgetBridgePlugin extends Plugin {
         ed.putString(KEY_DELTA, call.getString("delta", ""));
         ed.putBoolean(KEY_DELTA_UP, Boolean.TRUE.equals(call.getBoolean("deltaUp", true)));
         ed.putInt(KEY_SETS, call.getInt("sets", 0));
+        ed.putString(KEY_RETIRING, call.getString("retiring", ""));
         ed.putString(KEY_OWNER, owner);
         ed.putLong(KEY_UPDATED, System.currentTimeMillis());
         ed.apply();

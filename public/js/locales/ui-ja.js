@@ -134,6 +134,7 @@ export const ui = {
   "Is that bundle worth the price?": "そのまとめ売りは価格に見合う？",
   "Looking at the box…": "箱を確認中…",
   "Lot checker": "まとめ売りチェック",
+  "Theme quests": "テーマクエスト",
   "Lots over 3 sets come with Pro.": "4セット以上のまとめ売りはProで使えます。",
   "Mint": "極美品",
   "Name or set number": "名前またはセット番号",

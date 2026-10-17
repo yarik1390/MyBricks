@@ -134,6 +134,7 @@ export const ui = {
   "Is that bundle worth the price?": "Ist das Paket seinen Preis wert?",
   "Looking at the box…": "Karton wird geprüft…",
   "Lot checker": "Konvolut-Check",
+  "Theme quests": "Themen-Quests",
   "Lots over 3 sets come with Pro.": "Konvolute mit mehr als 3 Sets gibt es mit Pro.",
   "Mint": "Neuwertig",
   "Name or set number": "Name oder Setnummer",

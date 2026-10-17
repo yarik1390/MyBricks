@@ -649,6 +649,12 @@
     ]
   },
   {
+    "text": "App errors (14d)",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "App revenue (month)",
     "files": [
       "views/me-admin.js"
@@ -900,6 +906,12 @@
     "text": "Barcode pages plus asking-price refresh.",
     "files": [
       "views/me-admin-config.js"
+    ]
+  },
+  {
+    "text": "Barcode scan routes (14d)",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -3002,6 +3014,12 @@
     ]
   },
   {
+    "text": "Failed API calls (14d)",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Failed to connect Google Sheets",
     "files": [
       "views/me-integrations.js"
@@ -3153,9 +3171,9 @@
     "text": "Filesystem",
     "files": [
       "lib/native-file-export.js",
+      "lib/share-image.js",
       "views/me-insurance.js",
-      "views/me-sales.js",
-      "views/wrapped.js"
+      "views/me-sales.js"
     ]
   },
   {
@@ -5499,6 +5517,12 @@
     "text": "None (loose parts)",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "None recorded",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -8013,6 +8037,12 @@
     ]
   },
   {
+    "text": "Server errors (14d)",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Service categories",
     "files": [
       "views/me-admin.js"
@@ -8224,10 +8254,10 @@
     "files": [
       "lib/native-file-export.js",
       "lib/native-share.js",
+      "lib/share-image.js",
       "views/family.js",
       "views/me-insurance.js",
-      "views/me-sales.js",
-      "views/wrapped.js"
+      "views/me-sales.js"
     ]
   },
   {
@@ -9176,6 +9206,12 @@
     "text": "Theme group",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Theme quests",
+    "files": [
+      "route-meta.js"
     ]
   },
   {

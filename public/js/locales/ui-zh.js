@@ -134,6 +134,7 @@ export const ui = {
   "Is that bundle worth the price?": "这批套装值这个价吗？",
   "Looking at the box…": "正在查看盒子…",
   "Lot checker": "批次检查",
+  "Theme quests": "主题任务",
   "Lots over 3 sets come with Pro.": "超过 3 套的批次随 Pro 提供。",
   "Mint": "完美",
   "Name or set number": "名称或套装编号",
