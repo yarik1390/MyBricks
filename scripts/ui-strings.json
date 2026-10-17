@@ -2633,6 +2633,7 @@
     "files": [
       "components/advisor.js",
       "components/sheet.js",
+      "lib/desktop.js",
       "views/catalog.js",
       "views/game.js",
       "views/login.js",
@@ -10418,6 +10419,12 @@
     "text": "a set's value is a weighted median of",
     "files": [
       "methodology.html"
+    ]
+  },
+  {
+    "text": "a, button, [tabindex]",
+    "files": [
+      "lib/desktop.js"
     ]
   },
   {

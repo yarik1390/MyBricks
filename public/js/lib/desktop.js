@@ -69,12 +69,37 @@ export function openShortcuts() {
   const row = (keys, label) => `<div class="bv-keys__row"><span>${esc(label)}</span><span class="bv-keys__k">${keys.map((k) => `<kbd>${esc(k)}</kbd>`).join('')}</span></div>`;
   const go = Object.keys(GO).map((k) => row(['g', k], t('desktop.goTo', { place: t(GO_LABEL[k]) }))).join('');
   showSheet(`<div class="bv-sheet bv-keys"><div class="bv-sheet__head"><h2>${esc(t('desktop.shortcuts'))}</h2></div>
-    <div class="bv-keys__list">${row(['/'], t('desktop.kSearch'))}${go}${row(['?'], t('desktop.kHelp'))}${row(['Esc'], t('desktop.kClose'))}</div></div>`);
+    <div class="bv-keys__list">${row(['/'], t('desktop.kSearch'))}${row([MOD, 'K'], t('desktop.kSearch'))}${row(['j', 'k'], t('desktop.kMove'))}${row(['Enter'], t('desktop.kOpen'))}${go}${row(['?'], t('desktop.kHelp'))}${row(['Esc'], t('desktop.kClose'))}</div></div>`);
+}
+
+const MOD = /Mac|iPhone|iPad/.test(navigator.platform || '') ? '⌘' : 'Ctrl';
+
+// j / k walk the set rows, cards and tiles on the page; Enter opens the one
+// highlighted. Focus moves with it, so Tab and screen readers stay in step.
+const ITEMS = '#root :is(.bv-setrow, .bv-tile, .bv-wlrow, .bv-quest, .bv-comingsoon__row)';
+function moveItem(step) {
+  const items = [...document.querySelectorAll(ITEMS)].filter((el) => el.offsetParent !== null && !el.closest('.bv-listpane'));
+  if (!items.length) return false;
+  const at = items.findIndex((el) => el.classList.contains('is-kbd'));
+  const next = items[Math.max(0, Math.min(items.length - 1, at < 0 ? 0 : at + step))];
+  items.forEach((el) => el.classList.toggle('is-kbd', el === next));
+  if (!next.matches('a, button, [tabindex]')) next.setAttribute('tabindex', '-1');
+  next.focus({ preventScroll: true });
+  next.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  return true;
 }
 
 let pendingG = 0;
 function onKey(e) {
-  if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.defaultPrevented) return;
+  // Ctrl+K / ⌘K: search from anywhere, even while typing in another field.
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k'
+    && document.body.classList.contains('collector-ui') && !document.body.classList.contains('scan-active')) {
+    e.preventDefault();
+    focusSearch();
+    return;
+  }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (isTyping(document.activeElement)) return;
   if (!document.body.classList.contains('collector-ui')) return; // Kids Mode keeps its own shell
   if (document.body.classList.contains('scan-active')) return;
@@ -90,7 +115,42 @@ function onKey(e) {
   if (k === '/') { e.preventDefault(); focusSearch(); }
   else if (k === '?') { e.preventDefault(); openShortcuts(); }
   else if (k === 'g') pendingG = Date.now();
+  else if ((k === 'j' || k === 'k') && moveItem(k === 'j' ? 1 : -1)) e.preventDefault();
+  else if (k === 'Enter') {
+    const cur = document.querySelector(`${ITEMS}.is-kbd`);
+    if (cur && document.activeElement === cur && !cur.matches('a, button')) { e.preventDefault(); cur.click(); }
+  }
 }
+
+// Icon-only buttons name themselves with aria-label; with a mouse, show that
+// name as a small tooltip after a short hover (touch never fires this path).
+const TIP_TARGET = ':is(.bv-iconbtn, .bv-side__brand, [data-bv-tip])[aria-label]';
+let tipEl = null, tipTimer = 0, tipFor = null;
+function hideTip() {
+  clearTimeout(tipTimer);
+  tipFor = null;
+  tipEl?.classList.remove('show');
+}
+function onOver(e) {
+  if (!desktopMQ.matches) return;
+  const target = e.target instanceof Element ? e.target.closest(TIP_TARGET) : null;
+  if (target === tipFor) return;
+  hideTip();
+  if (!target || target.hasAttribute('title')) return;
+  tipFor = target;
+  tipTimer = setTimeout(() => {
+    if (!target.isConnected || tipFor !== target) return;
+    if (!tipEl) { tipEl = document.createElement('div'); tipEl.className = 'bv-tip'; tipEl.setAttribute('aria-hidden', 'true'); document.body.appendChild(tipEl); }
+    tipEl.textContent = target.getAttribute('aria-label');
+    const r = target.getBoundingClientRect();
+    const w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+    const below = r.bottom + 8 + h < window.innerHeight;
+    tipEl.style.left = `${Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2))}px`;
+    tipEl.style.top = `${below ? r.bottom + 8 : r.top - h - 8}px`;
+    tipEl.classList.add('show');
+  }, 450);
+}
+const desktopMQ = window.matchMedia('(min-width: 1024px) and (hover: hover)');
 
 let installed = false;
 export function installDesktop() {
@@ -100,6 +160,12 @@ export function installDesktop() {
   onLocaleChange(paintSidebar);
   window.addEventListener('hashchange', markCurrent);
   document.addEventListener('keydown', onKey);
+  document.addEventListener('mouseover', onOver);
+  document.addEventListener('mousedown', hideTip, true);
+  window.addEventListener('hashchange', hideTip);
+  window.addEventListener('scroll', hideTip, { capture: true, passive: true });
+  // A mouse click elsewhere drops the j / k highlight.
+  document.addEventListener('pointerdown', () => document.querySelectorAll('.is-kbd').forEach((el) => el.classList.remove('is-kbd')));
   document.addEventListener('click', (e) => {
     const target = e.target instanceof Element ? e.target : null;
     if (target?.closest('[data-bv-side-search]')) { e.preventDefault(); focusSearch(); }
