@@ -264,3 +264,70 @@
   .bv-discover__panel .bv-filter__section > .bv-chip { align-self: flex-start; }
   .bv-discover #filterChip { display: none; }
 }
+
+/* ------------------------------------------------------------- PC pass 2
+   List screens use the width as grids instead of one long column: Retiring
+   soon and Coming soon rows, Wishlist cards, Theme quests, What changed, Pro
+   perks and Notification groups. Vault Lists matches the other Vault tabs. */
+@media (min-width: 1024px) {
+  .bv-page.vault-lists, .bv-page.bv-retiring, .bv-page.bv-quests, .bv-page.vault-changes { max-width: 1200px; }
+  .bv-page.bv-notifs { max-width: 1200px; }
+
+  /* Retiring soon / Coming soon: a grid of rows, divided like a table. */
+  .bv-retiring .bv-group__box:has(> .bv-setrow) { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); }
+  .bv-retiring .bv-group__box > .bv-setrow { border-bottom: 1px solid var(--bv-line); border-right: 1px solid var(--bv-line); margin: 0 -1px -1px 0; }
+  .bv-retiring .bv-setrow:hover { background-color: color-mix(in srgb, var(--bv-ink) 4%, var(--bv-s)); }
+  .bv-retiring .bv-tabs--seg { max-width: 720px; }
+  .bv-retiring #retiringCatalog { max-width: 480px; }
+
+  /* Wishlist: cards side by side, so the price bar is not a screen wide. */
+  .bv-wishlist .bv-wllist { display: grid; grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); gap: 12px; }
+  .bv-wlrow { transition: box-shadow .15s var(--bv-ease), border-color .15s var(--bv-ease); }
+  .bv-wlrow:hover { border-color: color-mix(in srgb, var(--bv-ink) 25%, var(--bv-line)); box-shadow: 0 4px 14px var(--bv-shadow); }
+
+  /* Theme quests: one card per subtheme in a grid. */
+  .bv-quests__list { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 16px; padding-left: var(--bv-gutter); padding-right: var(--bv-gutter); align-items: start; }
+  .bv-quests__list > .bv-card { margin: 0; }
+
+  /* What changed: events in columns. */
+  .vault-changes .changes-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 10px 16px; }
+
+  /* Pro: perks in two columns, the buy buttons a sensible width. */
+  .bv-probenefits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; }
+  .bv-proactions { max-width: 560px; }
+
+  /* Notifications: setting groups in two columns. */
+  .bv-notifs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; align-content: start; align-items: start; }
+  .bv-notifs > * { grid-column: 1 / -1; min-width: 0; }
+  .bv-notifs > .bv-notgroup { grid-column: auto; margin-left: 0; margin-right: 0; }
+  .bv-notifs > .bv-notgroup:nth-of-type(odd) { margin-left: var(--bv-gutter); }
+  .bv-notifs > .bv-notgroup:nth-of-type(even) { margin-right: var(--bv-gutter); }
+
+  /* Hover tooltip for icon-only buttons (js/lib/desktop.js). */
+  .bv-tip {
+    position: fixed; z-index: 1000; pointer-events: none; max-width: 280px; padding: 6px 10px; border-radius: 8px;
+    background: var(--bv-ink); color: var(--bv-bg); font: 500 13px/18px var(--bv-sans); box-shadow: 0 4px 12px var(--bv-shadow);
+    opacity: 0; transform: translateY(-2px); transition: opacity .12s var(--bv-ease), transform .12s var(--bv-ease);
+  }
+  .bv-tip.show { opacity: 1; transform: none; }
+
+  /* j / k keyboard focus on list items. */
+  :is(.bv-setrow, .bv-tile, .bv-wlrow, .bv-quest).is-kbd { outline: 3px solid var(--bv-acct); outline-offset: -3px; }
+}
+
+@media (min-width: 1440px) {
+  .bv-page.vault-lists, .bv-page.bv-retiring, .bv-page.bv-quests, .bv-page.vault-changes { max-width: 2200px; padding-left: 40px; padding-right: 40px; }
+  .bv-page.bv-notifs { max-width: 1600px; padding-left: 40px; padding-right: 40px; }
+  .bv-page.bv-pro { max-width: 1200px; }
+}
+@media (min-width: 1920px) {
+  .bv-probenefits { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .bv-page.bv-pro { max-width: 1520px; }
+}
+
+/* Very big monitors: the set page keeps growing instead of stopping at 1520 px. */
+@media (min-width: 2200px) {
+  body.collector-ui:not(.bv-two-pane) .bv-page.bv-setpage { max-width: 1960px; }
+  body.collector-ui:not(.bv-two-pane) .bv-setpage > .bv-sethero { height: 680px; }
+  body.collector-ui:not(.bv-two-pane) .bv-setpage > #setBar { top: 720px; }
+}
