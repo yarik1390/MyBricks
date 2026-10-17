@@ -4,170 +4,164 @@
 
 # BricksVault
 
-**A mobile-first PWA and native Android app that treat a LEGO collection like an investment portfolio.**
+**Know what your LEGO collection is worth.**
 
-Log the sets you own, see live market value and ROI, get AI price forecasts,
-scan barcodes to identify sets, and track a wishlist with price-drop alerts.
+BricksVault tracks the sets you own, prices them from real market sales, and
+tells you which ones are about to retire. It runs on the web and as an Android app.
 
-[**bricksvault.app**](https://bricksvault.app)
+[**Open bricksvault.app**](https://bricksvault.app)
 
 [![Deploy](https://github.com/yarik1390/MyBricks/actions/workflows/deploy-worker.yml/badge.svg)](https://github.com/yarik1390/MyBricks/actions/workflows/deploy-worker.yml)
+[![PR checks](https://github.com/yarik1390/MyBricks/actions/workflows/pr-checks.yml/badge.svg)](https://github.com/yarik1390/MyBricks/actions/workflows/pr-checks.yml)
 [![e2e](https://github.com/yarik1390/MyBricks/actions/workflows/e2e-smoke.yml/badge.svg)](https://github.com/yarik1390/MyBricks/actions/workflows/e2e-smoke.yml)
 [![a11y](https://github.com/yarik1390/MyBricks/actions/workflows/a11y.yml/badge.svg)](https://github.com/yarik1390/MyBricks/actions/workflows/a11y.yml)
 
-<img src="public/screenshots/vault-narrow.png" alt="The Vault — portfolio value, ROI, and set list" width="320">
+<img src="docs/screenshots/vault.webp" alt="Vault: collection value, gain and the list of owned sets" width="250">
+<img src="docs/screenshots/set-page.webp" alt="Set page: market value with its range and confidence" width="250">
+<img src="docs/screenshots/discover.webp" alt="Discover: search, Price It!, Retiring soon and Coming soon" width="250">
 
 </div>
 
----
+## What you can do with it
 
-## What it is
+- **See your collection's value.** Every set gets a market value with a low/high
+  range, a confidence label, and a "Why this price?" breakdown of the sales behind it.
+- **Track gains.** Enter what you paid and the Vault shows paper gain per set and
+  overall, with value history and a theme breakdown in Insights.
+- **Catch retirements.** Retiring soon lists sets LEGO has confirmed are leaving
+  shelves, plus the ones we expect to retire, with alerts for your sets and wishlist.
+- **Find sets fast.** Search about 28,000 sets and 17,000 minifigures by name,
+  set number or barcode, or scan a box with the camera.
+- **Watch prices.** Add sets to your wishlist and get a push or email when the
+  price drops below your target. Compare stores shows current prices at major retailers.
+- **Play Price It!** A daily five-round game: guess what a set is worth today.
+- **Share.** A public profile and shareable set links with rich previews.
 
-Most collection trackers are inventory lists. BricksVault is a **valuation
-engine** with a collection tracker attached: every set carries a blended market
-value assembled from several independent price sources, a confidence grade, and
-a plain-English explanation of where the number came from.
+Sign-in is optional. Guests get the full app with data kept on the device;
+signing in syncs the collection across devices.
 
-Sign-in is optional — guests get the full app with local-only data (IndexedDB +
-localStorage) and never touch the API. Signing in with Supabase syncs a real
-account across devices.
+<details>
+<summary><b>More screenshots</b></summary>
+<br>
 
-**Scale:** ~27,000 sets and ~17,000 minifigs in D1, kept fresh by 34 cron triggers.
+| Retiring soon | Insights | Price It! | Dark theme |
+|---|---|---|---|
+| <img src="docs/screenshots/retiring-soon.webp" width="200" alt="Retiring soon list"> | <img src="docs/screenshots/insights.webp" width="200" alt="Insights: value, paid, gain and theme mix"> | <img src="docs/screenshots/price-it.webp" width="200" alt="Price It! daily game"> | <img src="docs/screenshots/vault-dark.webp" width="200" alt="Vault in the dark theme"> |
 
-## Features
+**On desktop**
 
-**Portfolio** · value + ROI with sparkline history · per-set price trends ·
-storage locations, conditions, quantities · CSV import/export · Google Sheets
-sync · weekly digest email · public profile with a Trophy Shelf
+<img src="docs/screenshots/desktop-vault.webp" alt="Desktop Vault table with collection value card" width="800">
 
-**Discovery** · full Rebrickable catalog with FTS search, theme/year/retired
-filters · camera barcode scanner · AI photo identification · deal signals ·
-retirement-risk radar · "what can I build" from owned parts · minifig tracker
+<img src="docs/screenshots/desktop-set-page.webp" alt="Desktop set page" width="800">
 
-**Pricing** · blended valuations from BrickLink, BrickEconomy, eBay (ask +
-sold), PriceCharting and community comps · AI 2y/5y forecasts ·
-wishlist price-drop alerts (push + email) · per-source confidence and freshness
-grading
+</details>
 
-**Platform** · installable PWA with offline support and a mutation outbox ·
-native Android app via Capacitor ([details](#android)) · 9 languages (en, de,
-es, fr, hi, ja, nl, uk, zh) · light/dark themes · kids mode · portfolio-aware
-AI advisor chat
+## How prices work
+
+Values are built from several independent sources (BrickLink sales,
+PriceCharting, eBay listings and community-reported sales),
+weighted by how recent and how plentiful the data is. For sets with no recent
+sales, an in-house model trained on real sales estimates the value from theme,
+age, years since retirement, piece count and retail price. Every number on a
+set page says how confident it is and where it came from. Values are stored in
+USD and shown in the user's currency.
 
 ## Stack
 
 | Layer | Choice |
 |---|---|
-| API | Cloudflare **Workers** — TypeScript, [Hono](https://hono.dev) |
-| Database | Cloudflare **D1** (SQLite) + **KV** cache + **R2** photos |
-| Analytics | Cloudflare **Analytics Engine** |
-| Auth | **Supabase** JWT (HS256), verified in the Worker |
-| Frontend | **Vanilla JS** SPA — ES modules, hash routing, `morphdom` diffing, no framework |
-| Hosting | Cloudflare **Pages** (static) + Workers (API) |
-| AI | Gemini + OpenAI, server keys or user BYOK, via Cloudflare AI Gateway |
-| Mobile | **Capacitor** (Android), RevenueCat billing |
-| CI/CD | GitHub Actions — auto-deploy on push |
+| API | Cloudflare Workers, TypeScript, [Hono](https://hono.dev) |
+| Data | Cloudflare D1 (SQLite), KV cache, R2 for photos |
+| Auth | Supabase JWT, verified in the Worker |
+| Frontend | Vanilla JS single-page app: ES modules, hash routing, `morphdom`, no framework and no build step |
+| Hosting | Cloudflare Pages (static) and Workers (API) |
+| AI | Gemini and OpenAI through Cloudflare AI Gateway, with bring-your-own-key support |
+| Mobile | Capacitor (Android), RevenueCat billing |
+| CI/CD | GitHub Actions: checks on every PR, auto-deploy on merge |
 
-The frontend is deliberately framework-free: template-literal HTML mounted with
-`morphdom`, event delegation, and a hand-rolled router. It ships as plain ES
-modules with no build step.
+The app is available in 9 languages (English, German, Spanish, French, Hindi,
+Japanese, Dutch, Ukrainian, Chinese) with light and dark themes.
 
 ## Repository map
 
 ```
-public/           # the SPA — served by Cloudflare Pages
-  js/views/       # one module per page (portfolio, catalog, minifigs, me, …)
-  js/components/  # advisor drawer, scanner, sheets, onboarding
-  js/locales/     # 9 languages × 2 dictionary layers
-  sw.js           # versioned service worker (bump VERSION on asset changes)
-worker/           # the API
-  src/routes/     # one Hono sub-app per resource (24 mounted groups)
-  src/jobs/       # 35 cron handlers — valuations, scrapes, imports, snapshots
-  src/lib/        # external integrations + pure helpers
-  schema.sql      # authoritative D1 schema
-  wrangler.toml   # bindings, vars, cron triggers
-android/          # Capacitor shell
-e2e/ a11y/ load/  # Playwright e2e, axe accessibility, k6 load tests
+public/           the web app, served by Cloudflare Pages
+  js/views/       one module per screen (Vault, Discover, set page, Insights, ...)
+  js/components/  advisor chat, scanner, sheets, onboarding
+  js/locales/     translations
+  sw.js           service worker (bump VERSION when cached assets change)
+worker/           the API
+  src/routes/     one Hono sub-app per resource
+  src/jobs/       scheduled jobs: valuations, imports, snapshots, alerts
+  src/lib/        pricing integrations and pure helpers
+  schema.sql      D1 schema for fresh databases
+  wrangler.toml   bindings, vars and cron triggers
+android/          Capacitor shell
+store/            Play Store listing text and images
+e2e/ a11y/ load/  Playwright end-to-end, axe accessibility and k6 load tests
 ```
 
 ## Development
 
 ```bash
-# Worker (API)
-cd worker
+# API (from worker/)
 npm ci
 npm run typecheck        # tsc --noEmit
-npx vitest run           # 693 tests, 60 files (runs in workerd)
-npx wrangler dev         # needs .dev.vars — see .dev.vars.example
+npx vitest run           # runs inside workerd
+npx wrangler dev         # needs .dev.vars, see worker/.dev.vars.example
 
-# Frontend (from repo root)
+# Web app (from the repo root)
 npm ci
-npm test                 # UI-string catalog + i18n checks + 263 unit tests
+npm test                 # UI strings, i18n checks and unit tests
 npx biome lint
-npx playwright test --config=e2e/playwright.config.mjs
+npm run e2e              # Playwright, against a stubbed API
 ```
 
-Every push runs five gates in CI — root tests, Biome, a strict `checkJs` pass
-over the shared pure helpers, Worker typecheck, and Worker vitest. Run all five
-locally before pushing; each has caught a deploy that the others let through.
+Pull requests run the same gates as the deploy
+([`pr-checks.yml`](.github/workflows/pr-checks.yml)): frontend tests, Biome,
+a strict type check of the shared helpers, the Worker type check and the
+Worker test suite.
 
 ## Android
 
-The same `public/` bundle ships as a native Android app through **Capacitor** —
-the shell and all guest features work offline from first launch, with no network
-round-trip needed to open the app.
+The same `public/` bundle ships as an Android app through Capacitor. The app
+id is `app.bricksvault`; the version code is derived from the commit count, so
+it is never bumped by hand. Native features include ML Kit barcode scanning,
+biometric unlock, push notifications and Google Play billing via RevenueCat.
 
-| | |
-|---|---|
-| App id | `app.bricksvault` (matches `capacitor.config.json`, `build.gradle`, `assetlinks.json`) |
-| Current | `1.0.55` (versionCode = commit count, floored at 56 — auto-derived, never hand-bumped) |
-| SDK | min 24, compile/target 36 |
-| Native plugins | MLKit barcode scanning, biometric unlock, push (FCM), filesystem, share, haptics, network |
-| Billing | RevenueCat — entitlements arrive via the webhook, not the client |
-
-Building is a workflow dispatch, not a push:
-[`build-android.yml`](.github/workflows/build-android.yml) runs on a plain
-Ubuntu runner (no Android Studio), builds `bundle` or `apk-debug`, signs with
-the upload keystore from repo secrets, and force-pushes the signed `.aab` plus
-its ProGuard mapping to the **`aab-delivery`** branch. That branch is a release
-artifact channel, not stale work — don't delete it.
-
-Deep links are wired at deploy time: the "Configure Android App Links" step runs
-[`scripts/configure-assetlinks.mjs`](scripts/configure-assetlinks.mjs) so
-`assetlinks.json` on the live origin carries the signing certificate
-fingerprint. Before cutting a release, `npm run android:preflight` checks the
-app id, version, and store metadata line up.
+Builds are a manual workflow run of
+[`build-android.yml`](.github/workflows/build-android.yml). It signs the bundle
+and pushes the `.aab` and its ProGuard mapping to the `aab-delivery` branch,
+which is a release channel and should not be deleted.
 
 ```bash
-npx cap sync android      # required after ANY public/ asset change
-npm run android:preflight
+npx cap sync android      # after any change in public/
+npm run android:preflight # checks app id, version and store metadata
 ```
 
 ## Deploying
 
-Pushing to the default branch triggers
-[`deploy-worker.yml`](.github/workflows/deploy-worker.yml), which applies the D1
-schema and migrations, uploads secrets, deploys the Worker, then deploys Pages
-with the Worker URL injected into `env.js`.
+Merging to `main` runs [`deploy-worker.yml`](.github/workflows/deploy-worker.yml):
+it applies schema migrations to D1, deploys the Worker, then deploys Pages.
+Two rules that have broken deploys before:
 
-Two constraints that have broken deploys before, both documented in
-[`CLAUDE.md`](./CLAUDE.md):
-
-- **D1 rejects `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`.** New columns go in
-  *both* `worker/schema.sql` and `worker/schema_migrate.sql`.
-- **Cron strings need day names, not `0` for Sunday.** `0 4 * * SUN`, never
-  `0 4 * * 0`.
+- D1 rejects `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. New columns go in both
+  `worker/schema.sql` and `worker/schema_migrate.sql`.
+- Cron strings use day names: `0 4 * * SUN`, not `0 4 * * 0`.
 
 ## Documentation
 
 | Doc | Contents |
 |---|---|
-| [`AGENTS.md`](./AGENTS.md) | Full engineering handoff — architecture, data model, API surface, deploy pipeline, gotchas, changelog |
-| [`CLAUDE.md`](./CLAUDE.md) | Quick-start conventions for AI agents working in the repo |
-| [`PRICING-AUDIT.md`](./PRICING-AUDIT.md) | How the valuation blend works and why |
-| [`HANDOFF-sources.md`](./HANDOFF-sources.md) | Per-source pricing integration notes |
+| [`AGENTS.md`](./AGENTS.md) | Full engineering handoff: architecture, data model, API, deploy pipeline, gotchas |
+| [`CLAUDE.md`](./CLAUDE.md) | Short conventions for AI coding agents |
+| [`PRICING-AUDIT.md`](./PRICING-AUDIT.md) | How the valuation blend works |
+| [`HANDOFF-sources.md`](./HANDOFF-sources.md) | Notes on each pricing source |
 
 ## License
 
-No license — **all rights reserved**. The source is public to read, but not
-licensed for reuse, redistribution, or derivative works.
+No license: **all rights reserved**. The source is public to read but not
+licensed for reuse, redistribution or derivative works.
+
+LEGO is a trademark of the LEGO Group, which does not sponsor, authorize or
+endorse this project.
