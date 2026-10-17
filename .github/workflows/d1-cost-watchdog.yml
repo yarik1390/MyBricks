@@ -43,6 +43,32 @@ jobs:
       WRITE_THRESHOLD: ${{ inputs.write_threshold || '1500000' }}
       READ_THRESHOLD: ${{ inputs.read_threshold || '500000000' }}
     steps:
+      # Informational: the 15 statements that read the most rows yesterday, so
+      # an index pass can target the real offenders. Never fails the job.
+      - name: List yesterday's heaviest queries (rows read)
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -uo pipefail
+          START="$(date -u -d 'yesterday' +%Y-%m-%dT00:00:00Z)"
+          END="$(date -u +%Y-%m-%dT00:00:00Z)"
+          QUERY='query($account: String!, $start: Time!, $end: Time!) {
+            viewer { accounts(filter: { accountTag: $account }) {
+              d1QueriesAdaptiveGroups(limit: 15, filter: { datetimeHour_geq: $start, datetimeHour_lt: $end }, orderBy: [sum_rowsRead_DESC]) {
+                count
+                dimensions { query databaseId }
+                sum { rowsRead rowsReturned queryDurationMs }
+              }
+            } }
+          }'
+          BODY="$(jq -nc --arg q "$QUERY" --arg acct "$CLOUDFLARE_ACCOUNT_ID" --arg s "$START" --arg e "$END" \
+            '{query: $q, variables: {account: $acct, start: $s, end: $e}}')"
+          RESP="$(curl -s https://api.cloudflare.com/client/v4/graphql \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H "Content-Type: application/json" --data "$BODY")"
+          if [ "$(jq -r '.errors // [] | length' <<<"$RESP")" != "0" ]; then echo "GraphQL errors: ${RESP:0:800}"; exit 0; fi
+          jq -r '.data.viewer.accounts[0].d1QueriesAdaptiveGroups[] |
+            "rows_read=\(.sum.rowsRead) runs=\(.count) avg_rows=\((.sum.rowsRead / ([.count,1]|max)) | floor) ms=\(.sum.queryDurationMs | floor)\n  \(.dimensions.query | gsub("\\s+"; " ") | .[0:400])"' <<<"$RESP"
+
       - name: Query yesterday's D1 usage and compare against thresholds
         shell: bash
         run: |
