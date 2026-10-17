@@ -327,8 +327,25 @@ const searchHandler = async (c: Context<{ Bindings: Env; Variables: Variables }>
     } catch (_) { /* non-critical */ }
   }
 
-  return c.json({ sets: rows, total, hasMore: offset + rows.length < total, search_degraded: searchDegraded });
+  return c.json({ sets: rows.map(stripServerOnlyFields), total, hasMore: offset + rows.length < total, search_degraded: searchDegraded });
 };
+
+// Raw per-source inputs the server already folded into market_value /
+// valuation. No client code reads them, so search results (public, edge-cached)
+// don't ship them: lighter cards, and source figures we don't license stay
+// server-side. Detail and seed endpoints are unchanged.
+const SEARCH_SERVER_ONLY_FIELDS = [
+  'be_cached_at', 'be_value_new', 'be_value_used', 'brickset_msrp',
+  'ebay_ask_cached_at', 'ebay_new_last_sold', 'ebay_used_last_sold',
+  'model_cached_at', 'model_value',
+  'pa_best_merchant', 'pa_cached_at', 'pa_in_stock', 'pa_lowest_offer', 'pa_market', 'pa_offer_count', 'pa_retail_value',
+  'pricecharting_contributes',
+];
+function stripServerOnlyFields<T extends Record<string, unknown>>(row: T): T {
+  const out: Record<string, unknown> = { ...row };
+  for (const k of SEARCH_SERVER_ONLY_FIELDS) delete out[k];
+  return out as T;
+}
 
 // GET /api/sets/:setnum
 app.get('/:setnum/amazon', async (c) => {
