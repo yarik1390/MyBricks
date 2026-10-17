@@ -231,8 +231,17 @@ const searchHandler = async (c: Context<{ Bindings: Env; Variables: Variables }>
   }
   try {
     [pageRes, countRes] = await Promise.all([
+      // Pick the page on lego_sets alone, then join the three side tables for
+      // just those rows. Joining first made every non-indexed sort (ROI,
+      // value low-to-high, keyword search) probe ext + both valuation states
+      // for the whole catalog before sorting: 142,808 rows read per call, the
+      // single heaviest statement in D1 (Oct 16). Paging first reads ~28,756
+      // for the same page; indexed sorts still read only the page.
       c.env.DB.prepare(
-        `SELECT ${CATALOG_COLS} FROM ${fromSQL} ${MARKET_EXT_JOIN} ${whereSQL} ORDER BY ${orderBySQL}, s.set_num LIMIT ? OFFSET ?`
+        `SELECT ${CATALOG_COLS} FROM (
+           SELECT s.rowid AS rid, ROW_NUMBER() OVER (ORDER BY ${orderBySQL}, s.set_num) AS pos
+           FROM ${fromSQL} ${whereSQL} ORDER BY ${orderBySQL}, s.set_num LIMIT ? OFFSET ?
+         ) page JOIN lego_sets s ON s.rowid = page.rid ${MARKET_EXT_JOIN} ORDER BY page.pos`
       ).bind(...params, lim, offset).all<Record<string, unknown>>(),
       cachedTotal != null
         ? Promise.resolve({ total: cachedTotal })
