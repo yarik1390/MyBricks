@@ -649,6 +649,12 @@
     ]
   },
   {
+    "text": "App errors (14d)",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "App revenue (month)",
     "files": [
       "views/me-admin.js"
@@ -900,6 +906,12 @@
     "text": "Barcode pages plus asking-price refresh.",
     "files": [
       "views/me-admin-config.js"
+    ]
+  },
+  {
+    "text": "Barcode scan routes (14d)",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -2993,6 +3005,12 @@
     "text": "Failed",
     "files": [
       "lib/pure.js"
+    ]
+  },
+  {
+    "text": "Failed API calls (14d)",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -5499,6 +5517,12 @@
     "text": "None (loose parts)",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "None recorded",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -8022,6 +8046,12 @@
     "text": "Series",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "Server errors (14d)",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {

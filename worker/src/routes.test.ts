@@ -416,6 +416,16 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(again.total).toBe(all);
     });
 
+    it('search results omit raw per-source inputs the client never reads', async () => {
+      await db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, current_value, be_value_new, brickset_msrp) VALUES ('RAW-1','Raw Fields','RawTheme',2010,50,99,40)`).run();
+      const res = await (await app.fetch(new Request('http://localhost/api/sets/search?theme=RawTheme&limit=5'), env)).json<any>();
+      const row = res.sets.find((s: any) => s.set_num === 'RAW-1');
+      expect(row).toBeTruthy();
+      expect(row.name).toBe('Raw Fields');
+      expect('be_value_new' in row).toBe(false);
+      expect('brickset_msrp' in row).toBe(false);
+    });
+
     it('trending ranks by real momentum and excludes sets with no 30-day snapshot', async () => {
       const d30 = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
       await db.batch([

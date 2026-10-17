@@ -446,13 +446,16 @@ function showUpdatePrompt(worker) {
   document.body.appendChild(bar);
 }
 
-// Client error telemetry: message + source only (no stacks, no user data),
-// sampled so an error loop can't flood the endpoint.
+// Client error telemetry: message + source only (no stacks, no user data).
+// Every error is sent (sampling at 25% hid most of them), capped per page load
+// so an error loop can't flood the endpoint.
+let _errorReports = 0;
+const reportClientError = (detail) => { if (++_errorReports <= 10) track("client_error", detail); };
 window.addEventListener("error", (e) => {
-  track("client_error", `${String(e.message || "").slice(0, 80)} @${String(e.filename || "").split("/").pop()}:${e.lineno || 0}`, 0.25);
+  reportClientError(`${String(e.message || "").slice(0, 80)} @${String(e.filename || "").split("/").pop()}:${e.lineno || 0}`);
 });
 window.addEventListener("unhandledrejection", (e) => {
-  track("client_error", `unhandled: ${String(e.reason?.message || e.reason || "").slice(0, 90)}`, 0.25);
+  reportClientError(`unhandled: ${String(e.reason?.message || e.reason || "").slice(0, 90)}`);
 });
 
 document.addEventListener("DOMContentLoaded", async () => {
