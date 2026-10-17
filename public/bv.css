@@ -150,6 +150,10 @@ body.hero-under-bar:has(.bv-sethero) .status-bar-scrim { opacity: 0; }
 .bv-btn--lg { height: 56px; min-height: 56px; border-radius: 28px; font-size: 16px; }
 .bv-btn-row { display: flex; gap: 8px; }
 .bv-btn-row > .bv-btn { flex: 1 1 0; min-width: 0; }
+/* Long translations (German, Ukrainian, Dutch…) wrap onto a second line inside
+   the button instead of running past its edge or off the screen. */
+.bv-btn-row > .bv-btn { height: auto; padding-top: 6px; padding-bottom: 6px; }
+.bv-btn-row > .bv-btn > span { min-width: 0; white-space: normal; text-align: center; line-height: 1.15; overflow-wrap: break-word; }
 .bv-btn .bv-spinner { width: 18px; height: 18px; }
 
 /* ------------------------------------------------------------- chips, segmented, tabs */
@@ -1096,6 +1100,10 @@ body.collector-ui .bv-setbar .bv-btn--full { flex: 1 1 auto; }
 body.collector-ui .bv-setbar > .bv-btn:only-child { flex: 1 1 auto; }
 body.collector-ui .bv-setbar > .bv-btn + .bv-btn:last-child:nth-child(2) { flex: 1 1 0; }
 body.collector-ui .bv-setbar > .bv-btn:first-child:nth-last-child(2) { flex: 1 1 0; }
+body.collector-ui .bv-setbar > .bv-btn + .bv-btn:last-child:nth-child(2),
+body.collector-ui .bv-setbar > .bv-btn:first-child:nth-last-child(2) { min-width: 0; }
+body.collector-ui .bv-setbar > .bv-btn + .bv-btn:last-child:nth-child(2) > span,
+body.collector-ui .bv-setbar > .bv-btn:first-child:nth-last-child(2) > span { min-width: 0; white-space: normal; text-align: center; line-height: 1.15; overflow-wrap: break-word; }
 .bv-setbar__copy {
   flex: 1 1 auto; min-width: 0; min-height: 52px; padding: 0 4px 0 0; border: 0; background: transparent; cursor: pointer;
   display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; text-align: left; color: var(--bv-ink);

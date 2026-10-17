@@ -23,6 +23,7 @@ const RANGES = [
   { key: '1Y', days: 365, pro: true },
   { key: 'ALL', days: 100000, pro: true },
 ];
+const RANGE_LABEL_KEYS = { '1M': 'bvSet.range1m', '3M': 'bvSet.range3m', '1Y': 'bvSet.range1y' };
 let range = '3M';
 
 const esc = escapeHtml;
@@ -86,7 +87,7 @@ function paint(pval) {
 function rangeSeg() {
   return seg(RANGES.map(r => {
     const locked = r.pro && !state.historyPro;
-    const label = r.key === 'ALL' ? t('bvVault.rangeAll') : r.key;
+    const label = r.key === 'ALL' ? t('bvVault.rangeAll') : t(RANGE_LABEL_KEYS[r.key]);
     return {
       value: r.key, label, icon: locked ? 'lock' : undefined, current: range === r.key,
       ariaLabel: locked ? t('bvVault.rangeLocked', { range: label }) : label,

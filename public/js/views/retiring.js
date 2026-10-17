@@ -3,7 +3,7 @@
 // plain buy-window read. Data comes from the daily LEGO.com stock check
 // (lego_retiring_soon / lego_in_stock) plus the retirement-risk model.
 import { $, $$, escapeHtml, haptic } from '../utils.js';
-import { t, tPlural } from '../lib/i18n.js';
+import { t, tPlural, intlLocale } from '../lib/i18n.js';
 import { state } from '../state.js';
 import { api } from '../api.js';
 import { topbar, iconBtn, tabs, pill, chip, emptyState, skeletonRows, btn } from '../ui/kit.js';
@@ -19,7 +19,7 @@ const isRetiring = (s) => !s.retired && (s.lego_retiring_soon === 1 || s.lego_re
 
 function exitLabel(s) {
   const ts = s.exit_date ? Date.parse(s.exit_date) : NaN;
-  if (Number.isFinite(ts)) return t('bvAdd.retiringOn', { date: new Date(ts).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) });
+  if (Number.isFinite(ts)) return t('bvAdd.retiringOn', { date: new Date(ts).toLocaleDateString(intlLocale(), { month: 'short', year: 'numeric' }) });
   return s.lego_retiring_soon ? t('bvAdd.retiringSoonLower') : t('bvAdd.likelyToRetire');
 }
 

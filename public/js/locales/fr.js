@@ -369,6 +369,7 @@ export const fr = {
     youBoughtAt: 'Acheté · {price}',
     youBought: 'Acheté',
     writeReview: 'Écrire un avis',
+    buildingInstructions: 'Instructions de montage (LEGO.com)',
     wishRemove: 'Retirer de la liste d’envies',
     wishAdd: 'Ajouter à la liste d’envies',
     whyPrice: 'Pourquoi {price} ?',
@@ -428,6 +429,7 @@ export const fr = {
     ratingReviewsOne: 'Note des collectionneurs · {count} avis',
     rangeLabel: 'Fourchette probable de {low} à {high}',
     rangeAll: 'Tout',
+    range1m: '1 M',
     range3m: '3 M',
     range1y: '1 A',
     pricePaid: 'Prix payé',
@@ -1740,7 +1742,7 @@ Object.assign(fr.detail, {
 });
 
 export default fr;
-Object.assign(fr.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
+Object.assign(fr.detail, { movementUp: 'En hausse de {pct} % sur {days} jours', movementDown: 'En baisse de {pct} % sur {days} jours', movementResaleUp: ' · les prix de revente ont aussi augmenté', movementResaleDown: ' · les prix de revente ont aussi baissé', movementMarketUp: ' · le prix du marché a aussi augmenté', movementMarketDown: ' · le prix du marché a aussi baissé' });
 
 
 Object.assign(fr.minifigs, {
@@ -1814,4 +1816,4 @@ fr.priceIt = {"you": "Vous", "market": "Marché", "marketValue": "Valeur de marc
 // Desktop web: sidebar, Vault table and keyboard shortcuts (lib/desktop.js).
 fr.desktop = {"search": "Rechercher des sets", "explore": "Explorer", "shortcuts": "Raccourcis clavier", "goTo": "Aller à {place}", "kSearch": "Rechercher", "kHelp": "Afficher les raccourcis clavier", "kClose": "Fermer une fenêtre", "colSet": "Set", "colYear": "Année", "colPieces": "Pièces", "colPaid": "Payé", "colValue": "Valeur", "sortYear": "Année", "sortPieces": "Pièces", "sortPaid": "Payé"};
 // Vault tower, What if, theme quests, anniversaries, widget countdown.
-fr.fun = {"towerLabel": "Ta collection en tour de briques : {themes}", "whatIfTitle": "Et si tu l’avais acheté à sa sortie ?", "whatIfLead": "Acheté en {year} pour {paid}, il vaut {value} aujourd’hui.", "whatIfSet": "Ce set", "whatIfSavings": "Épargne, {rate} %/an", "whatIfCash": "Gardé en liquide", "whatIfBeat": "Il a battu un livret d’épargne.", "whatIfLost": "Un livret d’épargne aurait fait mieux.", "whatIfForecast": "Notre prévision pour {year} : ~{value}.", "widgetRetiringSoon": "{set} sera bientôt retiré", "widgetRetiringToday": "{set} est retiré aujourd’hui", "widgetRetiringTomorrow": "{set} est retiré demain", "widgetRetiringInOne": "{set} est retiré dans {count} jour", "widgetRetiringInOther": "{set} est retiré dans {count} jours", "annivShare": "Partager", "annivEyebrow": "Anniversaire du set", "questsTitle": "Quêtes de thème", "questsIntro": "Chaque sous-thème que tu collectionnes, et à quel point tu es proche de tout posséder.", "questsEmptyTitle": "Pas encore de quête", "questsEmptyBody": "Ajoute un set d’une gamme à collectionner, comme Ultimate Collector Series ou Botanicals, et sa quête apparaîtra ici.", "questsError": "Impossible de charger tes quêtes. Réessaie plus tard.", "questProgress": "{owned}/{total}", "questNext": "Prochain : {set}", "questDone": "Terminé ! Tous les sets sont dans ton coffre.", "questRetired": "retiré", "questMissingOne": "Encore {count} set", "questMissingOther": "Encore {count} sets", "whatIfFineOne": "Soit {perYear} par an sur {count} an. Le prix de sortie est le prix de vente américain ; l’épargne est capitalisée chaque année.", "whatIfFineOther": "Soit {perYear} par an sur {count} ans. Le prix de sortie est le prix de vente américain ; l’épargne est capitalisée chaque année."};
+fr.fun = {"towerLabel": "Votre collection en tour de briques : {themes}", "whatIfTitle": "Et si vous l’aviez acheté à sa sortie ?", "whatIfLead": "Acheté en {year} pour {paid}, il vaut {value} aujourd’hui.", "whatIfSet": "Ce set", "whatIfSavings": "Épargne, {rate} %/an", "whatIfCash": "Gardé en liquide", "whatIfBeat": "Il a battu un livret d’épargne.", "whatIfLost": "Un livret d’épargne aurait fait mieux.", "whatIfForecast": "Notre prévision pour {year} : ~{value}.", "widgetRetiringSoon": "{set} sera bientôt retiré", "widgetRetiringToday": "{set} est retiré aujourd’hui", "widgetRetiringTomorrow": "{set} est retiré demain", "widgetRetiringInOne": "{set} est retiré dans {count} jour", "widgetRetiringInOther": "{set} est retiré dans {count} jours", "annivShare": "Partager", "annivEyebrow": "Anniversaire du set", "questsTitle": "Quêtes de thème", "questsIntro": "Chaque sous-thème que vous collectionnez, et à quel point vous êtes proche de tout posséder.", "questsEmptyTitle": "Pas encore de quête", "questsEmptyBody": "Ajoutez un set d’une gamme à collectionner, comme Ultimate Collector Series ou Botanicals, et sa quête apparaîtra ici.", "questsError": "Impossible de charger vos quêtes. Réessayez plus tard.", "questProgress": "{owned}/{total}", "questNext": "Prochain : {set}", "questDone": "Terminé ! Tous les sets sont dans votre coffre.", "questRetired": "retiré", "questMissingOne": "Encore {count} set", "questMissingOther": "Encore {count} sets", "whatIfFineOne": "Soit {perYear} par an sur {count} an. Le prix de sortie est le prix de vente américain ; l’épargne est capitalisée chaque année.", "whatIfFineOther": "Soit {perYear} par an sur {count} ans. Le prix de sortie est le prix de vente américain ; l’épargne est capitalisée chaque année."};
