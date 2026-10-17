@@ -52,11 +52,12 @@ const COUNT_NEUTRAL_T_KEYS = new Map([
   ['kids.xp', 'invariant-unit'],
   ['kids.xpToLevel', 'ratio/progress'],
   ['portfolio.insightQuantity', 'invariant-symbol'],
+  ['fun.questProgress', 'ratio/progress'],
 ]);
 const APPROVED_COUNT_NEUTRAL_KEYS = new Set([
   'room.page',
   'downloads.scanProgress', 'game.roundOf', 'kids.xp', 'kids.xpToLevel',
-  'portfolio.insightQuantity',
+  'portfolio.insightQuantity', 'fun.questProgress',
 ]);
 for (const [key, category] of COUNT_NEUTRAL_T_KEYS) {
   if (!APPROVED_COUNT_NEUTRAL_KEYS.has(key) || !['ratio/progress', 'invariant-unit', 'invariant-symbol'].includes(category)) {
@@ -262,7 +263,7 @@ const productionRegressions = [
   ['public/js/views/portfolio.js', /shareContent\(\{[\s\S]*?title: t\('share\.portfolioTitle'\)[\s\S]*?text: t\('share\.portfolioText'\)[\s\S]*?dialogTitle: t\('share\.portfolioDialogTitle'\)/, /shareContent\(\{[^}]*text:\s*['"`]/],
   ['public/js/views/portfolio-detail.js', /shareContent\(\{[\s\S]*?text: t\('share\.setText'[\s\S]*?dialogTitle: t\('share\.setDialogTitle'/, /shareContent\(\{[^}]*text:\s*['"`]/],
   // Brick Wrapped moved to its own story screen: the share title is a locale key.
-  ['public/js/views/wrapped.js', /const title = t\('bvCommunity\.wrShareTitle', \{ year: story\.year \}\);[\s\S]*?navigator\.share\(\{ files: \[file\], title \}\)/, /navigator\.share\(\{ files: \[file\], title:\s*['"`]/],
+  ['public/js/views/wrapped.js', /const title = t\('bvCommunity\.wrShareTitle', \{ year: story\.year \}\);[\s\S]*?shareImage\(blob, \{ name, title,/, /shareImage\([^)]*title:\s*['"`]/],
   ['public/js/views/wrapped.js', /ctx\.fillText\(t\('bvCommunity\.wrEyebrow', \{ year: s\.year \}\)\.toUpperCase\(\), X, y\)/, /fillText\(\s*['"`]/],
   // The HTML insurance export moved to the on-device PDF (#/me/insurance).
   ['public/js/views/me-data.js', /exportBlob\(blob, "brickvault-collection\.csv", \{ title: t\('data\.collectionExportTitle'\) \}\)/, /title:\s*["'](?:BricksVault insurance report|Share BricksVault collection)/],

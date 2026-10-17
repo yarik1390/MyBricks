@@ -567,6 +567,9 @@ body.collector-ui :is(.bv-btn, .bv-iconbtn, .bv-chip, .bv-row, .bv-setrow, .bv-t
 .vault-hero__label { font: 500 14px/18px var(--bv-sans); color: var(--bv-mute); }
 .vault-hero .bv-hero__line { align-items: center; row-gap: 4px; }
 .vault-hero .bv-hero__value { white-space: nowrap; }
+.vault-hero__row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.vault-hero__row .bv-hero__line { flex: 1; min-width: 0; }
+.vault-tower { flex-shrink: 0; display: block; }
 .vault-hero__sub, .vault-hero__note { font-size: 13px; line-height: 17px; color: var(--bv-mute); }
 .vault-hero .bv-spark { margin-top: 0; }
 .vault-hero__status { display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; color: var(--bv-mute); }
@@ -2503,3 +2506,47 @@ body.collector-ui.offline #app { padding-top: 56px; }
 .bv-swaps__pick input { width: 20px; height: 20px; flex: 0 0 auto; }
 .bv-swaps__vault { max-height: 50vh; overflow-y: auto; }
 .bv-swaps textarea, #swapForm textarea, #swapAcceptForm textarea { width: 100%; min-height: 72px; resize: vertical; border: 0; background: transparent; color: inherit; font: inherit; }
+
+/* Set page: What if you'd bought it at launch (ui/what-if.js). */
+.bv-whatif { margin: 12px var(--bv-gutter) 0; display: grid; gap: 8px; }
+.bv-whatif__title { margin: 0; font: 600 15px/20px var(--bv-sans); color: var(--bv-ink); }
+.bv-whatif__lead { margin: 0; font-size: 14px; line-height: 20px; color: var(--bv-ink); }
+.bv-whatif__pct { color: var(--bv-gain); font-family: var(--bv-mono); }
+.bv-whatif__pct--down { color: var(--bv-loss); }
+.bv-whatif__row { display: grid; grid-template-columns: minmax(0, 9em) 1fr auto; align-items: center; gap: 10px; font-size: 13px; line-height: 18px; color: var(--bv-mute); }
+.bv-whatif__bar { height: 10px; border-radius: 5px; background: var(--bv-line); overflow: hidden; }
+.bv-whatif__bar > span { display: block; height: 100%; border-radius: 5px; background: var(--bv-mute); opacity: .45; }
+.bv-whatif__row--set { color: var(--bv-ink); font-weight: 600; }
+.bv-whatif__row--set .bv-whatif__bar > span { background: var(--bv-acc); opacity: 1; }
+.bv-whatif__amt { text-align: right; min-width: 4.5em; font-family: var(--bv-mono); font-variant-numeric: tabular-nums; }
+.bv-whatif__note { margin: 2px 0 0; font-size: 13px; line-height: 18px; color: var(--bv-ink); }
+.bv-whatif__fine { margin: 0; font-size: 12px; line-height: 16px; color: var(--bv-mute); }
+
+/* Theme quests (views/quests.js): Vault teaser + #/quests list. */
+.bv-quest { flex-direction: row; align-items: center; gap: 14px; }
+.bv-quest--teaser { margin-top: 10px; padding: 12px 16px; }
+.bv-quest__ring { flex-shrink: 0; }
+.bv-quest__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bv-quest__eyebrow { font-size: 12px; line-height: 16px; color: var(--bv-mute); }
+.bv-quest__name { font: 600 15px/20px var(--bv-sans); color: var(--bv-ink); overflow-wrap: anywhere; }
+.bv-quest__count { font: 500 13px/18px var(--bv-mono); color: var(--bv-mute); white-space: nowrap; }
+.bv-quest__theme, .bv-quest__next { font-size: 13px; line-height: 18px; color: var(--bv-mute); overflow-wrap: anywhere; }
+.bv-quests__intro { margin: 4px var(--bv-gutter) 12px; font-size: 14px; line-height: 20px; color: var(--bv-mute); }
+.bv-quests__list { list-style: none; margin: 0; padding: 0 0 24px; display: grid; gap: 10px; }
+.bv-quests__list .bv-quest { flex-direction: column; align-items: stretch; }
+.bv-quests__list .bv-card + .bv-card { margin-top: 0; }
+.bv-quest__head { display: flex; align-items: center; gap: 14px; }
+.bv-quest__missing summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-size: 14px; color: var(--bv-acct); }
+.bv-quest__missing ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.bv-quest__set { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; min-height: 52px; color: var(--bv-ink); text-decoration: none; }
+.bv-quest__set img, .bv-quest__ph { width: 44px; height: 44px; object-fit: contain; border-radius: 8px; background: var(--bv-line); }
+.bv-quest__setname { display: flex; flex-direction: column; font-size: 14px; line-height: 18px; min-width: 0; overflow-wrap: anywhere; }
+.bv-quest__setmeta { font-size: 12px; color: var(--bv-mute); }
+.bv-quest__price { font: 500 13px/18px var(--bv-mono); color: var(--bv-ink); }
+
+/* Set anniversary banner (ui/anniversary.js). */
+.bv-anniv { margin: 12px var(--bv-gutter) 0; padding: 12px 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border-radius: 20px; background: var(--bv-acc); color: var(--bv-on-acc); }
+.bv-anniv__cake { font-size: 28px; line-height: 1; }
+.bv-anniv__text { flex: 1 1 180px; display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 13px; line-height: 18px; overflow-wrap: anywhere; }
+.bv-anniv__text strong { font: 600 15px/20px var(--bv-sans); }
+.bv-anniv .bv-btn { margin: 0; background: rgba(255, 255, 255, .55); color: #252820; }

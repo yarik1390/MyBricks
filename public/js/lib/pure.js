@@ -1257,3 +1257,42 @@ export function mergeCanonicalSetMarketData(ownedRows, freshRows) {
     return { ...owned, ...market };
   });
 }
+
+/**
+ * "What if you'd bought at launch?" — launch retail vs today's value vs the
+ * same money in savings compounding at `rate` (default 3%/yr). Null when the
+ * set is too new (under a year), unpriced, or has no launch price.
+ */
+export function whatIfLaunch({ rrp, year, value, nowYear = new Date().getUTCFullYear(), rate = 0.03 } = {}) {
+  rrp = Number(rrp); value = Number(value); year = Number(year);
+  if (!(rrp > 0) || !(value > 0) || !(year >= 1949) || nowYear - year < 1) return null;
+  const years = nowYear - year;
+  const savings = rrp * Math.pow(1 + rate, years);
+  return {
+    years, rrp, value, savings,
+    gainPct: (value / rrp - 1) * 100,
+    perYearPct: (Math.pow(value / rrp, 1 / years) - 1) * 100,
+    beatSavings: value > savings,
+  };
+}
+
+/**
+ * The wishlist set retiring soonest: the earliest future LEGO exit date
+ * ({ name, days }), else any set LEGO flags as retiring soon ({ name, days: null }).
+ */
+export function nextRetiring(rows, today = new Date()) {
+  const day = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  let best = null, flagged = null;
+  for (const r of rows || []) {
+    if (!r || r.retired === 1 || r.retired === true) continue;
+    const name = r.name || r.set_num;
+    const ts = r.exit_date ? Date.parse(String(r.exit_date).slice(0, 10) + 'T00:00:00Z') : NaN;
+    if (Number.isFinite(ts) && ts >= day) {
+      const days = Math.round((ts - day) / 86400000);
+      if (!best || days < best.days) best = { name, days };
+    } else if (!flagged && (Number(r.lego_retiring_soon) === 1 || r.lego_retiring_soon === true)) {
+      flagged = { name, days: null };
+    }
+  }
+  return best || flagged;
+}

@@ -1,7 +1,7 @@
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  distinctHues,
+  distinctHues, whatIfLaunch, nextRetiring,
   escapeHtml, fmtPct, clamp, themeHue, bricklinkBuyURL,
   computeDealScore, valuationTrust, valuationConfidencePresentation, catalogFilterSummary, classifyJobRun,
   annualizedROI, parseMarkdown, jwtSub, ebaySoldSummary, marketValueForCondition, openedCopyValue,
@@ -2341,5 +2341,31 @@ describe('distinctHues', () => {
   it('normalizes and tolerates junk', () => {
     assert.deepEqual(distinctHues([-10]), [350]);
     assert.deepEqual(distinctHues(['x']), [0]);
+  });
+});
+
+describe('whatIfLaunch', () => {
+  it('compares launch price, today and savings', () => {
+    const w = whatIfLaunch({ rrp: 100, year: 2016, value: 200, nowYear: 2026, rate: 0.03 });
+    assert.equal(w.years, 10);
+    assert.equal(Math.round(w.savings), 134);
+    assert.equal(Math.round(w.gainPct), 100);
+    assert.ok(w.beatSavings);
+  });
+  it('is null for this year’s sets and missing prices', () => {
+    assert.equal(whatIfLaunch({ rrp: 100, year: 2026, value: 120, nowYear: 2026 }), null);
+    assert.equal(whatIfLaunch({ rrp: 0, year: 2010, value: 120, nowYear: 2026 }), null);
+  });
+});
+
+describe('nextRetiring', () => {
+  const today = new Date('2026-10-17T09:00:00Z');
+  it('picks the earliest future exit date', () => {
+    const rows = [{ name: 'A', exit_date: '2026-12-31' }, { name: 'B', exit_date: '2026-10-29' }, { name: 'C', exit_date: '2025-01-01' }];
+    assert.deepEqual(nextRetiring(rows, today), { name: 'B', days: 12 });
+  });
+  it('falls back to a LEGO retiring-soon flag, skipping retired sets', () => {
+    assert.deepEqual(nextRetiring([{ name: 'R', retired: 1, lego_retiring_soon: 1 }, { name: 'T', lego_retiring_soon: 1 }], today), { name: 'T', days: null });
+    assert.equal(nextRetiring([], today), null);
   });
 });

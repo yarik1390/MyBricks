@@ -3165,9 +3165,9 @@
     "text": "Filesystem",
     "files": [
       "lib/native-file-export.js",
+      "lib/share-image.js",
       "views/me-insurance.js",
-      "views/me-sales.js",
-      "views/wrapped.js"
+      "views/me-sales.js"
     ]
   },
   {
@@ -8266,10 +8266,10 @@
     "files": [
       "lib/native-file-export.js",
       "lib/native-share.js",
+      "lib/share-image.js",
       "views/family.js",
       "views/me-insurance.js",
-      "views/me-sales.js",
-      "views/wrapped.js"
+      "views/me-sales.js"
     ]
   },
   {
@@ -9224,6 +9224,12 @@
     "text": "Theme group",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Theme quests",
+    "files": [
+      "route-meta.js"
     ]
   },
   {

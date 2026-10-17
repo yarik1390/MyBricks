@@ -23,6 +23,8 @@ import { getModePref } from '../theme.js';
 import { hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
 import { mountStorePrices } from '../components/store-prices.js';
 import { getProviderCredential } from '../lib/provider-credentials.js';
+import { whatIfHTML } from '../ui/what-if.js';
+import { anniversaryBannerHTML, wireAnniversary } from '../ui/anniversary.js';
 
 // Simple mode hides the forecast (price-projection) tab. Helper centralizes the
 // check and the available-tabs list so every tab build stays consistent.
@@ -198,6 +200,7 @@ function paintSetDetail(set, entry, { background = false } = {}) {
         ${titleBlockHTML(set)}
         ${valueCardHTML(set, entry)}
         ${signalBannerHTML(set, entry)}
+        ${isKidsMode() ? "" : anniversaryBannerHTML(set, entry, setDisplayValue(set))}
         <div class="bv-tabs bv-settabs" id="detailTabs" role="tablist" aria-label="${escapeHtml(t("bvSet.sections"))}">
           ${detailTabs().map(id => `<button type="button" id="tab-${id}" data-tab="${id}" role="tab" tabindex="${tab === id ? "0" : "-1"}" aria-selected="${tab === id}" aria-controls="panel-${id}" class="${tab === id ? "active" : ""}">${escapeHtml(tabLabel(id))}</button>`).join("")}
         </div>
@@ -212,6 +215,7 @@ function paintSetDetail(set, entry, { background = false } = {}) {
   ensureDetailDelegation();
   wirePanel(tab, set, entry);
   wireDetailActions(set, entry);
+  wireAnniversary(set, entry, setDisplayValue(set));
   wireSetHero(set, entry);
   setupTabSwipe(set, entry);
   if (sheet) openSetSheet(sheet, set, entry);
@@ -1435,6 +1439,13 @@ function wireBarActions(set) {
 // Honesty rules: only a real 2-year projection renders (no fabricated default
 // growth bars, and the 5-year horizon is gone — nobody can forecast LEGO prices
 // 5 years out and pretending otherwise erodes trust in every other number).
+// The 2-year projection when the set has a ready forecast, else 0.
+function forecastProjection(set) {
+  const forecast = set.valuation?.read_enabled ? set.valuation?.forecast : null;
+  const projection = Number(forecast?.base) || Number(set.forecast_2y) || 0;
+  return (forecast?.status === 'ready' || forecast?.status === 'external') ? projection : 0;
+}
+
 function forecastTabHTML(set) {
   const forecast = set.valuation?.read_enabled ? set.valuation?.forecast : null;
   const baseline = Number(forecast?.base_value) || Number(set.valuation?.new?.fair_value) || Number(set.current_value) || 0;
@@ -1556,6 +1567,7 @@ function historyTabHTML(set) {
       <div class="bv-chart no-tab-swipe"><div class="spark-wrap" id="setSpark"></div><span class="bv-chart__mark" id="histBought" hidden><span class="bv-chart__marklabel"></span></span></div>
       <div class="spark-legend" id="setSparkLegend"></div>
     </section>
+    ${isKidsMode() ? "" : whatIfHTML(set, v, forecastProjection(set))}
     ${sold ? `<h2 class="bv-h2">${escapeHtml(t("bvSet.recentSales"))}</h2><div class="bv-setsection">${sold}</div>` : ""}
     ${isSimpleMode() || isKidsMode() || !set.valuation?.read_enabled ? "" : `<div class="bv-setsection">${investmentPricingHTML(set)}</div>`}
     ${isSimpleMode() ? "" : `<div class="bv-setsection">${forecastTabHTML(set)}</div>`}

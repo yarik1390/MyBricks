@@ -2,7 +2,7 @@ import { markValuesFresh, setSyncState, syncSlotHTML, reachErrorHTML } from '../
 import { vaultNavigation, setNavBadge, setPageFab, resetPageFab, syncCollectorChrome } from '../components/collector-shell.js';
 import { routeMetaFor } from '../route-meta.js';
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, daysAgo, prefersReducedMotion, themeHue, getExchangeRate, CURRENCY_SYMBOLS, ratesUnavailable, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone, publicOrigin, celebrate, fmtPct, advisorEnabled, fmtDateUpdated, parseUTCDate } from '../utils.js';
-import { displayValueOf } from '../lib/pure.js';
+import { displayValueOf, nextRetiring } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { api, getSessionUserId, isGuestMode, getSessionOwnerSnapshot } from '../api.js';
 import { shareContent } from '../lib/native-share.js';
@@ -16,6 +16,8 @@ import { readCollectorPreferences, writeCollectorPreferences } from '../lib/coll
 import { vaultTotals, changesWindowDays, changeSinceFromSnapshots, changeItems, clipHistory } from '../lib/vault-insights.js';
 import { icon, sparkline, delta as deltaChip, emptyState, btn, banner, skeletonRows, chip } from '../ui/kit.js';
 import { setTile, gainPct } from '../ui/set-ui.js';
+import { vaultTowerHTML } from '../ui/vault-tower.js';
+import { questTeaserHTML, cachedQuests, loadQuestTeaser } from './quests.js';
 import { vaultTopbar, vaultSearchRow, sortButton, layoutSeg, vaultToolbar, openChoiceSheet, openActionSheet, vaultSetRow, vaultListHead, moneyWhole, moneyWholeSigned, holdingValue } from '../ui/vault-ui.js';
 
 // Concise portfolio source credit: PriceCharting is named only when it
@@ -43,6 +45,7 @@ export async function renderPortfolio() {
   if (!onVaultRoute()) return;
   paintPortfolio();
   loadVaultChanges();
+  if (!isGuestMode()) loadQuestTeaser();
   // Stale-while-revalidate: when painted from in-memory cache, refresh in the
   // background so cron/valuation price updates surface without a manual reload.
   if (servedFromCache) _revalidatePortfolio();
@@ -439,7 +442,7 @@ function heroHTML(p, totals) {
   const value = p.total_value ?? totals.value;
   return `<a class="bv-card bv-hero vault-hero" href="#/insights" id="vaultHero">
     <span class="vault-hero__head"><span class="vault-hero__label">${escapeHtml(t('bvVault.collectionValue'))}</span><span class="bv-card__link">${escapeHtml(t('bvVault.insights'))}${icon('chev', { size: 16 })}</span></span>
-    <span class="bv-hero__line"><span class="bv-hero__value" id="heroValue" aria-label="${escapeHtml(heroValueText(value))}" aria-live="off">${escapeHtml(heroValueText(value))}</span>${chip}</span>
+    <span class="vault-hero__row"><span class="bv-hero__line"><span class="bv-hero__value" id="heroValue" aria-label="${escapeHtml(heroValueText(value))}" aria-live="off">${escapeHtml(heroValueText(value))}</span>${chip}</span>${vaultTowerHTML(p.items || [], pval, totals.holdings)}</span>
     <span class="vault-hero__sub" id="vaultHeroSub">${heroSubHTML(totals)}</span>
     ${spark || (hist.length ? `<span class="vault-hero__note">${escapeHtml(t('bvVault.trendSoon'))}</span>` : '')}
     ${heroStatusHTML(p)}
@@ -521,6 +524,7 @@ function paintPortfolio() {
       <div id="bvReachSlot"></div>
       ${isEmptyVault ? `${emptyVaultHTML()}${hasFigs ? vaultNavigation('sets') : ''}` : `
       ${showSearch ? '' : `<div class="vault-aside">${heroHTML(p, totals)}
+      <div id="vaultQuestSlot">${isGuestMode() ? '' : questTeaserHTML(cachedQuests())}</div>
       <div id="vaultSinceSlot">${state.vaultChanges?.owner === getSessionUserId() ? sinceCardHTML(state.vaultChanges.data) : ''}</div>
       <div id="collectorPinned"></div></div>`}
       <div class="vault-main">
@@ -556,6 +560,7 @@ function paintPortfolio() {
     deltaUp: totals.paperGain >= 0,
     sets: p.set_count ?? items.length,
     owner: getSessionUserId() || 'guest',
+    retiring: widgetRetiringText(),
   })).catch(() => {});
   checkAnniversaries(items);
   refreshNavBadge();
@@ -681,6 +686,16 @@ function openVaultMoreSheet() {
       ] },
     ],
   });
+}
+
+// Widget corner line: the wishlist set retiring soonest, in the user's language.
+function widgetRetiringText() {
+  const next = nextRetiring(state.wishlist || []);
+  if (!next) return '';
+  if (next.days == null) return t('fun.widgetRetiringSoon', { set: next.name });
+  if (next.days === 0) return t('fun.widgetRetiringToday', { set: next.name });
+  if (next.days === 1) return t('fun.widgetRetiringTomorrow', { set: next.name });
+  return tPlural('fun.widgetRetiringIn', next.days, { set: next.name });
 }
 
 // Set anniversaries: exactly N years to the day since a set was purchased →

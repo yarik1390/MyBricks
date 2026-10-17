@@ -42,6 +42,7 @@ import { runPartOutCompute } from './jobs/part-out-compute';
 import { runTrainValueModel } from './jobs/train-value-model';
 import { runWishlistAlerts } from './jobs/wishlist-alerts';
 import { runWeeklyDigest } from './jobs/weekly-digest';
+import { runSetAnniversaries } from './jobs/set-anniversaries';
 import { runCollectionBackups } from './jobs/collection-backups';
 import { runDailyCatalogMaintenance } from './jobs/catalog-maintenance';
 import { runDbHygiene } from './jobs/db-hygiene';
@@ -325,6 +326,7 @@ import { promotionsRoute } from './routes/promotions'; app.route('/api/promotion
 import { rebrickableSyncRoute } from './routes/rebrickable-sync'; app.route('/api/rebrickable', rebrickableSyncRoute);
 import { gradeRoute } from './routes/grade'; app.route('/api/grade', gradeRoute);
 import { lotRoute } from './routes/lot'; app.route('/api/lot', lotRoute);
+import { questsRoute } from './routes/quests'; app.route('/api/quests', questsRoute);
 import { familyRoute } from './routes/family'; app.route('/api/family', familyRoute);
 import { swapsRoute } from './routes/swaps'; app.route('/api/swaps', swapsRoute);
 app.route('/api/game', gameRoute);
@@ -454,7 +456,10 @@ export default {
         // so the AI cascades stay on free models as availability churns.
         await run('model-refresh', () => runModelRefresh(env));
         break;
-      case '0 8 * * *': await run('wishlist-alerts', () => runWishlistAlerts(env)); break;
+      case '0 8 * * *':
+        await run('wishlist-alerts', () => runWishlistAlerts(env));
+        await run('set-anniversaries', () => runSetAnniversaries(env));
+        break;
       case '0 8 * * SUN': await run('weekly-digest', () => runWeeklyDigest(env)); break;
       case '0 5 * * SUN': await run('collection-backups', () => runCollectionBackups(env)); break;
       // Formula-head value converter, hourly at :15 — converts the high-value
