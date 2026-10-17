@@ -21,7 +21,7 @@ const _alts = { loaded: false, loading: false, error: "", authRequired: false, b
 let _cacheIdentity = getSessionUserId();
 let _cacheGeneration = 0;
 
-const esc = (v) => escapeHtml(v == null ? '' : String(v));
+const esc = escapeHtml;
 const onBuild = () => location.hash.split('?')[0] === '#/build';
 const fmtInt = (n) => { try { return Number(n).toLocaleString(getLocale()); } catch { return String(n); } };
 

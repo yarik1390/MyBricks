@@ -84,6 +84,3 @@ export async function toBrickLinkColorId(env: Env, rbColorId: number): Promise<n
 }
 
 /** Test hook: reset the per-isolate memo. */
-export function __resetColorMapForTests(): void {
-  memo = null;
-}

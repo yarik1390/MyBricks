@@ -2,8 +2,12 @@ import { I } from './icons.js';
 import { state } from './state.js';
 import morphdom from './lib/morphdom.js';
 import { upsertDetailCache } from './lib/pure-core.js';
+import { escapeHtml, fmtPct, daysAgo, clamp, parseMarkdown, themeHue, THEME_COLORS, bricklinkBuyURL } from './lib/pure.js';
 import { t, tPlural, getLocale } from './lib/i18n.js';
 import { resolveMoneyInputContext } from './lib/money-input.js';
+
+// Pure helpers live in lib/pure.js (unit-tested there); re-exported for existing callers.
+export { escapeHtml, fmtPct, daysAgo, clamp, parseMarkdown, themeHue, THEME_COLORS, bricklinkBuyURL };
 
 /* ---------- DOM helpers ---------- */
 export const $ = (s, r = document) => r.querySelector(s);
@@ -167,51 +171,6 @@ export function fmtMoneyShort(n) {
   return s + symbol + a.toFixed(0);
 }
 
-export function fmtPct(n) { return (n >= 0 ? "+" : "") + (n * 100).toFixed(1) + "%"; }
-export const daysAgo = (iso) => Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-export const yearsAgo = (iso) => (Date.now() - new Date(iso).getTime()) / (365.25 * 86400000);
-export const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
-
-export function escapeHtml(s) {
-  return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-}
-
-export function parseMarkdown(text) {
-  if (!text) return "";
-  let html = escapeHtml(text);
-  html = html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-  html = html.replace(/\*(.*?)\*/g, "<em>$1</em>");
-  html = html.replace(/^### (.*?)$/gm, "<h3>$1</h3>");
-  html = html.replace(/^## (.*?)$/gm, "<h2>$1</h2>");
-  html = html.replace(/^# (.*?)$/gm, "<h1>$1</h1>");
-  const lines = html.split("\n");
-  let inList = false;
-  const processed = lines.map(line => {
-    const cleanLine = line.trim();
-    if (cleanLine.startsWith("- ") || cleanLine.startsWith("* ")) {
-      let listContent = cleanLine.slice(2);
-      let out = "";
-      if (!inList) {
-        inList = true;
-        out += '<ul style="margin: 4px 0; padding-left: 20px;">';
-      }
-      out += `<li>${listContent}</li>`;
-      return out;
-    } else {
-      let out = "";
-      if (inList) {
-        inList = false;
-        out += "</ul>";
-      }
-      out += line;
-      return out;
-    }
-  });
-  if (inList) {
-    processed.push("</ul>");
-  }
-  return processed.join("<br>").replace(/<\/ul><br>/g, "</ul>").replace(/<br><ul/g, "<ul");
-}
 
 // Fire-and-forget client telemetry - anonymous, allowlisted server-side, and
 // sampled here so hot paths (route views) cost a fraction of a request. Never
@@ -520,38 +479,9 @@ export function recordPortfolioMilestone(count, value) {
   } catch {}
 }
 
-export function themeHue(theme = "") {
-  let h = 0;
-  for (let i = 0; i < theme.length; i++) h = (h * 31 + theme.charCodeAt(i)) & 0xFFFF;
-  return h % 360;
-}
-
 export function setHue(set) {
   return set.hue ?? themeHue(set.theme || "");
 }
-
-export const THEME_COLORS = {
-  "Star Wars":        "#1a1a2e",
-  "City":             "#0057b7",
-  "Technic":          "#e8a500",
-  "Creator":          "#2e7d32",
-  "Friends":          "#e91e8c",
-  "Harry Potter":     "#5c3317",
-  "Ninjago":          "#d32f2f",
-  "Ideas":            "#7c3aed",
-  "Architecture":     "#546e7a",
-  "Disney":           "#1976d2",
-  "Marvel":           "#b71c1c",
-  "DC":               "#0d47a1",
-  "Speed Champions":  "#f57c00",
-  "Minecraft":        "#4caf50",
-  "Icons":            "#37474f",
-  "Classic":          "#f9a825",
-  "Duplo":            "#e53935",
-  "Creator Expert":   "#558b2f",
-  "Art":              "#6a1b9a",
-  "Botanical":        "#388e3c",
-};
 
 export function fmtShortDate(d) {
   try {
@@ -776,22 +706,6 @@ export function installImageFallback(win = window) {
   );
 }
 
-export function slImgHTML(set, { newBadge = false, qtyBadge = 0 } = {}) {
-  const _h = setHue(set);
-  const hasImg = set.image_url && !set.image_url.startsWith("data:");
-  return `<div class="sl-img has-tile${hasImg ? " has-photo" : ""}">
-    ${brickTile(set)}
-    ${hasImg ? `<img class="set-photo" src="${escapeHtml(thumbImg(set.image_url))}" alt="" loading="lazy" decoding="async">` : ""}
-    ${newBadge ? `<span class="new-badge">NEW</span>` : ""}
-    ${qtyBadge > 1 ? `<span class="qty-badge">×${qtyBadge}</span>` : ""}
-  </div>`;
-}
-
-export function bricklinkBuyURL(setNum) {
-  const clean = setNum.replace(/-1$/, "");
-  return `https://www.bricklink.com/v2/catalog/catalogitem.page?S=${clean}-1`;
-}
-
 export function emptyState({ icon = '', title, body = '', action = '' } = {}) {
   return `<div class="empty-state">
     ${icon ? `<div class="empty-state-icon" aria-hidden="true">${icon}</div>` : ''}
@@ -809,27 +723,6 @@ export function trendBadgeHTML(trend) {
     return `<span class="trend-badge falling" title="Price trend: Falling">${I.trendDown({w:10, h:10})} Falling</span>`;
   }
   return "";
-}
-
-/** Mark a .field wrapper (or input) as invalid and show msg in its .field-err
- *  sibling (created if missing). Pass clearFieldError to reset. */
-export function setFieldError(fieldEl, msg) {
-  if (!fieldEl) return;
-  fieldEl.classList.add("error");
-  let err = fieldEl.querySelector(".field-err") || fieldEl.nextElementSibling;
-  if (!err || !err.classList?.contains("field-err")) {
-    err = document.createElement("div");
-    err.className = "field-err";
-    fieldEl.appendChild(err);
-  }
-  err.textContent = msg || "";
-}
-
-export function clearFieldError(fieldEl) {
-  if (!fieldEl) return;
-  fieldEl.classList.remove("error");
-  const err = fieldEl.querySelector(".field-err");
-  if (err) err.textContent = "";
 }
 
 export function readFileAsDataURL(file) {

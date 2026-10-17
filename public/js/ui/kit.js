@@ -10,7 +10,7 @@
 import { escapeHtml } from '../utils.js';
 import { t } from '../lib/i18n.js';
 
-const esc = (value) => escapeHtml(value == null ? '' : String(value));
+const esc = escapeHtml;
 
 // 24px outline icons, 2px stroke, round caps (Material Symbols–like geometry).
 export const ICONS = {

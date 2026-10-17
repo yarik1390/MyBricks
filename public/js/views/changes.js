@@ -11,7 +11,7 @@ import { topbar, iconBtn, icon, card, sectionTitle, emptyState, btn, sparkline, 
 import { setThumb } from '../ui/set-ui.js';
 import { moneyWhole, moneyWholeSigned } from '../ui/vault-ui.js';
 
-const esc = (v) => escapeHtml(v == null ? '' : String(v));
+const esc = escapeHtml;
 const onChanges = () => location.hash.split('?')[0] === '#/changes';
 
 // What this visit shows. Captured once on entry: viewing marks alerts read and

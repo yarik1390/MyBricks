@@ -1,8 +1,7 @@
 import { $, escapeHtml, haptic, advisorEnabled, toast } from '../utils.js';
 import { goBackOr } from '../lib/nav-history.js';
 import { I } from '../icons.js';
-import { state } from '../state.js';
-import { getSessionUserId, getSessionOwnerSnapshot } from '../api.js';
+import { getSessionUserId, } from '../api.js';
 import { getModePref } from '../theme.js';
 import { t, tPlural } from '../lib/i18n.js';
 import { readCollectorPreferences, writeCollectorPreferences } from '../lib/collector-preferences.js';
@@ -24,21 +23,12 @@ export function vaultNavigation(selected = 'sets') {
   return kitTabs(items.map(([key, href, label]) => ({ label: t(label), href, selected: key === selected })),
     { label: t('collector.collectionTabs'), cls: 'collector-tabs' });
 }
-export function vaultViewSwitch(selected = 'grid') {
-  return `<nav class="vault-view-switch" aria-label="${escapeHtml(t('collector.view'))}">
-    <a href="#/" data-vault-view="grid" ${selected === 'grid' ? 'aria-current="page"' : ''}>${I.grid()}<span>${t('collector.grid')}</span></a>
-    <a href="#/room" data-vault-view="room" ${selected === 'room' ? 'aria-current="page"' : ''}>${I.home()}<span>${t('collector.room')}</span></a>
-  </nav>`;
-}
 // Discover scope: the whole catalog of sets, or minifigures.
 export function discoverNavigation(selected = 'sets') {
   return `<div class="bv-discover-scope">${kitSeg([
     { label: t('shell.tabSets'), href: '#/add', current: selected === 'sets' },
     { label: t('shell.tabMinifigs'), href: '#/minifigs?owned=0', current: selected === 'minifigs' },
   ], { label: t('collector.discover') })}</div>`;
-}
-export function collectorTools() {
-  return `<div class="collector-tools"><a href="#/build">${I.brick ? I.brick() : I.grid()}<span>${t('collector.buildIdeas')}</span>${I.chev()}</a>${advisorEnabled() ? `<button type="button" data-collector-advisor>${I.spark ? I.spark() : I.info()}<span>${t('collector.advisor')}</span>${I.chev()}</button>` : ''}</div>`;
 }
 export function openCollectorAdd() {
   showSheet(`<h2>${t('collector.addTitle')}</h2><p class="collector-hint">${t('collector.addHint')}</p>
@@ -210,28 +200,6 @@ export function setPinnedCollection(id, pinned) {
   if (!writeCollectorPreferences(owner, { pins })) { toast(t('collector.preferenceFailed'), 'error'); return false; }
   haptic('light');
   return true;
-}
-
-export function collectionSaveStatus() {
-  const pending = state.pendingCollectionOperationList || [];
-  if (!pending.length) return '';
-  const failed = pending.some(item => item.state === 'failed');
-  return `<p class="collector-save-status" role="status">${I.cloud ? I.cloud() : I.info()}${t(failed ? 'collector.saveFailed' : 'collector.savePending')}</p>`;
-}
-
-export async function loadPinnedCollections() {
-  const host = $('#collectorPinned');
-  const owner = getSessionOwnerSnapshot();
-  const pins = readCollectorPreferences(owner.userId).pins;
-  if (!host || !pins.length) return;
-  try {
-    const { subcollectionRequest } = await import('../lib/subcollection-storage.js');
-    const result = await subcollectionRequest();
-    const now = getSessionOwnerSnapshot();
-    if (!host.isConnected || now.userId !== owner.userId || now.generation !== owner.generation) return;
-    const lists = (result.subcollections || []).filter(list => pins.includes(list.id));
-    host.innerHTML = `<nav class="collector-pins" aria-label="${escapeHtml(t('collector.pinned'))}">${lists.map(list => `<a href="#/collections?list=${encodeURIComponent(list.id)}">${escapeHtml(list.name)}</a>`).join('')}</nav>`;
-  } catch { /* Pins are optional shortcuts; a failed read never hides the vault. */ }
 }
 
 // Navigation state is memory-only and discarded on identity changes. Filters

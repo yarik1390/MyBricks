@@ -28,7 +28,7 @@ let _seriesList = [];
 let _seriesProgress = null;
 let figSearchOpen = false;
 
-const esc = (v) => escapeHtml(v == null ? '' : String(v));
+const esc = escapeHtml;
 const onFigs = () => location.hash.split('?')[0] === '#/minifigs';
 const hashParams = () => new URLSearchParams(location.hash.split('?')[1] || '');
 const ownedMode = () => state.filter.figOwned === 'owned';
