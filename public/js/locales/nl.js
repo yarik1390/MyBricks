@@ -369,6 +369,7 @@ export const nl = {
     youBoughtAt: 'Gekocht · {price}',
     youBought: 'Gekocht',
     writeReview: 'Review schrijven',
+    buildingInstructions: 'Bouwinstructies (LEGO.com)',
     wishRemove: 'Van verlanglijst verwijderen',
     wishAdd: 'Aan verlanglijst toevoegen',
     whyPrice: 'Waarom {price}?',
@@ -428,6 +429,7 @@ export const nl = {
     ratingReviewsOne: 'Beoordeling van verzamelaars · {count} review',
     rangeLabel: 'Waarschijnlijk bereik {low} tot {high}',
     rangeAll: 'Alles',
+    range1m: '1 M',
     range3m: '3 M',
     range1y: '1 J',
     pricePaid: 'Betaalde prijs',
@@ -1728,7 +1730,7 @@ Object.assign(nl.market, {"pcAttributionNew": "Nieuwstaat gewaardeerd met PriceC
 Object.assign(nl.detail, {"historyValue": "Waarde", "historyMarket": "Markt", "historyResale": "Doorverkoop", "estimateNoSales": "Schatting — nog geen recente marktverkopen voor deze set"});
 
 export default nl;
-Object.assign(nl.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
+Object.assign(nl.detail, { movementUp: '{pct}% hoger in {days} dagen', movementDown: '{pct}% lager in {days} dagen', movementResaleUp: ' · doorverkoopprijzen stegen ook', movementResaleDown: ' · doorverkoopprijzen daalden ook', movementMarketUp: ' · de marktprijs steeg ook', movementMarketDown: ' · de marktprijs daalde ook' });
 
 
 Object.assign(nl.minifigs, {

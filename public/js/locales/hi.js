@@ -369,6 +369,7 @@ export const hi = {
     youBoughtAt: 'आपने ख़रीदा · {price}',
     youBought: 'आपने ख़रीदा',
     writeReview: 'समीक्षा लिखें',
+    buildingInstructions: 'बनाने के निर्देश (LEGO.com)',
     wishRemove: 'विशलिस्ट से हटाएँ',
     wishAdd: 'विशलिस्ट में जोड़ें',
     whyPrice: '{price} क्यों?',
@@ -428,6 +429,7 @@ export const hi = {
     ratingReviewsOne: 'संग्राहक रेटिंग · {count} समीक्षा',
     rangeLabel: 'संभावित सीमा {low} से {high}',
     rangeAll: 'सभी',
+    range1m: '1 म',
     range3m: '3 म',
     range1y: '1 साल',
     pricePaid: 'चुकाया गया मूल्य',
@@ -1728,7 +1730,7 @@ Object.assign(hi.market, {"pcAttributionNew": "नई स्थिति का 
 Object.assign(hi.detail, {"historyValue": "मूल्य", "historyMarket": "बाज़ार", "historyResale": "पुनर्विक्रय", "estimateNoSales": "अनुमान — इस सेट की हाल की बाज़ार बिक्री अभी उपलब्ध नहीं"});
 
 export default hi;
-Object.assign(hi.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
+Object.assign(hi.detail, { movementUp: '{days} दिनों में {pct}% ऊपर', movementDown: '{days} दिनों में {pct}% नीचे', movementResaleUp: ' · पुनर्विक्रय कीमतें भी बढ़ीं', movementResaleDown: ' · पुनर्विक्रय कीमतें भी घटीं', movementMarketUp: ' · बाज़ार कीमत भी बढ़ी', movementMarketDown: ' · बाज़ार कीमत भी घटी' });
 
 
 Object.assign(hi.minifigs, {

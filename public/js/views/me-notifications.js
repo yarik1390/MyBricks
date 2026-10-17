@@ -6,7 +6,7 @@
 import { $, $$, escapeHtml, haptic, toast } from '../utils.js';
 import { state } from '../state.js';
 import { api, isGuestMode } from '../api.js';
-import { t } from '../lib/i18n.js';
+import { t, intlLocale } from '../lib/i18n.js';
 import { topbar, toggle, row, sheetBody, btn, banner } from '../ui/kit.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { pushStatus, turnOnPush, turnOffPush } from '../lib/push-delivery.js';
@@ -30,7 +30,7 @@ let prefs = null;
 let push = 'off';
 
 function hourLabel(h) {
-  return new Date(2020, 0, 1, h).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return new Date(2020, 0, 1, h).toLocaleTimeString(intlLocale(), { hour: 'numeric', minute: '2-digit' });
 }
 
 function subtitle() {

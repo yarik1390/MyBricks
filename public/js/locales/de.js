@@ -369,6 +369,7 @@ export const de = {
     youBoughtAt: 'Gekauft · {price}',
     youBought: 'Gekauft',
     writeReview: 'Bewertung schreiben',
+    buildingInstructions: 'Bauanleitung (LEGO.com)',
     wishRemove: 'Von der Wunschliste entfernen',
     wishAdd: 'Zur Wunschliste',
     whyPrice: 'Warum {price}?',
@@ -428,6 +429,7 @@ export const de = {
     ratingReviewsOne: 'Sammlerbewertung · {count} Bewertung',
     rangeLabel: 'Wahrscheinliche Spanne {low} bis {high}',
     rangeAll: 'Alle',
+    range1m: '1 M',
     range3m: '3 M',
     range1y: '1 J',
     pricePaid: 'Kaufpreis',
@@ -1746,7 +1748,7 @@ Object.assign(de.detail, {
 });
 
 export default de;
-Object.assign(de.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
+Object.assign(de.detail, { movementUp: 'In {days} Tagen um {pct} % gestiegen', movementDown: 'In {days} Tagen um {pct} % gefallen', movementResaleUp: ' · Wiederverkaufspreise stiegen ebenfalls', movementResaleDown: ' · Wiederverkaufspreise fielen ebenfalls', movementMarketUp: ' · Marktpreise stiegen ebenfalls', movementMarketDown: ' · Marktpreise fielen ebenfalls' });
 
 
 Object.assign(de.minifigs, {

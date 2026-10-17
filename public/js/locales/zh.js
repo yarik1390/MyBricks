@@ -369,6 +369,7 @@ export const zh = {
     youBoughtAt: '你购入于此 · {price}',
     youBought: '你购入于此',
     writeReview: '写评论',
+    buildingInstructions: '搭建说明（LEGO.com）',
     wishRemove: '从心愿单移除',
     wishAdd: '加入心愿单',
     whyPrice: '为什么是 {price}？',
@@ -428,6 +429,7 @@ export const zh = {
     ratingReviewsOne: '收藏者评分 · {count} 条评论',
     rangeLabel: '可能区间 {low} 至 {high}',
     rangeAll: '全部',
+    range1m: '1个月',
     range3m: '3个月',
     range1y: '1年',
     pricePaid: '购入价',
@@ -1728,7 +1730,7 @@ Object.assign(zh.market, {"pcAttributionNew": "全新状态估值参考 PriceCha
 Object.assign(zh.detail, {"historyValue": "价值", "historyMarket": "市场", "historyResale": "转售", "estimateNoSales": "估算 — 此套装暂无近期市场成交记录"});
 
 export default zh;
-Object.assign(zh.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
+Object.assign(zh.detail, { movementUp: '{days} 天内上涨 {pct}%', movementDown: '{days} 天内下跌 {pct}%', movementResaleUp: ' · 转售价格也上涨了', movementResaleDown: ' · 转售价格也下跌了', movementMarketUp: ' · 市场价也上涨了', movementMarketDown: ' · 市场价也下跌了' });
 
 
 Object.assign(zh.minifigs, {

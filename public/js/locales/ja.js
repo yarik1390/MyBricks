@@ -369,6 +369,7 @@ export const ja = {
     youBoughtAt: '購入時 · {price}',
     youBought: '購入時',
     writeReview: 'レビューを書く',
+    buildingInstructions: '組み立て説明書（LEGO.com）',
     wishRemove: 'ウィッシュリストから削除',
     wishAdd: 'ウィッシュリストに追加',
     whyPrice: 'なぜ{price}？',
@@ -428,6 +429,7 @@ export const ja = {
     ratingReviewsOne: 'コレクター評価 · {count}件のレビュー',
     rangeLabel: '想定レンジ {low}〜{high}',
     rangeAll: 'すべて',
+    range1m: '1か月',
     range3m: '3か月',
     range1y: '1年',
     pricePaid: '購入価格',
@@ -1733,7 +1735,7 @@ Object.assign(ja.market, {"pcAttributionNew": "新品状態の評価にPriceChar
 Object.assign(ja.detail, {"historyValue": "価値", "historyMarket": "市場", "historyResale": "再販", "estimateNoSales": "推定値 — このセットの最近の市場取引はまだありません"});
 
 export default ja;
-Object.assign(ja.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
+Object.assign(ja.detail, { movementUp: '{days}日間で{pct}%上昇', movementDown: '{days}日間で{pct}%下落', movementResaleUp: ' · 再販価格も上昇', movementResaleDown: ' · 再販価格も下落', movementMarketUp: ' · 市場価格も上昇', movementMarketDown: ' · 市場価格も下落' });
 
 
 Object.assign(ja.minifigs, {

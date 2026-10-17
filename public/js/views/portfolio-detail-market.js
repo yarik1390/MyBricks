@@ -7,7 +7,7 @@ import { pricechartingAttributionHTML } from '../lib/partner-attribution.js';
 import { amazonSlotHTML } from '../lib/amazon-affiliate.js';
 import { ebaySoldSummary, displayValueOf } from '../lib/pure.js';
 import { escapeHtml, fmtMoney, fmtPct, fmtDateUpdated, trendBadgeHTML } from '../utils.js';
-import { t, tPlural } from '../lib/i18n.js';
+import { t, tPlural, intlLocale } from '../lib/i18n.js';
 import { deriveSoldEvidence, soldEvidenceHTML as soldEvidenceHTMLImpl } from '../lib/sold-evidence.js';
 import { partOutDecisionHTML } from '../lib/part-out-decision.js';
 export { deriveSoldEvidence };
@@ -288,7 +288,7 @@ export function investmentPricingDetailHTML(set) {
     const retail = announcedRetailPrice(set);
     const releaseDate = set.launch_date ? new Date(set.launch_date) : null;
     const release = releaseDate && !Number.isNaN(releaseDate.getTime())
-      ? releaseDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+      ? releaseDate.toLocaleDateString(intlLocale(), { month: 'short', day: 'numeric', year: 'numeric' })
       : '';
     return `
       <section class="investment-pricing investment-pricing--upcoming" aria-labelledby="investmentPricingTitle">

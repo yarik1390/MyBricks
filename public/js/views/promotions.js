@@ -5,7 +5,7 @@
 import { $, $$, escapeHtml, fmtMoney, toast, haptic, proxyImg } from '../utils.js';
 import { state } from '../state.js';
 import { api } from '../api.js';
-import { t } from '../lib/i18n.js';
+import { t, intlLocale } from '../lib/i18n.js';
 import { topbar, btn, pill, field, sheetBody, emptyState, skeletonRows } from '../ui/kit.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 
@@ -22,7 +22,7 @@ const kindTone = (k) => (k === 'gwp' ? 'acc' : k === 'double_points' ? 'info' : 
 function fmtDay(iso) {
   if (!iso) return '';
   const d = new Date(`${iso}T12:00:00`);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(intlLocale(), { month: 'short', day: 'numeric' });
 }
 
 function whenText(p, upcoming) {

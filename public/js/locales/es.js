@@ -369,6 +369,7 @@ export const es = {
     youBoughtAt: 'Lo compraste · {price}',
     youBought: 'Lo compraste',
     writeReview: 'Escribir reseña',
+    buildingInstructions: 'Instrucciones de montaje (LEGO.com)',
     wishRemove: 'Quitar de la lista de deseos',
     wishAdd: 'Añadir a la lista de deseos',
     whyPrice: '¿Por qué {price}?',
@@ -428,6 +429,7 @@ export const es = {
     ratingReviewsOne: 'Valoración de coleccionistas · {count} reseña',
     rangeLabel: 'Rango probable de {low} a {high}',
     rangeAll: 'Todo',
+    range1m: '1 M',
     range3m: '3 M',
     range1y: '1 A',
     pricePaid: 'Precio pagado',
@@ -1728,7 +1730,7 @@ Object.assign(es.market, {"pcAttributionNew": "Estado nuevo valorado con PriceCh
 Object.assign(es.detail, {"historyValue": "Valor", "historyMarket": "Mercado", "historyResale": "Reventa", "estimateNoSales": "Estimación — aún no hay ventas recientes de este set"});
 
 export default es;
-Object.assign(es.detail, { movementUp: 'Up {pct}% over {days} days', movementDown: 'Down {pct}% over {days} days', movementResaleUp: ' · resale comps also rose', movementResaleDown: ' · resale comps also fell', movementMarketUp: ' · market guide also rose', movementMarketDown: ' · market guide also fell' });
+Object.assign(es.detail, { movementUp: 'Sube un {pct} % en {days} días', movementDown: 'Baja un {pct} % en {days} días', movementResaleUp: ' · los precios de reventa también subieron', movementResaleDown: ' · los precios de reventa también bajaron', movementMarketUp: ' · el precio de mercado también subió', movementMarketDown: ' · el precio de mercado también bajó' });
 
 
 Object.assign(es.minifigs, {

@@ -1240,7 +1240,7 @@ function infoTabHTML(set, entry) {
   const externalLinks = `
     <div class="bv-setlinks">
       <a class="bl-buy-link bv-btn bv-btn--text" href="${bricklinkBuyURL(set.set_num)}" target="_blank" rel="noopener">${t('market.viewOnBrickLink')}${kitIcon("ext", { size: 18 })}</a>
-      <a class="bl-buy-link bv-btn bv-btn--text" href="https://www.lego.com/service/building-instructions/${encodeURIComponent(String(set.set_num).replace(/-\d+$/, ""))}" target="_blank" rel="noopener">Building instructions (LEGO.com)${kitIcon("ext", { size: 18 })}</a>
+      <a class="bl-buy-link bv-btn bv-btn--text" href="https://www.lego.com/service/building-instructions/${encodeURIComponent(String(set.set_num).replace(/-\d+$/, ""))}" target="_blank" rel="noopener">${escapeHtml(t("bvSet.buildingInstructions"))}${kitIcon("ext", { size: 18 })}</a>
     </div>`;
 
   return `
