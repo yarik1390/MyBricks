@@ -73,14 +73,6 @@ export function outboxEnqueue(item) {
   outboxChanged();
 }
 
-export function outboxDequeue(id) {
-  try {
-    const q = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]');
-    localStorage.setItem(OUTBOX_KEY, JSON.stringify(q.filter(x => x.id !== id)));
-  } catch {}
-  outboxChanged();
-}
-
 const OUTBOX_MAX_TRIES = 5;
 
 // Failed writes are parked here instead of being deleted silently, so the user's

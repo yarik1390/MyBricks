@@ -505,11 +505,21 @@ app.post('/import', async (c) => {
   let externalLookups = 0;
   const externalMisses = new Set<string>();
 
+  // One IN (...) query per 100 distinct set numbers instead of one per row.
+  const known = new Set<string>();
+  const wanted = [...new Set((rows as Record<string, unknown>[]).map(r => String(r?.set_num || '').trim()).filter(Boolean))];
+  for (let i = 0; i < wanted.length; i += 100) {
+    const chunk = wanted.slice(i, i + 100);
+    const { results } = await c.env.DB.prepare(`SELECT set_num FROM lego_sets WHERE set_num IN (${chunk.map(() => '?').join(',')})`)
+      .bind(...chunk).all<{ set_num: string }>();
+    for (const r of results) known.add(r.set_num);
+  }
+
   for (const row of rows as Record<string, unknown>[]) {
     const set_num = String(row.set_num || '').trim();
     if (!set_num) { errors.push({ row, reason: 'missing set_num' }); continue; }
 
-    let catalog = await c.env.DB.prepare('SELECT 1 FROM lego_sets WHERE set_num=?').bind(set_num).first();
+    let catalog = known.has(set_num);
     if (!catalog && externalMisses.has(set_num)) {
       errors.push({ set_num, reason: 'set not in catalog' }); skipped++; continue;
     }
@@ -531,7 +541,8 @@ app.post('/import', async (c) => {
             ON CONFLICT (set_num) DO UPDATE SET cached_at=datetime('now')
           `).bind(s.set_num, s.name, s.year, s.num_parts, s.num_minifigs || 0, s.set_img_url,
                   vals.retail_price, vals.current_value, vals.forecast_2y, vals.forecast_5y).run();
-          catalog = { set_num: s.set_num };
+          catalog = true;
+          known.add(set_num);
         } else {
           externalMisses.add(set_num);
         }

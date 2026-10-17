@@ -17,7 +17,7 @@ import { vaultTopbar, vaultSearchRow, openActionSheet, countRow } from '../ui/va
 // Lists live on the account (or on the device for guests) and hold set
 // numbers, never holding ids.
 
-const esc = (v) => escapeHtml(v == null ? '' : String(v));
+const esc = escapeHtml;
 let renderGeneration = 0;
 let searchOpen = false;
 let query = '';

@@ -15,10 +15,6 @@ export const OMNIROUTE_SCAN_COMBO = 'brickvault-scan-vision';
 const DEFAULT_BASE_URL = 'https://omniroute-production-5920.up.railway.app/v1';
 const RETRIES = 0;
 
-export function omniRouteEnabled(env: Env): boolean {
-  return !!(env.OMNIROUTE_API_KEY ?? '').trim();
-}
-
 export function omniRouteBaseURL(env: Env): string {
   const configured = (env.OMNIROUTE_BASE_URL ?? '').trim().replace(/\/$/, '');
   if (!configured) return DEFAULT_BASE_URL;

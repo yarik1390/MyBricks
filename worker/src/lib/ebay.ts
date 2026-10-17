@@ -476,10 +476,6 @@ export function ebaySoldUsedValue(prices: EbaySoldPrices | null | undefined): nu
   return prices?.used_value ?? null;
 }
 
-export function ebaySoldAttempted(prices: EbaySoldPrices | null | undefined): boolean {
-  return !!prices && prices.status !== 'unconfigured';
-}
-
 export function ebaySoldHasValue(prices: EbaySoldPrices | null | undefined): boolean {
   return ebaySoldNewValue(prices) != null || ebaySoldUsedValue(prices) != null;
 }

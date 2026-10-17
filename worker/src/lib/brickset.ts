@@ -107,26 +107,6 @@ export function parseEnrichment(s: Record<string, unknown>): BricksetEnrichment 
   };
 }
 
-// Validate the API key. Returns null on success, or an error string.
-export async function checkBricksetKey(env: Env): Promise<string | null> {
-  if (!env.BRICKSET_API_KEY) return 'BRICKSET_API_KEY not set';
-  try {
-    const resp = await fetchTracked(
-      env,
-      'brickset',
-      `https://brickset.com/api/v3.asmx/checkKey?apiKey=${encodeURIComponent(env.BRICKSET_API_KEY)}`,
-      { headers: { Accept: 'application/json' } }
-    );
-    if (!resp.ok) return `HTTP ${resp.status}`;
-    const data = await resp.json() as { status?: string; message?: string };
-    const status = String(data.status ?? '').trim().toLowerCase();
-    if (status === 'ok' || status === 'success') return null;
-    return `Brickset says: ${data.message || data.status || 'unknown status'}`;
-  } catch (e) {
-    return (e as Error).message;
-  }
-}
-
 // Single-set lookup — used for targeted per-set fetches.
 export async function fetchBarcodes(setNum: string, env: Env): Promise<BricksetBarcodes | null> {
   if (!env.BRICKSET_API_KEY) return null;

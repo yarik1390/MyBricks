@@ -567,10 +567,6 @@ export function resolveBoxArtwork(row) {
   return { url: productUrl, kind: productUrl ? 'product-image' : '' };
 }
 
-export function resolveBoxImageUrl(row) {
-  return resolveBoxArtwork(row).url;
-}
-
 export function resolveBoxBackImageUrl(row) {
   if (!row) return '';
   if (typeof row.box_back_url === 'string' && row.box_back_url) {

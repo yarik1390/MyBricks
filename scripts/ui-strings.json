@@ -4777,12 +4777,6 @@
     ]
   },
   {
-    "text": "Market trust",
-    "files": [
-      "components/trust.js"
-    ]
-  },
-  {
     "text": "Market value",
     "files": [
       "methodology.html",
@@ -5035,12 +5029,6 @@
     "text": "Mystery set unlocked",
     "files": [
       "components/empty-vault-brick-3d.js"
-    ]
-  },
-  {
-    "text": "NEW",
-    "files": [
-      "utils.js"
     ]
   },
   {

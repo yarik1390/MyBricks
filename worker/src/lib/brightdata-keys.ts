@@ -148,31 +148,6 @@ export async function markBrightDataExhausted(
 }
 
 /** @deprecated use reserveBrightDataUnit + markBrightDataExhausted */
-export async function recordBrightDataCall(
-  env: Env,
-  picked: PickedBrightDataToken,
-  options: { exhausted?: boolean } = {},
-): Promise<void> {
-  const cap = keyCap(env);
-  const month = monthKey();
-  try {
-    await env.DB.prepare(
-      `INSERT INTO brightdata_keys (key_hash, used, cap, period_month, exhausted_at, last_used_at, updated_at)
-       VALUES (?1, 1, ?2, ?3, CASE WHEN ?4=1 THEN datetime('now') END, datetime('now'), datetime('now'))
-       ON CONFLICT(key_hash) DO UPDATE SET
-         used=CASE WHEN brightdata_keys.period_month=?3 THEN brightdata_keys.used+1 ELSE 1 END,
-         cap=?2,
-         period_month=?3,
-         exhausted_at=CASE
-           WHEN ?4=1 THEN datetime('now')
-           WHEN brightdata_keys.period_month=?3 THEN brightdata_keys.exhausted_at
-           ELSE NULL END,
-         last_used_at=datetime('now'), updated_at=datetime('now')`,
-    ).bind(picked.hash, cap, month, options.exhausted ? 1 : 0).run();
-  } catch (error) {
-    console.warn('[brightdata-keys] spend ledger failed open:', (error as Error).message);
-  }
-}
 
 export interface BrightDataKeyPoolStatus {
   keys_configured: number;

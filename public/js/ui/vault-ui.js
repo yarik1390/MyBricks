@@ -13,7 +13,7 @@ import { showSheet, hideSheet } from '../components/sheet.js';
 import { icon, iconBtn, topbar, searchBar, attrs, pill, figSvg, sheetBody, seg, delta, row as kitRow } from './kit.js';
 import { setThumb, setMeta, figTint } from './set-ui.js';
 
-const esc = (value) => escapeHtml(value == null ? '' : String(value));
+const esc = escapeHtml;
 
 /**
  * Per-copy value of a holding. Used holdings are worth their used-market

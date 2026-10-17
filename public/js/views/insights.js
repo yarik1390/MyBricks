@@ -25,7 +25,7 @@ const RANGES = [
 ];
 let range = '3M';
 
-const esc = (v) => escapeHtml(v == null ? '' : String(v));
+const esc = escapeHtml;
 
 export async function renderInsights() {
   const root = $('#root');

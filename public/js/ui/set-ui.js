@@ -7,7 +7,7 @@
 import { escapeHtml, fmtMoney, setHue, thumbImg } from '../utils.js';
 import { displayValueOf } from '../lib/pure-core.js';
 import { t } from '../lib/i18n.js';
-import { thumb, delta, attrs, figSvg, icon } from './kit.js';
+import { thumb, delta, attrs, icon } from './kit.js';
 
 /** Placeholder tint for a set (stable per theme). */
 export function setColor(set = {}) {
@@ -103,14 +103,6 @@ export function figTint(key = '') {
 }
 
 /** Grid tile for a minifigure. `photoUrl` is optional. */
-export function figTile(fig = {}, { href = '#', value, meta = '', tagHtml = '', qty = 0, actionHtml = '', photoUrl } = {}) {
-  const key = fig.fig_num || fig.name || '';
-  const tint = figTint(key);
-  const img = photoUrl ? `<img class="fig-photo" src="${escapeHtml(thumbImg(photoUrl, 240))}" alt="" loading="lazy" decoding="async">` : '';
-  return `<div class="bv-tile bv-tile--fig"${attrs({ 'data-fig-num': fig.fig_num })}><a class="bv-tile__link" href="${escapeHtml(href)}" aria-label="${escapeHtml(fig.name || key)}"></a>`
-    + `<span class="bv-tile__media">${figSvg({ torso: tint, legs: tint, size: 62 })}${img}${tagHtml ? `<span class="bv-tile__tag">${tagHtml}</span>` : ''}${qty > 1 ? `<span class="bv-tile__qty"><span class="bv-pill bv-pill--ink">×${qty}</span></span>` : ''}</span>`
-    + `<span class="bv-tile__body"><span class="bv-tile__name">${escapeHtml(fig.name || key)}</span>${meta ? `<span class="bv-tile__meta">${escapeHtml(meta)}</span>` : ''}${value != null ? `<span class="bv-tile__value">${escapeHtml(money0(value))}</span>` : ''}</span>${actionHtml}</div>`;
-}
 
 /** Round add/owned toggle that sits on a tile's corner. */
 export function tileAction({ owned = false, label, id, attrs: extra = {} } = {}) {

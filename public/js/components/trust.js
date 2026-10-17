@@ -7,21 +7,3 @@ export function trustBadgeHTML(set, { compact = false } = {}) {
   const extra = compact ? ' compact' : '';
   return `<span class="trust-badge ${trust.tone}${extra}" title="${escapeHtml(display.detail || trust.detail)}">${escapeHtml(display.label)}</span>`;
 }
-
-export function trustPanelHTML(set) {
-  const trust = valuationTrust(set);
-  const sourceLabel = String(trust.source || 'unknown').replace(/_/g, ' ');
-  return `
-    <div class="trust-panel ${trust.tone}">
-      <div>
-        <div class="trust-kicker">Market trust</div>
-        <div class="trust-title">${escapeHtml(trust.label)}</div>
-        <div class="trust-copy">${escapeHtml(set?.valuation_explanation || trust.detail)}</div>
-      </div>
-      <div class="trust-meta">
-        <span>${escapeHtml(trust.confidence)}</span>
-        <span>${escapeHtml(trust.freshness)}</span>
-        <span>${escapeHtml(sourceLabel)}</span>
-      </div>
-    </div>`;
-}

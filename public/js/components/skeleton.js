@@ -2,20 +2,6 @@
 // view has no cached data, so cold loads shimmer instead of sitting blank.
 // They use the existing .skel/.skel.line shimmer rules in app.css.
 
-export function skelHero() {
-  return `
-    <div class="card" style="padding:18px;margin-bottom:14px;">
-      <div class="skel line" style="width:90px;"></div>
-      <div class="skel" style="height:44px;width:60%;margin-top:12px;"></div>
-      <div class="u-row u-mt-3">
-        <div class="skel line" style="width:80px;"></div>
-        <div class="skel line" style="width:64px;"></div>
-        <div class="skel line" style="width:72px;"></div>
-      </div>
-      <div class="skel" style="height:72px;margin-top:16px;"></div>
-    </div>`;
-}
-
 export function skelCardList(n = 6) {
   return Array.from({ length: n }, () => `
     <div class="card u-row" style="padding:12px;margin-bottom:10px;gap:12px;">
