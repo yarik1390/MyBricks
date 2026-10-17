@@ -903,6 +903,12 @@
     ]
   },
   {
+    "text": "Barcode scan routes (14d)",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Based on recent market data with limited corroboration",
     "files": [
       "lib/pure.js"

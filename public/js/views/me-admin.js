@@ -1980,6 +1980,18 @@ function renderPricingCenter() {
           rate == null ? 'neutral' : rate >= 95 ? 'ok' : 'warn');
       })()}
       ${(() => {
+        // Where barcode scans end up: "live" = in-app camera started, "mlkit-*"
+        // = Google's scanner screen, "closed-no-result" = closed without a read.
+        const paths = (quality.scanner_slo || [])
+          .filter((r) => r.event === 'scan_path' && String(r.detail || '').startsWith('barcode:'))
+          .map((r) => [String(r.detail).slice(8), Number(r.n || 0)])
+          .sort((x, y) => y[1] - x[1]);
+        if (!paths.length) return '';
+        const total = paths.reduce((s, [, n]) => s + n, 0);
+        return pricingMetricHTML('Barcode scan routes (14d)', formatCount(total),
+          paths.slice(0, 4).map(([p, n]) => `${escapeHtml(p)} ${formatCount(n)}`).join(' · '), 'neutral');
+      })()}
+      ${(() => {
         const q = quality.minifig_identity_queue || [];
         const pending = Number((q.find((r) => r.status === 'pending') || {}).figs || 0);
         const verified = Number((q.find((r) => r.status === 'verified') || {}).figs || 0);
