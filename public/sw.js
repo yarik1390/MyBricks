@@ -185,19 +185,57 @@ const STATIC_ASSETS = [
   '/js/lib/revenuecat-native.js'
 ];
 
+// Non-English locale bundles (~0.6 MB compressed for all 8) are listed above so
+// every language CAN work offline, but a user only ever needs their own. Install
+// precaches English plus whichever locales the previous version already held
+// (i.e. the ones this user actually loaded); any other language is fetched and
+// cached on demand by the network-first handler the first time it's chosen.
+const isOptionalLocale = (url) => url.startsWith('/js/locales/') && url !== '/js/locales/en.js';
+
+// Revalidate one asset against the previous version's copy. Pages serves an
+// ETag on every static file, so an unchanged file comes back as a bodiless 304
+// and the old response is reused: a VERSION bump then only downloads the files
+// that actually changed instead of re-fetching the whole ~1.7 MB shell.
+async function precacheOne(cache, url, previous) {
+  const old = previous && await previous.match(url);
+  const etag = old && old.headers.get('ETag');
+  if (etag) {
+    try {
+      const r = await fetch(new Request(url, { cache: 'no-store', headers: { 'If-None-Match': etag } }));
+      if (r.status === 304) return cache.put(url, old);
+      if (r.ok) return cache.put(url, r);
+    } catch { /* fall through to a plain fetch */ }
+  }
+  // A new Cache Storage name does not invalidate the browser's HTTP cache.
+  // Fetch this release even when the previous files have hours of max-age left.
+  return cache.add(new Request(url, { cache: 'reload' }));
+}
+
+async function previousStaticCache() {
+  const keys = (await caches.keys()).filter(k => k.startsWith('brickvault-static-') && k !== STATIC_CACHE);
+  // Newest previous version first (VERSION is "v<number>").
+  keys.sort((a, b) => (parseInt(b.replace(/\D+/g, ''), 10) || 0) - (parseInt(a.replace(/\D+/g, ''), 10) || 0));
+  return keys.length ? caches.open(keys[0]) : null;
+}
+
 self.addEventListener('install', e => {
   // Per-asset caching (not addAll) so one renamed/404 asset can't fail the WHOLE
   // install and silently pin users to the previous version. Each miss is logged
   // but non-fatal; the fetch handler still network-first's anything uncached.
-  e.waitUntil(
-    caches.open(STATIC_CACHE).then(c => Promise.all(
-      STATIC_ASSETS.map(url =>
-        // A new Cache Storage name does not invalidate the browser's HTTP cache.
-        // Fetch this release even when the previous files have hours of max-age left.
-        c.add(new Request(url, { cache: 'reload' })).catch(err => console.warn('[sw] precache skipped', url, err && err.message))
-      )
-    ))
-  );
+  e.waitUntil((async () => {
+    const [cache, previous] = await Promise.all([caches.open(STATIC_CACHE), previousStaticCache().catch(() => null)]);
+    const usedLocales = new Set();
+    if (previous) {
+      for (const req of await previous.keys()) {
+        const path = new URL(req.url).pathname;
+        if (isOptionalLocale(path)) usedLocales.add(path);
+      }
+    }
+    const urls = STATIC_ASSETS.filter(url => !isOptionalLocale(url) || usedLocales.has(url));
+    await Promise.all(urls.map(url =>
+      precacheOne(cache, url, previous).catch(err => console.warn('[sw] precache skipped', url, err && err.message))
+    ));
+  })());
 });
 
 self.addEventListener('activate', e => {
