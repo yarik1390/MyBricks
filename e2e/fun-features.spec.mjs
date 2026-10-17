@@ -1,6 +1,7 @@
 import { test, expect, SET } from './fixtures.mjs';
 
-const SHOTS = '/mnt/project-files/fun-features';
+// Screenshots for review; FUN_SHOTS points them elsewhere locally.
+const SHOTS = process.env.FUN_SHOTS || 'artifacts/fun-features';
 const THEMES = [['Star Wars', 1200], ['Technic', 640], ['Icons', 420], ['City', 160], ['Ninjago', 90], ['Friends', 40], ['Ideas', 30]];
 const ITEMS = THEMES.map(([theme, v], i) => ({ ...SET, id: i + 1, set_num: `${7000 + i}-1`, name: `${theme} set`, theme, quantity: 3, purchase_price: v * 0.8, market_value: v, blended_value: v, current_value: v, value: v, market_value_low: v * .9, market_value_high: v * 1.1 }));
 
@@ -118,6 +119,7 @@ test.describe('anniversary', () => {
       return c.toDataURL('image/png');
     });
     const fs = await import('node:fs');
+    fs.mkdirSync(SHOTS, { recursive: true });
     fs.writeFileSync(`${SHOTS}/anniversary-card.png`, Buffer.from(png.split(',')[1], 'base64'));
   });
 
