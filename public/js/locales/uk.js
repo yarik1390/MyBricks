@@ -1095,7 +1095,7 @@ export const uk = {
     themeLight: 'Світла',
     theme: 'Тема',
     trademark: 'LEGO® — торговельна марка LEGO Group, яка не спонсорує й не схвалює цей застосунок.',
-    credits: 'Дані каталогу й зображення — Rebrickable. Партнер із ринкових даних — PriceCharting. Джерела: BrickLink, eBay, BrickEconomy і Brickset.',
+    credits: 'Дані каталогу й зображення — Rebrickable. Партнер із ринкових даних — PriceCharting. Джерела: BrickLink, eBay і Brickset.',
     terms: 'Умови',
     privacy: 'Конфіденційність',
     dataSources: 'Джерела даних',

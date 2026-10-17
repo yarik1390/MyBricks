@@ -196,7 +196,10 @@ filter/sort set added during the audit: `theme_group`, `category`, `year`,
 - Baseline for most rows is **`formula_bulk`** (`lib/valuation.ts`): a pieces ×
   year × theme × retired heuristic.
 - Real signals come from multiple sources: **BrickLink** (workhorse),
-  **BrickEconomy**, **eBay ask** (Browse API), **eBay sold** (Firecrawl, plus a
+  **BrickEconomy** (switched off 2026-10-17 in Admin > Source tuning: no
+  licence, replaced by the value model; its stored values and forecasts no
+  longer reach blends, and the set page no longer shows its "Past year"
+  growth), **eBay ask** (Browse API), **eBay sold** (Firecrawl, plus a
   weekly Apify lane), plus **BrickInsights**/Brickset **ratings** (quality, not
   price). **StockX was retired 2026-10-13** (scraped without a display licence; stored
   `stockx_ask` values are dropped by `RETIRED_PRICING_SOURCES` and no longer listed;

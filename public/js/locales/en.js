@@ -1002,7 +1002,7 @@ export const en = {
     themeLight: 'Light',
     theme: 'Theme',
     trademark: 'LEGO® is a trademark of the LEGO Group, which does not sponsor or endorse this app.',
-    credits: 'Catalog data and images from Rebrickable. Market data partner: PriceCharting. Sources: BrickLink, eBay, BrickEconomy & Brickset.',
+    credits: 'Catalog data and images from Rebrickable. Market data partner: PriceCharting. Sources: BrickLink, eBay & Brickset.',
     terms: 'Terms',
     privacy: 'Privacy',
     dataSources: 'Data sources',

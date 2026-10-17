@@ -993,7 +993,7 @@ export const zh = {
     themeLight: '浅色',
     theme: '主题',
     trademark: 'LEGO® 是乐高集团的商标，乐高集团不赞助也不认可本应用。',
-    credits: '目录数据和图片来自 Rebrickable。市场数据合作伙伴：PriceCharting。数据来源：BrickLink、eBay、BrickEconomy 和 Brickset。',
+    credits: '目录数据和图片来自 Rebrickable。市场数据合作伙伴：PriceCharting。数据来源：BrickLink、eBay 和 Brickset。',
     terms: '条款',
     privacy: '隐私',
     dataSources: '数据来源',

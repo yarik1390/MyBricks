@@ -439,6 +439,9 @@ export function setSourceWeightMultipliers(m: Record<string, number>): void {
     if (Number.isFinite(n) && n >= 0) sourceWeightMultipliers[k] = n;
   }
 }
+// BrickEconomy's own forecast and value may only seed the "external" growth
+// scenario while that source is enabled (it is retired in production).
+const brickEconomyOn = (): boolean => sourceWeightMultipliers.brickeconomy !== 0;
 export function resetSourceWeightMultipliers(): void {
   for (const k of Object.keys(sourceWeightMultipliers)) delete sourceWeightMultipliers[k];
 }
@@ -877,10 +880,10 @@ export function enrichSetRecord<T extends Record<string, unknown>>(row: T, histo
   const partOutValue = num(row.part_out_value);
   const storedForecast = row.__valuation_forecast as ReturnType<typeof buildForecastV3> | undefined;
   const forecast = storedForecast || buildForecastV3(newState, history, {
-    twoYear: num(row.be_forecast_2y) || num(row.forecast_2y),
-    fiveYear: num(row.be_forecast_5y) || num(row.forecast_5y),
-    sourceBaseline: num(row.be_value_new) || num(row.current_value),
-    asOf: text(row.be_cached_at) || text(row.cached_at),
+    twoYear: (brickEconomyOn() ? num(row.be_forecast_2y) : null) || num(row.forecast_2y),
+    fiveYear: (brickEconomyOn() ? num(row.be_forecast_5y) : null) || num(row.forecast_5y),
+    sourceBaseline: (brickEconomyOn() ? num(row.be_value_new) : null) || num(row.current_value),
+    asOf: (brickEconomyOn() ? text(row.be_cached_at) : null) || text(row.cached_at),
   });
   const acquisitionPrice = num(row.pa_lowest_offer)
     || (Number(row.lego_in_stock) === 1 ? num(row.retail_price) : null);
@@ -1181,10 +1184,10 @@ function valuationStateStatement(
 ): D1PreparedStatement {
   const forecast = state.condition === 'new_sealed'
     ? buildForecastV3(state, history, {
-      twoYear: num(row.be_forecast_2y) || num(row.forecast_2y),
-      fiveYear: num(row.be_forecast_5y) || num(row.forecast_5y),
-      sourceBaseline: num(row.be_value_new) || num(row.current_value),
-      asOf: text(row.be_cached_at) || text(row.cached_at),
+      twoYear: (brickEconomyOn() ? num(row.be_forecast_2y) : null) || num(row.forecast_2y),
+      fiveYear: (brickEconomyOn() ? num(row.be_forecast_5y) : null) || num(row.forecast_5y),
+      sourceBaseline: (brickEconomyOn() ? num(row.be_value_new) : null) || num(row.current_value),
+      asOf: (brickEconomyOn() ? text(row.be_cached_at) : null) || text(row.cached_at),
     })
     : null;
   return db.prepare(VALUATION_STATE_UPSERT_SQL).bind(

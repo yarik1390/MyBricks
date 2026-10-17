@@ -190,8 +190,6 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
     const ret = s.retired ? ' [RETIRED]' : '';
     const trend90 = trendMap.get(s.set_num);
     const trendStr = trend90 != null ? ` | ${trend90 >= 0 ? '+' : ''}${trend90}%/90d` : '';
-    // be_growth_12m is stored as a raw percentage (18.5 = 18.5%/yr)
-    const growthStr = s.be_growth_12m != null ? ` | ${s.be_growth_12m >= 0 ? '+' : ''}${Number(s.be_growth_12m).toFixed(1)}%/yr` : '';
     const sourceStr = ` | Conf: ${basisLabel(s.valuation_method)}/${market.confidence}/${market.freshness}`;
     const dealStr = dealFlag(s.deal_signal, s.deal_discount_pct, s.deal_strong);
     // Part-out (sum-of-parts) — only when coverage is high (mirrors the UI gate).
@@ -208,7 +206,7 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
     }
 
     lines.push(
-      `- ${s.name} (${s.set_num}) | ${s.theme || 'Unknown'} | Value: ${fmt(s.current_value)}${pct(s.current_value, s.purchase_price)}${sourceStr} | Paid: ${fmt(s.purchase_price)} | Qty: ${s.quantity}${trendStr}${growthStr}${partOutStr}${spreadStr}${dealStr}${risk}${retiring}${ret}`
+      `- ${s.name} (${s.set_num}) | ${s.theme || 'Unknown'} | Value: ${fmt(s.current_value)}${pct(s.current_value, s.purchase_price)}${sourceStr} | Paid: ${fmt(s.purchase_price)} | Qty: ${s.quantity}${trendStr}${partOutStr}${spreadStr}${dealStr}${risk}${retiring}${ret}`
     );
   }
   lines.push('');

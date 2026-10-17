@@ -993,7 +993,7 @@ export const de = {
     themeLight: 'Hell',
     theme: 'Design',
     trademark: 'LEGO® ist eine Marke der LEGO Gruppe, die diese App weder sponsert noch unterstützt.',
-    credits: 'Katalogdaten und Bilder von Rebrickable. Marktdatenpartner: PriceCharting. Quellen: BrickLink, eBay, BrickEconomy & Brickset.',
+    credits: 'Katalogdaten und Bilder von Rebrickable. Marktdatenpartner: PriceCharting. Quellen: BrickLink, eBay & Brickset.',
     terms: 'AGB',
     privacy: 'Datenschutz',
     dataSources: 'Datenquellen',
