@@ -105,6 +105,24 @@ test.describe('big monitor (1920 wide)', () => {
     expect(table.width).toBeGreaterThan(1000);
   });
 
+  test('Vault Minifigs keeps its summary card in the right column, like Sets', async ({ page }) => {
+    await page.goto('/#/minifigs', { waitUntil: 'domcontentloaded' });
+    const hero = page.locator('.vault-fig-hero');
+    await hero.waitFor();
+    const tabs = await page.locator('#figsPage .bv-tabs').first().boundingBox();
+    const card = await hero.boundingBox();
+    expect(card.x).toBeGreaterThan(tabs.x + tabs.width - 1);
+  });
+
+  test('Import & export shows its sections in two columns', async ({ page }) => {
+    await page.goto('/#/me/data', { waitUntil: 'domcontentloaded' });
+    const groups = page.locator('.bv-data > .bv-group');
+    await groups.first().waitFor();
+    const a = await groups.nth(0).boundingBox();
+    const b = await groups.nth(1).boundingBox();
+    expect(b.x).toBeGreaterThan(a.x + a.width - 1);
+  });
+
   test('Coming soon lists sets in columns', async ({ page }) => {
     const upcoming = Array.from({ length: 6 }, (_, i) => ({ set_num: `${2000 + i}-1`, name: `New ${i}`, theme: 'City', price_usd: 50 }));
     await page.route('**/api/upcoming', (r) => r.fulfill({ json: { upcoming } }));

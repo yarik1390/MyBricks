@@ -271,7 +271,9 @@
    perks and Notification groups. Vault Lists matches the other Vault tabs. */
 @media (min-width: 1024px) {
   .bv-page.vault-lists, .bv-page.bv-retiring, .bv-page.bv-quests, .bv-page.vault-changes { max-width: 1200px; }
-  .bv-page.bv-notifs { max-width: 1200px; }
+  .bv-page.bv-notifs, .bv-page.bv-data { max-width: 1200px; }
+  /* Build was capped at 760 px by a legacy rule in app.css. */
+  .bv-page.vault-build.build-view { width: auto; }
 
   /* Retiring soon / Coming soon: a grid of rows, divided like a table. */
   .bv-retiring .bv-group__box:has(> .bv-setrow) { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); }
@@ -296,12 +298,20 @@
   .bv-probenefits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; }
   .bv-proactions { max-width: 560px; }
 
-  /* Notifications: setting groups in two columns. */
-  .bv-notifs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; align-content: start; align-items: start; }
-  .bv-notifs > * { grid-column: 1 / -1; min-width: 0; }
-  .bv-notifs > .bv-notgroup { grid-column: auto; margin-left: 0; margin-right: 0; }
-  .bv-notifs > .bv-notgroup:nth-of-type(odd) { margin-left: var(--bv-gutter); }
-  .bv-notifs > .bv-notgroup:nth-of-type(even) { margin-right: var(--bv-gutter); }
+  /* Notifications, Import & export and Integrations: sections in two columns. */
+  :is(.bv-notifs, .bv-data, .bv-integrations) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; align-content: start; align-items: start; }
+  :is(.bv-notifs, .bv-data, .bv-integrations) > * { grid-column: 1 / -1; min-width: 0; }
+  :is(.bv-notifs > .bv-notgroup, .bv-data > .bv-group, .bv-integrations > .bv-intcard) { grid-column: auto; margin-left: 0; margin-right: 0; }
+  :is(.bv-notifs > .bv-notgroup, .bv-data > .bv-group, .bv-integrations > .bv-intcard):nth-of-type(odd) { margin-left: var(--bv-gutter); }
+  :is(.bv-notifs > .bv-notgroup, .bv-data > .bv-group, .bv-integrations > .bv-intcard):nth-of-type(even) { margin-right: var(--bv-gutter); }
+  .bv-integrations > .bv-intcard { align-self: stretch; }
+
+  /* Family vault setup: Start and Join side by side. */
+  .bv-family:has(> .bv-family__card) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; align-content: start; align-items: start; }
+  .bv-family:has(> .bv-family__card) > * { grid-column: 1 / -1; min-width: 0; }
+  .bv-family > .bv-family__card { grid-column: auto; margin: 0; }
+  .bv-family > .bv-family__card:nth-of-type(odd) { margin-left: var(--bv-gutter); }
+  .bv-family > .bv-family__card:nth-of-type(even) { margin-right: var(--bv-gutter); }
 
   /* Hover tooltip for icon-only buttons (js/lib/desktop.js). */
   .bv-tip {
@@ -317,8 +327,22 @@
 
 @media (min-width: 1440px) {
   .bv-page.vault-lists, .bv-page.bv-retiring, .bv-page.bv-quests, .bv-page.vault-changes { max-width: 2200px; padding-left: 40px; padding-right: 40px; }
-  .bv-page.bv-notifs { max-width: 1600px; padding-left: 40px; padding-right: 40px; }
-  .bv-page.bv-pro { max-width: 1200px; }
+  .bv-page:is(.bv-notifs, .bv-data, .bv-integrations) { max-width: 1600px; padding-left: 40px; padding-right: 40px; }
+  .bv-page:is(.bv-pro, .bv-pub, .bv-lb, .bv-family) { max-width: 1200px; }
+
+  /* Vault Minifigs, Lists and Build: the summary card sits in the right
+     column, as it does on Sets, so switching tabs keeps the same layout. */
+  .bv-page:is(.vault-figs.is-owned, .vault-lists, .vault-build):has(> :is(.vault-fig-hero, .vault-records, .vault-build-hero)) {
+    display: grid; grid-template-columns: minmax(0, 1fr) clamp(340px, 24vw, 420px); grid-auto-flow: row dense; column-gap: 32px; align-items: start;
+  }
+  .bv-page:is(.vault-figs.is-owned, .vault-lists, .vault-build):has(> :is(.vault-fig-hero, .vault-records, .vault-build-hero)) > * { grid-column: 1; min-width: 0; }
+  .bv-page:is(.vault-figs.is-owned, .vault-lists, .vault-build) > .bv-topbar { grid-column: 1 / -1; }
+  .bv-page:is(.vault-figs.is-owned, .vault-lists, .vault-build) > :is(.vault-fig-hero, .vault-records, .vault-build-hero) {
+    grid-column: 2; grid-row: 2 / span 30; position: sticky; top: 24px; margin: 8px 0 0;
+  }
+
+  /* Advisor: a roomier conversation column. */
+  .bv-adv__scroll, .bv-adv__bar { padding-left: max(var(--bv-gutter), calc((100% - 880px) / 2)); padding-right: max(var(--bv-gutter), calc((100% - 880px) / 2)); }
 }
 @media (min-width: 1920px) {
   .bv-probenefits { grid-template-columns: repeat(3, minmax(0, 1fr)); }
