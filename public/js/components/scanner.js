@@ -150,6 +150,17 @@ function showChip(text, tone = "") {
   chip.hidden = false;
 }
 
+// Which camera route a scan took and where it ended ("live", "mlkit-cancel",
+// "web-nodetect", …). scan_attempt only counts scanner opens, so without this
+// the admin SLO can't tell "nobody pointed it at a box" from "the decoder never
+// fired" (zero barcode successes across ~60 opens, Oct 7-16).
+let _pathTracked = false;
+function trackScanPath(path, { final = false } = {}) {
+  if (_pathTracked && final) return;
+  if (final) _pathTracked = true;
+  track("scan_path", `${state.camera.mode || "barcode"}:${path}`);
+}
+
 function armMoveCloser() {
   clearTimeout(_moveCloserTimer);
   if (state.camera.mode !== "barcode") return;
@@ -506,6 +517,8 @@ export function openScan(mode = "barcode", { deferStart = false, shelf = false, 
 }
 
 export function closeScan() {
+  // Closed while a camera was still looking and nothing decoded.
+  if (state.camera.scanning || _liveStop) trackScanPath("closed-no-result", { final: true });
   invalidateScanSession();
   stopCamera();
   // Keep native-scanner cleanup idempotent when Close, Android Back, or routing
@@ -547,6 +560,7 @@ export function stopCamera() {
 
 export async function startCamera() {
   track("scan_attempt", state.camera.mode || "barcode");
+  _pathTracked = false;
   resetLock();
   showChip("");
   // On the installed app, barcode / blind-box modes use the native ML Kit
@@ -560,6 +574,7 @@ export async function startCamera() {
     if (_liveNativeWanted) {
       if (await startLiveNativeScan(stale)) return;
       if (stale()) return;
+      trackScanPath("live-fail");
       // No live camera (permission declined, CameraX error): re-render as the
       // Activity handoff — the method switcher when opened from a generic entry.
       _liveUnavailable = true;
@@ -575,6 +590,7 @@ export async function startCamera() {
     if (stale()) return;
     if (supported && _nativeHold) { ensureNativeRescanButton(); return; }
     if (supported) { runNativeBarcodeScan(); return; }
+    trackScanPath("native-unsupported", { final: true });
     const hint = $("#scanHint");
     if (hint) hint.textContent = t("bvAdd.typeInstead");
     ensureNativeRescanButton();
@@ -595,7 +611,9 @@ export async function startCamera() {
       state.camera.scanning = true;
       state.camera.timer = setInterval(scanBarcode, 300);
       armMoveCloser();
+      trackScanPath("web");
     } else if (state.camera.mode !== "image") {
+      trackScanPath("web-nodetect", { final: true });
       const hint = $("#scanHint");
       if (hint) hint.textContent = t("bvAdd.noLiveBarcode");
       showManualBarcodeEntry();
@@ -603,6 +621,7 @@ export async function startCamera() {
   } catch (err) {
     const hint = $("#scanHint");
     const isDenied = err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError');
+    trackScanPath(isDenied ? "cam-denied" : "cam-error", { final: true });
     document.querySelector(".bv-scan")?.classList.add("camera-unavailable");
     // The fallback differs by mode: Photo mode can still identify from a
     // gallery image; Barcode mode falls back to typing the digits.
@@ -650,6 +669,7 @@ async function startLiveNativeScan(stale = () => false) {
     // scanner chrome draws over the camera preview.
     document.documentElement.classList.add("bv-scan-native-live");
     state.camera.scanning = true;
+    trackScanPath("live");
     wireTorch();
     armMoveCloser();
     armSystemScanOffer();
@@ -716,6 +736,7 @@ async function runNativeBarcodeScan() {
   } catch (error) { scanError = error; }
   // The overlay may have been dismissed (back button / swipe) mid-scan.
   if (!overlay?.classList.contains("open")) return;
+  trackScanPath(code ? "mlkit-ok" : scanError ? "mlkit-error" : "mlkit-cancel", { final: true });
   if (code) {
     overlay.classList.remove("native-handoff");
     _scanTrapRelease = activateFocusTrap(overlay, closeScan);
@@ -1271,6 +1292,7 @@ async function sendScanToAPI(payload) {
 // Route a scanned/typed barcode to the right handler for the active mode.
 function routeScannedCode(code) {
   track("scan_success", state.camera.mode || "barcode");
+  _pathTracked = true;
   _lastBarcode = code;
   if (state.camera.mode === "blindbox") return sendBlindBoxLookup(code);
   return sendScanToAPI({ mode: "barcode", barcode: code });

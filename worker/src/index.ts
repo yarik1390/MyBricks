@@ -90,6 +90,14 @@ app.use('*', cors({
 // error responses readable by approved browser/native clients as well.
 export const apiErrorHandler: ErrorHandler<{ Bindings: Env; Variables: Variables }> = (err, c) => {
   console.error(err);
+  // Count unhandled 500s per route so Admin health shows server failures, not
+  // only the ones a client happened to report.
+  try {
+    const route = new URL(c.req.url).pathname.split('/').filter(Boolean)
+      .filter((s, i) => !(i === 0 && s === 'api')).slice(0, 3)
+      .map((s) => (/\d/.test(s) ? ':id' : s)).join('/');
+    c.executionCtx.waitUntil(mirrorClientMetric(c.env, 'server_error', `${c.req.method} ${route}`));
+  } catch { /* no execution context (tests) — never mask the original error */ }
   const origin = c.req.header('Origin');
   if (origin && isAllowedOrigin(origin, c.env)) {
     c.header('Access-Control-Allow-Origin', origin);

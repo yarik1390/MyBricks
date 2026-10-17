@@ -1,0 +1,51 @@
+name: pr-checks
+
+# The same pre-deploy gates deploy-worker.yml runs, but on pull requests, so a
+# stale strings file or a failing unit test is caught before merge instead of
+# failing the production deploy afterwards. Keep these steps in sync with the
+# test/lint/typecheck steps at the top of deploy-worker.yml.
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: pr-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+
+      - name: Install worker dependencies
+        working-directory: worker
+        run: npm ci
+
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Lint (Biome)
+        uses: biomejs/setup-biome@v2
+        with:
+          version: 2.5.0
+      - name: Run Biome lint
+        run: biome lint
+
+      - name: Typecheck frontend core (checkJs)
+        run: npx --yes --package typescript@5 tsc --noEmit --checkJs --allowJs --strict --target es2022 --module es2022 --moduleResolution bundler --skipLibCheck public/js/lib/pure-core.js
+
+      - name: Typecheck Worker
+        run: npm --prefix worker run typecheck
+
+      - name: Run Worker tests
+        working-directory: worker
+        run: npm test
