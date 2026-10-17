@@ -3,7 +3,7 @@ import { getCapacitorPlugin, isNativeCapacitor } from './native-auth.js';
 // Push the latest vault totals to the Android home-screen widget. No-op on
 // web/PWA. Values arrive pre-formatted (user currency) so the widget never
 // needs rates or network. Fire-and-forget — a widget miss must never surface.
-export function updateVaultWidget({ value, delta, deltaUp, sets, owner }) {
+export function updateVaultWidget({ value, delta, deltaUp, sets, owner, retiring }) {
   try {
     if (!isNativeCapacitor()) return;
     const WidgetBridge = getCapacitorPlugin('WidgetBridge');
@@ -14,6 +14,7 @@ export function updateVaultWidget({ value, delta, deltaUp, sets, owner }) {
       deltaUp: deltaUp !== false,
       sets: Number.isFinite(Number(sets)) ? Number(sets) : 0,
       owner: String(owner || ''),
+      retiring: String(retiring || ''),
     }).catch(() => {});
   } catch { /* widget is best-effort */ }
 }

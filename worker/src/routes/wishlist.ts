@@ -12,7 +12,7 @@ app.use('*', requireMember);
 // GET /api/wishlist
 app.get('/', async (c) => {
   const userId = c.get('userId');
-  const [wl, alerts, hist, upcoming, switches] = await Promise.all([
+  const [wl, alerts, hist, upcoming, switches, exits] = await Promise.all([
     c.env.DB.prepare(`
       SELECT ${WISHLIST_COLS}
       FROM user_wishlist w
@@ -45,7 +45,13 @@ app.get('/', async (c) => {
     c.env.DB.prepare(
       'SELECT id, notify_target, notify_retiring, notify_stock FROM user_wishlist WHERE user_id = ?',
     ).bind(userId).all<{ id: number; notify_target: number; notify_retiring: number; notify_stock: number }>(),
+    // LEGO's announced retirement date (future only), for the widget countdown;
+    // a separate read for the same column-limit reason.
+    c.env.DB.prepare(
+      "SELECT set_num, exit_date FROM lego_sets WHERE set_num IN (SELECT set_num FROM user_wishlist WHERE user_id = ?) AND exit_date >= DATE('now')",
+    ).bind(userId).all<{ set_num: string; exit_date: string }>().catch(() => ({ results: [] as { set_num: string; exit_date: string }[] })),
   ]);
+  const exitBySet = new Map((exits.results || []).map(row => [row.set_num, row.exit_date]));
   const switchesById = new Map((switches.results || []).map(row => [row.id, row]));
 
   // Per-set 30-day slope (USD/week) so the client can show "buy window" hints
@@ -79,6 +85,7 @@ app.get('/', async (c) => {
         notify_target: sw ? Number(sw.notify_target) : 1,
         notify_retiring: sw ? Number(sw.notify_retiring) : 1,
         notify_stock: sw ? Number(sw.notify_stock) : 1,
+        exit_date: exitBySet.get(String(row.set_num)) ?? null,
       }));
       if (!comingSoon) return enriched;
       const availability = /pre/i.test(String(upcomingSet?.availability)) ? 'pre_order' : 'coming_soon';

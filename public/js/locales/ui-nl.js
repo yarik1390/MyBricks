@@ -134,6 +134,7 @@ export const ui = {
   "Is that bundle worth the price?": "Is dat lot zijn prijs waard?",
   "Looking at the box…": "Doos bekijken…",
   "Lot checker": "Lotcheck",
+  "Theme quests": "Thema-quests",
   "Lots over 3 sets come with Pro.": "Loten van meer dan 3 sets horen bij Pro.",
   "Mint": "Perfect",
   "Name or set number": "Naam of setnummer",

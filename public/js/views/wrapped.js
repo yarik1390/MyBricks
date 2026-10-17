@@ -14,7 +14,7 @@ import { t, tPlural, intlLocale } from '../lib/i18n.js';
 import { icon, brickSvg } from '../ui/kit.js';
 import { money0, moneySigned } from '../ui/set-ui.js';
 import { displayValueOf } from '../lib/pure.js';
-import { getCapacitorPlugin, isNativeCapacitor } from '../lib/native-auth.js';
+import { shareImage, canvasBlob, cssVar, wrapLines } from '../lib/share-image.js';
 import { loadMe } from './me-shared.js';
 
 const onScreen = () => location.hash.split('?')[0] === '#/wrapped';
@@ -181,23 +181,6 @@ export async function renderWrapped() {
 
 /* ---------------------------------------------------------------- share */
 
-function cssVar(name, fallback) {
-  try { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback; } catch { return fallback; }
-}
-
-function wrapLines(ctx, text, maxWidth) {
-  const words = String(text).split(/\s+/);
-  const lines = [];
-  let line = '';
-  for (const w of words) {
-    const test = line ? `${line} ${w}` : w;
-    if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = w; }
-    else line = test;
-  }
-  if (line) lines.push(line);
-  return lines;
-}
-
 /** Draw the whole story (every stat) on a 1080×1920 canvas. */
 export function drawStory(canvas, s) {
   const W = 1080, H = 1920, X = 96;
@@ -256,12 +239,6 @@ export function drawStory(canvas, s) {
   return canvas;
 }
 
-function toBase64(bytes) {
-  let bin = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-  return btoa(bin);
-}
-
 async function shareStory() {
   if (!story || story.empty) return;
   haptic('medium');
@@ -270,36 +247,11 @@ async function shareStory() {
   let blob;
   try {
     const canvas = drawStory(document.createElement('canvas'), story);
-    blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+    blob = await canvasBlob(canvas);
     if (!blob) throw new Error('no-blob');
   } catch {
     toast(t('bvCommunity.wrShareFailed'), 'error');
     return;
   }
-  try {
-    if (isNativeCapacitor()) {
-      const Filesystem = getCapacitorPlugin('Filesystem');
-      const Share = getCapacitorPlugin('Share');
-      if (Filesystem?.writeFile && Share?.share) {
-        const bytes = new Uint8Array(await blob.arrayBuffer());
-        const res = await Filesystem.writeFile({ path: name, data: toBase64(bytes), directory: 'CACHE', recursive: true });
-        await Share.share({ title, files: [res.uri] });
-        return;
-      }
-    }
-    const file = new File([blob], name, { type: 'image/png' });
-    if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title });
-      return;
-    }
-  } catch (e) {
-    if (e?.name === 'AbortError' || /cancel/i.test(String(e?.message || ''))) return;
-  }
-  // Download fallback.
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = name; a.rel = 'noopener';
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
-  toast(t('bvCommunity.wrSaved', { name }), 'success');
+  await shareImage(blob, { name, title, savedText: t('bvCommunity.wrSaved', { name }) });
 }
