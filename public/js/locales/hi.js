@@ -993,7 +993,7 @@ export const hi = {
     themeLight: 'हल्की',
     theme: 'थीम',
     trademark: 'LEGO® LEGO Group का ट्रेडमार्क है, जो इस ऐप को प्रायोजित या समर्थित नहीं करता।',
-    credits: 'कैटलॉग डेटा और चित्र Rebrickable से। बाज़ार डेटा साझेदार: PriceCharting। स्रोत: BrickLink, eBay, BrickEconomy और Brickset।',
+    credits: 'कैटलॉग डेटा और चित्र Rebrickable से। बाज़ार डेटा साझेदार: PriceCharting। स्रोत: BrickLink, eBay और Brickset।',
     terms: 'शर्तें',
     privacy: 'गोपनीयता',
     dataSources: 'डेटा स्रोत',

@@ -993,7 +993,7 @@ export const ja = {
     themeLight: 'ライト',
     theme: 'テーマ',
     trademark: 'LEGO®はLEGOグループの商標であり、同グループは本アプリを後援・推奨していません。',
-    credits: 'カタログデータと画像はRebrickableより。市場データパートナー: PriceCharting。データソース: BrickLink、eBay、BrickEconomy、Brickset。',
+    credits: 'カタログデータと画像はRebrickableより。市場データパートナー: PriceCharting。データソース: BrickLink、eBay、Brickset。',
     terms: '利用規約',
     privacy: 'プライバシー',
     dataSources: 'データソース',

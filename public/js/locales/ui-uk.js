@@ -459,7 +459,6 @@ export const ui = {
   "Certified brick baron. 👑": "Сертифікований цегляний барон. 👑",
   "Change Kids PIN": "Змінити дитячий PIN",
   "Change PIN": "Змінити PIN",
-  "Change in market value over the past 12 months": "Зміна ринкової вартості за останні 12 місяців",
   "Check Supabase URL, anon key, and JWT secret.": "Перевірте URL Supabase, анонімний ключ і секрет JWT.",
   "Check current price": "Перевірити поточну ціну",
   "Check for update": "Перевірити оновлення",
@@ -1000,8 +999,6 @@ export const ui = {
   "Part-out value": "Вартість розбору на деталі",
   "Parts list is being fetched — check back in a moment.": "Список деталей завантажується — перевірте за мить.",
   "Password": "Пароль",
-  "Past year": "Минулий рік",
-  "Past year:": "Минулий рік:",
   "Paste the Supabase user UUID. This changes supporter status for exactly that account.": "Вставте UUID користувача Supabase. Це змінює статус прихильника саме для цього облікового запису.",
   "Pending": "Очікує",
   "Pending refresh": "Очікує оновлення",
@@ -1583,7 +1580,6 @@ ui["Connecting…"] = "Підключення…";
 ui["Done!"] = "Готово!";
 ui["Importing..."] = "Імпортування…";
 ui["Saving…"] = "Збереження…";
-ui["Short-term growth is negative, but the long-range forecast can still be positive when retirement timing, theme demand, or comparable older sets point upward. Treat this as a recovery scenario, not a current momentum signal."] = "Короткострокове зростання від’ємне, але довгостроковий прогноз може лишатися позитивним, якщо на нього вказують термін зняття з виробництва, попит на тему або схожі старі набори. Вважайте це сценарієм відновлення, а не сигналом поточного імпульсу.";
 ui["Submitting…"] = "Надсилання…";
 ui["Syncing..."] = "Синхронізація…";
 ui["Syncing…"] = "Синхронізація…";

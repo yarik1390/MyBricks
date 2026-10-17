@@ -1151,6 +1151,12 @@
     ]
   },
   {
+    "text": "BricksVault value model",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
     "text": "Brickset / Rebrickable",
     "files": [
       "methodology.html"
@@ -1391,12 +1397,6 @@
     "text": "Change PIN",
     "files": [
       "views/me.js"
-    ]
-  },
-  {
-    "text": "Change in market value over the past 12 months",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -2772,6 +2772,12 @@
     "text": "Estimate",
     "files": [
       "lib/pure.js"
+    ]
+  },
+  {
+    "text": "Estimate for sets with no sales, trained on BrickLink sales",
+    "files": [
+      "methodology.html"
     ]
   },
   {
@@ -4990,12 +4996,6 @@
     ]
   },
   {
-    "text": "Modeled values · growth",
-    "files": [
-      "methodology.html"
-    ]
-  },
-  {
     "text": "Modular",
     "files": [
       "components/onboarding.js"
@@ -5741,12 +5741,6 @@
     ]
   },
   {
-    "text": "On refresh, timestamped",
-    "files": [
-      "methodology.html"
-    ]
-  },
-  {
     "text": "On-device AI couldn't identify it — trying cloud…",
     "files": [
       "components/scanner.js"
@@ -6153,18 +6147,6 @@
     "text": "Password updated — you're signed in",
     "files": [
       "views/login.js"
-    ]
-  },
-  {
-    "text": "Past year",
-    "files": [
-      "views/portfolio-detail.js"
-    ]
-  },
-  {
-    "text": "Past year:",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -7439,6 +7421,12 @@
     ]
   },
   {
+    "text": "Retrained daily",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
     "text": "Retro",
     "files": [
       "components/onboarding.js"
@@ -8308,12 +8296,6 @@
     "files": [
       "lib/sales-report.js",
       "views/me-sales.js"
-    ]
-  },
-  {
-    "text": "Short-term growth is negative, but the long-range forecast can still be positive when retirement timing, theme demand, or comparable older sets point upward. Treat this as a recovery scenario, not a current momentum signal.",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {

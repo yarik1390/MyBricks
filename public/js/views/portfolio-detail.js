@@ -1057,14 +1057,10 @@ function infoTabHTML(set, entry) {
     if (!Array.isArray(tagsArr)) tagsArr = [];
     // Stored tags may carry scraper metadata suffixes ("Harry Potter|n") — never show them.
     tagsArr = tagsArr.map(cleanTagLabel).filter(Boolean);
-    const growthRate = set.be_growth_12m;
     const retiredYear = b.retiredYear ?? set.retired_year;
 
     const ratingSignal = ratingNum >= 4.0 && reviewCount >= 20
       ? `<span class="signal-hint" style="color:var(--green);font-size:10px;">High demand set</span>`
-      : '';
-    const growthBadge = (growthRate != null && !isSimpleMode())
-      ? `<div class="detail-kv span2"><span class="k" title="Change in market value over the past 12 months">Past year</span> <span class="v" style="color:${growthRate >= 0 ? 'var(--up)' : 'var(--down)'};">${growthRate >= 0 ? t('detail.up', { pct: Math.abs(Number(growthRate)).toFixed(1) }) : t('detail.down', { pct: Math.abs(Number(growthRate)).toFixed(1) })}</span></div>`
       : '';
     const fmtMonthYear = (d) => { const ts = d ? Date.parse(d) : NaN; return Number.isNaN(ts) ? '' : new Date(ts).toLocaleDateString(getLocale(), { month: 'short', year: 'numeric' }); };
     const launchStr = fmtMonthYear(set.launch_date);
@@ -1126,7 +1122,7 @@ function infoTabHTML(set, entry) {
       ? `<div class="detail-kv span2" style="display:flex;align-items:center;gap:8px;"><span class="k">Critics' score</span> <span class="v">${biRating}/100</span> <span style="color:var(--ink-mute);font-size:10px;">${biReviewsStr}</span>${set.brickinsights_url ? ` <a href="${escapeHtml(set.brickinsights_url)}" target="_blank" rel="noopener noreferrer" aria-label="View BrickInsights rating" style="color:var(--ink-faint);font-size:10px;">\u2197</a>` : ''}</div>`
       : '';
 
-    if (ratingNum || ageStr || subthemeStr || themeGroupStr || categoryBadge || tagsArr.length || growthRate != null || retiredYear || set.launch_date || set.exit_date || legoStockBadge || riskBadge || brickInsightsBadge) {
+    if (ratingNum || ageStr || subthemeStr || themeGroupStr || categoryBadge || tagsArr.length || retiredYear || set.launch_date || set.exit_date || legoStockBadge || riskBadge || brickInsightsBadge) {
       bricksetHtml = `
             ${subthemeStr ? `<div class="detail-kv"><span class="k">Subtheme</span> <span class="v">${escapeHtml(subthemeStr)}</span></div>` : ''}
             ${themeGroupBadge}
@@ -1137,7 +1133,6 @@ function infoTabHTML(set, entry) {
             ${riskBadge}
             ${ratingNum ? `<div class="detail-kv span2" style="display:flex;align-items:center;gap:8px;"><span class="k">Community</span> <span class="v">⭐ ${ratingNum.toFixed(1)}</span> <span style="color:var(--ink-mute);font-size:10px;">${reviewsStr}</span> ${ratingSignal}</div>` : ''}
             ${brickInsightsBadge}
-            ${growthBadge}
             ${legoStockBadge}
             ${tagsBadge}
       `;
@@ -1458,9 +1453,6 @@ function forecastTabHTML(set) {
   const forecastLabel = set.valuation_method === "ai" ? "AI forecast"
     : (set.valuation_method === "market" || set.valuation_method === "brickeconomy" || set.valuation_method === "ebay_rss" || set.valuation_method === "ebay_sold") ? "Market forecast"
     : "Estimated";
-  const conflictNote = set.be_growth_12m != null && Number(set.be_growth_12m) < 0 && g2 != null && g2 > 0
-    ? `<p class="forecast-note">Short-term growth is negative, but the long-range forecast can still be positive when retirement timing, theme demand, or comparable older sets point upward. Treat this as a recovery scenario, not a current momentum signal.</p>`
-    : "";
   return `
     <div class="detail-card">
       <div class="detail-card-title">${I.sparkles()}${forecastLabel}</div>
@@ -1469,8 +1461,6 @@ function forecastTabHTML(set) {
           ? "Based on recent sales and long-term market trends."
           : `Based on theme rarity, piece count, retirement status, and market trends for similar ${escapeHtml(set.theme || "")} sets.`}
       </p>
-      ${set.be_growth_12m != null ? `<p style="margin:8px 0 0;font-size:12px;color:var(--ink-soft);">Past year: <strong style="color:${set.be_growth_12m >= 0 ? 'var(--up)' : 'var(--down)'};">${set.be_growth_12m >= 0 ? t('detail.up', { pct: Math.abs(Number(set.be_growth_12m)).toFixed(1) }) : t('detail.down', { pct: Math.abs(Number(set.be_growth_12m)).toFixed(1) })}</strong></p>` : ''}
-      ${conflictNote}
     </div>
 
     ${hasForecast ? `
