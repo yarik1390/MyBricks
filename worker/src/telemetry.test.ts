@@ -45,10 +45,10 @@ describe('POST /api/telemetry (client metrics mirror)', () => {
     expect(row!.count).toBe(1);
   });
 
-  it('client_error collapses detail (bounded PK cardinality)', async () => {
+  it('client_error keeps only the code location (bounded PK cardinality)', async () => {
     await post({ e: 'client_error', d: 'TypeError: x is not a function @app.js:42' });
     const row = await db.prepare(`SELECT detail, count FROM client_metrics_daily WHERE event='client_error'`).first<{ detail: string; count: number }>();
-    expect(row!.detail).toBe('');
+    expect(row!.detail).toBe('app.js:42');
     expect(row!.count).toBe(1);
   });
 

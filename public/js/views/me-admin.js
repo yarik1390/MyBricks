@@ -1992,6 +1992,18 @@ function renderPricingCenter() {
           paths.slice(0, 4).map(([p, n]) => `${escapeHtml(p)} ${formatCount(n)}`).join(' · '), 'neutral');
       })()}
       ${(() => {
+        // App crashes, failed API calls (5xx or no response) and server 500s,
+        // each with its busiest location so a spike points at the code.
+        const rows = quality.scanner_slo || [];
+        const card = (event, label) => {
+          const hits = rows.filter((r) => r.event === event).map((r) => [String(r.detail || '—'), Number(r.n || 0)]).sort((x, y) => y[1] - x[1]);
+          const total = hits.reduce((s, [, n]) => s + n, 0);
+          const top = hits.slice(0, 3).map(([d, n]) => `${escapeHtml(d)} ${formatCount(n)}`).join(' · ');
+          return pricingMetricHTML(label, formatCount(total), total ? top : 'None recorded', total ? 'warn' : 'ok');
+        };
+        return card('client_error', 'App errors (14d)') + card('api_error', 'Failed API calls (14d)') + card('server_error', 'Server errors (14d)');
+      })()}
+      ${(() => {
         const q = quality.minifig_identity_queue || [];
         const pending = Number((q.find((r) => r.status === 'pending') || {}).figs || 0);
         const verified = Number((q.find((r) => r.status === 'verified') || {}).figs || 0);
