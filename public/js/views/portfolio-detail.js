@@ -1118,7 +1118,7 @@ function infoTabHTML(set, entry) {
       ? `<div class="detail-kv span2" style="display:flex;align-items:center;gap:8px;"><span class="k">Critics' score</span> <span class="v">${biRating}/100</span> <span style="color:var(--ink-mute);font-size:10px;">${biReviewsStr}</span>${set.brickinsights_url ? ` <a href="${escapeHtml(set.brickinsights_url)}" target="_blank" rel="noopener noreferrer" aria-label="View BrickInsights rating" style="color:var(--ink-faint);font-size:10px;">\u2197</a>` : ''}</div>`
       : '';
 
-    if (ratingNum || ageStr || subthemeStr || themeGroupStr || categoryBadge || tagsArr.length || growthRate != null || retiredYear || set.launch_date || set.exit_date || legoStockBadge || riskBadge || brickInsightsBadge) {
+    if (ratingNum || ageStr || subthemeStr || themeGroupStr || categoryBadge || tagsArr.length || retiredYear || set.launch_date || set.exit_date || legoStockBadge || riskBadge || brickInsightsBadge) {
       bricksetHtml = `
             ${subthemeStr ? `<div class="detail-kv"><span class="k">Subtheme</span> <span class="v">${escapeHtml(subthemeStr)}</span></div>` : ''}
             ${themeGroupBadge}
