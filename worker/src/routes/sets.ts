@@ -438,6 +438,11 @@ app.get('/:setnum/description', async (c) => {
   const byok = c.req.header('X-Gemini-Key');
   const apiKey = byok || c.env.GEMINI_API_KEY;
   if (!apiKey) return c.json({ set_num: setNum, lang: 'en', description: english });
+  // This route is public, so a shared-key translation draws on a daily budget:
+  // walking every set x language would otherwise be unbounded Gemini spend.
+  if (!byok && !(await spendQuota(c.env, 'describe_translate'))) {
+    return c.json({ set_num: setNum, lang: 'en', description: english });
+  }
 
   const translated = await translateDescription(
     c.env, english, lang, apiKey, { routeThroughGateway: !byok },

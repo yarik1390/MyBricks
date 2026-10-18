@@ -36,6 +36,26 @@ async function membership(db: D1Database, userId: string): Promise<Membership | 
   ).bind(userId).first<Membership>();
 }
 
+/** Take a user out of their household. An owner hands it to the longest
+ * standing member, or it closes when nobody is left. Also used by account
+ * deletion, so a deleted user never lingers as a member or owner. */
+export async function leaveHousehold(db: D1Database, userId: string): Promise<void> {
+  const mine = await membership(db, userId);
+  if (!mine) return;
+  await db.prepare('DELETE FROM household_members WHERE user_id = ?').bind(userId).run();
+  if (mine.role !== 'owner') return;
+  const next = await db.prepare('SELECT user_id FROM household_members WHERE household_id = ? ORDER BY joined_at ASC, rowid ASC LIMIT 1')
+    .bind(mine.household_id).first<{ user_id: string }>();
+  if (next) {
+    await db.batch([
+      db.prepare("UPDATE household_members SET role = 'owner' WHERE user_id = ?").bind(next.user_id),
+      db.prepare('UPDATE households SET owner_id = ? WHERE id = ?').bind(next.user_id, mine.household_id),
+    ]);
+  } else {
+    await db.prepare('DELETE FROM households WHERE id = ?').bind(mine.household_id).run();
+  }
+}
+
 async function familyView(env: Env, userId: string) {
   const mine = await membership(env.DB, userId);
   if (!mine) return { household: null };
@@ -142,22 +162,7 @@ app.post('/join', async (c) => {
 });
 
 app.post('/leave', async (c) => {
-  const userId = c.get('userId');
-  const mine = await membership(c.env.DB, userId);
-  if (!mine) return c.json({ household: null });
-  await c.env.DB.prepare('DELETE FROM household_members WHERE user_id = ?').bind(userId).run();
-  if (mine.role === 'owner') {
-    const next = await c.env.DB.prepare('SELECT user_id FROM household_members WHERE household_id = ? ORDER BY joined_at ASC, rowid ASC LIMIT 1')
-      .bind(mine.household_id).first<{ user_id: string }>();
-    if (next) {
-      await c.env.DB.batch([
-        c.env.DB.prepare("UPDATE household_members SET role = 'owner' WHERE user_id = ?").bind(next.user_id),
-        c.env.DB.prepare('UPDATE households SET owner_id = ? WHERE id = ?').bind(next.user_id, mine.household_id),
-      ]);
-    } else {
-      await c.env.DB.prepare('DELETE FROM households WHERE id = ?').bind(mine.household_id).run();
-    }
-  }
+  await leaveHousehold(c.env.DB, c.get('userId'));
   return c.json({ household: null });
 });
 

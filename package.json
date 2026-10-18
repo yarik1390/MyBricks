@@ -23,11 +23,11 @@
   "dependencies": {
     "@aparajita/capacitor-biometric-auth": "^10.0.0",
     "@capacitor-mlkit/barcode-scanning": "^8.1.0",
-    "@capacitor/android": "^8.4.1",
+    "@capacitor/android": "^8.4.3",
     "@capacitor/app": "^8.1.0",
     "@capacitor/browser": "^8.0.3",
-    "@capacitor/cli": "^8.4.1",
-    "@capacitor/core": "^8.4.1",
+    "@capacitor/cli": "^8.4.3",
+    "@capacitor/core": "^8.4.3",
     "@capacitor/filesystem": "^8.1.2",
     "@capacitor/haptics": "^8.0.2",
     "@capacitor/network": "^8.0.1",
@@ -35,5 +35,8 @@
     "@capacitor/share": "^8.0.1",
     "@revenuecat/purchases-capacitor": "^13.2.2",
     "@revenuecat/purchases-capacitor-ui": "^13.2.2"
+  },
+  "overrides": {
+    "@capacitor/ios": "8.4.3"
   }
 }

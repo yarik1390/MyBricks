@@ -5,6 +5,7 @@ import { appLink } from '../lib/app-url';
 import type { Env, Variables } from '../types';
 import { hashPin, verifyPin } from '../lib/kids-xp';
 import { holdingValueForRollout } from '../lib/market-sources';
+import { leaveHousehold } from './family';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -284,8 +285,16 @@ export const USER_SCOPED_TABLES = [
   'set_photos',
   'set_reviews',
   'set_contributions',
+  'collection_stories',
+  'price_guesses',
+  'scan_requests',
+  'scan_quota_reservations',
   'user_prefs',
 ];
+
+// R2 prefixes that hold only this user's objects: collection photos, story
+// photos and the weekly collection backups (jobs/collection-backups.ts).
+export const userR2Prefixes = (userId: string) => [`${userId}/`, `stories/${userId}/`, `backups/${userId}/`];
 
 // DELETE /api/me — permanently delete the account and everything we hold about
 // the user. Required by both stores (Apple App Store Guideline 5.1.1(v) and
@@ -319,10 +328,29 @@ app.delete('/', async (c) => {
           p.r2_key ? c.env.PHOTO_BUCKET!.delete(p.r2_key).catch(() => {}) : Promise.resolve(),
         ),
       );
+      // Collection photos, story photos and backups live under per-user
+      // prefixes rather than in a table, so list and delete them too.
+      const bucket = c.env.PHOTO_BUCKET;
+      if (typeof bucket.list === 'function') {
+        for (const prefix of userR2Prefixes(userId)) {
+          let cursor: string | undefined;
+          do {
+            const page = await bucket.list({ prefix, cursor });
+            if (page.objects.length) await bucket.delete(page.objects.map((o) => o.key)).catch(() => {});
+            cursor = page.truncated ? page.cursor : undefined;
+          } while (cursor);
+        }
+      }
     } catch {
       // Non-fatal: proceed with the D1 purge even if photo cleanup fails.
     }
   }
+
+  // Family vault: hand an owned household to the next member (or close it),
+  // and drop swap requests the user sent or received. Neither table is keyed
+  // by user_id alone, so they are not in USER_SCOPED_TABLES.
+  await leaveHousehold(db, userId);
+  await db.prepare('DELETE FROM swap_requests WHERE from_user=? OR to_user=?').bind(userId, userId).run();
 
   // 2) Purge every user-scoped table in a single atomic batch.
   await db.batch(
