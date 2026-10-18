@@ -1415,6 +1415,39 @@ describe('native auth helpers', () => {
       '#access_token=tok&auth_state=abc',
     );
   });
+
+  it('PKCE: forwards only the one-time code through the app scheme', async () => {
+    const { nativeOAuthCallbackFromWebBridge, oauthHashFromCallbackUrl } = await import('../lib/native-auth.js');
+    assert.equal(
+      nativeOAuthCallbackFromWebBridge('https://bricksvault.app/?native_oauth=1&auth_state=abc&code=c0de'),
+      'app.bricksvault://auth/callback?auth_state=abc&code=c0de',
+    );
+    assert.equal(
+      nativeOAuthCallbackFromWebBridge('https://bricksvault.app/?native_oauth=1&auth_state=abc&error=access_denied&error_description=No'),
+      'app.bricksvault://auth/callback?auth_state=abc&error=access_denied&error_description=No',
+    );
+    assert.equal(nativeOAuthCallbackFromWebBridge('https://bricksvault.app/?native_oauth=1&code=c0de'), '');
+    assert.equal(
+      oauthHashFromCallbackUrl('app.bricksvault://auth/callback?auth_state=abc&code=c0de'),
+      '#auth_state=abc&code=c0de',
+    );
+    // A verified App Link may deliver the bridge URL straight to the app.
+    assert.equal(
+      oauthHashFromCallbackUrl('https://bricksvault.app/?native_oauth=1&auth_state=abc&code=c0de'),
+      '#native_oauth=1&auth_state=abc&code=c0de',
+    );
+  });
+
+  it('PKCE: authorize URL carries an S256 challenge of the verifier', async () => {
+    const { buildSupabaseProviderAuthUrl, createPkceVerifier, pkceChallenge } = await import('../lib/native-auth.js');
+    const verifier = createPkceVerifier();
+    assert.match(verifier, /^[a-f0-9]{64}$/);
+    // RFC 7636 appendix B test vector.
+    assert.equal(await pkceChallenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'), 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
+    const url = new URL(buildSupabaseProviderAuthUrl('https://example.supabase.co', 'google', 'https://bricksvault.app/', 'chal'));
+    assert.equal(url.searchParams.get('code_challenge'), 'chal');
+    assert.equal(url.searchParams.get('code_challenge_method'), 's256');
+  });
 });
 
 describe('Amazon affiliate isolation', () => {

@@ -48,19 +48,50 @@ export function nativeOAuthCallbackFromWebBridge(url) {
   }
   if (parsed.searchParams.get(NATIVE_AUTH_BRIDGE_PARAM) !== '1') return '';
 
-  const hash = parsed.hash || '';
-  if (!/(?:^#|&)access_token=|(?:^#|&)error=/.test(hash)) return '';
   const state = parsed.searchParams.get('auth_state');
   if (!state) return '';
+  // PKCE: the auth server returns a one-time ?code= (or ?error=) in the query.
+  // Only the code travels through the app's URL scheme; it is useless without
+  // the verifier held in the app that started the sign-in.
+  const code = parsed.searchParams.get('code');
+  const error = parsed.searchParams.get('error');
+  if (code || error) {
+    const forward = new URLSearchParams({ auth_state: state });
+    if (code) forward.set('code', code);
+    for (const key of ['error', 'error_description']) {
+      const value = parsed.searchParams.get(key);
+      if (value) forward.set(key, value);
+    }
+    return `${NATIVE_AUTH_CALLBACK_URL}?${forward.toString()}`;
+  }
+  const hash = parsed.hash || '';
+  if (!/(?:^#|&)access_token=|(?:^#|&)error=/.test(hash)) return '';
   return `${NATIVE_AUTH_CALLBACK_URL}?auth_state=${encodeURIComponent(state)}${hash}`;
 }
 
-export function buildSupabaseProviderAuthUrl(sbUrl, provider, redirectTo) {
+/** Random PKCE code verifier (RFC 7636: 43-128 unreserved characters). */
+export function createPkceVerifier(cryptoImpl = globalThis.crypto) {
+  return Array.from(cryptoImpl.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** S256 code challenge: base64url(SHA-256(verifier)), no padding. */
+export async function pkceChallenge(verifier, cryptoImpl = globalThis.crypto) {
+  const digest = new Uint8Array(await cryptoImpl.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  let bin = '';
+  for (const b of digest) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+export function buildSupabaseProviderAuthUrl(sbUrl, provider, redirectTo, codeChallenge = '') {
   const url = new URL(`${String(sbUrl || '').replace(/\/+$/, '')}/auth/v1/authorize`);
   const params = new URLSearchParams({
     provider,
     redirect_to: redirectTo,
   });
+  if (codeChallenge) {
+    params.set('code_challenge', codeChallenge);
+    params.set('code_challenge_method', 's256');
+  }
   if (provider === 'google') params.set('prompt', 'select_account');
   url.search = params.toString();
   return url.toString();
@@ -88,7 +119,7 @@ export function oauthHashFromCallbackUrl(url) {
   }
 
   const queryAsHash = parsed.search ? `#${parsed.search.slice(1)}` : '';
-  if (/(?:^#|&)access_token=|(?:^#|&)error=/.test(queryAsHash)) return queryAsHash;
+  if (/(?:^#|&)(?:access_token|code|error)=/.test(queryAsHash)) return queryAsHash;
   return '';
 }
 
