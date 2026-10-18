@@ -204,7 +204,7 @@ describe('BrickLink discovery selection', () => {
   ).bind(setNum, value, 'be' in cols ? cols.be : value, cols.bl ?? null,
     cols.bl ? new Date().toISOString() : null, cols.pc ?? null, cols.sold ?? null).run();
 
-  it('picks never-asked BrickEconomy-only sets, most valuable first', async () => {
+  it('picks never-asked sets with no sale value, unpriced first, then most valuable', async () => {
     await seed('BE-ONLY-LOW', 50);
     await seed('BE-ONLY-HIGH', 500);
     await seed('HAS-BL', 400, { bl: 380 });
@@ -213,12 +213,18 @@ describe('BrickLink discovery selection', () => {
     await seed('NO-BE', 400, { be: null });
     await seed('NO-DATA', 300);
     await db.prepare(`INSERT INTO set_market_ext (set_num, bl_nodata_at) VALUES ('NO-DATA', datetime('now', '-200 days'))`).run();
+    await seed('UNPRICED', 20);
+    await db.prepare(`INSERT INTO set_valuation_state (set_num, condition, fair_value) VALUES
+      ('BE-ONLY-HIGH', 'new_sealed', 500), ('BE-ONLY-LOW', 'new_sealed', 50), ('NO-BE', 'new_sealed', 400),
+      ('HAS-PC', 'new_sealed', 390)`).run();
 
     const { results } = await selectDueSets({ ...(env as any), BRICKLINK_CONSUMER_KEY: 'test-key' }, {
       scope: 'all', options: { limit: 20, blDiscovery: true },
       includeSupplemental: false, includeBrickLink: true, includeEbay: false,
       includeEbaySold: false, includeAiFallback: false,
     });
-    expect(results.map((row) => row.set_num)).toEqual(['BE-ONLY-HIGH', 'BE-ONLY-LOW']);
+    // Legacy (quarantined) PriceCharting no longer blocks discovery; a set
+    // with no price at all (UNPRICED has no valuation state) goes first.
+    expect(results.map((row) => row.set_num)).toEqual(['UNPRICED', 'NO-BE', 'BE-ONLY-HIGH', 'HAS-PC', 'BE-ONLY-LOW']);
   });
 });
