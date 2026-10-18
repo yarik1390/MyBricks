@@ -36,6 +36,10 @@ concurrency:
   group: brickvault-brickeconomy-bootstrap
   cancel-in-progress: false
 
+# Least-privilege token: nothing in this workflow writes to the repo via GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   bootstrap:
     runs-on: ubuntu-latest

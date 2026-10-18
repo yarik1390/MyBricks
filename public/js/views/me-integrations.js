@@ -14,8 +14,19 @@ import { t, tPlural } from '../lib/i18n.js';
 import { getProviderCredential, hasPersistentProviderCredential, setProviderCredential } from '../lib/provider-credentials.js';
 
 export async function renderMeIntegrations() {
-  // OAuth return from Google lands here with a query param.
-  if (location.hash.includes("google_sync=success")) {
+  // OAuth return from Google lands here with a query param. "finish" carries
+  // Google's one-time code: only this signed-in session may redeem it, so a
+  // connect link someone else started can't attach your Google to their vault.
+  if (location.hash.includes("google_sync=finish")) {
+    const q = new URLSearchParams(location.hash.split("?")[1] || "");
+    history.replaceState(null, "", "#/me/integrations");
+    try {
+      await api("/api/google/oauth/complete", { method: "POST", body: { code: q.get("gcode") || "", state: q.get("gstate") || "" } });
+      toast("Google Sheets connected successfully!", "success");
+    } catch (e) {
+      toast(e?.message || "Failed to connect Google Sheets", "error");
+    }
+  } else if (location.hash.includes("google_sync=success")) {
     toast("Google Sheets connected successfully!", "success");
     history.replaceState(null, "", "#/me/integrations");
   } else if (location.hash.includes("google_sync=error")) {

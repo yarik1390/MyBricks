@@ -33,6 +33,10 @@ concurrency:
   group: brickvault-d1-cost-watchdog
   cancel-in-progress: false
 
+# Least-privilege token: nothing in this workflow writes to the repo via GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   watchdog:
     runs-on: ubuntu-latest
