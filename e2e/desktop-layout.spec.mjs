@@ -105,6 +105,16 @@ test.describe('big monitor (1920 wide)', () => {
     expect(table.width).toBeGreaterThan(1000);
   });
 
+  test('a short Vault has no blank band under the title', async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await page.locator('.vault-row').first().waitFor();
+    const bar = await page.locator('#vaultPage > .bv-topbar').boundingBox();
+    const tabs = await page.locator('.vault-main .bv-tabs').boundingBox();
+    const card = await page.locator('.vault-aside').boundingBox();
+    expect(tabs.y - (bar.y + bar.height)).toBeLessThan(40);
+    expect(card.y - (bar.y + bar.height)).toBeLessThan(40);
+  });
+
   test('Vault Minifigs keeps its summary card in the right column, like Sets', async ({ page }) => {
     await page.goto('/#/minifigs', { waitUntil: 'domcontentloaded' });
     const hero = page.locator('.vault-fig-hero');

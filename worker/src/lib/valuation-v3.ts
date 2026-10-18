@@ -198,6 +198,7 @@ function getEvidenceQuality(headline: ValuationBasis[], soldSampleCount: number)
 }
 
 const SOLD_OUTLIER_RATIO = 2.5;
+const LONE_ASK_DISCOUNT = 0.9;
 const SOLD_AGREE_RATIO = 1.6;
 
 const spread = (a: number, b: number): number => Math.max(a, b) / Math.min(a, b);
@@ -376,8 +377,16 @@ export function valueSignalsV3(
   } else if (estimates.length) {
     headlineFamilies = estimates;
     confidence = 'estimated';
+  } else if (supporting.length === 1 && supporting[0].provider_family === 'bricklink') {
+    // A lone BrickLink listing median (sets with no sales, no model estimate)
+    // is better than no price at all: discounted and shown as an estimate.
+    // Asks run above what sells; the median listing sat ~8% over the old
+    // BrickEconomy value on 745 sets with both (2026-10-18).
+    headlineFamilies = [{ ...supporting[0], value: supporting[0].value * LONE_ASK_DISCOUNT }];
+    confidence = 'estimated';
+    flags.add('asking_only');
   } else if (supporting.length === 1) {
-    // A lone asking/listing signal is not fair market value.
+    // Any other lone asking/listing signal is not fair market value.
     flags.add('asking_only');
   }
 
