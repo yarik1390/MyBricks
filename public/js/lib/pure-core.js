@@ -35,6 +35,17 @@ export function isCredentialAuthFailure(value) {
   return /unauthorized.*(?:expired|malformed|undecodable|invalid|no token)|(?:expired|malformed|undecodable|invalid) (?:jwt|token)|not an authenticated role|issuer.*mismatch|audience.*mismatch/i.test(message);
 }
 
+// Supabase answers a sign-up for an email that already has an account with a
+// 200 and a placeholder user whose `identities` list is empty (it hides which
+// emails exist), and creates nothing. Spot that so the form can say so instead
+// of claiming a new account was made.
+/** @param {any} d */
+export function isRepeatedSignup(d) {
+  if (!d || d.access_token) return false;
+  const user = d.user || d;
+  return Array.isArray(user.identities) && user.identities.length === 0;
+}
+
 // THE single source of a set/collection row's display value on the client:
 // the blended market value when present, then the persisted blend column, then
 // the formula current_value. Every surface (catalog card, vault row, set

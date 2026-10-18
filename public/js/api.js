@@ -1,6 +1,6 @@
 import { state, invalidatePortfolio } from './state.js';
 import { bvIDB, toast, track } from './utils.js';
-import { jwtSub, displayValueOf, isCredentialAuthFailure } from './lib/pure-core.js';
+import { jwtSub, displayValueOf, isCredentialAuthFailure, isRepeatedSignup } from './lib/pure-core.js';
 import { t, tPlural } from './lib/i18n.js';
 import { getProviderCredential } from './lib/provider-credentials.js';
 import { confirmedMinifigHoldingResponse, mergeMinifigHolding, minifigHoldingsCSV, normalizeMinifigHolding } from './lib/minifig-holding.js';
@@ -246,6 +246,12 @@ export async function sbSignIn(email, password, captchaToken) {
   });
   const d = await r.json();
   if (!r.ok) {
+    if (d.error_code === "invalid_credentials") {
+      throw new Error("Wrong email or password. If you signed up with Google, use Continue with Google, or tap Forgot password to set one.");
+    }
+    if (d.error_code === "email_not_confirmed") {
+      throw new Error("Confirm your email first: open the link we sent you, then sign in.");
+    }
     const msg = d.msg || d.error_description || (typeof d.error === 'string' ? d.error : (d.error && d.error.message)) || d.message || "Sign in failed";
     throw new Error(msg);
   }
@@ -264,6 +270,9 @@ export async function sbSignUp(email, password, captchaToken) {
   if (!r.ok || d.error) {
     const msg = d.msg || d.error_description || (typeof d.error === 'string' ? d.error : (d.error && d.error.message)) || d.message || "Sign up failed";
     throw new Error(msg);
+  }
+  if (isRepeatedSignup(d)) {
+    throw new Error("An account with this email already exists. Sign in instead, or tap Forgot password.");
   }
   return d;
 }

@@ -12,7 +12,7 @@ import {
   displayValueOf, withDisplayValue, shouldUseKeyboardShell, classifyScanFailure, isCredentialAuthFailure, flipEconomics,
   cleanTagLabel, pluralize, manualScanTarget, cleanFacetList,
   computeStoreVerdict, computeSellSignal, scanResultHeading, adminJobStartFeedback,
-  priceMovementSummary,
+  priceMovementSummary, isRepeatedSignup,
 } from '../lib/pure.js';
 import { catalogFilterSummaryText, figFilterSummaryText } from '../lib/filter-summary.js';
 import { biometricAvailable, verifyBiometricResult } from '../lib/native-biometric.js';
@@ -2400,5 +2400,18 @@ describe('nextRetiring', () => {
   it('falls back to a LEGO retiring-soon flag, skipping retired sets', () => {
     assert.deepEqual(nextRetiring([{ name: 'R', retired: 1, lego_retiring_soon: 1 }, { name: 'T', lego_retiring_soon: 1 }], today), { name: 'T', days: null });
     assert.equal(nextRetiring([], today), null);
+  });
+});
+
+describe('isRepeatedSignup', () => {
+  it('flags the placeholder user Supabase returns for an existing email', () => {
+    assert.equal(isRepeatedSignup({ id: 'x', email: 'a@b.c', identities: [] }), true);
+    assert.equal(isRepeatedSignup({ user: { identities: [] } }), true);
+  });
+  it('passes a real new sign-up or a session through', () => {
+    assert.equal(isRepeatedSignup({ id: 'x', identities: [{ provider: 'email' }] }), false);
+    assert.equal(isRepeatedSignup({ access_token: 't', user: { identities: [] } }), false);
+    assert.equal(isRepeatedSignup({ id: 'x' }), false);
+    assert.equal(isRepeatedSignup(null), false);
   });
 });
