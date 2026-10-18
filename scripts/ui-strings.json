@@ -616,6 +616,12 @@
     ]
   },
   {
+    "text": "An account with this email already exists. Sign in instead, or tap Forgot password.",
+    "files": [
+      "api.js"
+    ]
+  },
+  {
     "text": "Analyzing image locally...",
     "files": [
       "lib/local-ai.js"
@@ -1724,6 +1730,12 @@
     "text": "Confirm password",
     "files": [
       "views/login.js"
+    ]
+  },
+  {
+    "text": "Confirm your email first: open the link we sent you, then sign in.",
+    "files": [
+      "api.js"
     ]
   },
   {
@@ -10165,6 +10177,12 @@
     "text": "Write the memory first",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Wrong email or password. If you signed up with Google, use Continue with Google, or tap Forgot password to set one.",
+    "files": [
+      "api.js"
     ]
   },
   {
