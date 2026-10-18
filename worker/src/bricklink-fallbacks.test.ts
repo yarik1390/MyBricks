@@ -27,10 +27,18 @@ describe('BrickLink fallback signals in the v3 blend', () => {
     expect(state.confidence).toBe('low');
   });
 
-  it('a lone listing price is asking-only, never a fair value', () => {
+  it('a lone listing price gives a discounted estimate, flagged asking-only', () => {
     const state = valueSignalsV3('new_sealed', legacySignalsFor({ bl_ask_value: 150, bl_ask_qty: 4, bl_fallback_cached_at: fresh }), {}, NOW);
-    expect(state.fair_value).toBeNull();
+    expect(state.fair_value).toBe(135);
+    expect(state.confidence).toBe('estimated');
     expect(state.flags).toContain('asking_only');
+  });
+
+  it('the value model outranks a lone listing price', () => {
+    const state = valueSignalsV3('new_sealed', legacySignalsFor({
+      bl_ask_value: 150, bl_ask_qty: 4, bl_fallback_cached_at: fresh, model_value: 90, model_cached_at: fresh,
+    }), {}, NOW);
+    expect(state.fair_value).toBe(90);
   });
 
   it('a real BrickLink sold guide outranks both fallbacks', () => {
