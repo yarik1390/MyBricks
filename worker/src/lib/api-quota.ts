@@ -60,6 +60,10 @@ export const QUOTA_CAPS: Record<string, number> = {
   // Walmart/Target price lookups (jobs/store-offers.ts): one Firecrawl json
   // extraction (5 credits) per store per set, so 40/day = 200 credits/day.
   stores: 80,
+  // Set description translations on the public /api/sets/:set/description
+  // route with the shared Gemini key. Each result is cached per set+language,
+  // so real traffic needs few; the cap stops a crawler walking the catalog.
+  describe_translate: 600,
 };
 
 // Admin-tunable daily-cap overrides (lib/source-config.ts), keyed by service.

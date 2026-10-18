@@ -2863,6 +2863,8 @@ describe('Account deletion (DELETE /api/me)', () => {
       await db.prepare(`INSERT INTO ${t} (user_id, r2_key) VALUES (?, ?)`).bind(userId, `${userId}/1234-1.jpg`).run();
       await db.prepare(`INSERT INTO ${t} (user_id, r2_key) VALUES (?, ?)`).bind(otherUserId, `${otherUserId}/9999-1.jpg`).run();
     }
+    for (const t of ['households', 'household_members', 'swap_requests']) await db.prepare(`DROP TABLE IF EXISTS ${t}`).run();
+    await applyTestTables(db, ['households', 'household_members', 'swap_requests']);
   });
 
   async function countRows(uid: string): Promise<number> {
@@ -2930,6 +2932,52 @@ describe('Account deletion (DELETE /api/me)', () => {
       delete (env as any).PHOTO_BUCKET;
       delete (env as any).SUPABASE_SERVICE_ROLE_KEY;
     }
+  });
+
+  it('deletes per-user R2 prefixes (collection photos, stories, backups)', async () => {
+    const del = vi.fn().mockResolvedValue(undefined);
+    const store: Record<string, string[]> = {
+      [`${userId}/`]: [`${userId}/1234-1.photo`],
+      [`stories/${userId}/`]: [`stories/${userId}/7.jpg`],
+      [`backups/${userId}/`]: [`backups/${userId}/2026-10-12.json`],
+    };
+    const list = vi.fn(async ({ prefix }: { prefix: string }) => ({
+      objects: (store[prefix] || []).map((key) => ({ key })), truncated: false,
+    }));
+    (env as any).PHOTO_BUCKET = { delete: del, list };
+    try {
+      const res = await app.fetch(new Request('http://localhost/api/me', {
+        method: 'DELETE', headers: auth(), body: JSON.stringify({ confirm: 'DELETE' }),
+      }), env);
+      expect(res.status).toBe(200);
+      expect(list.mock.calls.map(([o]) => o.prefix)).toEqual([`${userId}/`, `stories/${userId}/`, `backups/${userId}/`]);
+      expect(del).toHaveBeenCalledWith([`stories/${userId}/7.jpg`]);
+      expect(del).toHaveBeenCalledWith([`backups/${userId}/2026-10-12.json`]);
+      expect(del).not.toHaveBeenCalledWith(expect.arrayContaining([expect.stringContaining(otherUserId)]));
+    } finally {
+      delete (env as any).PHOTO_BUCKET;
+    }
+  });
+
+  it('hands an owned family vault to the next member and drops swap requests', async () => {
+    const h = await db.prepare("INSERT INTO households (owner_id, name, invite_code) VALUES (?, 'Fam', 'ABCDEFGH') RETURNING id")
+      .bind(userId).first<{ id: number }>();
+    await db.prepare("INSERT INTO household_members (household_id, user_id, role, joined_at) VALUES (?, ?, 'owner', '2026-01-01'), (?, ?, 'member', '2026-02-01')")
+      .bind(h!.id, userId, h!.id, otherUserId).run();
+    await db.prepare("INSERT INTO swap_requests (from_user, to_user, give_sets, get_sets) VALUES (?, ?, '[]', '[]'), (?, 'third', '[]', '[]'), ('third', 'fourth', '[]', '[]')")
+      .bind(otherUserId, userId, userId).run();
+
+    const res = await app.fetch(new Request('http://localhost/api/me', {
+      method: 'DELETE', headers: auth(), body: JSON.stringify({ confirm: 'DELETE' }),
+    }), env);
+    expect(res.status).toBe(200);
+
+    const members = await db.prepare('SELECT user_id, role FROM household_members').all<{ user_id: string; role: string }>();
+    expect(members.results).toEqual([{ user_id: otherUserId, role: 'owner' }]);
+    const owner = await db.prepare('SELECT owner_id FROM households WHERE id=?').bind(h!.id).first<{ owner_id: string }>();
+    expect(owner?.owner_id).toBe(otherUserId);
+    const swaps = await db.prepare('SELECT from_user, to_user FROM swap_requests').all();
+    expect(swaps.results).toEqual([{ from_user: 'third', to_user: 'fourth' }]);
   });
 
   it('reports auth_deleted=false when no service-role key is configured', async () => {
