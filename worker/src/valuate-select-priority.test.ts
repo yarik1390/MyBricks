@@ -214,17 +214,26 @@ describe('BrickLink discovery selection', () => {
     await seed('NO-DATA', 300);
     await db.prepare(`INSERT INTO set_market_ext (set_num, bl_nodata_at) VALUES ('NO-DATA', datetime('now', '-200 days'))`).run();
     await seed('UNPRICED', 20);
+    // Stamped no-data, listings already asked: stays backed off.
+    await seed('NO-DATA-ASKED', 250);
+    await db.prepare(`INSERT INTO set_market_ext (set_num, bl_nodata_at, bl_fallback_cached_at)
+      VALUES ('NO-DATA-ASKED', datetime('now', '-5 days'), datetime('now', '-5 days'))`).run();
+    // Stamped no-data but priced (by the value model): not re-asked.
+    await seed('NO-DATA-PRICED', 200);
+    await db.prepare(`INSERT INTO set_market_ext (set_num, bl_nodata_at) VALUES ('NO-DATA-PRICED', datetime('now', '-5 days'))`).run();
     await db.prepare(`INSERT INTO set_valuation_state (set_num, condition, fair_value) VALUES
       ('BE-ONLY-HIGH', 'new_sealed', 500), ('BE-ONLY-LOW', 'new_sealed', 50), ('NO-BE', 'new_sealed', 400),
-      ('HAS-PC', 'new_sealed', 390)`).run();
+      ('HAS-PC', 'new_sealed', 390), ('NO-DATA-PRICED', 'new_sealed', 200)`).run();
 
     const { results } = await selectDueSets({ ...(env as any), BRICKLINK_CONSUMER_KEY: 'test-key' }, {
       scope: 'all', options: { limit: 20, blDiscovery: true },
       includeSupplemental: false, includeBrickLink: true, includeEbay: false,
       includeEbaySold: false, includeAiFallback: false,
     });
-    // Legacy (quarantined) PriceCharting no longer blocks discovery; a set
-    // with no price at all (UNPRICED has no valuation state) goes first.
-    expect(results.map((row) => row.set_num)).toEqual(['UNPRICED', 'NO-BE', 'BE-ONLY-HIGH', 'HAS-PC', 'BE-ONLY-LOW']);
+    // Legacy (quarantined) PriceCharting no longer blocks discovery; sets with
+    // no price at all go first, including NO-DATA, stamped before listings
+    // were ever asked for (its stamp is hidden so the run does not skip it).
+    expect(results.map((row) => row.set_num)).toEqual(['NO-DATA', 'UNPRICED', 'NO-BE', 'BE-ONLY-HIGH', 'HAS-PC', 'BE-ONLY-LOW']);
+    expect(results.find((row) => row.set_num === 'NO-DATA')?.bl_nodata_at).toBeNull();
   });
 });
