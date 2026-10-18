@@ -3,6 +3,8 @@ import { Hono } from 'hono';
 import { requireMember } from '../auth';
 import { fetchTracked } from '../lib/http';
 import { recordIntegrationAttempt } from '../lib/integration-health';
+import { appLink } from '../lib/app-url';
+import { openSecret, sealSecret } from '../lib/token-crypto';
 import type { Env, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -82,34 +84,58 @@ app.get('/auth', async (c) => {
   return c.redirect(oauthUrl);
 });
 
-// GET /api/google/oauth — OAuth callback handler (Public, verified using state nonce)
+// GET /api/google/oauth — Google's redirect target. It does NOT link the account:
+// this request carries no proof of who is in the browser, so a victim opening an
+// attacker's /auth link would otherwise attach the victim's Google to the
+// attacker's vault (login CSRF). It hands the code back to the app, and the
+// signed-in app finishes with POST /oauth/complete, which requires the state to
+// belong to the same user as the bearer token.
 app.get('/oauth', async (c) => {
   const code = c.req.query('code');
   const state = c.req.query('state');
+  const fail = () => c.redirect(appLink(c.env, '#/me/integrations?google_sync=error'));
 
-  if (!code || !state) {
-    return c.redirect(`${new URL(c.req.url).origin}/#/me/integrations?google_sync=error`);
+  if (!code || !state || state.length > 64 || code.length > 2048) return fail();
+
+  const stateRecord = await c.env.DB.prepare(`
+    SELECT expires_at FROM oauth_states WHERE state=?
+  `).bind(state).first<{ expires_at: number }>();
+  if (!stateRecord || stateRecord.expires_at < Math.floor(Date.now() / 1000)) {
+    console.error('[google-oauth] State nonce not found, reused or expired');
+    return fail();
   }
+
+  const params = new URLSearchParams({ google_sync: 'finish', gcode: code, gstate: state });
+  return c.redirect(appLink(c.env, `#/me/integrations?${params}`));
+});
+
+// POST /api/google/oauth/complete — exchange the code for the signed-in user only.
+app.post('/oauth/complete', requireMember, async (c) => {
+  const userId = c.get('userId');
+  const body = await c.req.json<{ code?: string; state?: string }>().catch(() => ({} as { code?: string; state?: string }));
+  const code = typeof body.code === 'string' ? body.code : '';
+  const state = typeof body.state === 'string' ? body.state : '';
+  if (!code || !state) return c.json({ error: 'code and state are required' }, 400);
 
   const stateRecord = await c.env.DB.prepare(`
     SELECT user_id, expires_at FROM oauth_states WHERE state=?
   `).bind(state).first<{ user_id: string; expires_at: number }>();
+  if (!stateRecord) return c.json({ error: 'Invalid or expired Google sign-in' }, 400);
 
-  if (!stateRecord) {
-    console.error('[google-oauth] State nonce not found or reused:', state);
-    return c.redirect(`${new URL(c.req.url).origin}/#/me/integrations?google_sync=error`);
-  }
-
+  // Single use either way: a mismatched attempt burns the state too.
   await c.env.DB.prepare('DELETE FROM oauth_states WHERE state=?').bind(state).run();
 
+  if (stateRecord.user_id !== userId) {
+    console.error('[google-oauth] State belongs to a different user; refusing to link');
+    return c.json({ error: 'This Google connection was started from a different account' }, 403);
+  }
   if (stateRecord.expires_at < Math.floor(Date.now() / 1000)) {
-    console.error('[google-oauth] State nonce expired');
-    return c.redirect(`${new URL(c.req.url).origin}/#/me/integrations?google_sync=error`);
+    return c.json({ error: 'Google sign-in expired, please try again' }, 400);
   }
 
-  const userId = stateRecord.user_id;
   const clientId = c.env.GOOGLE_CLIENT_ID || '1047116805178-dummy.apps.googleusercontent.com';
   const clientSecret = c.env.GOOGLE_CLIENT_SECRET || 'dummy-client-secret';
+  // Must equal the redirect_uri sent from /auth, which runs on this same API origin.
   const redirectUri = `${new URL(c.req.url).origin}/api/google/oauth`;
 
   try {
@@ -126,27 +152,26 @@ app.get('/oauth', async (c) => {
     });
 
     if (!tokenResp.ok) {
-      const errTxt = await tokenResp.text();
-      console.error('[google-oauth] Exchange code failed:', errTxt);
-      return c.redirect(`${new URL(c.req.url).origin}/#/me/integrations?google_sync=error`);
+      console.error('[google-oauth] Exchange code failed:', await tokenResp.text());
+      return c.json({ error: 'Google did not accept the sign-in, please try again' }, 502);
     }
 
     const tokens = await tokenResp.json() as { refresh_token?: string; access_token?: string };
-
-    if (tokens.refresh_token) {
-      await c.env.DB.prepare(`
-        INSERT INTO user_prefs (user_id, google_refresh_token)
-        VALUES (?, ?)
-        ON CONFLICT (user_id) DO UPDATE SET google_refresh_token = EXCLUDED.google_refresh_token
-      `).bind(userId, tokens.refresh_token).run();
-    } else {
+    if (!tokens.refresh_token) {
       console.warn('[google-oauth] No refresh token returned. User may need to revoke consent first.');
+      return c.json({ error: 'Google returned no long-lived access. Remove BricksVault in your Google account permissions and connect again.' }, 502);
     }
 
-    return c.redirect(`${new URL(c.req.url).origin}/#/me/integrations?google_sync=success`);
+    await c.env.DB.prepare(`
+      INSERT INTO user_prefs (user_id, google_refresh_token)
+      VALUES (?, ?)
+      ON CONFLICT (user_id) DO UPDATE SET google_refresh_token = EXCLUDED.google_refresh_token
+    `).bind(userId, await sealSecret(c.env, tokens.refresh_token)).run();
+
+    return c.json({ ok: true });
   } catch (err) {
     console.error('[google-oauth] Exception in OAuth exchange:', err);
-    return c.redirect(`${new URL(c.req.url).origin}/#/me/integrations?google_sync=error`);
+    return c.json({ error: 'Failed to connect Google Sheets' }, 500);
   }
 });
 
@@ -235,8 +260,9 @@ async function ensureSheetExists(spreadsheetId: string, title: string, accessTok
   if (!addResp.ok) throw new Error(`Failed to add sheet "${title}": ${await addResp.text()}`);
 }
 
-export async function runSyncProcess(userId: string, refreshToken: string, existingSpreadsheetId: string | null, env: Env) {
+export async function runSyncProcess(userId: string, storedRefreshToken: string, existingSpreadsheetId: string | null, env: Env) {
   try {
+    const refreshToken = await openSecret(env, storedRefreshToken);
     // 1. Refresh Access Token
     const clientId = env.GOOGLE_CLIENT_ID || '1047116805178-dummy.apps.googleusercontent.com';
     const clientSecret = env.GOOGLE_CLIENT_SECRET || 'dummy-client-secret';

@@ -20,6 +20,10 @@ on:
         description: 'API base URL'
         default: 'https://brickvault-api.zhydenko.workers.dev'
 
+# Least-privilege token: nothing in this workflow writes to the repo via GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   k6:
     runs-on: ubuntu-latest

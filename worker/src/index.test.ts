@@ -1,5 +1,6 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { applyTestTables } from './test-schema';
+import { openSecret, sealSecret } from './lib/token-crypto';
 import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { apiErrorHandler, app } from './index';
@@ -684,12 +685,37 @@ describe('BrickVault API Worker Tests', () => {
         return Promise.resolve(new Response(null, { status: 404 }));
       });
 
+      // Google's redirect does not link anything by itself: it hands the code
+      // back to the signed-in app.
       const callbackRes = await app.fetch(
         new Request(`http://localhost/api/google/oauth?code=oauth-code-123&state=${state}`),
         env
       );
       expect(callbackRes.status).toBe(302);
-      expect(callbackRes.headers.get('Location')).toContain('google_sync=success');
+      expect(callbackRes.headers.get('Location')).toContain('google_sync=finish');
+      const finishParams = new URLSearchParams((callbackRes.headers.get('Location') || '').split('?')[1] || '');
+      expect(finishParams.get('gcode')).toBe('oauth-code-123');
+      expect(finishParams.get('gstate')).toBe(state);
+      const notYet = await db.prepare('SELECT google_refresh_token FROM user_prefs WHERE user_id = ?')
+        .bind(testUserId).first<{ google_refresh_token: string | null }>();
+      expect(notYet?.google_refresh_token ?? null).toBeNull();
+
+      const completeRes = await app.fetch(
+        new Request('http://localhost/api/google/oauth/complete', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: 'oauth-code-123', state }),
+        }),
+        env
+      );
+      expect(completeRes.status).toBe(200);
+
+      // Stored encrypted, and it opens back to the original token.
+      const stored = await db.prepare('SELECT google_refresh_token FROM user_prefs WHERE user_id = ?')
+        .bind(testUserId).first<{ google_refresh_token: string }>();
+      expect(stored?.google_refresh_token.startsWith('enc1:')).toBe(true);
+      expect(stored?.google_refresh_token).not.toContain('mock-refresh-token');
+      expect(await openSecret(env as any, stored!.google_refresh_token)).toBe('mock-refresh-token');
 
       // Verify state was deleted after use
       const stateAfter = await db.prepare('SELECT user_id FROM oauth_states WHERE state = ?')
@@ -699,6 +725,38 @@ describe('BrickVault API Worker Tests', () => {
 
       // Restore fetch
       globalThis.fetch = originalFetch;
+    });
+
+    it('refuses to link a Google connection started by another account', async () => {
+      await db.prepare('INSERT INTO oauth_states (state, user_id, expires_at) VALUES (?, ?, ?)')
+        .bind('attacker-state', 'attacker-user', Math.floor(Date.now() / 1000) + 600).run();
+      const originalFetch = globalThis.fetch;
+      const fetchSpy = vi.fn().mockResolvedValue(new Response(JSON.stringify({ refresh_token: 'victim-token' }), { status: 200 }));
+      globalThis.fetch = fetchSpy;
+      try {
+        const res = await app.fetch(
+          new Request('http://localhost/api/google/oauth/complete', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: 'victim-code', state: 'attacker-state' }),
+          }),
+          env
+        );
+        expect(res.status).toBe(403);
+        expect(fetchSpy).not.toHaveBeenCalled();
+        const rows = await db.prepare("SELECT COUNT(*) AS n FROM user_prefs WHERE google_refresh_token IS NOT NULL").first<{ n: number }>();
+        expect(rows?.n).toBe(0);
+        const burnt = await db.prepare("SELECT state FROM oauth_states WHERE state = 'attacker-state'").first();
+        expect(burnt).toBeNull();
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    it('reads legacy plain-text refresh tokens unchanged', async () => {
+      expect(await openSecret(env as any, 'plain-old-token')).toBe('plain-old-token');
+      const sealed = await sealSecret(env as any, 'x');
+      expect(sealed).not.toBe(await sealSecret(env as any, 'x'));
     });
 
     it('rejects duplicate or invalid state nonces', async () => {

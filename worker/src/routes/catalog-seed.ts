@@ -68,7 +68,11 @@ app.get('/seed', async (c) => {
   // legacy values for offline use.
   const generation = await valuationGeneration(c.env.DB);
   const kvKey = `catalog:seed:${SEED_MODEL_VERSION}:${generation}:${limit}:${offset}`;
-  const kv = c.env.CACHE_KV;
+  // Only the page shapes the build generator and the app request are cached.
+  // The endpoint is public, so caching every limit/offset pair let anyone mint
+  // unbounded KV writes; other shapes are still served, just not stored.
+  const standardPage = (limit === DEFAULT_LIMIT || limit === MAX_PAGE) && offset % limit === 0;
+  const kv = standardPage ? c.env.CACHE_KV : undefined;
   if (kv) {
     const cached = await kv.get(kvKey);
     if (cached) {

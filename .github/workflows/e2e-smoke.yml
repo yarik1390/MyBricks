@@ -11,6 +11,10 @@ concurrency:
   group: e2e-smoke-${{ github.ref }}
   cancel-in-progress: true
 
+# Least-privilege token: nothing in this workflow writes to the repo via GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   smoke:
     runs-on: ubuntu-latest

@@ -33,6 +33,10 @@ concurrency:
   group: brickvault-production-population
   cancel-in-progress: false
 
+# Least-privilege token: nothing in this workflow writes to the repo via GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   populate:
     runs-on: ubuntu-latest

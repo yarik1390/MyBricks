@@ -25,6 +25,10 @@ concurrency:
   group: brickvault-production-mutations
   cancel-in-progress: false
 
+# Least-privilege token: nothing in this workflow writes to the repo via GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest

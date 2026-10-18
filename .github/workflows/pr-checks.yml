@@ -12,6 +12,10 @@ concurrency:
   group: pr-checks-${{ github.ref }}
   cancel-in-progress: true
 
+# Least-privilege token: nothing in this workflow writes to the repo via GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   checks:
     runs-on: ubuntu-latest

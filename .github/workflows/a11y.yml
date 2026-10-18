@@ -9,6 +9,10 @@ concurrency:
   group: a11y-${{ github.ref }}
   cancel-in-progress: true
 
+# Least-privilege token: nothing in this workflow writes to the repo via GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   a11y:
     runs-on: ubuntu-latest
