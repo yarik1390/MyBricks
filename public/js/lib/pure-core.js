@@ -39,6 +39,7 @@ export function isCredentialAuthFailure(value) {
 // 200 and a placeholder user whose `identities` list is empty (it hides which
 // emails exist), and creates nothing. Spot that so the form can say so instead
 // of claiming a new account was made.
+/** @param {any} d */
 export function isRepeatedSignup(d) {
   if (!d || d.access_token) return false;
   const user = d.user || d;
