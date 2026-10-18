@@ -301,6 +301,14 @@ const rewriteImageResponses: MiddlewareHandler<{ Bindings: Env; Variables: Varia
   } catch { /* fail open — leave the original response */ }
 };
 app.use('/api/*', rewriteImageResponses);
+// Load admin source tuning into this isolate before any API route runs, as
+// scheduled() does for crons. Request-path writers (populate-everything, set
+// refresh, collection adds) otherwise blend with code defaults and re-add a
+// source that is switched off. Memoized for 60s; fails open to defaults.
+app.use('/api/*', async (c, next) => {
+  await applySourceConfig(c.env).catch(() => {});
+  await next();
+});
 
 app.route('/api/me', meRoute);
 app.route('/api/collection', collectionRoute);
