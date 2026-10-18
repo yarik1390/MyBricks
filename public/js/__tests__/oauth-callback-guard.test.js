@@ -93,6 +93,7 @@ test('OAuth callback accepts only the nonce returned to its own redirect', async
     const fragment = fragmentNonce ? `&auth_state=${fragmentNonce}` : '';
     const ctx = {
       AUTH_TRANSACTION_TTL_MS: 600_000,
+      OAUTH_QUERY_KEYS: ['auth_state', 'code', 'native_oauth', 'error', 'error_description', 'error_code'],
       URL, URLSearchParams, Date,
       location: { href: `https://bricksvault.app/${query}#access_token=FAKE&refresh_token=FAKE${fragment}`, pathname: '/', search: query, hash: `#access_token=FAKE&refresh_token=FAKE${fragment}` },
       history: { replaceState() {} },
@@ -113,6 +114,47 @@ test('OAuth callback accepts only the nonce returned to its own redirect', async
   assert.deepEqual(await execute({ storedNonce: nonce, queryNonce: nonce, fragmentNonce: 'b'.repeat(64) }), { saved: 0, migrated: 0, pending: true });
   assert.deepEqual(await execute({ storedNonce: nonce, queryNonce: nonce, startedAt: Date.now() + 60_000 }), { saved: 0, migrated: 0, pending: true });
   assert.deepEqual(await execute({ storedNonce: nonce, queryNonce: nonce }), { saved: 1, migrated: 1, pending: false });
+});
+
+// PKCE: the redirect carries only ?code=; the session comes from exchanging it
+// with the verifier this tab stored, and tokens in the URL are refused.
+test('PKCE callback exchanges the code with the stored verifier', async () => {
+  const start = appSrc.indexOf('async function consumeOAuthHash()');
+  const body = appSrc.slice(start, appSrc.indexOf('\n}\n', start) + 3);
+  const nonce = 'c'.repeat(64);
+  async function execute({ search, hash = '', verifier = 'v'.repeat(64) }) {
+    const values = new Map([['bv_pending_signin', JSON.stringify({ nonce, startedAt: Date.now(), verifier })]]);
+    const exchanged = [];
+    const sessions = [];
+    const ctx = {
+      AUTH_TRANSACTION_TTL_MS: 600_000,
+      OAUTH_QUERY_KEYS: ['auth_state', 'code', 'native_oauth', 'error', 'error_description', 'error_code'],
+      URL, URLSearchParams, Date,
+      location: { href: `https://bricksvault.app/${search}${hash}`, pathname: '/', search, hash },
+      history: { replaceState() {} },
+      sessionStorage: { getItem: key => values.get(key), removeItem: key => values.delete(key) },
+      sbExchangeCode: async (code, v) => { exchanged.push([code, v]); return { access_token: 'AT', refresh_token: 'RT', expires_in: 3600 }; },
+      snapshotGuestVault: () => ({}),
+      saveSession: (sess) => { sessions.push(sess.access_token); },
+      migrateGuestVault: async () => ({ migrated: 0, errors: [] }),
+      toast() {}, tPlural: () => '',
+      state: { me: null }, invalidatePortfolio() {},
+    };
+    vm.createContext(ctx);
+    await vm.runInContext(`${body}\nconsumeOAuthHash()`, ctx);
+    return { exchanged, sessions, pending: values.has('bv_pending_signin') };
+  }
+  assert.deepEqual(await execute({ search: `?auth_state=${nonce}&code=C1` }),
+    { exchanged: [['C1', 'v'.repeat(64)]], sessions: ['AT'], pending: false });
+  // Native bridge form: the pair arrives in the fragment.
+  assert.deepEqual(await execute({ search: '', hash: `#auth_state=${nonce}&code=C2` }),
+    { exchanged: [['C2', 'v'.repeat(64)]], sessions: ['AT'], pending: false });
+  // Wrong state: no exchange.
+  assert.deepEqual(await execute({ search: `?auth_state=${'d'.repeat(64)}&code=C3` }),
+    { exchanged: [], sessions: [], pending: true });
+  // Raw tokens for a PKCE transaction are never installed.
+  assert.deepEqual(await execute({ search: `?auth_state=${nonce}`, hash: '#access_token=FAKE&refresh_token=FAKE' }),
+    { exchanged: [], sessions: [], pending: true });
 });
 
 // Regression: a Supabase password-recovery link carries access_token with

@@ -1,7 +1,7 @@
 import { $, $$, haptic, toast, fetchExchangeRates, hasCachedExchangeRates, bvIDB, installImageFallback, track } from './utils.js';
 import { state, invalidatePortfolio } from './state.js';
 import { nextOfflineBannerState, shouldUseKeyboardShell } from './lib/pure-core.js';
-import { loadSession, saveSession, setSupabaseConfig, drainOutbox, getSessionOwnerSnapshot, snapshotGuestVault, migrateGuestVault, isGuestMode, backfillGuestVault, stashRecoveryGrant } from './api.js';
+import { loadSession, saveSession, setSupabaseConfig, drainOutbox, getSessionOwnerSnapshot, snapshotGuestVault, migrateGuestVault, isGuestMode, backfillGuestVault, stashRecoveryGrant, sbExchangeCode } from './api.js';
 import { I } from './icons.js';
 import { icon as kitIcon } from './ui/kit.js';
 import { paintNavBadges } from './components/collector-shell.js';
@@ -269,11 +269,28 @@ function consumeShareTarget() {
 // redirect callback must not be able to install a session minutes later.
 const AUTH_TRANSACTION_TTL_MS = 10 * 60 * 1000;
 
+// Query keys a provider redirect adds; stripped once the callback is handled.
+const OAUTH_QUERY_KEYS = ['auth_state', 'code', 'native_oauth', 'error', 'error_description', 'error_code'];
+
 async function consumeOAuthHash() {
-  if (location.hash.includes('access_token=')) {
+  // PKCE returns ?code=…&auth_state=… in the query on the web; the native
+  // bridge hands the same pair over in the fragment.
+  const query = new URLSearchParams(location.search);
+  const hashParams = new URLSearchParams(location.hash.slice(1));
+  const queryCallback = query.has('auth_state') && (query.has('code') || query.has('error'));
+  if (queryCallback && query.has('error') && !hashParams.has('access_token')) {
+    const errorMsg = query.get('error_description')?.replace(/\+/g, ' ') || query.get('error') || "Authentication failed";
+    try { sessionStorage.removeItem("bv_pending_signin"); } catch {}
+    const clean = new URL(location.href);
+    for (const key of OAUTH_QUERY_KEYS) clean.searchParams.delete(key);
+    history.replaceState(null, '', clean.pathname + clean.search + location.hash);
+    toast(errorMsg, "error");
+    return true;
+  }
+  if (location.hash.includes('access_token=') || hashParams.has('code') || queryCallback) {
     try {
-      const hp = new URLSearchParams(location.hash.slice(1));
-      if (hp.has('access_token')) {
+      const hp = hashParams.has('access_token') || hashParams.has('code') ? hashParams : query;
+      if (hp.has('access_token') || hp.has('code')) {
         // Password-recovery links arrive from the email with `type=recovery` and no
         // auth_state: this tab never started a sign-in transaction, so the CSRF guard
         // below would refuse them and a user could never reset a password. Do NOT
@@ -313,12 +330,15 @@ async function consumeOAuthHash() {
         const fragmentState = hp.get('auth_state');
         const callbackState = fragmentState || queryState;
         const conflictingState = fragmentState && queryState && fragmentState !== queryState;
-        if (!pending || !callbackState || conflictingState || callbackState !== pending.nonce) {
+        // A PKCE transaction must come back as a code: tokens in the URL for
+        // it mean the redirect did not come from the flow this tab started.
+        const tokenForPkce = !!pending?.verifier && hp.has('access_token');
+        if (!pending || tokenForPkce || !callbackState || conflictingState || callbackState !== pending.nonce) {
           // Never install credentials that were not returned to the random,
           // transaction-specific redirect URL supplied to the auth server.
           // Remove callback state and tokens even on an unsolicited link.
           const clean = new URL(location.href);
-          clean.searchParams.delete('auth_state');
+          for (const key of OAUTH_QUERY_KEYS) clean.searchParams.delete(key);
           history.replaceState(null, '', clean.pathname + clean.search);
           return true;
         }
@@ -326,18 +346,34 @@ async function consumeOAuthHash() {
         // cannot reuse it, and never carry it across a different tab/flow.
         try { sessionStorage.removeItem("bv_pending_signin"); } catch {}
         const clean = new URL(location.href);
-        clean.searchParams.delete('auth_state');
+        for (const key of OAUTH_QUERY_KEYS) clean.searchParams.delete(key);
         history.replaceState(null, '', clean.pathname + clean.search);
+        let oauthSess;
+        if (hp.has('code')) {
+          if (!pending.verifier) return true;
+          try {
+            const grant = await sbExchangeCode(hp.get('code'), pending.verifier);
+            oauthSess = {
+              access_token: grant.access_token,
+              refresh_token: grant.refresh_token,
+              expires_at: Number(grant.expires_at) || Date.now() / 1000 + Number(grant.expires_in || 3600),
+            };
+          } catch (e) {
+            toast(e?.message || "Authentication failed", "error");
+            return true;
+          }
+        } else {
+          oauthSess = {
+            access_token: hp.get('access_token'),
+            refresh_token: hp.get('refresh_token'),
+            expires_at: Date.now() / 1000 + parseInt(hp.get('expires_in') || '3600'),
+          };
+        }
         let guestSnapshot = snapshotGuestVault();
         try {
           const pendingSnap = JSON.parse(sessionStorage.getItem("bv_pending_guest_migration") || "null");
           if (pendingSnap) guestSnapshot = pendingSnap;
         } catch {}
-        const oauthSess = {
-          access_token: hp.get('access_token'),
-          refresh_token: hp.get('refresh_token'),
-          expires_at: Date.now() / 1000 + parseInt(hp.get('expires_in') || '3600'),
-        };
         saveSession(oauthSess, { preserveGuestFigs: true });
         const migrated = await migrateGuestVault(guestSnapshot);
         try { sessionStorage.removeItem("bv_pending_guest_migration"); } catch {}

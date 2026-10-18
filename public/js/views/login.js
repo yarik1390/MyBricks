@@ -3,7 +3,7 @@ import { _sbUrl, sbSignIn, sbSignUp, sbRecover, sbSetPassword, saveSession, snap
 import { state } from '../state.js';
 import { go } from '../router.js';
 import { promptSheet, showSheet, hideSheet } from '../components/sheet.js';
-import { authRedirectUrlForPlatform, buildSupabaseProviderAuthUrl, isNativeCapacitor, openNativeAuthUrl } from '../lib/native-auth.js';
+import { authRedirectUrlForPlatform, buildSupabaseProviderAuthUrl, createPkceVerifier, isNativeCapacitor, openNativeAuthUrl, pkceChallenge } from '../lib/native-auth.js';
 import { t, tPlural } from '../lib/i18n.js';
 
 // First sign-in (or first guest start) continues into the Welcome flow; after
@@ -228,17 +228,21 @@ export function renderLogin() {
       // Bind the returned credentials to this specific authorization request.
       // A timestamp alone does not stop an attacker from substituting a token
       // while a legitimate provider sign-in is pending.
-      let nonce;
+      // PKCE: the provider redirect carries only a one-time code; the verifier
+      // that turns it into a session never leaves this device.
+      let nonce, challenge;
       try {
         nonce = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
-        sessionStorage.setItem("bv_pending_signin", JSON.stringify({ provider, startedAt: Date.now(), nonce }));
+        const verifier = createPkceVerifier();
+        challenge = await pkceChallenge(verifier);
+        sessionStorage.setItem("bv_pending_signin", JSON.stringify({ provider, startedAt: Date.now(), nonce, verifier }));
       } catch {
         toast("Secure sign-in is unavailable in this browser", "error");
         return;
       }
       const redirect = new URL(authRedirectUrlForPlatform());
       redirect.searchParams.set('auth_state', nonce);
-      const authUrl = buildSupabaseProviderAuthUrl(_sbUrl, provider, redirect.toString());
+      const authUrl = buildSupabaseProviderAuthUrl(_sbUrl, provider, redirect.toString(), challenge);
       if (isNativeCapacitor()) {
         try {
           if (await openNativeAuthUrl(authUrl)) return;

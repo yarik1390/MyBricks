@@ -218,6 +218,22 @@ export function saveSession(s, opts = {}) {
   }
 }
 
+// PKCE sign-in: trade the one-time code from the provider redirect, plus the
+// verifier this device kept, for a session. A code caught by anyone else is
+// useless without the verifier.
+export async function sbExchangeCode(authCode, codeVerifier) {
+  const r = await fetch(`${_sbUrl}/auth/v1/token?grant_type=pkce`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: _sbAnonKey },
+    body: JSON.stringify({ auth_code: authCode, code_verifier: codeVerifier }),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || !d.access_token) {
+    throw new Error(d.msg || d.error_description || (typeof d.error === 'string' ? d.error : '') || d.message || "Sign in failed");
+  }
+  return d;
+}
+
 export async function sbSignIn(email, password, captchaToken) {
   const body = { email, password };
   // GoTrue CAPTCHA token — included only when supplied. Supabase ignores it
