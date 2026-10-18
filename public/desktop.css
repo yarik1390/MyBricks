@@ -209,6 +209,9 @@
   .bv-page { margin-left: 0; }
   .bv-page.vault-page:has(> .vault-aside) {
     display: grid; grid-template-columns: minmax(0, 1fr) clamp(340px, 24vw, 420px); grid-auto-flow: row dense; column-gap: 32px; align-items: start;
+    /* .bv-page has min-height:100dvh; without this a short collection
+       stretches the rows and opens a blank band under the title. */
+    align-content: start;
   }
   /* Top bar, search and notices span both columns; then the table and the aside. */
   .vault-page:has(> .vault-aside) > * { grid-column: 1 / -1; min-width: 0; }
@@ -219,6 +222,11 @@
   .vault-page .vault-main > * { margin-left: 0; margin-right: 0; }
   .vault-page .vault-main .vault-list:not(.bv-grid) { margin: 0; }
   .vault-page .vault-main .vault-list-head { margin-left: 0; margin-right: 0; }
+  /* Scan to add lines up with the right edge of the page instead of the
+     window corner, which on a big monitor is far from everything else. */
+  body.collector-ui:has(.bv-page:is(.vault-page, .vault-figs, .vault-lists, .vault-build, .bv-discover, .bv-wishlist, .vault-insights)) .bv-fab {
+    right: max(32px, calc(100vw - var(--bv-side-w) - 2200px + 40px));
+  }
 }
 
 /* Wide windows: the set page shows its photo beside the details. With the
@@ -333,7 +341,7 @@
   /* Vault Minifigs, Lists and Build: the summary card sits in the right
      column, as it does on Sets, so switching tabs keeps the same layout. */
   .bv-page:is(.vault-figs.is-owned, .vault-lists, .vault-build):has(> :is(.vault-fig-hero, .vault-records, .vault-build-hero)) {
-    display: grid; grid-template-columns: minmax(0, 1fr) clamp(340px, 24vw, 420px); grid-auto-flow: row dense; column-gap: 32px; align-items: start;
+    display: grid; grid-template-columns: minmax(0, 1fr) clamp(340px, 24vw, 420px); grid-auto-flow: row dense; column-gap: 32px; align-items: start; align-content: start;
   }
   .bv-page:is(.vault-figs.is-owned, .vault-lists, .vault-build):has(> :is(.vault-fig-hero, .vault-records, .vault-build-hero)) > * { grid-column: 1; min-width: 0; }
   .bv-page:is(.vault-figs.is-owned, .vault-lists, .vault-build) > .bv-topbar { grid-column: 1 / -1; }
