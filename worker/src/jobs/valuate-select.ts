@@ -98,6 +98,13 @@ export function discoveryWantsUsed(set: { year?: number | null; retired?: number
 // Sets with no BrickLink or eBay sale value. Legacy pc_new_value is ignored:
 // those PriceCharting mappings are quarantined and never price a set, yet
 // requiring it empty kept ~2,500 sets from ever being asked (2026-10-18).
+// No sealed fair value at all: the set shows no price.
+const UNPRICED = `ls.set_num NOT IN (SELECT set_num FROM set_valuation_state
+  WHERE condition = 'new_sealed' AND fair_value > 0)`;
+// Stamped no-data before discovery fetched current listings (PR #70), so its
+// listings were never asked for.
+const LISTINGS_NEVER_ASKED = `sme.bl_fallback_cached_at IS NULL`;
+
 export const DISCOVERY_PREDICATE = `COALESCE(ls.bl_new_value, 0) <= 0
   AND COALESCE(ls.ebay_new_value, 0) <= 0`;
 
@@ -202,7 +209,7 @@ export async function selectDueSets(
     ? includeBrickLink
       ? `AND ${DISCOVERY_PREDICATE}
         AND ls.bl_cached_at IS NULL
-        AND sme.bl_nodata_at IS NULL`
+        AND (sme.bl_nodata_at IS NULL OR (${LISTINGS_NEVER_ASKED} AND ${UNPRICED}))`
       : 'AND 0=1'
     : conflictTiebreak
     // Two sources disagree and nothing breaks the tie (mostly BrickEconomy vs
@@ -235,10 +242,7 @@ export async function selectDueSets(
     ? `COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) DESC,`
     : '';
   // Discovery asks sets that show no price at all before the rest.
-  const unpricedFirst = blDiscovery
-    ? `CASE WHEN ls.set_num IN (SELECT set_num FROM set_valuation_state
-         WHERE condition = 'new_sealed' AND fair_value > 0) THEN 1 ELSE 0 END,`
-    : '';
+  const unpricedFirst = blDiscovery ? `CASE WHEN ${UNPRICED} THEN 0 ELSE 1 END,` : '';
 
   // The dedicated BL lane has a distinct contract; do not alter the general
   // prioritizeValue/formula-head order while tightening BL freshness.
@@ -250,7 +254,8 @@ export async function selectDueSets(
     SELECT DISTINCT ls.set_num, ls.name, ls.theme, ls.year, ls.pieces, ls.minifigs, ls.retired,
       ls.retail_price, ls.brickset_msrp, ls.ebay_ask_value,
       ls.bl_new_value, ls.bl_new_qty, ls.used_value, ls.ebay_new_value, ls.ebay_used_value,
-      ls.pc_new_value, ls.pc_complete_value, sme.bl_nodata_at,
+      ls.pc_new_value, ls.pc_complete_value,
+      ${blDiscovery ? `CASE WHEN ${LISTINGS_NEVER_ASKED} THEN NULL ELSE sme.bl_nodata_at END` : 'sme.bl_nodata_at'} AS bl_nodata_at,
       ls.be_value_new, ls.be_value_used, ls.be_forecast_2y, ls.be_forecast_5y, ls.be_retail, ls.be_growth_12m,
       (ls.ebay_ask_cached_at IS NULL OR ls.ebay_ask_cached_at < datetime('now', '-7 days')) AS ask_stale
     FROM lego_sets ls
