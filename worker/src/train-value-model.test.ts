@@ -106,6 +106,22 @@ describe('runTrainValueModel', () => {
     expect(city).toBeLessThan(90);
   });
 
+  it('estimates from a BrickEconomy-echo retail only when it fits the piece count', async () => {
+    await insertSets([
+      ...trainingSets(240),
+      // Echoed retail, plausible for 500 pieces: estimated but never trained on.
+      { set_num: 'ECHO-OK-1', name: 'Echo ok', year: YEAR - 10, retired: 1, pieces: 500, theme: 'City', retail_price: 80, be_retail: 80, bl_new_value: 400, bl_new_qty: 9 },
+      // $300 for 20 pieces ($15 a piece) is not believable.
+      { set_num: 'ECHO-BAD-1', name: 'Echo bad', year: YEAR - 10, retired: 1, pieces: 20, theme: 'City', retail_price: 300, be_retail: 300 },
+    ]);
+    const result = await runTrainValueModel(env as any);
+    expect(result.trained).toBe(240);
+    const ok = (await modelValue('ECHO-OK-1'))!.model_value!;
+    expect(ok).toBeGreaterThanOrEqual(78);
+    expect(ok).toBeLessThan(90);
+    expect(await modelValue('ECHO-BAD-1')).toBeNull();
+  });
+
   it('anchors on the Brickset UK/DE/CA price when there is no US one', async () => {
     await insertSets([
       ...trainingSets(240),

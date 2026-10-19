@@ -38,12 +38,22 @@ const TRAIN_RATIO_MAX = 20;
 // MSRP, else Brickset's UK/DE/CA price (ext.bs_retail_alt, USD-equivalent),
 // else retail_price unless it merely echoes the BrickEconomy scrape
 // (be_retail), which carries garbage such as a $501,499 sticker sheet.
+// The model is trained on this anchor only.
 const RETAIL = `COALESCE(NULLIF(ls.brickset_msrp, 0), NULLIF(ext.bs_retail_alt, 0), CASE WHEN ls.retail_price > 0
   AND (ls.be_retail IS NULL OR ls.be_retail <= 0 OR ls.retail_price <> ls.be_retail) THEN ls.retail_price END)`;
 
+// Sets with no independent retail may still be estimated from the
+// BrickEconomy-echo retail_price (Iaroslav's choice, 2026-10-19), but only
+// when it is believable for the piece count: $1-$1,000 and $0.03-$2 a piece.
+// Brickset MSRP sits in that band for 97% of sets.
+export const ECHO_PPP_MIN = 0.03;
+export const ECHO_PPP_MAX = 2;
+const TARGET_RETAIL = `COALESCE(${RETAIL}, CASE WHEN ls.pieces > 0 AND ls.retail_price BETWEEN 1 AND 1000
+  AND ls.retail_price BETWEEN ls.pieces * ${ECHO_PPP_MIN} AND ls.pieces * ${ECHO_PPP_MAX} THEN ls.retail_price END)`;
+
 // Shared feature projection. `ac` is the coarse age class the deviations are
 // fitted within (0-3, 4-10, 11+ years since release).
-const FEATURES = `
+const features = (retail: string) => `
   ls.set_num,
   MIN(MAX(CAST(strftime('%Y','now') AS INTEGER) - ls.year, 0), 30) AS age,
   CASE WHEN CAST(strftime('%Y','now') AS INTEGER) - ls.year <= 3 THEN 0
@@ -52,13 +62,13 @@ const FEATURES = `
   COALESCE(ls.theme, '?') AS th,
   COALESCE(ls.theme, '?') || '/' || COALESCE(ls.subtheme, '') AS st,
   CASE WHEN ls.pieces > 0 THEN MIN(CAST(ln(ls.pieces) * 2 AS INTEGER), 18) ELSE -1 END AS pb,
-  ${RETAIL} AS rp,
+  ${retail} AS rp,
   CASE WHEN ls.bl_used_qty > 0 AND ls.used_value > 0 THEN ls.used_value END AS u`;
 
 export const TRAIN_VALUE_MODEL_SQL = `
 WITH
   train AS (
-    SELECT ${FEATURES}, ls.bl_new_value AS bl
+    SELECT ${features(RETAIL)}, ls.bl_new_value AS bl
     FROM lego_sets ls LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
     WHERE ls.bl_new_value > 0 AND ls.bl_new_qty >= 5 AND ls.year > 0
       AND ${RETAIL} > 0
@@ -77,9 +87,9 @@ WITH
   d_pb AS (SELECT pb, ac, SUM(res3) / (COUNT(*) + ${SHRINK_PIECES}) AS d FROM r3 GROUP BY pb, ac),
   used_ratio AS (SELECT ac, AVG(ln(bl / u)) AS m FROM train WHERE u > 0 GROUP BY ac),
   target AS (
-    SELECT ${FEATURES}
+    SELECT ${features(TARGET_RETAIL)}
     FROM lego_sets ls LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
-    WHERE ls.year > 0 AND ${RETAIL} > 0),
+    WHERE ls.year > 0 AND ${TARGET_RETAIL} > 0),
   scored AS (
     SELECT t.set_num, t.rp,
       ln(t.rp) + COALESCE(bar.m, ba.m, (SELECT m FROM base_all))
