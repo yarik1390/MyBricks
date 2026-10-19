@@ -262,6 +262,7 @@ export const nl = {
     emptyShelfTitle: 'Fotografeer een plank',
     emptyBody: 'Voeg je eerste sets toe en we waarderen ze in een paar seconden.',
     emptyTitle: 'Je plank is leeg',
+    emptySlot: 'Je eerste set',
     brick3dUnavailable: '3D is nu niet beschikbaar',
     csvExported: 'CSV geëxporteerd',
     restored: 'Teruggezet in je kluis',

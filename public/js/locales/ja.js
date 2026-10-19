@@ -262,6 +262,7 @@ export const ja = {
     emptyShelfTitle: '棚を撮影',
     emptyBody: '最初のセットを追加すると、数秒で価値を算出します。',
     emptyTitle: '棚はまだ空っぽです',
+    emptySlot: '最初のセット',
     brick3dUnavailable: '現在3Dは利用できません',
     csvExported: 'CSVを書き出しました',
     restored: 'コレクションに戻しました',

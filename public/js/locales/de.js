@@ -262,6 +262,7 @@ export const de = {
     emptyShelfTitle: 'Regal fotografieren',
     emptyBody: 'Füge deine ersten Sets hinzu – wir bewerten sie in Sekunden.',
     emptyTitle: 'Dein Regal ist leer',
+    emptySlot: 'Dein erstes Set',
     brick3dUnavailable: '3D ist gerade nicht verfügbar',
     csvExported: 'CSV exportiert',
     restored: 'Wieder im Tresor',

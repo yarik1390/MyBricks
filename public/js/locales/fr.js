@@ -262,6 +262,7 @@ export const fr = {
     emptyShelfTitle: 'Photographier une étagère',
     emptyBody: 'Ajoutez vos premiers sets, nous les estimons en quelques secondes.',
     emptyTitle: 'Votre étagère est vide',
+    emptySlot: 'Votre premier set',
     brick3dUnavailable: 'La 3D est indisponible pour le moment',
     csvExported: 'CSV exporté',
     restored: 'Rétabli dans votre coffre',

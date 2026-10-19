@@ -262,6 +262,7 @@ export const hi = {
     emptyShelfTitle: 'शेल्फ़ की फ़ोटो लें',
     emptyBody: 'अपने पहले सेट जोड़ें, हम सेकंडों में उनका मूल्य बताएँगे।',
     emptyTitle: 'आपकी शेल्फ़ ख़ाली है',
+    emptySlot: 'आपका पहला सेट',
     brick3dUnavailable: '3D अभी उपलब्ध नहीं है',
     csvExported: 'CSV निर्यात हुआ',
     restored: 'आपके संग्रह में वापस आया',

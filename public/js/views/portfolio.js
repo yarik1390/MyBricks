@@ -17,6 +17,7 @@ import { vaultTotals, changesWindowDays, changeSinceFromSnapshots, changeItems, 
 import { icon, sparkline, delta as deltaChip, emptyState, btn, banner, skeletonRows, chip } from '../ui/kit.js';
 import { setTile, gainPct } from '../ui/set-ui.js';
 import { vaultTowerHTML } from '../ui/vault-tower.js';
+import { emptyShelfHTML, wireEmptyShelf } from '../ui/empty-shelf.js';
 import { questTeaserHTML, cachedQuests, loadQuestTeaser } from './quests.js';
 import { vaultTopbar, vaultSearchRow, sortButton, layoutSeg, vaultToolbar, openChoiceSheet, openActionSheet, vaultSetRow, vaultListHead, moneyWhole, moneyWholeSigned, holdingValue } from '../ui/vault-ui.js';
 
@@ -601,6 +602,8 @@ function wireVaultChrome() {
     if (b.dataset.emptyAction === 'shelf') openScan('image', { shelf: true });
     else openScan('barcode');
   }));
+  wireEmptyShelf($("#vaultPage"));
+  $("#vaultPage [data-empty-slot]")?.addEventListener("click", () => { haptic("light"); location.hash = '#/add'; });
 }
 
 function openSortSheet() {
@@ -820,7 +823,8 @@ function wireEmptyVaultBrick3D() {
   });
 }
 
-// Empty vault (new collector, 0 sets): the shelf card, then the three ways in —
+// Empty vault (new collector, 0 sets): the shelf scene (bricks, a "+" slot for
+// set #1 and a waving minifig), then the three ways in —
 // photograph a whole shelf, import an existing list, or scan one box. The
 // "Crack the Brickvault" 3D mini-game stays behind an explicit text button and
 // loads Three.js only when asked.
@@ -832,8 +836,7 @@ function emptyVaultHTML() {
   return `
     <section class="bv-card vault-empty" aria-labelledby="vaultEmptyTitle">
       <div class="empty-vault-brick-stage">
-        <div class="vault-empty__shelf" aria-hidden="true"><span></span><span></span><span></span></div>
-        <div class="vault-empty__plank" aria-hidden="true"></div>
+        ${emptyShelfHTML()}
         <img class="empty-vault-brick-fallback" src="/brand-brick-transparent.png" alt="" width="144" height="144" aria-hidden="true" hidden>
         <p class="empty-vault-brick-3d-status bv-sr" role="status" aria-live="polite">${escapeHtml(t('portfolio.crackVaultInstructions'))}</p>
       </div>
