@@ -314,6 +314,7 @@ export const uk = {
     emptyShelfTitle: 'Сфотографувати полицю',
     emptyBody: 'Додайте перші набори — ми оцінимо їх за лічені секунди.',
     emptyTitle: 'Ваша полиця порожня',
+    emptySlot: 'Ваш перший набір',
     brick3dUnavailable: '3D зараз недоступне',
     csvExported: 'CSV експортовано',
     restored: 'Повернуто до сховища',

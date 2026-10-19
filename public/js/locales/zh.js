@@ -262,6 +262,7 @@ export const zh = {
     emptyShelfTitle: '拍摄展架',
     emptyBody: '添加第一批套装，几秒内即可完成估值。',
     emptyTitle: '你的展架还是空的',
+    emptySlot: '你的第一套',
     brick3dUnavailable: '3D 暂不可用',
     csvExported: 'CSV 已导出',
     restored: '已恢复到收藏库',

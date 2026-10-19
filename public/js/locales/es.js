@@ -262,6 +262,7 @@ export const es = {
     emptyShelfTitle: 'Fotografía una estantería',
     emptyBody: 'Añade tus primeros sets y los valoraremos en segundos.',
     emptyTitle: 'Tu estantería está vacía',
+    emptySlot: 'Tu primer set',
     brick3dUnavailable: 'El 3D no está disponible ahora',
     csvExported: 'CSV exportado',
     restored: 'Restaurado en tu colección',

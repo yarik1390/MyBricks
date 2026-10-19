@@ -271,6 +271,7 @@ export const en = {
     emptyShelfTitle: 'Photograph a shelf',
     emptyBody: 'Add your first sets and we’ll value them in seconds.',
     emptyTitle: 'Your shelf is empty',
+    emptySlot: 'Your first set',
     brick3dUnavailable: '3D is unavailable right now',
     csvExported: 'CSV exported',
     restored: 'Restored to your vault',
