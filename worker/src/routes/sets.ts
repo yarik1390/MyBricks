@@ -1,5 +1,6 @@
 import { Hono, type Context } from 'hono';
 import { optionalMember, requireMember } from '../auth';
+import { publicSetDetail } from '../lib/public-set-detail';
 import { edgeCached, invalidateSetDetail, setDetailCacheKey } from '../lib/edge-cache';
 import { formulaValuation, valuationExpiryModifier, isPlausibleMarketValue, independentRetailAnchor, plausibleAskValue } from '../lib/valuation';
 import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
@@ -582,6 +583,12 @@ app.get('/:setnum', async (c) => {
   // Non-200 (404 / Rebrickable failure) passes straight through and is not cached.
   if (sharedRes.status !== 200) return sharedRes;
   const shared = await sharedRes.json<Record<string, unknown>>();
+  // Guests get a slimmer body (below), so a browser must not reuse a guest copy
+  // after the user signs in.
+  c.header('Vary', 'Authorization', { append: true });
+  if (!userId && shared.set && typeof shared.set === 'object') {
+    shared.set = publicSetDetail(shared.set as Record<string, unknown>);
+  }
   return c.json({ ...shared, entry: entry || null });
 });
 

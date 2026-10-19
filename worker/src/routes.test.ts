@@ -2702,6 +2702,36 @@ describe('Kids PIN and XP', () => {
       expect(Array.isArray(data.set_minifigs)).toBe(true);
     });
 
+    it('gives guests our estimate but not the per-source prices', async () => {
+      // This suite's slim lego_sets lacks the source columns; add the few we assert on.
+      for (const col of ['bl_new_value REAL', 'bl_new_qty INTEGER', 'ebay_ask_value REAL', 'ebay_ask_qty INTEGER', 'be_value_new REAL']) {
+        await db.prepare(`ALTER TABLE lego_sets ADD COLUMN ${col}`).run();
+      }
+      await db.prepare(
+        `INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, retail_price,
+                bl_new_value, bl_new_qty, ebay_ask_value, ebay_ask_qty, be_value_new)
+         VALUES ('77001-1', 'Source Strip', 'City', 2020, 300, 60, 50, 70, 12, 95, 4, 82)`
+      ).run();
+      // A set no other test opens, so the shared edge cache has no older copy.
+
+      const anonRes = await app.fetch(new Request('http://localhost/api/sets/77001-1'), env);
+      expect(anonRes.headers.get('Vary') || '').toContain('Authorization');
+      const anon = (await anonRes.json<any>()).set;
+      for (const key of ['bl_new_value', 'bl_new_qty', 'ebay_ask_value', 'be_value_new', 'deal_available_price']) {
+        expect(key in anon).toBe(false);
+      }
+      expect(anon.market_value).toBeGreaterThan(0);
+      for (const src of anon.market_sources || []) {
+        expect('value' in src).toBe(false);
+        expect(src.name).toBeTruthy();
+      }
+
+      const mine = (await (await app.fetch(new Request('http://localhost/api/sets/77001-1', { headers: auth() }), env)).json<any>()).set;
+      expect(mine.ebay_ask_value).toBe(95);
+      expect(mine.be_value_new).toBe(82);
+      expect(mine.market_value).toBe(anon.market_value);
+    });
+
     it('includes the owner collection entry when authenticated', async () => {
       await db.prepare(
         `INSERT INTO user_collection (user_id, set_num, quantity, condition, purchase_price)
