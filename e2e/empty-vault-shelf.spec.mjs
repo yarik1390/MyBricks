@@ -19,6 +19,9 @@ for (const [name, viewport] of [['phone', { width: 390, height: 844 }], ['deskto
       const card = page.locator('.vault-empty');
       await expect(card.locator('.vault-empty__scene')).toBeVisible();
       await expect(card.locator('.vault-empty__fig')).toBeVisible();
+      // Same floating Scan button as a full Vault, never the advisor in its place.
+      await expect(page.locator('#bvFab')).toBeVisible();
+      await expect(page.locator('#advisorFab')).toBeHidden();
       // Scene + title + body: well under the old ~800px card.
       expect((await card.boundingBox()).height).toBeLessThan(380);
 

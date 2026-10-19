@@ -24,8 +24,8 @@ describe('empty guest Vault activation hierarchy', () => {
     assert.ok(topbar >= 0 && emptyBranch > topbar, 'top bar must precede the empty-state branch');
     assert.ok(hero > emptyBranch, 'the zero-value hero must live only in the populated branch');
     assert.ok(toolbar > emptyBranch, 'sort and layout controls must live only in the populated branch');
-    // The empty vault's actions are the primary actions: no competing Scan FAB.
-    assert.match(paint, /if \(isEmptyVault\) setPageFab\(null\);/);
+    // Empty or not, the Vault keeps its Scan FAB (the advisor button never takes its place).
+    assert.doesNotMatch(paint, /if \(isEmptyVault\) setPageFab\(null\);/);
   });
 
   it('orders shelf photo, import, then a guest-safe barcode scan without financial demo clutter', () => {

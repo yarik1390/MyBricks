@@ -1,5 +1,5 @@
 import { markValuesFresh, setSyncState, syncSlotHTML, reachErrorHTML } from '../ui/first-ui.js';
-import { vaultNavigation, setNavBadge, setPageFab, resetPageFab, syncCollectorChrome } from '../components/collector-shell.js';
+import { vaultNavigation, setNavBadge, resetPageFab, syncCollectorChrome } from '../components/collector-shell.js';
 import { routeMetaFor } from '../route-meta.js';
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, daysAgo, prefersReducedMotion, themeHue, getExchangeRate, CURRENCY_SYMBOLS, ratesUnavailable, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone, publicOrigin, celebrate, fmtPct, advisorEnabled, fmtDateUpdated, parseUTCDate } from '../utils.js';
 import { displayValueOf, nextRetiring } from '../lib/pure.js';
@@ -518,7 +518,7 @@ function paintPortfolio() {
   const hasFigs = Number(p.fig_count) > 0;
 
   $("#root").innerHTML = `
-    <main class="bv-page ${isEmptyVault ? '' : 'has-fab '}vault-page${state.selectionMode ? ' has-bar' : ''}" id="vaultPage">
+    <main class="bv-page has-fab vault-page${state.selectionMode ? ' has-bar' : ''}" id="vaultPage">
       ${vaultTopbar({ searchOpen: showSearch })}
       ${showSearch ? vaultSearchRow({ id: 'portfolioSearch', name: 'vault_search', value: state.filter.q, placeholder: t('bvVault.searchPlaceholder'), label: t('collector.search') }) : ''}
       ${saveStatusHTML()}
@@ -537,10 +537,9 @@ function paintPortfolio() {
       ${footHTML(p, totals)}</div>`}
     </main>`;
 
-  // The empty vault's actions ARE the primary actions: no Scan FAB there. A
-  // first add repaints into the populated vault, which gets the route's FAB back.
-  if (isEmptyVault) setPageFab(null);
-  else if (!document.getElementById('bvFab')?._bvFab) { resetPageFab(); syncCollectorChrome(routeMetaFor(location.hash.replace('#', '') || '/')); }
+  // Empty or not, the Vault keeps the same Scan FAB, so the floating button never
+  // switches to the advisor just because there are no sets yet.
+  if (!document.getElementById('bvFab')?._bvFab) { resetPageFab(); syncCollectorChrome(routeMetaFor(location.hash.replace('#', '') || '/')); }
   wireVaultChrome();
   if (!isEmptyVault) {
     wireSetList();
