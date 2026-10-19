@@ -998,13 +998,19 @@ body.collector-ui.selection-mode #nav { display: none; }
 /* Set page: hero, title, value card, tabs, pinned bar (canvas: SetDetail). */
 /* Beat the legacy set-detail clearance rules (body[data-route] .detail-page-container). */
 body[data-route="set-detail"] .bv-page.detail-page-container { padding-top: 0; padding-bottom: var(--bv-bottom-clear); }
-.bv-setpage .bv-settabs { margin-top: 16px; }
 /* Overview / Price history / Community stay reachable on a long page. The
-   page background behind them hides content scrolling underneath. */
+   page background behind them hides content scrolling underneath. When stuck
+   the bar's top padding fills the status-bar inset; in place, the negative
+   margin pulls that padding up over the value card (unpainted, tap-through)
+   so the visible gap stays 16px instead of 16px + the Android inset. */
 .bv-setpage .bv-settabs {
-  position: sticky; top: 0; z-index: 6; background: var(--bv-bg);
-  margin-left: 0; margin-right: 0; padding: var(--safe-top, 0px) var(--bv-gutter) 0;
+  position: sticky; top: 0; z-index: 6;
+  background: linear-gradient(var(--bv-bg), var(--bv-bg)) 0 var(--safe-top, 0px) / 100% 100% no-repeat;
+  margin: calc(16px - var(--safe-top, 0px)) 0 0; padding: var(--safe-top, 0px) var(--bv-gutter) 0;
+  pointer-events: none;
 }
+.bv-setpage .bv-settabs > * { pointer-events: auto; }
+.bv-setpage .bv-settabs.is-stuck { background-position: 0 0; }
 /* The hero runs under the status bar, so its height and the photo's top inset
    add the inset: on Android a fixed 212px left the photo ~130px tall. The photo
    sits below the back/share row and uses the full width. */
