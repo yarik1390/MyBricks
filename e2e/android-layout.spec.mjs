@@ -111,3 +111,19 @@ test('touch room fits translated controls in portrait and landscape', async ({ p
     await page.screenshot({ path: `${output}/room-touch-${viewport.width}-after.png`, animations: 'disabled' });
   }
 });
+
+test('set page tabs sit 16px under the value card with an Android status-bar inset', async ({ page }) => {
+  await page.addInitScript(() => document.addEventListener('DOMContentLoaded', () => document.documentElement.style.setProperty('--safe-area-inset-top', '40px')));
+  await page.goto('/#/set/75192-1');
+  await expect(page.locator('#detailTabs button').first()).toBeVisible();
+  const gap = () => page.evaluate(() => {
+    const card = document.querySelector('.bv-valuecard').getBoundingClientRect();
+    const tab = document.querySelector('#detailTabs button').getBoundingClientRect();
+    return { gap: Math.round(tab.top - card.bottom), hit: !!document.elementFromPoint(card.left + 40, card.bottom - 6)?.closest('.bv-valuecard') };
+  });
+  expect(await gap()).toEqual({ gap: 16, hit: true });
+  // Stuck: the bar's padding covers the status bar and the tabs sit below it.
+  await page.evaluate(() => { document.querySelector('.bv-setpanels').style.minHeight = '3000px'; scrollTo(0, 1200); });
+  await expect(page.locator('#detailTabs')).toHaveClass(/is-stuck/);
+  expect(Math.round((await page.locator('#detailTabs button').first().boundingBox()).y)).toBe(40);
+});

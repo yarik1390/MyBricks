@@ -2080,6 +2080,14 @@ function ensureDetailDelegation() {
   const root = document.getElementById("root");
   if (!root) return;
   _detailDelegated = true;
+  // The sticky tab bar paints the status-bar inset only once it is stuck.
+  // Re-checked when the entry animation settles, which moves the bar too.
+  const markStuck = () => {
+    const bar = document.getElementById("detailTabs");
+    if (bar) bar.classList.toggle("is-stuck", bar.getBoundingClientRect().top <= 0.5);
+  };
+  window.addEventListener("scroll", markStuck, { passive: true });
+  root.addEventListener("animationend", markStuck);
   root.addEventListener("click", (e) => {
     try {
       if (!_detailCtx) return;
