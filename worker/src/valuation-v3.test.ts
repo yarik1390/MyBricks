@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { buildEbaySoldUpdate } from './lib/ebay';
 import { isExactPriceChartingMatch } from './lib/pricecharting';
 import {
   buildForecastV3,
@@ -153,13 +152,6 @@ describe('investment-grade valuation v3', () => {
     expect(forecast.status).toBe('external');
     expect(forecast.base_value).toBe(100);
     expect(forecast.base).toBe(150);
-  });
-
-  it('does not make a stale eBay value fresh when refresh returns no data', () => {
-    expect(buildEbaySoldUpdate({} as D1Database, '75192-1', {
-      source: 'marketplace_insights', status: 'no_data',
-      new_value: null, used_value: null, new_sample_count: 0, used_sample_count: 0,
-    })).toBeNull();
   });
 });
 

@@ -5,8 +5,7 @@ import type { Env } from '../types';
 //
 // Budgets are ~80% of each provider's hard cap so organic on-demand traffic
 // and clock skew can never push us over a provider limit:
-//   BrickLink 5,000/day · eBay 5,000/day · BrickEconomy 100/day (hard) ·
-//   Brickset has a bounded daily budget.
+//   BrickLink 5,000/day · eBay 5,000/day · Brickset has a bounded daily budget.
 // The ledger lives in the api_quota D1 table keyed by (service, UTC day).
 // Quota consumption policy depends on the helper: spendQuota fails open for
 // best-effort pricing, spendQuotaFailClosed and capped reserveQuota accounting
@@ -21,10 +20,6 @@ export const QUOTA_CAPS: Record<string, number> = {
   // reserved for organic on-demand revaluations and clock skew.
   bricklink: 4500,
   ebay: 4000,
-  // Apify eBay actor search chains. The weekly lane reserves one unit per set;
-  // keeping this modest also bounds paid actor/item spend if a cron is replayed.
-  apify: 30,
-  brickeconomy: 80,
   brickset: 90,
   // PriceCharting per-set /api/product calls (the daily enrich cron). Free/cheap
   // tier but metered so admin usage is honest + a runaway is capped; the weekly
@@ -35,28 +30,14 @@ export const QUOTA_CAPS: Record<string, number> = {
   // 5 = json LLM extract). Plan is a one-time ~300k allotment then ~1,000/month,
   // so this is a per-DAY credit ceiling that guards against a runaway day. Raise
   // it for the one-time bootstrap via the FIRECRAWL_DAILY_CREDITS env var.
-  //
-  // Raised 2000 -> 4000: Firecrawl is now the fallback ENGINE for eBay-sold when
-  // the Bright Data breaker opens (~40 sets x 5cr x 8 runs = 1,600/day) on top of
-  // ~1,400/day of steady enrich + minifig traffic. At 2,000 the two would have
-  // contended and the loser would silently skip its run.
   firecrawl: 4000,
-  // ScrapingAnt free plan is 10,000 credits/month. These plain, non-browser
-  // datacenter requests cost 1 credit in live validation; 250/day leaves a
-  // conservative monthly margin and bounds a runaway cron.
-  scrapingant: 250,
   // Bright Data Web Unlocker daily request ceiling. Monthly per-key safety is
   // the real meter (brightdata_keys); this bounds a runaway day on top of it.
   // 6 keys × 5k/mo ≈ 1,000/day sustainable, so 300 is conservative headroom.
   brightdata: 300,
-  // pricesAPI.io daily ceiling. Each cold call is a precious unit against a
-  // ~1000/month-per-key pooled budget, so keep the daily spend modest; the
   // Amazon Creators API searchItems calls (plus ~1 token mint/hour). The API is
   // free but eligibility-gated; this cap bounds a runaway day, not the plan.
   amazon: 300,
-  // StockX lowest-ask scrape (Firecrawl). Low daily cap: slow
-  // rendered calls, corroborating-only, OFF by default.
-  stockx: 100,
   // Walmart/Target price lookups (jobs/store-offers.ts): one Firecrawl json
   // extraction (5 credits) per store per set, so 40/day = 200 credits/day.
   stores: 80,
@@ -253,10 +234,8 @@ export async function quotaRemaining(env: Env, service: string): Promise<number>
 // ---------------------------------------------------------------------------
 
 export interface PackProfile {
-  brickEconomy: boolean;   // BE primary fetch + KV get/put
   supplemental: boolean;   // forced BrickLink used pricing
-  ebay: boolean;           // eBay sold comps (+ask refresh when stale)
-  aiFallback: boolean;     // Gemini/OpenAI estimate when market sources miss
+  ebay: boolean;           // eBay ask refresh when stale
   progressWrites: boolean; // per-set import_runs progress UPDATE
 }
 
@@ -264,11 +243,9 @@ export interface PackProfile {
 export function perSetCost(p: PackProfile): number {
   let cost = 2;                          // supplement batch + valuation UPDATE (D1)
   if (p.progressWrites) cost += 1;       // import_runs progress UPDATE
-  if (p.brickEconomy) cost += 2;         // BE fetch + KV (amortized hit/miss)
-  cost += p.brickEconomy ? 2 : 5;        // BrickLink: fallback risk vs primary (2 fetches + KV)
+  cost += 5;                             // BrickLink primary (2 fetches + KV)
   if (p.supplemental) cost += 2;         // extra BrickLink used guide and cache operations
-  if (p.ebay) cost += 3;                 // OAuth amortized + sold search (+ask sometimes)
-  if (p.aiFallback) cost += 1;           // one model call on market miss
+  if (p.ebay) cost += 3;                 // OAuth amortized + ask search
   return cost;
 }
 

@@ -1,4 +1,3 @@
-import type { BrickEconomyScrape } from './brickeconomy-firecrawl';
 import type { LegoStockResult } from './lego-stock';
 
 export interface BricksetScrape {
@@ -46,51 +45,6 @@ const finite = (value: unknown): number | null => {
   const parsed = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 };
-
-function labelMoney(html: string, label: RegExp): number | null {
-  const source = label.source;
-  const patterns = [
-    new RegExp(`(?:${source})[\\s\\S]{0,180}?\\$\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)`, 'i'),
-    new RegExp(`(?:${source})[\\s\\S]{0,180}?([0-9][0-9,]*(?:\\.[0-9]{1,2})?)`, 'i'),
-  ];
-  for (const pattern of patterns) {
-    const match = html.match(pattern);
-    const value = money(match?.[1]);
-    if (value != null) return value;
-  }
-  return null;
-}
-
-/** Parse stable BrickEconomy labels. Pricing-model sections are explicitly
- * scoped so the first New/Sealed model cannot be mistaken for the Used model. */
-export function parseBrickEconomyHtml(html: string): BrickEconomyScrape | null {
-  if (!html?.trim()) return null;
-  const plain = text(html);
-  if (/page (?:you requested )?could not be found|yikes[.!].*could not be found/i.test(plain)) return null;
-
-  const modelsStart = plain.search(/Set Pricing Models/i);
-  const models = modelsStart >= 0 ? plain.slice(modelsStart, modelsStart + 5000) : plain;
-  const usedStart = models.search(/\bUsed\s+Machine Learning\/AI Model\b/i);
-  const usedSection = usedStart >= 0 ? models.slice(usedStart, usedStart + 800) : '';
-  const newSection = usedStart >= 0 ? models.slice(0, usedStart) : models;
-  const result: BrickEconomyScrape = {
-    retail_price_us: labelMoney(plain, /Retail price/i),
-    current_value_new: labelMoney(plain, /Today(?:'|’)?s value|New\/Sealed[\s\S]{0,80}?Value\s*\(today\)|Current value/i),
-    current_value_used: labelMoney(usedSection, /Value\s*\(today\)|Today(?:'|’)?s value/i),
-    forecast_value_new_2_years: labelMoney(newSection, /Value\s*\(in 2 years\)|2 year forecast/i),
-    forecast_value_new_5_years: labelMoney(plain, /5 year forecast|Value\s*\(in 5 years\)/i),
-    rolling_growth_12months: null,
-  };
-  const growth = plain.match(/Rolling growth[\s\S]{0,100}?([+-]?\d+(?:\.\d+)?)\s*%/i);
-  result.rolling_growth_12months = growth ? finite(growth[1]) : null;
-
-  // JSON-LD Product offers is a deterministic fallback for current new value.
-  if (result.current_value_new == null) {
-    const offer = html.match(/"offers"\s*:\s*\{[\s\S]{0,500}?"price"\s*:\s*"?([0-9,.]+)"?/i);
-    result.current_value_new = money(offer?.[1]);
-  }
-  return Object.values(result).some((value) => value != null) ? result : null;
-}
 
 function dtDdMap(html: string): Map<string, { html: string; value: string }> {
   const map = new Map<string, { html: string; value: string }>();

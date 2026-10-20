@@ -21,8 +21,6 @@ const OPTS = {
   scope: 'all' as const,
   includeSupplemental: false,
   includeEbay: false,
-  includeEbaySold: false,
-  includeAiFallback: false,
   includeMinifigs: false,
   limit: 5,
   sourceRetries: 0,
@@ -152,7 +150,7 @@ describe('selectDueSets queue composition', () => {
     const { selectDueSets } = await import('./jobs/valuate-select');
     const { results } = await selectDueSets(env as any, {
       scope: 'all', options: { limit: 20 },
-      includeSupplemental: false, includeEbay: false, includeEbaySold: false, includeAiFallback: false,
+      includeSupplemental: false, includeEbay: false,
     });
     const picked = results.map((r) => r.set_num);
     expect(picked).toContain('REAL-1');
@@ -170,7 +168,7 @@ describe('selectDueSets queue composition', () => {
     const { selectDueSets } = await import('./jobs/valuate-select');
     const { results } = await selectDueSets(env as any, {
       scope: 'all', options: { limit: 20, prioritizeValue: false },
-      includeSupplemental: false, includeEbay: false, includeEbaySold: false, includeAiFallback: false,
+      includeSupplemental: false, includeEbay: false,
     });
     expect(results[0].set_num).toBe('BARE-150');
   });
@@ -183,7 +181,7 @@ describe('selectDueSets queue composition', () => {
     const { selectDueSets } = await import('./jobs/valuate-select');
     const { results } = await selectDueSets(env as any, {
       scope: 'all', options: { limit: 20 },
-      includeSupplemental: false, includeEbay: false, includeEbaySold: false, includeAiFallback: false,
+      includeSupplemental: false, includeEbay: false,
     });
     const picked = results.map((r) => r.set_num);
     expect(picked).toContain('DUP-1');

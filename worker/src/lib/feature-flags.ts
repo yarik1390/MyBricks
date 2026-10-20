@@ -14,16 +14,12 @@ import type { Env } from '../types';
 // ---------------------------------------------------------------------------
 
 export type FeatureFlag =
-  | 'ebay_sold_comps'
   | 'brickinsights'
-  | 'firecrawl'
-  | 'stockx';
+  | 'firecrawl';
 
 export const FEATURE_FLAGS: FeatureFlag[] = [
-  'ebay_sold_comps',
   'brickinsights',
   'firecrawl',
-  'stockx',
 ];
 
 const FLAGS_KEY = 'feature_flags';

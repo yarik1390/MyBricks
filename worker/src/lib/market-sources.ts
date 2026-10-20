@@ -1046,11 +1046,10 @@ const BLEND_FROM = 'lego_sets ls LEFT JOIN set_market_ext ext ON ext.set_num = l
  *
  * valuation_method is USER-VISIBLE (portfolio-detail-market.js renders "Formula" /
  * "Estimated from set details" from it), but only the valuation job writes it — so a
- * set whose real market data arrived via another job (ebay-sold-scrape, pricecharting,
- * brickeconomy-enrich) keeps saying `formula_bulk` and is shown to users as an
- * estimate even though we hold actual sold comps. That understates our own data:
- * ~40% of $500+ sets were still labelled formula despite 94% of that tier having a
- * sold source.
+ * set whose real market data arrived via another job (e.g. pricecharting) keeps
+ * saying `formula_bulk` and is shown to users as an estimate even though we
+ * hold actual sold comps. That understates our own data: ~40% of $500+ sets
+ * were still labelled formula despite 94% of that tier having a sold source.
  *
  * Deliberately relabels ONLY on hard SOLD evidence:
  *  - a PriceCharting-only set gets no label invented, as no valuation_method value

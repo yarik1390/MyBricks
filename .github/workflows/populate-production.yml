@@ -15,10 +15,6 @@ on:
         description: "Brickset barcode pages per slice"
         required: false
         default: "4"
-      ebay_limit:
-        description: "eBay sold-comp records per slice"
-        required: false
-        default: "2"
       worker_url:
         description: "Production Worker URL"
         required: false
@@ -48,7 +44,6 @@ jobs:
       MAX_SLICES: ${{ inputs.max_slices || '60' }}
       VALUATION_LIMIT: ${{ inputs.valuation_limit || '5' }}
       BARCODE_PAGES: ${{ inputs.barcode_pages || '4' }}
-      EBAY_LIMIT: ${{ inputs.ebay_limit || '2' }}
 
     steps:
       - uses: actions/setup-node@v4
@@ -112,18 +107,15 @@ jobs:
           MAX_SLICES="$(number_or_default "${MAX_SLICES}" 20)"
           VALUATION_LIMIT="$(number_or_default "${VALUATION_LIMIT}" 5)"
           BARCODE_PAGES="$(number_or_default "${BARCODE_PAGES}" 4)"
-          EBAY_LIMIT="$(number_or_default "${EBAY_LIMIT}" 2)"
 
           if [ "${MAX_SLICES}" -gt 200 ]; then MAX_SLICES=200; fi
           if [ "${VALUATION_LIMIT}" -gt 5 ]; then VALUATION_LIMIT=5; fi
           if [ "${BARCODE_PAGES}" -gt 6 ]; then BARCODE_PAGES=6; fi
-          if [ "${EBAY_LIMIT}" -gt 2 ]; then EBAY_LIMIT=2; fi
 
           BODY="$(jq -nc \
             --argjson valuation_limit "${VALUATION_LIMIT}" \
             --argjson barcode_pages "${BARCODE_PAGES}" \
-            --argjson ebay_limit "${EBAY_LIMIT}" \
-            '{valuation_limit:$valuation_limit, barcode_pages:$barcode_pages, ebay_limit:$ebay_limit}')"
+            '{valuation_limit:$valuation_limit, barcode_pages:$barcode_pages}')"
 
           is_hard_error() {
             local message="$1"

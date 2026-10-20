@@ -16,7 +16,7 @@ import { spendQuota } from '../lib/api-quota';
  * Cost: zero Firecrawl credits. Uses PriceCharting's own REST API ($4.99/month
  * Collector tier). Set PRICECHARTING_TOKEN to enable.
  *
- * Priority order (same logic as brickeconomy-enrich):
+ * Priority order:
  *   1. Sets with BL data but no pc_cached_at (need 2nd source most)
  *   2. Sets with a known pc_id (cheaper: skip search step)
  *   3. Owned / wishlisted sets
@@ -84,7 +84,7 @@ export async function runPriceChartingEnrich(
       -- Anti-stall: a set PriceCharting genuinely does not carry can never stamp
       -- pc_cached_at (that column is success-only and feeds the blend), so without
       -- a separate attempt marker the same permanent misses re-fill every batch
-      -- forever. Same pattern as ebay_sold_attempted_at in ebay-sold-scrape.
+      -- forever.
       AND (ext.pc_attempted_at IS NULL OR ext.pc_attempted_at < datetime('now', '-30 days'))
       AND ls.year >= 2000
     ORDER BY

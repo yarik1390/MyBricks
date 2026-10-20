@@ -3,20 +3,17 @@ import { requireAdmin } from '../auth';
 import { importSets, importFigs } from '../jobs/import-catalog';
 import { nextBackfillPage, runBackfillUpc } from '../jobs/backfill-upc';
 import { BARCODE_PAGE_SIZE } from '../lib/brickset';
-import { runEbayBackfill, runValuateSets } from '../jobs/valuate-sets';
-import { ebaySoldCompsEnabled, brickInsightsEnabled, firecrawlEnabled, stockxEnabled } from '../lib/pricing-flags';
+import { runValuateSets } from '../jobs/valuate-sets';
+import { brickInsightsEnabled, firecrawlEnabled } from '../lib/pricing-flags';
 import { getIntegrationDiagnostics } from '../lib/integration-health';
 import { getQuotaUsage } from '../lib/api-quota';
 import { getAiUsageReport } from '../lib/ai-usage';
 import { rebuildSearchIndex } from '../lib/search-index';
 import { runLegoStockRefresh } from '../jobs/lego-stock-refresh';
 import { runBricksetEnrich } from '../jobs/brickset-enrich';
-import { runBrickEconomyEnrich } from '../jobs/brickeconomy-enrich';
 import { runBrickInsightsBackfill } from '../jobs/brickinsights';
 import { runBlendRecomputeBackfill } from '../jobs/recompute-blends';
-import { runEbaySoldScrape } from '../jobs/ebay-sold-scrape';
 import { runPriceChartingEnrich } from '../jobs/pricecharting-enrich';
-import { runStockXEnrich } from '../jobs/stockx-enrich';
 import { runPriceChartingBulk, runPriceChartingBulkFetch } from '../jobs/pricecharting-bulk';
 import { runPriceChartingTriage } from '../jobs/pricecharting-triage';
 import { indexMissingAlts } from '../lib/build-alts';
@@ -293,8 +290,7 @@ app.post('/backfill-upc', async (c) => {
 });
 
 // POST /api/admin/populate-coverage
-// Starts one safe coverage campaign slice: Brickset barcode pages plus a tiny
-// eBay sold-price pass. Repeat or let the daily cron continue from there.
+// Starts one safe coverage campaign slice of Brickset barcode pages. Repeat or let the daily cron continue from there.
 app.post('/populate-coverage', async (c) => {
   const active = await getActiveImportRun(c.env);
   if (active) return c.json({ error: 'An import or coverage job is already running.', run_id: active.id }, 409);
@@ -304,7 +300,7 @@ app.post('/populate-coverage', async (c) => {
     'populate_coverage',
     'Starting coverage slice',
     2002,
-    'method:populate-coverage barcode_pages:4 ebay_limit:2',
+    'method:populate-coverage barcode_pages:4',
   );
 
   c.executionCtx.waitUntil(
@@ -318,26 +314,20 @@ app.post('/populate-coverage', async (c) => {
             await updateImportRunProgress(c.env, runId, {
               current: p.processed,
               total: p.complete ? p.processed + 2 : Math.max(2002, p.processed + 2),
-              label: p.complete ? 'Checking eBay sold comps' : `Barcode page ${p.nextPage ? p.nextPage - 1 : startPage}`,
+              label: p.complete ? 'Barcode pages complete' : `Barcode page ${p.nextPage ? p.nextPage - 1 : startPage}`,
               setsLoaded: p.filled,
               setsSkipped: p.processed,
               note: `method:populate-coverage barcode_start:${startPage} next_page:${p.nextPage ?? ''} barcode_complete:${p.complete}`,
             });
           },
         });
-        await updateImportRunProgress(c.env, runId, {
-          current: barcode.processed,
-          total: barcode.processed + 2,
-          label: 'Checking eBay sold comps',
-        });
-        const ebay = await runEbayBackfill(c.env, { limit: 2 });
         await completeImportRun(c.env, runId, {
-          current: barcode.processed + ebay.processed,
-          total: barcode.processed + ebay.processed,
+          current: barcode.processed,
+          total: barcode.processed,
           label: 'Coverage slice completed',
-          setsLoaded: barcode.filled + ebay.updated,
-          setsSkipped: barcode.processed + ebay.processed,
-          note: barcode.note ?? `method:populate-coverage barcode:${barcode.filled}/${barcode.processed} ebay:${ebay.updated}/${ebay.processed} next_page:${barcode.nextPage ?? ''}`,
+          setsLoaded: barcode.filled,
+          setsSkipped: barcode.processed,
+          note: barcode.note ?? `method:populate-coverage barcode:${barcode.filled}/${barcode.processed} next_page:${barcode.nextPage ?? ''}`,
         });
       } catch (e) {
         await failImportRun(c.env, runId, e);
@@ -348,85 +338,19 @@ app.post('/populate-coverage', async (c) => {
   return c.json({ ok: true, status: 'running', run_id: runId });
 });
 
-// POST /api/admin/revalue-brickeconomy
-// Starts a bounded full-catalog valuation slice. The daily cron runs the same
-// path automatically; manual presses simply advance the queue immediately.
-// Body: { scope?: 'all' | 'owned' | 'stale', limit?: number }
-app.post('/revalue-brickeconomy', async (c) => {
-  const body = await c.req.json<{ scope?: string; limit?: number }>().catch(() => ({} as { scope?: string; limit?: number }));
-  const scope = body.scope || 'all';
-  const requested = Number(body.limit);
-  const limit = Number.isFinite(requested) && requested > 0
-    ? Math.min(Math.floor(requested), 4)
-    : 4;
-
-  if (!['all', 'owned', 'stale'].includes(scope)) {
-    return c.json({ error: "scope must be 'all', 'owned', or 'stale'" }, 400);
-  }
-
-  const active = await getActiveImportRun(c.env);
-  if (active) return c.json({ error: 'An import or valuation job is already running.', run_id: active.id }, 409);
-
-  const runId = await createImportRun(
-    c.env,
-    'valuation',
-    `Starting ${scope} valuation`,
-    limit,
-    `method:valuation scope:${scope} limit:${limit}`,
-  );
-
-  c.executionCtx.waitUntil(
-    (async () => {
-      try {
-        const result = await runValuateSets(c.env, {
-          scope: scope === 'owned' ? 'owned' : 'all',
-          includeFresh: scope === 'all',
-          includeAiFallback: scope !== 'all',
-          sourceRetries: 0,
-          sourceTimeoutMs: 5000,
-          limit,
-          onProgress: async (p) => updateImportRunProgress(c.env, runId, {
-            current: p.processed,
-            total: p.total,
-            label: p.currentSet ? `Revaluing ${p.currentSet}` : 'Revaluing prices',
-            setsLoaded: p.updated,
-            setsSkipped: p.processed,
-            note: `method:valuation scope:${scope} limit:${limit} processed:${p.processed} updated:${p.updated}`,
-          }),
-        });
-        await completeImportRun(c.env, runId, {
-          current: result.processed,
-          total: result.processed,
-          label: 'Valuation batch completed',
-          setsLoaded: result.updated,
-          setsSkipped: result.processed,
-          note: `method:valuation scope:${scope} limit:${limit} processed:${result.processed} updated:${result.updated}`,
-        });
-      } catch (err) {
-        await failImportRun(c.env, runId, err);
-      }
-    })()
-  );
-
-  return c.json({ ok: true, status: 'running', run_id: runId, scope, limit });
-});
-
 // POST /api/admin/populate-everything
 // Runs one safe full-data campaign slice across every configured provider.
 // The frontend can auto-repeat this endpoint until the completion note says
 // complete:true. Each slice stays bounded for Worker limits and provider quotas.
 app.post('/populate-everything', async (c) => {
-  const body = await c.req.json<{ valuation_limit?: number; barcode_pages?: number; ebay_limit?: number }>()
-    .catch(() => ({} as { valuation_limit?: number; barcode_pages?: number; ebay_limit?: number }));
+  const body = await c.req.json<{ valuation_limit?: number; barcode_pages?: number }>()
+    .catch(() => ({} as { valuation_limit?: number; barcode_pages?: number }));
   const valuationLimit = Number.isFinite(Number(body.valuation_limit)) && Number(body.valuation_limit) > 0
     ? Math.min(Math.floor(Number(body.valuation_limit)), 8)
     : 5;
   const barcodePages = Number.isFinite(Number(body.barcode_pages)) && Number(body.barcode_pages) > 0
     ? Math.min(Math.floor(Number(body.barcode_pages)), 6)
     : 4;
-  const ebayLimit = Number.isFinite(Number(body.ebay_limit)) && Number(body.ebay_limit) > 0
-    ? Math.min(Math.floor(Number(body.ebay_limit)), 2)
-    : 2;
 
   const active = await getActiveImportRun(c.env);
   if (active) return c.json({ error: 'A data population job is already running.', run_id: active.id }, 409);
@@ -570,9 +494,7 @@ app.post('/populate-everything', async (c) => {
           includeFresh: true,
           includeSupplemental: true,
           includeEbay,
-          includeEbaySold: false,
           includeMinifigs: true,
-          includeAiFallback: false,
           sourceRetries: 0,
           sourceTimeoutMs: 5000,
           limit: valuationLimit,
@@ -591,16 +513,6 @@ app.post('/populate-everything', async (c) => {
         });
         updated += valuation.updated;
         processed += valuation.processed;
-
-        if (includeEbay && ebaySoldCompsEnabled(c.env)) {
-          await phaseProgress(5, 'Checking eBay sold comps', 0, ebayLimit);
-          const ebay = await runEbayBackfill(c.env, { limit: ebayLimit });
-          updated += ebay.updated;
-          processed += ebay.processed;
-          await phaseProgress(5, 'eBay sold-comps slice complete', ebay.processed, Math.max(ebayLimit, ebay.processed, 1));
-        } else {
-          await phaseProgress(5, 'eBay sold comps unavailable', 1, 1, 'method:populate-everything step:ebay skipped:unavailable');
-        }
 
         const after = await getPopulationSnapshot(c.env);
         const done = populationDone(after);
@@ -629,7 +541,7 @@ app.post('/populate-everything', async (c) => {
 
 // POST /api/admin/expire-valuations
 // Force-expire all stale valuations so the hourly cron job picks them up.
-// This is a quick way to trigger a mass re-valuation without calling BrickEconomy directly.
+// This is a quick way to trigger a mass re-valuation.
 app.post('/expire-valuations', async (c) => {
   const result = await c.env.DB.prepare(`
     UPDATE lego_sets
@@ -807,18 +719,16 @@ app.post('/llm-routing/refresh-models', async (c) => {
   return c.json({ ok: true, count: models.length, models: models.map((m) => m.id) });
 });
 
-// Runtime feature flags: enable/disable capabilities (eBay sold comps, Bright
-// Data sold, BrickInsights, Firecrawl) with no redeploy.
+// Runtime feature flags: enable/disable capabilities (BrickInsights, Firecrawl)
+// with no redeploy.
 // GET returns the flag list, the raw stored overrides, and the resolved effective
 // state (override-or-env, with the required-secret prerequisite applied).
 app.get('/feature-flags', async (c) => {
   await applyFeatureFlags(c.env);
   const overrides = await getFeatureFlags(c.env);
   const effective = {
-    ebay_sold_comps: ebaySoldCompsEnabled(c.env),
     brickinsights: brickInsightsEnabled(c.env),
     firecrawl: firecrawlEnabled(c.env),
-    stockx: stockxEnabled(c.env),
   };
   return c.json({ flags: FEATURE_FLAGS, overrides, effective });
 });
@@ -829,10 +739,8 @@ app.put('/feature-flags', async (c) => {
   const overrides = await saveFeatureFlags(c.env, (body as { flags?: unknown }).flags ?? body);
   await applyFeatureFlags(c.env);
   const effective = {
-    ebay_sold_comps: ebaySoldCompsEnabled(c.env),
     brickinsights: brickInsightsEnabled(c.env),
     firecrawl: firecrawlEnabled(c.env),
-    stockx: stockxEnabled(c.env),
   };
   return c.json({ ok: true, overrides, effective });
 });
@@ -1131,7 +1039,7 @@ app.patch('/pricing/source-matches', async (c) => {
 
 app.get('/pricing/budget', async (c) => c.json(await getPricingWriteBudget(c.env.DB)));
 
-// set_market_ext coverage (legacy pricesAPI pa_* + PriceCharting loose/sales-volume)
+// set_market_ext coverage (store-offer pa_* + PriceCharting loose/sales-volume)
 // plus the last bulk-import summary, for the pricing diagnostics panel. Fails
 // open to zeros so the admin endpoint never errors on a fresh DB.
 
@@ -1151,24 +1059,18 @@ app.post('/repair-search-index', async (c) => {
 const JOB_LIMITS: Record<string, number> = {
   'lego-stock-refresh': 20,
   'brickset-enrich': 5,
-  'brickeconomy-enrich': 5,
   'brickinsights-ratings': 80,
   'recompute-blends': 100,
   // Was missing from this allowlist despite being handled below — every call
   // 400'd as "Unknown job" and never reached resetFirecrawlKeyPool().
   'firecrawl-reset-pool': 1,
   'brightdata-reset-pool': 1,
-  'ebay-sold-scrape': 20,
   'pricecharting-enrich': 25,
   // Attribution debt for sets stuck on a synthetic legacy: mapping. The default
   // is deliberately small (a manual trigger must fit the request window) but the
   // job self-caps at 200, and ?limit= up to the override below is the intended way
   // to drain the 4,937-set backlog faster than one cron pass a day.
   'pricecharting-link-backfill': 50,
-  // Conservative: each Firecrawl(enhanced) StockX render is ~20s, so a small
-  // default keeps a manual trigger inside the Worker request window. Advance the
-  // backfill with ?limit= (the job self-caps at 60).
-  'stockx-enrich': 8,
   // Registry-visible jobs that previously had no Run button because they were
   // missing from this allowlist entirely.
   'minifig-verify': 40,
@@ -1184,7 +1086,7 @@ const JOB_LIMITS: Record<string, number> = {
 };
 
 // Hard ceiling on an admin-triggered job's per-call limit, so a manual override
-// (e.g. the bootstrap-brickeconomy workflow) can advance a backfill faster than
+// can advance a backfill faster than
 // the conservative default but still stay inside Worker CPU/subrequest budgets.
 const JOB_LIMIT_MAX = 150;
 const JOB_LIMIT_OVERRIDES: Record<string, number> = {
@@ -1211,7 +1113,7 @@ app.post('/jobs/:job', async (c) => {
   const started_at = new Date().toISOString();
   // Mirror the cron lifecycle: load admin source-tuning + runtime feature-flag
   // overrides into this isolate BEFORE the job runs, so a manually-triggered job
-  // sees exactly what its scheduled run would (e.g. a DB-set `stockx` flag). The
+  // sees exactly what its scheduled run would (e.g. a DB-set `firecrawl` flag). The
   // HTTP request path doesn't otherwise apply these — only scheduled() does.
   await applySourceConfig(c.env).catch(() => {});
   try {
@@ -1220,8 +1122,6 @@ app.post('/jobs/:job', async (c) => {
       result = await runLegoStockRefresh(c.env, { limit });
     } else if (job === 'brickset-enrich') {
       result = await runBricksetEnrich(c.env, { limit });
-    } else if (job === 'brickeconomy-enrich') {
-      result = await runBrickEconomyEnrich(c.env, { limit });
     } else if (job === 'brickinsights-ratings') {
       result = await runBrickInsightsBackfill(c.env, { limit });
     } else if (job === 'recompute-blends') {
@@ -1235,9 +1135,6 @@ app.post('/jobs/:job', async (c) => {
       // exhaustion latch clears — monthly usage counters are preserved so an
       // admin recovery cannot reopen paid capacity past the monthly cap.
       result = await resetBrightDataKeyPool(c.env);
-    } else if (job === 'ebay-sold-scrape') {
-      // On-demand eBay-sold scrape (Bright Data / Firecrawl) for verification.
-      result = await runEbaySoldScrape(c.env, { limit });
     } else if (job === 'pricecharting-enrich') {
       // On-demand PriceCharting per-set enrich (verified mappings + sold comps).
       result = await runPriceChartingEnrich(c.env, { limit, concurrency: 5 });
@@ -1245,10 +1142,6 @@ app.post('/jobs/:job', async (c) => {
       // On-demand resolution of real product ids for legacy:-mapped sets, so
       // PriceCharting attribution can render its required direct product link.
       result = await runPriceChartingEnrich(c.env, { limit, concurrency: 5, linkBackfill: true });
-    } else if (job === 'stockx-enrich') {
-      // On-demand StockX lowest-ask enrich (Firecrawl-preferred) for verification
-      // + backfill advancement. Low concurrency: slow renders, self-metered credits.
-      result = await runStockXEnrich(c.env, { limit, concurrency: 3 });
     } else if (job === 'minifig-verify') {
       // Minifig identity verification by price agreement (daily 16:00 cron).
       result = await runMinifigVerify(c.env, { limit });

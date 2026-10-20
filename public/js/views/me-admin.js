@@ -272,19 +272,17 @@ function populateSectionHTML() {
       <div class="admin-populate-copy">
         <div class="section-kicker">Recommended</div>
         <h3>Populate all safe sources</h3>
-        <p>Runs small protected slices against every configured and reachable provider. Blocked eBay sold comps stay unavailable instead of falling back to weak data.</p>
+        <p>Runs small protected slices against every configured and reachable provider.</p>
         <div class="admin-fill-list">
           <span>Rebrickable catalog</span>
           <span>Brickset/UPC barcodes</span>
           <span>BrickLink values</span>
-          <span>BrickEconomy values</span>
           <span>eBay asking data</span>
-          <span>Approved eBay sold comps</span>
         </div>
       </div>
       <button class="btn-primary admin-primary-action" data-admin-tool="everything">${I.refresh()}<span>Run safe slice</span></button>
     </div>
-    <p class="admin-section-note">To run one job on its own — catalog imports, PriceCharting bulk, or the eBay sold-comps scrape — use its <strong>Run now</strong> button in Background Activity & Jobs.</p>
+    <p class="admin-section-note">To run one job on its own — catalog imports or PriceCharting bulk — use its <strong>Run now</strong> button in Background Activity & Jobs.</p>
     <button type="button" class="btn-secondary" data-admin-section-jump="adminOverview" data-scroll-target="adminActivityHeading">Go to Background Activity & Jobs</button>
 `;
 }
@@ -391,7 +389,7 @@ function wireAdminShell() {
     btn.addEventListener('click', () => {
       const tool = btn.getAttribute('data-admin-tool');
       // Synchronous jobs return their result inline (no run_id / progress polling).
-      if (['ebaySold', 'pricecharting'].includes(tool)) return triggerSyncJob(tool);
+      if (tool === 'pricecharting') return triggerSyncJob(tool);
       triggerImport(tool);
     });
   });
@@ -565,7 +563,6 @@ function adminToolFromJobType(jobType = '') {
   if (jobType === 'catalog_figs') return 'figs';
   if (jobType === 'barcode_backfill') return 'upc';
   if (jobType === 'populate_coverage') return 'populate';
-  if (jobType === 'valuation') return 'revalue';
   if (jobType === 'populate_everything') return 'everything';
   return null;
 }
@@ -829,7 +826,6 @@ const PROCESS_TRIGGER = {
   'pricecharting-verify-drain': 'pricechartingVerify',
   'pricecharting-enrich': 'pricecharting',
   'pricecharting-link-backfill': 'pricechartingLinks',
-  'ebay-sold-scrape': 'ebaySold',
 };
 
 function processRowHTML(p) {
@@ -860,7 +856,7 @@ function processRowHTML(p) {
 }
 
 // Trigger a background process from its Activity row, reusing the same job
-// pipeline the Populate buttons used. eBay sold comps runs synchronously; the
+// pipeline the Populate buttons used. PriceCharting jobs run synchronously; the
 // rest go through the tracked import-run path (which self-refreshes Activity).
 function runProcess(name, btn) {
   const tool = PROCESS_TRIGGER[name];
@@ -870,7 +866,7 @@ function runProcess(name, btn) {
     return;
   }
   if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
-  if (['ebaySold', 'pricecharting', 'pricechartingLinks'].includes(tool)) {
+  if (['pricecharting', 'pricechartingLinks'].includes(tool)) {
     triggerSyncJob(tool).finally(() => loadActivity());
   } else {
     triggerImport(tool);
@@ -1047,8 +1043,7 @@ async function updateIntegrationsHealth() {
   }
 }
 
-// Runtime capability flags (eBay sold comps, BrickInsights,
-// Firecrawl). Feeds the per-service toggles in Services.
+// Runtime capability flags (BrickInsights, Firecrawl). Feeds the per-service toggles in Services.
 async function loadFeatureFlags() {
   try {
     featureFlags = await api('/api/admin/feature-flags');
@@ -1073,19 +1068,10 @@ function providerRows() {
   return rows;
 }
 
-function ebayStateHTML(health) {
+function ebayStateHTML() {
   const coverage = adminHealth?.coverage || {};
-  const soldState = health.blocked ? 'sold comps blocked' : (coverage.sets_with_ebay_new || coverage.sets_with_ebay_used) ? 'sold comps available' : 'sold comps not populated';
   const askingState = coverage.sets_with_ebay_ask ? 'asking data available' : 'asking data not populated';
-  return `<div class="admin-ebay-state"><span>${escapeHtml(soldState)}</span><span>${escapeHtml(askingState)}</span><span>No weak sold fallback</span></div>`;
-}
-
-// Explain the two independent eBay gates so the Services toggle isn't misread:
-// the source switch governs the sanctioned Browse ASK lane; the scraped
-// sold-comps lane (Firecrawl/Apify) is held by a separate compliance guard that
-// no admin setting can lift.
-function ebayGateNoteHTML() {
-  return `<p class="admin-gate-note">Two gates: this switch controls the eBay <strong>ask</strong> lane only. The scraped <strong>sold-comps</strong> lane stays held pending provider authorization regardless of this setting.</p>`;
+  return `<div class="admin-ebay-state"><span>${escapeHtml(askingState)}</span></div>`;
 }
 
 // Firecrawl key pool. These are one-time credit
@@ -1342,8 +1328,7 @@ function serviceCardHTML(svc, row, health, cfg, openSet) {
       </summary>
       <div class="admin-service-body">
         <div class="admin-service-facts">${facts.map(({ label, value }) => `<span><span>${escapeHtml(label)}</span> ${escapeHtml(value)}</span>`).join('')}</div>
-        ${key === 'ebay' ? ebayStateHTML(health) : ''}
-        ${key === 'ebay' ? ebayGateNoteHTML() : ''}
+        ${key === 'ebay' ? ebayStateHTML() : ''}
         ${key === 'firecrawl' ? firecrawlPoolHTML() : ''}
         ${key === 'pricecharting' ? pcBulkStatusHTML() : ''}
         <p class="admin-service-action">${escapeHtml(health.action)}</p>
@@ -1421,10 +1406,8 @@ async function runServiceProbe(svc, btn) {
   if (box) { box.hidden = false; box.className = 'admin-svc-test-result'; box.textContent = 'Testing…'; }
   haptic('light');
   try {
-    // Live scrape probes (StockX renders for up to 60s server-side, plus any
-    // Firecrawl rate-limit backoff) need well over the default 15s abort. The
-    // old 60s limit aborted the StockX probe mid-render, and the automatic retry
-    // started a second paid scrape, which surfaced as "Failed to fetch".
+    // Live scrape probes (plus any Firecrawl rate-limit backoff) need well over
+    // the default 15s abort, and a retry would start a second paid scrape.
     const r = await api(`/api/admin/test/${encodeURIComponent(svc)}`, { method: 'POST', timeoutMs: 120000, retry: false });
     const degraded = r.status === 'degraded';
     const tone = degraded ? 'warn' : r.ok ? 'ok' : r.status === 'unconfigured' ? 'warn' : 'danger';
@@ -1521,8 +1504,6 @@ function renderCatalogQuality() {
     qualityCard('Old active sets', Number(quality.old_active_sets || 0), Number(quality.old_active_sets_pct || percent(quality.old_active_sets, total)), 'warn', 'Older sets still marked active.'),
     qualityCard('Low-confidence values', Number(quality.low_confidence_values || 0), Number(quality.low_confidence_values_pct || percent(quality.low_confidence_values, total)), 'danger', 'Rows using weak or formula-heavy valuation.'),
     qualityCard('BrickLink coverage', coverage.sets_with_bricklink ?? coverage.sets_with_bricklink_new ?? 0, Number(coverage.bricklink_coverage_pct || 0), 'ok', 'Sets with BrickLink market data.'),
-    qualityCard('eBay new sold', coverage.sets_with_ebay_new || 0, Number(coverage.ebay_new_coverage_pct || 0), 'neutral', 'Sets with validated new/sealed sold comps.'),
-    qualityCard('eBay used sold', coverage.sets_with_ebay_used || 0, Number(coverage.ebay_used_coverage_pct || 0), 'neutral', 'Sets with validated used sold comps.'),
     qualityCard('Blended values', blend.blended_count || 0, Number(blend.blended_coverage_pct || 0), 'ok', 'Rows with persisted blended values.'),
   ];
   container.innerHTML = `
@@ -1533,7 +1514,7 @@ function renderCatalogQuality() {
     <div class="admin-quality-grid">${cards.map(card => card.html).join('')}</div>
     <details class="admin-help-block">
       <summary>How denominators work</summary>
-      <p>Catalog coverage is measured against all catalog rows. Barcode coverage uses scannable retail sets where a UPC is expected. eBay sold coverage stays at zero when Marketplace Insights or sold-comps access is blocked.</p>
+      <p>Catalog coverage is measured against all catalog rows. Barcode coverage uses scannable retail sets where a UPC is expected.</p>
     </details>`;
 }
 
@@ -1555,12 +1536,11 @@ function qualityCard(label, count, pctValue, tone, help) {
 
 function recommendedQualityAction(cards) {
   const priority = cards
-    .filter(c => ['Missing UPC', 'Low-confidence values', 'Expired values', 'eBay new sold', 'eBay used sold'].includes(c.label))
+    .filter(c => ['Missing UPC', 'Low-confidence values', 'Expired values'].includes(c.label))
     .sort((a, b) => b.pct - a.pct)[0];
   if (!priority) return 'Open Pricing → Populate & Batch and run Populate all safe sources to refresh provider coverage.';
   if (priority.label === 'Missing UPC') return 'Open Pricing → Populate & Batch for Populate all safe sources, or run Barcode backfill in Background Activity & Jobs.';
   if (priority.label === 'Low-confidence values') return 'Run Populate all safe sources and check provider access under Overview → Pricing before increasing source weights.';
-  if (priority.label.startsWith('eBay')) return 'Check eBay sold-comps access under Overview → Pricing; do not fall back to active listings for sold value.';
   return 'Run Populate all safe sources to advance the next safe slice.';
 }
 
@@ -2429,7 +2409,6 @@ function providerLabel(service) {
     openrouter: 'OpenRouter',
     resend: 'Resend',
     google: 'Google Sheets',
-    stockx: 'StockX (probe)',
   };
   return labels[s.toLowerCase()] || s.replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }

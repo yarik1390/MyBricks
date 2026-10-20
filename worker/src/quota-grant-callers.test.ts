@@ -4,42 +4,30 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyTestTables } from './test-schema';
 
 vi.mock('./lib/bricklink', () => ({ fetchMinifigPricing: vi.fn() }));
-vi.mock('./lib/ebay-firecrawl', () => ({ fetchMinifigEbaySoldViaFirecrawl: vi.fn() }));
-vi.mock('./lib/pricing-flags', () => ({
-  ebaySoldCompsEnabled: vi.fn(() => true),
-  firecrawlEnabled: vi.fn(() => false),
-}));
 vi.mock('./lib/ebay', () => ({
   buildEbayAskUpdate: vi.fn(() => null),
-  buildEbaySoldUpdate: vi.fn(() => null),
-  ebaySoldHasValue: vi.fn(() => false),
   fetchEbayActiveListings: vi.fn(async () => null),
-  fetchEbaySoldPrices: vi.fn(async () => ({ status: 'no_data' })),
   isEbayAccessError: vi.fn(() => false),
 }));
 vi.mock('./lib/integration-health', () => ({
-  isIntegrationBlocked: vi.fn(async () => false),
   recordIntegrationHealth: vi.fn(async () => undefined),
-  setIntegrationBlock: vi.fn(async () => undefined),
 }));
 vi.mock('./lib/market-sources', () => ({
   recomputeBlendedValues: vi.fn(async () => undefined),
 }));
 vi.mock('./lib/source-config', () => ({
   sourceEnabled: vi.fn(async () => true),
-  ebaySoldLaneEnabled: vi.fn(async () => false),
 }));
 
 import { fetchMinifigPricing } from './lib/bricklink';
-import { fetchEbayActiveListings, fetchEbaySoldPrices } from './lib/ebay';
+import { fetchEbayActiveListings } from './lib/ebay';
 import { QUOTA_CAPS, quotaDay } from './lib/api-quota';
 import { runMinifigVerify } from './jobs/minifig-verify';
 import { runValuateMinifigs } from './jobs/valuate-minifigs';
-import { runEbayAskBackfill, runEbayBackfill } from './jobs/ebay-backfill';
+import { runEbayAskBackfill } from './jobs/ebay-backfill';
 
 const db = (env as any).DB as D1Database;
 const mockMinifigPricing = vi.mocked(fetchMinifigPricing);
-const mockEbaySold = vi.mocked(fetchEbaySoldPrices);
 const mockEbayAsk = vi.mocked(fetchEbayActiveListings);
 
 async function leaveQuota(service: 'bricklink' | 'ebay', remaining: number): Promise<void> {
@@ -71,7 +59,6 @@ describe('batch jobs enforce reserveQuota grants', () => {
     ]);
     mockMinifigPricing.mockReset();
     mockMinifigPricing.mockResolvedValue({ value: null, lots: 0 });
-    mockEbaySold.mockClear();
     mockEbayAsk.mockClear();
   });
 
@@ -145,39 +132,6 @@ describe('batch jobs enforce reserveQuota grants', () => {
       .all<{ cached_at: string | null; attempted_at: string | null }>();
     expect(rows.results.filter((row) => row.attempted_at != null)).toHaveLength(1);
     expect(rows.results.every((row) => row.cached_at == null)).toBe(true);
-  });
-
-  it('makes zero eBay sold calls when quota accounting fails closed', async () => {
-    await db.batch([seedSet('100-1')]);
-    await db.prepare('DROP TABLE api_quota').run();
-
-    const result = await runEbayBackfill({ ...env, EBAY_SOLD_COMPS_ENABLED: '1' } as any);
-
-    expect(mockEbaySold).not.toHaveBeenCalled();
-    expect(result.processed).toBe(0);
-  });
-
-  it('makes zero eBay sold calls when its quota grant is zero', async () => {
-    await db.batch([seedSet('100-1')]);
-    await leaveQuota('ebay', 0);
-
-    const result = await runEbayBackfill({ ...env, EBAY_SOLD_COMPS_ENABLED: '1' } as any);
-
-    expect(mockEbaySold).not.toHaveBeenCalled();
-    expect(result.processed).toBe(0);
-  });
-
-  it('requires the two sold-condition units per set before starting an eBay sold item', async () => {
-    await db.batch([seedSet('100-1'), seedSet('200-1')]);
-    await leaveQuota('ebay', 3);
-
-    const result = await runEbayBackfill(
-      { ...env, EBAY_SOLD_COMPS_ENABLED: '1' } as any,
-      { limit: 2 },
-    );
-
-    expect(mockEbaySold).toHaveBeenCalledTimes(1);
-    expect(result.processed).toBe(1);
   });
 
   it('makes zero eBay ask calls when quota accounting fails closed', async () => {

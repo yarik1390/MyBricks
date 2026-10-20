@@ -5,8 +5,8 @@ compatibility_flags = ["nodejs_compat"]
 
 # Workers PAID plan: lift the per-invocation CPU ceiling from the 30s default to
 # the paid max (300s). Fetch I/O wait is free, but the scrape/enrich crons do real
-# CPU parsing large HTML/JSON bodies (Firecrawl StockX renders are ~160KB each), so
-# a big batch could accumulate >30s CPU and get killed mid-run (the StockX backfill
+# CPU parsing large HTML/JSON bodies (Firecrawl renders can be ~160KB each), so
+# a big batch could accumulate >30s CPU and get killed mid-run (an old backfill
 # zombied at 32-set batches for exactly this reason). Subrequests (1000 on paid) and
 # the per-provider api_quota ledger remain the real batch-size governors.
 [limits]
@@ -33,7 +33,7 @@ bucket_name = "brickvault-photos"
 # packed into a single 04:00 invocation is split into dedicated slots so each heavy
 # job runs in its own invocation (own subrequest budget + failure isolation):
 #   0 4 db-hygiene + catalog-maintenance (+ Sunday catalog import)
-#   0 5 minifig valuation   0 6 BrickInsights ratings   0 7 eBay-sold scrape
+#   0 5 minifig valuation   0 6 BrickInsights ratings
 # The hourly sweep (0 *) runs owned-deep + catalog coverage + eBay ask + the
 # high-value freshness pass.
 [triggers]
@@ -46,17 +46,13 @@ crons = [
   "0 5 * * *",
   "0 6 * * *",
   "30 5 * * *",
-  "0 0,3,6,9,12,15,18,21 * * *",
   "0 8 * * *",
   # Weekly vault digest (opt-in). Day-NAME form: Cloudflare rejects numeric 0.
   "0 8 * * SUN",
   # Weekly per-user collection snapshots to R2 (self-serve restore in Settings).
   "0 5 * * SUN",
-  # Weekly batched Apify eBay sold-comps corroboration lane (20 sets/run).
-  "30 21 * * SUN",
   "0 9 * * *",
   "0 10 * * *",
-  "0 11 * * *",
   "0 12 * * *",
   "0 13 * * *",
   # PriceCharting per-set enrich: verified-mapping identity + sold comps for the
@@ -67,13 +63,6 @@ crons = [
   # and the dispatcher's first statement in a slot must stay greppable.
   "45 14 * * *",
   "0 15 * * *",
-  # BrickEconomy refresh, two extra slots an hour. BrickEconomy is the widest
-  # price source in the app (15,154 sets) and 98.8% of it had gone stale on a
-  # 40/day cadence that needed 379 days to complete one cycle. 48 runs x 60 sets
-  # = 2,880/day of capacity, so the ~weekly gate (BRICKECONOMY_REFRESH_DAYS)
-  # is what actually paces it. Own invocations: each run is ~220s.
-  "25 * * * *",
-  "50 * * * *",
   # PriceCharting bulk CSV, DAILY. One ~2 MB download refreshes 13,145 catalog
   # rows and costs no metered quota — the cheapest freshness in the system. It
   # sat behind a Sunday gate inside the 04:00 slot; its own slot keeps that
@@ -82,11 +71,6 @@ crons = [
   # Minifig identity verification: price-agreement settling of ambiguous
   # Rebrickable->BrickLink name matches (minifig_bl_candidates queue).
   "0 16 * * *",
-  # StockX lowest-ask enrichment (Bright Data, rendered). OFF by default (the
-  # stockx flag / STOCKX_ENABLED) — a no-op until enabled, then a bounded
-  # corroborating-only scrape.
-  "0 18 * * *",
-  "0 20 * * *",
   # First-party community comps: nightly anonymized purchase/sale aggregates
   # (k>=5 contributors) into community_comps AND verified pricing_signals, so
   # the 'community' family joins the blend as soon as data exists.
@@ -125,38 +109,11 @@ AI_GATEWAY_ID = "brickvault"
 # REMOVED on the next deploy (secrets are the exception and are preserved).
 # Change the allowance by editing this line.
 MERGE_MONTHLY_BUDGET_USD = "10"
-# Firecrawl daily credit ceiling — steady-state. Lift it temporarily (and restore
-# it right after) for a one-time bulk backfill; the StockX sweep ran at 15000 and
-# the eBay-sold new+used sweep at 50000, together burning ~82k credits over four
-# days. At the steady-state cadence the eBay/BrickEconomy/StockX crons only refresh
-# what has aged past its cooldown.
-#
-# 2000 -> 4000: Firecrawl is now the fallback ENGINE for eBay-sold whenever the
-# Bright Data breaker opens (~40 sets x 5cr x 8 runs = 1,600/day) on top of
-# ~1,400/day of steady enrich + minifig traffic. NOTE this var OVERRIDES
-# QUOTA_CAPS.firecrawl in code (see spendQuota) — raising the code constant alone
-# does nothing while this is set.
-#
-# 4000 -> 16000: brickeconomy-enrich now refreshes its 15,154 covered sets on a
-# ~weekly cycle instead of a 379-day one. That is ~2,165 sets/day x 5cr = ~10,825,
-# on top of ~2,400/day of existing enrich + eBay-sold + minifig traffic.
-#
-# BURN RATE — read this before leaving it here. At ~13,200 credits/day the pooled
-# balance (FIRECRAWL_KEY_CREDITS below, ~669k) lasts roughly 50 days. The dial to
-# turn is BRICKECONOMY_REFRESH_DAYS, not this ceiling: 14 days halves the
-# BrickEconomy burn to ~5,400/day (~90 days of runway), 21 days thirds it. This
-# ceiling is only the safety net that stops a runaway.
+# Firecrawl daily credit ceiling. A safety net that stops a runaway day for the
+# remaining consumers (Brickset, LEGO stock, store offers, promotions). NOTE this
+# var OVERRIDES QUOTA_CAPS.firecrawl in code (see spendQuota) — raising the code
+# constant alone does nothing while this is set.
 FIRECRAWL_DAILY_CREDITS = "16000"
-# BrickEconomy refresh cadence in days, for sets that HAVE BrickEconomy data.
-# The real Firecrawl-credit governor (see the burn-rate note above). Sets that
-# have never yielded a value are on a fixed 90-day gate and ignore this.
-BRICKECONOMY_REFRESH_DAYS = "7"
-# Firecrawl credits brickeconomy-enrich must leave on the table each day for the
-# other consumers (Brickset, LEGO stock, minifig eBay, eBay-sold rescue — ~2,400
-# between them). BE runs at :25 and :50 of every hour, so it reaches the shared
-# ledger before jobs scheduled later in the day; without this floor it drains the
-# ceiling by ~20:00 and the 21:00/00:00 eBay-sold runs get nothing.
-FIRECRAWL_RESERVE_CREDITS = "3000"
 # Per-key REMAINING credit balances, positionally aligned with the key list
 # (FIRECRAWL_API_KEY first, then the comma-separated FIRECRAWL_API_KEYS secret).
 # Keys are drained in that order, so the key you want spent first goes in

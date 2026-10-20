@@ -73,8 +73,7 @@ const RUNTIME_EXACT_STRINGS = [
   // These service-health states are selected before the markup renders them, so
   // source-shape matching cannot prove which conditional branch reaches the
   // text node. They are stable, visible labels verified by the runtime audit.
-  'sold comps blocked', 'sold comps available', 'sold comps not populated',
-  'asking data available', 'asking data not populated', 'No weak sold fallback',
+  'asking data available', 'asking data not populated',
   // Text following an inline status span ends at a template literal rather
   // than another tag; retain these exact user-visible Chrome AI states.
   '— Ready for offline text advice.',
@@ -142,9 +141,7 @@ const RUNTIME_EXACT_EVIDENCE = new Map([
   ['🛠 Suggest a fix', 'community contribution action label'],
   ['Pick a category tab to see just those services. Tap any service for its status, usage, and controls — test it, flip capabilities on or off, and tune pricing, all without touching code.', 'admin service-navigation introduction'],
   ['Last OK:', 'admin service-facts helper'], ['Last fail:', 'admin service-facts helper'],
-  ['sold comps blocked', 'admin integration-health conditional'], ['sold comps available', 'admin integration-health conditional'],
-  ['sold comps not populated', 'admin integration-health conditional'], ['asking data available', 'admin integration-health conditional'],
-  ['asking data not populated', 'admin integration-health conditional'], ['No weak sold fallback', 'admin integration-health conditional'],
+  ['asking data available', 'admin integration-health conditional'], ['asking data not populated', 'admin integration-health conditional'],
   ['— Ready for offline text advice.', 'Chrome AI availability branch'], ['— Requires Chrome on desktop/Android with Gemini Nano flags enabled.', 'Chrome AI availability branch'],
   ['AI forecast', 'forecast-method helper'], ['AT TARGET', 'buy-window helper'], ['BUY', 'buy-window helper'], ['APPRECIATED', 'portfolio trend helper'],
   ['TIMED OUT', 'scanner timeout branch'], ['Took too long — try again.', 'scanner timeout branch'],
@@ -262,8 +259,8 @@ const DO_NOT_TRANSLATE = new Set([
   // Provider and vendor names that appear as bare labels in the admin
   // console and the source list. Translating a vendor's name is wrong in
   // every language.
-  'Bright Data', 'Google Sheets', 'StockX', 'Firecrawl', 'OpenAI', 'OpenRouter',
-  'BrickInsights', 'Cloudflare', 'Hugging Face', 'UPCitemdb',
+  'Bright Data', 'Google Sheets', 'Firecrawl', 'OpenAI', 'OpenRouter',
+  'BrickInsights', 'Cloudflare', 'Hugging Face',
   // A LEGO theme name, not UI copy.
   'Modular Buildings',
   // Vendor, and an HTTP auth scheme that appears verbatim in a header.

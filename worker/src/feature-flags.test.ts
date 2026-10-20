@@ -10,7 +10,6 @@ import {
   FEATURE_FLAGS,
 } from './lib/feature-flags';
 import {
-  ebaySoldCompsEnabled,
   brickInsightsEnabled,
   firecrawlEnabled,
 } from './lib/pricing-flags';
@@ -27,14 +26,10 @@ async function freshSchema() {
 function baseEnv(extra: Record<string, unknown> = {}): any {
   return {
     ...env,
-    EBAY_SOLD_COMPS_ENABLED: undefined,
     BRICKINSIGHTS_ENABLED: undefined,
     FIRECRAWL_ENABLED: undefined,
     FIRECRAWL_API_KEY: undefined,
     FIRECRAWL_API_KEYS: undefined,
-    PRICESAPI_ENABLED: undefined,
-    PRICESAPI_API_KEY: undefined,
-    PRICESAPI_API_KEYS: undefined,
     ...extra,
   };
 }
@@ -44,15 +39,13 @@ describe('feature-flags', () => {
 
   it('falls back to env defaults when no override is stored', async () => {
     await applyFeatureFlags(baseEnv());
-    expect(ebaySoldCompsEnabled(baseEnv())).toBe(false); // off by default
     expect(brickInsightsEnabled(baseEnv())).toBe(true); // on by default
   });
 
   it('a runtime override wins over the env default', async () => {
-    await saveFeatureFlags(baseEnv(), { ebay_sold_comps: true, brickinsights: false });
+    await saveFeatureFlags(baseEnv(), { brickinsights: false });
     await applyFeatureFlags(baseEnv());
-    expect(flagOverride('ebay_sold_comps')).toBe(true);
-    expect(ebaySoldCompsEnabled(baseEnv())).toBe(true); // override turns it on
+    expect(flagOverride('brickinsights')).toBe(false);
     expect(brickInsightsEnabled(baseEnv())).toBe(false); // override turns a default-on flag off
   });
 

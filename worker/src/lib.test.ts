@@ -3,15 +3,13 @@ import { env } from 'cloudflare:test';
 import { describe, it, expect, vi } from 'vitest';
 import { parseNextBackfillPage } from './jobs/backfill-upc';
 import {
-  __resetEbayTokenCacheForTests,
-  fetchEbaySoldPrices,
   isEbayAccessError,
   isValidLegoSetSaleTitle,
   summarizeSoldPrices,
 } from './lib/ebay';
 import { classifyHealth } from './lib/integration-health';
 import { computeRetirementRisk } from './lib/retirement-risk';
-import { computeMinifigRarity, plausibleEbayOnlyFigValue } from './lib/minifig-rarity';
+import { computeMinifigRarity } from './lib/minifig-rarity';
 import { proxyImageUrl, rewriteImages } from './lib/img-proxy';
 import { isSearchIndexCorruption } from './lib/search-index';
 import { formulaValuation, retailAgeMultiplier, isLikelyRetired, isPlausibleMarketValue } from './lib/valuation';
@@ -98,58 +96,10 @@ describe('classifyHealth', () => {
 });
 
 // ---------------------------------------------------------------------------
-// eBay sold comps
+// eBay listing filters (Browse ask path)
 // ---------------------------------------------------------------------------
-describe('eBay sold comps', () => {
-  function soldItem(title: string, value: number, currency = 'USD') {
-    return { title, price: { value: String(value), currency } };
-  }
-
-  it('requests separate new and used Marketplace Insights filters', async () => {
-    __resetEbayTokenCacheForTests();
-    // Opt past the sold-lane compliance hold for this unit test (test env only).
-    (env as any).ENVIRONMENT = 'test';
-    (env as any).EBAY_SOURCE_AUTHORIZED_FOR_TESTS = '1';
-    (env as any).EBAY_APP_ID = 'ebay-app-id';
-    (env as any).EBAY_SOLD_COMPS_ENABLED = '1';
-    (env as any).EBAY_CLIENT_SECRET = 'ebay-client-secret';
-    const seenUrls: string[] = [];
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
-      const href = String(url);
-      seenUrls.push(href);
-      if (href.includes('/identity/v1/oauth2/token')) {
-        return Promise.resolve(new Response(JSON.stringify({ access_token: 'token', expires_in: 3600 }), { status: 200 }));
-      }
-      if (href.includes('item_sales/search')) {
-        return Promise.resolve(new Response(JSON.stringify({
-          itemSales: [
-            soldItem('LEGO 75192 Millennium Falcon complete set', 800),
-            soldItem('LEGO Star Wars 75192 UCS Millennium Falcon', 820),
-            soldItem('LEGO 75192-1 Millennium Falcon sealed', 840),
-          ],
-        }), { status: 200 }));
-      }
-      return Promise.resolve(new Response(null, { status: 404 }));
-    });
-
-    try {
-      const result = await fetchEbaySoldPrices('75192', 'Millennium Falcon', env as any, { recordHealth: false });
-      expect(result.status).toBe('ok');
-      expect(result.new_value).toBe(820);
-      expect(result.used_value).toBe(820);
-      const searchUrls = seenUrls.filter(url => url.includes('item_sales/search'));
-      expect(searchUrls).toHaveLength(2);
-      expect(searchUrls.some(url => decodeURIComponent(url).includes('conditions:{NEW}'))).toBe(true);
-      expect(searchUrls.some(url => decodeURIComponent(url).includes('USED_GOOD'))).toBe(true);
-      expect(seenUrls.some(url => url.includes('FindingService') || url.includes('/sch/i.html'))).toBe(false);
-    } finally {
-      globalThis.fetch = originalFetch;
-      __resetEbayTokenCacheForTests();
-    }
-  });
-
-  it('filters suspicious listing titles and requires at least three sold comps', () => {
+describe('eBay listing filters', () => {
+  it('filters suspicious listing titles and requires at least three comps', () => {
     expect(isValidLegoSetSaleTitle('LEGO 75192 Millennium Falcon complete set', '75192')).toBe(true);
     expect(isValidLegoSetSaleTitle('LEGO 75192 instructions manual only', '75192')).toBe(false);
     expect(isValidLegoSetSaleTitle('LEGO 75192 replacement stickers', '75192')).toBe(false);
@@ -157,100 +107,15 @@ describe('eBay sold comps', () => {
     expect(summarizeSoldPrices([100, 105]).value).toBeNull();
   });
 
-  it('trims extreme outliers before calculating the sold-comp median', () => {
+  it('trims extreme outliers before calculating the median', () => {
     const summary = summarizeSoldPrices([100, 110, 120, 130, 999]);
     expect(summary.value).toBe(115);
     expect(summary.sample_count).toBe(4);
   });
 
-  it('requires both eBay secrets and does not fall back to legacy APIs', async () => {
-    __resetEbayTokenCacheForTests();
-    (env as any).ENVIRONMENT = 'test';
-    (env as any).EBAY_SOURCE_AUTHORIZED_FOR_TESTS = '1';
-    (env as any).EBAY_APP_ID = 'ebay-app-id';
-    (env as any).EBAY_SOLD_COMPS_ENABLED = '1';
-    (env as any).EBAY_CLIENT_SECRET = '';
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = vi.fn();
-
-    try {
-      const result = await fetchEbaySoldPrices('75192', 'Millennium Falcon', env as any, { recordHealth: false });
-      expect(result.source).toBe('marketplace_insights');
-      expect(result.status).toBe('unconfigured');
-      expect(result.error).toContain('EBAY_APP_ID and EBAY_CLIENT_SECRET');
-      expect(globalThis.fetch).not.toHaveBeenCalled();
-    } finally {
-      globalThis.fetch = originalFetch;
-      __resetEbayTokenCacheForTests();
-    }
-  });
-
-  it('returns unauthorized when the OAuth token request fails', async () => {
-    __resetEbayTokenCacheForTests();
-    (env as any).ENVIRONMENT = 'test';
-    (env as any).EBAY_SOURCE_AUTHORIZED_FOR_TESTS = '1';
-    (env as any).EBAY_APP_ID = 'ebay-app-id';
-    (env as any).EBAY_SOLD_COMPS_ENABLED = '1';
-    (env as any).EBAY_CLIENT_SECRET = 'ebay-client-secret';
-    const seenUrls: string[] = [];
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
-      seenUrls.push(String(url));
-      return Promise.resolve(new Response(JSON.stringify({ error: 'invalid_client' }), { status: 403 }));
-    });
-
-    try {
-      const result = await fetchEbaySoldPrices('75192', 'Millennium Falcon', env as any, { recordHealth: false });
-      expect(result.status).toBe('unauthorized');
-      expect(result.new_value).toBeNull();
-      expect(result.used_value).toBeNull();
-      expect(result.error).toContain('invalid_client');
-      expect(isEbayAccessError(result.error)).toBe(true);
-      expect(seenUrls.some(url => url.includes('FindingService') || url.includes('/sch/i.html'))).toBe(false);
-    } finally {
-      globalThis.fetch = originalFetch;
-      __resetEbayTokenCacheForTests();
-    }
-  });
-
-  it('stops after the first Marketplace Insights access denial', async () => {
-    __resetEbayTokenCacheForTests();
-    (env as any).ENVIRONMENT = 'test';
-    (env as any).EBAY_SOURCE_AUTHORIZED_FOR_TESTS = '1';
-    (env as any).EBAY_APP_ID = 'ebay-app-id';
-    (env as any).EBAY_SOLD_COMPS_ENABLED = '1';
-    (env as any).EBAY_CLIENT_SECRET = 'ebay-client-secret';
-    const seenUrls: string[] = [];
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = vi.fn().mockImplementation((url: string) => {
-      const href = String(url);
-      seenUrls.push(href);
-      if (href.includes('/identity/v1/oauth2/token')) {
-        return Promise.resolve(new Response(JSON.stringify({ access_token: 'token', expires_in: 3600 }), { status: 200 }));
-      }
-      if (href.includes('item_sales/search')) {
-        return Promise.resolve(new Response(JSON.stringify({
-          errors: [{
-            errorId: 1100,
-            domain: 'ACCESS',
-            message: 'Access denied',
-            longMessage: 'Insufficient permissions to fulfill the request.',
-          }],
-        }), { status: 401 }));
-      }
-      return Promise.resolve(new Response(null, { status: 404 }));
-    });
-
-    try {
-      const result = await fetchEbaySoldPrices('75192', 'Millennium Falcon', env as any, { recordHealth: false });
-      expect(result.status).toBe('unauthorized');
-      expect(result.error).toContain('Insufficient permissions');
-      expect(seenUrls.filter(url => url.includes('item_sales/search'))).toHaveLength(1);
-      expect(seenUrls.some(url => url.includes('FindingService') || url.includes('/sch/i.html'))).toBe(false);
-    } finally {
-      globalThis.fetch = originalFetch;
-      __resetEbayTokenCacheForTests();
-    }
+  it('classifies OAuth access errors', () => {
+    expect(isEbayAccessError('eBay OAuth HTTP 403: invalid_client')).toBe(true);
+    expect(isEbayAccessError('timeout')).toBe(false);
   });
 });
 
@@ -1279,33 +1144,6 @@ describe('kids-xp pure helpers', () => {
     const hash = await hashPin('1234');
     expect(await verifyPin('1234', hash)).toBe(true);
     expect(await verifyPin('0000', hash)).toBe(false);
-  });
-});
-
-describe('plausibleEbayOnlyFigValue (eBay-solo plausibility guard)', () => {
-  it('accepts modest values outright (<= $150 cap)', () => {
-    expect(plausibleEbayOnlyFigValue(25)).toBe(true);
-    expect(plausibleEbayOnlyFigValue(150)).toBe(true);
-    expect(plausibleEbayOnlyFigValue(150, { prior: null })).toBe(true);
-  });
-  it('rejects a big value with no prior to corroborate it', () => {
-    expect(plausibleEbayOnlyFigValue(151)).toBe(false);
-    expect(plausibleEbayOnlyFigValue(900, { prior: null })).toBe(false);
-    expect(plausibleEbayOnlyFigValue(900, { prior: 0 })).toBe(false);
-  });
-  it('accepts a big value inside the prior/3..prior*3 band', () => {
-    expect(plausibleEbayOnlyFigValue(300, { prior: 200 })).toBe(true);   // 1.5x
-    expect(plausibleEbayOnlyFigValue(600, { prior: 200 })).toBe(true);   // exactly 3x
-    expect(plausibleEbayOnlyFigValue(200, { prior: 600 })).toBe(true);   // exactly prior/3
-  });
-  it('rejects a big value outside the prior band', () => {
-    expect(plausibleEbayOnlyFigValue(601, { prior: 200 })).toBe(false);  // just past 3x
-    expect(plausibleEbayOnlyFigValue(160, { prior: 500 })).toBe(false); // below prior/3 (166.7)
-  });
-  it('rejects garbage inputs', () => {
-    expect(plausibleEbayOnlyFigValue(0)).toBe(false);
-    expect(plausibleEbayOnlyFigValue(-5)).toBe(false);
-    expect(plausibleEbayOnlyFigValue(Number.NaN)).toBe(false);
   });
 });
 

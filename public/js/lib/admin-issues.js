@@ -2,15 +2,13 @@ const DEFAULT_MAX_ISSUES = 6;
 const DEFAULT_STALE_AFTER_MS = 48 * 60 * 60 * 1000;
 
 const SERVICE_FLAGS = {
-  ebay: 'ebay_sold_comps',
   brickinsights: 'brickinsights',
   firecrawl: 'firecrawl',
-  stockx: 'stockx',
 };
 
 const PRICING_SERVICES = new Set([
   'bricklink', 'brickeconomy', 'ebay', 'pricecharting',
-  'brickinsights', 'amazon', 'firecrawl', 'brightdata', 'stockx',
+  'brickinsights', 'amazon', 'firecrawl', 'brightdata',
 ]);
 const CATALOG_SERVICES = new Set(['rebrickable', 'brickset', 'upc']);
 const AI_SERVICES = new Set(['gemini', 'openai', 'openrouter', 'omniroute', 'merge']);

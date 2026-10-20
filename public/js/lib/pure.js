@@ -655,10 +655,9 @@ export function classifyProviderHealth(row = {}) {
   // BrickEconomy: last OK 30m ago, last fail 47d ago, 0/80 of quota used).
   const quotaLimited = latestFail && /HTTP 429|EXCEED_LIMIT|quota|rate limit|daily cap|too many requests/i.test(error);
   const blocked = latestFail && /HTTP 401|HTTP 403|unauthorized|not authorized|access denied|insufficient permissions|invalid[_ -]?scope|Marketplace Insights/i.test(error);
-  // amazon/stockx are explicitly non-core — Amazon is an acquisition link that
-  // never feeds valuation (weight pinned at 0) and StockX is a corroborating
-  // probe — so neither should be triaged as if the app depended on it.
-  const optional = !!row.optional || /pricecharting|firecrawl|brightdata|amazon|stockx|discord|openrouter|openai|gemini|resend|push|vapid|google/.test(service);
+  // amazon is explicitly non-core — an acquisition link that never feeds
+  // valuation (weight pinned at 0) — so it is not triaged as if the app depended on it.
+  const optional = !!row.optional || /pricecharting|firecrawl|brightdata|amazon|discord|openrouter|openai|gemini|resend|push|vapid|google/.test(service);
   // A source the admin has deliberately switched OFF needs nothing, whatever its
   // over a 403 from 46 days ago while its own switch read "off" — an alert about
   // a source nobody is calling. Checked first: "off" outranks unconfigured,

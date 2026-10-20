@@ -38,7 +38,6 @@ async function selectBrickLink(limit = 20) {
   return selectDueSets({ ...(env as any), BRICKLINK_CONSUMER_KEY: 'test-key' }, {
     scope: 'all', options: { limit, blStale: true },
     includeSupplemental: false, includeBrickLink: true, includeEbay: false,
-    includeEbaySold: false, includeAiFallback: false,
   });
 }
 
@@ -115,7 +114,6 @@ describe('dedicated BrickLink refresh selection', () => {
     const selected = await selectDueSets({ ...(env as any), BRICKLINK_CONSUMER_KEY: 'test-key' }, {
       scope: 'all', options: { limit: 10, blStale: true },
       includeSupplemental: false, includeBrickLink: true, includeEbay: false,
-      includeEbaySold: false, includeAiFallback: false,
     });
     expect(selected.results.map((row) => row.set_num)).not.toContain('BACKED-OFF');
     expect(selected.grants.bricklink).toBe(0);
@@ -150,7 +148,6 @@ describe('legacy sealed-target priority semantics', () => {
     const { results } = await selectDueSets(env as any, {
       scope: 'all', options: { limit: 10 },
       includeSupplemental: false, includeBrickLink: false, includeEbay: false,
-      includeEbaySold: false, includeAiFallback: false,
     });
     expect(results.map((row) => row.set_num).slice(0, 2)).toEqual([
       'A-NO-SEALED', 'Z-PC-QUARANTINED',
@@ -183,7 +180,6 @@ describe('conflict tie-break selection', () => {
     const { results } = await selectDueSets({ ...(env as any), BRICKLINK_CONSUMER_KEY: 'test-key' }, {
       scope: 'all', options: { limit: 20, conflictTiebreak: true },
       includeSupplemental: false, includeBrickLink: true, includeEbay: false,
-      includeEbaySold: false, includeAiFallback: false,
     });
     expect(results.map((row) => row.set_num).sort()).toEqual(['NO-BL', 'STALE-BL']);
   });
@@ -228,7 +224,6 @@ describe('BrickLink discovery selection', () => {
     const { results } = await selectDueSets({ ...(env as any), BRICKLINK_CONSUMER_KEY: 'test-key' }, {
       scope: 'all', options: { limit: 20, blDiscovery: true },
       includeSupplemental: false, includeBrickLink: true, includeEbay: false,
-      includeEbaySold: false, includeAiFallback: false,
     });
     // Legacy (quarantined) PriceCharting no longer blocks discovery; sets with
     // no price at all go first, including NO-DATA, stamped before listings

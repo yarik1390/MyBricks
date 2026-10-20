@@ -1,6 +1,6 @@
 import type { Env } from '../types';
 import { nextBackfillPage, runBackfillUpc } from './backfill-upc';
-import { runEbayBackfill, runValuateSets } from './valuate-sets';
+import { runValuateSets } from './valuate-sets';
 import { BARCODE_PAGE_SIZE } from '../lib/brickset';
 
 const STALE_RUN_ERROR = 'Worker run stopped before completion (no progress heartbeat for 10 minutes)';
@@ -96,7 +96,6 @@ export async function runDailyValuationMaintenance(env: Env, limit = 20) {
       includeSupplemental: true,
       includeEbay: true,
       includeMinifigs: true,
-      includeAiFallback: false,
       sourceRetries: 0,
       sourceTimeoutMs: 5000,
       limit: safeLimit,
@@ -129,26 +128,6 @@ export async function runDailyValuationMaintenance(env: Env, limit = 20) {
   }
 }
 
-export async function runDailyEbayMaintenance(env: Env, limit = 2) {
-  const safeLimit = Math.max(1, Math.min(Math.floor(limit), 2));
-  const runId = await startRun(env, `method:ebay-daily limit:${safeLimit}`);
-  try {
-    const result = await runEbayBackfill(env, { limit: safeLimit });
-
-    await completeRun(
-      env,
-      runId,
-      result.updated,
-      result.processed,
-      `method:ebay-daily limit:${safeLimit} processed:${result.processed} updated:${result.updated}`,
-    );
-    return result;
-  } catch (error) {
-    await failRun(env, runId, error);
-    throw error;
-  }
-}
-
 // Keep lego_sets.minifigs aligned with the set_minifigs table (populated on
 // detail views). One idempotent, set-based UPDATE that only rewrites drifted rows
 // so catalog cards and the set-detail stat show the real fig count.
@@ -169,6 +148,5 @@ export async function runDailyCatalogMaintenance(env: Env) {
   if (active) return { skipped: true, reason: `run ${active.id} already active`, minifigCounts };
   const barcode = await runDailyBarcodeMaintenance(env);
   const valuation = await runDailyValuationMaintenance(env);
-  const ebay = await runDailyEbayMaintenance(env);
-  return { barcode, valuation, ebay, minifigCounts };
+  return { barcode, valuation, minifigCounts };
 }

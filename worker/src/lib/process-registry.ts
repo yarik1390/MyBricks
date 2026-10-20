@@ -26,17 +26,12 @@ export const PROCESS_REGISTRY: Record<string, ProcessInfo> = {
   'pricecharting-verify': { label: 'PriceCharting verify', description: 'Settles price-agreement promotions for quarantined source matches (unique UPC or cross-source agreement) and refreshes their signals.', schedule: 'Daily 04:00 UTC', group: 'Pricing' },
   'pricecharting-triage': { label: 'PriceCharting match triage', description: 'Settles quarantined PriceCharting matches: re-points a product to the set its title names, rejects provable mismatches, and leaves only ambiguous ones for review.', schedule: 'Hourly (:15) + after the bulk import', group: 'Pricing' },
   'pricecharting-verify-drain': { label: 'PriceCharting verify (drain)', description: 'Hourly drain of the pending price-agreement verification queue (no new signal writes).', schedule: 'Hourly (:15)', group: 'Pricing' },
-  // (pricesAPI live-retail lane removed 2026-08; LEGO.com stock-refresh covers retail/stock truth.)
-  'brickeconomy-enrich': { label: 'BrickEconomy values', description: 'Scrapes BrickEconomy modeled values and 2y/5y forecasts (via Firecrawl).', schedule: 'Daily 11:00 UTC', group: 'Pricing' },
-  'ebay-sold-scrape': { label: 'eBay sold comps', description: 'Scrapes eBay realized sold prices (Bright Data primary, Firecrawl rescue) as a high-confidence sold source. Bursts the backfill, then self-tapers to a 30-day refresh.', schedule: '8×/day (every 3h)', group: 'Pricing' },
-  'ebay-sold-apify': { label: 'eBay sold comps (Apify)', description: 'Weekly second sold-comps lane via the Apify eBay actor (20 sets/run). Writes the same columns as the scrape lane; currently held pending provider authorization.', schedule: 'Weekly Sun 21:30 UTC', group: 'Pricing' },
   'community-comps': { label: 'Community comps', description: 'Nightly anonymized purchase/sale aggregates (k≥5 contributors) into community_comps AND verified pricing_signals, so the community family joins the blend once data exists.', schedule: 'Daily 22:00 UTC', group: 'Pricing' },
   'pricing-movers': { label: 'Anomaly detection', description: 'After the value snapshot, flags day-over-day moves beyond ±40% and auto-resolves day_move/value_divergence anomalies that no longer hold.', schedule: 'Daily 03:00 UTC', group: 'Pricing' },
   'pricing-v3-shadow': { label: 'v3 blend recompute', description: 'Recomputes persisted v3 blends in bounded slices so stored portfolio sums stay aligned with the live read path.', schedule: 'Daily 02:00 UTC', group: 'Pricing' },
   'valuate-bl-refresh': { label: 'BrickLink freshness refresh', description: 'Re-queries sets whose BrickLink value has aged past the blend\'s 14-day freshness window, eBay-corroborated ones first. BrickLink age — not data availability — is what caps high-confidence valuations.', schedule: 'Hourly (:45)', group: 'Pricing' },
   'valuate-bl-discovery': { label: 'BrickLink discovery', description: 'Asks BrickLink once for each set with no sale value, sets showing no price first, then most valuable.', schedule: 'Hourly (:45)', group: 'Pricing' },
   'store-offers': { label: 'Store prices', description: 'Checks Walmart and Target prices for current sets people own or wishlist (Firecrawl), and clears live offers older than 4 days so they stop driving deals and alerts.', schedule: 'Daily 07:30 UTC', group: 'Pricing' },
-  'stockx-enrich': { label: 'StockX lowest ask', description: 'Scrapes StockX lowest ask (Firecrawl-preferred, rendered) as a corroborating new-condition signal. OFF by default; collect-only until validated and wired into the blend.', schedule: 'Daily 18:00 UTC', group: 'Pricing' },
 
   // --- Valuation ---
   'valuate-owned-deep': { label: 'Value owned & wishlist', description: 'Refreshes blended market values for your owned and wishlisted sets first.', schedule: 'Hourly', group: 'Valuation' },
@@ -44,16 +39,13 @@ export const PROCESS_REGISTRY: Record<string, ProcessInfo> = {
   'valuate-ebay-ask': { label: 'eBay ask refresh', description: 'Refreshes eBay current-listing (ask) prices used by the deal signal.', schedule: 'Hourly', group: 'Valuation' },
   'valuate-topvalue': { label: 'Value top sets', description: 'Keeps the highest-value sets fresh with priority re-valuation.', schedule: 'Hourly', group: 'Valuation' },
   'valuate-formula-head': { label: 'Seed new sets', description: 'Gives new/unpriced sets a formula estimate until market data arrives.', schedule: 'Hourly (:15)', group: 'Valuation' },
-  'valuate-minifigs': { label: 'Value minifigures', description: 'Prices owned, Collectible-Minifigures and popular figs from BrickLink + eBay sold comps.', schedule: 'Daily 01:00 & 05:00 UTC', group: 'Valuation' },
+  'valuate-minifigs': { label: 'Value minifigures', description: 'Prices owned, Collectible-Minifigures and popular figs from BrickLink.', schedule: 'Daily 01:00 & 05:00 UTC', group: 'Valuation' },
   'minifig-verify': { label: 'Minifig identity verify', description: 'Settles ambiguous Rebrickable→BrickLink name matches by price agreement (minifig_bl_candidates queue).', schedule: 'Daily 16:00 UTC', group: 'Valuation' },
-  'valuate-ai-gapfill': { label: 'AI gap-fill', description: 'Estimates high-value sets no market source can price yet, using the free Gemini fallback.', schedule: 'Daily 20:00 UTC', group: 'Valuation' },
 
   // --- Enrichment ---
   'brickset-enrich': { label: 'Brickset metadata', description: 'Adds Brickset details — MSRP, launch/exit dates, ratings, barcodes.', schedule: 'Daily 09:00 UTC', group: 'Enrichment' },
   'brickinsights-ratings': { label: 'Review ratings', description: 'Fetches aggregated community review scores (BrickInsights).', schedule: 'Daily 06:00 UTC', group: 'Enrichment' },
-  'lego-stock-refresh': { label: 'LEGO.com stock & retail price', description: 'Scrapes LEGO.com availability, retiring-soon status and current retail price — the authoritative retail/stock-truth lane since pricesAPI was removed. Owned/wishlisted sets first, then the active catalog.', schedule: 'Daily 10:00 UTC', group: 'Enrichment' },
-  // (Barcode coverage: Brickset bulk barcodes; the
-  // UPCitemdb trickle lane was removed 2026-08 — provider quota-dead since July.)
+  'lego-stock-refresh': { label: 'LEGO.com stock & retail price', description: 'Scrapes LEGO.com availability, retiring-soon status and current retail price — the authoritative retail/stock-truth lane. Owned/wishlisted sets first, then the active catalog.', schedule: 'Daily 10:00 UTC', group: 'Enrichment' },
   'part-price-backfill': { label: 'Part prices', description: 'Caches individual part prices used to compute part-out values.', schedule: 'Daily 12:00 UTC', group: 'Enrichment' },
   'train-value-model': { label: 'Value model', description: 'Retrains the BricksVault value model on BrickLink-priced sets and stores each set’s estimate (the fallback when no market source prices a set).', schedule: 'Daily 13:00 UTC', group: 'Pricing' },
   'part-out-compute': { label: 'Part-out value', description: 'Computes each set’s sum-of-parts (part-out) floor value.', schedule: 'Daily 13:00 UTC', group: 'Enrichment' },

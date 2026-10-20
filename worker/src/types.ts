@@ -37,9 +37,6 @@ export interface Env {
   BRICKSET_API_KEY: string;
   /** Set to "0" for an emergency rollback; enabled for ordinary shared scans by default. */
   BRICKOGNIZE_ENABLED?: string;
-  // Apify eBay sold-comps actor. On by default once this secret is configured.
-  APIFY_API_TOKEN?: string;
-  APIFY_ENABLED?: string;
   EBAY_APP_ID?: string;
   EBAY_CLIENT_SECRET?: string;
   GOOGLE_CLIENT_ID?: string;
@@ -51,13 +48,6 @@ export interface Env {
   BRICKLINK_TOKEN: string;
   BRICKLINK_TOKEN_SECRET: string;
   BRICKECONOMY_API_KEY?: string;
-  // ScrapingAnt raw-HTML transport for plain Brickset, BrickEconomy, and LEGO
-  // product pages. Keys are Worker secrets; only hashes and monthly call counts
-  // are persisted in D1. The plural secret is a comma-separated rotation pool.
-  SCRAPINGANT_API_KEY?: string;
-  SCRAPINGANT_API_KEYS?: string;
-  /** Optional lower test/operator cap; production is always clamped to <=9800. */
-  SCRAPINGANT_KEY_CAP?: string;
   // Bright Data Web Unlocker token pool. Tokens are Worker secrets; only hashes
   // and monthly call counts are persisted in D1. One unlock request = one credit.
   BRIGHTDATA_API_TOKEN?: string;
@@ -65,24 +55,8 @@ export interface Env {
   BRIGHTDATA_ZONE?: string;
   /** Optional lower test/operator cap; production is always clamped to <=4900. */
   BRIGHTDATA_KEY_CAP?: string;
-  /** Days before a set that HAS BrickEconomy data is re-scraped (default 7).
-   *  This is the Firecrawl-credit governor for brickeconomy-enrich — raising it
-   *  cuts the burn proportionally. Sets BrickEconomy has no data for ignore it
-   *  and stay on a fixed 90-day gate. */
-  BRICKECONOMY_REFRESH_DAYS?: string;
-  /** Firecrawl credits brickeconomy-enrich must leave for the day's other
-   *  consumers (default 3000). It runs 48x a day and reaches the shared ledger
-   *  first, so without a floor it can drain the ceiling before the evening
-   *  eBay-sold runs. */
-  FIRECRAWL_RESERVE_CREDITS?: string;
-  // Pricing-source kill switches (see lib/pricing-flags.ts). Default OFF;
-  // set to "1" via wrangler [vars] to re-enable once provider access returns.
-  EBAY_SOLD_COMPS_ENABLED?: string;
-  /** Test-only escape hatch for isolated eBay job tests. Never configure in deployment. */
-  EBAY_SOURCE_AUTHORIZED_FOR_TESTS?: string;
+  // Pricing-source kill switch (see lib/pricing-flags.ts).
   BRICKINSIGHTS_ENABLED?: string;
-  // StockX lowest-ask scrape (Firecrawl). OFF unless STOCKX_ENABLED is truthy.
-  STOCKX_ENABLED?: string;
   GEMINI_API_KEY?: string;
   // Cloudflare AI Gateway (optional). When account + gateway id are set, SERVER-key
   // AI calls route through the gateway for caching, analytics, rate/spend limits.
@@ -90,8 +64,8 @@ export interface Env {
   AI_GATEWAY_ACCOUNT_ID?: string;
   AI_GATEWAY_ID?: string;
   AI_GATEWAY_TOKEN?: string;
-  // OpenRouter API key. When set, the valuation cron's paid fallback routes
-  // through OpenRouter (free model first, then cheap paid) via the AI Gateway.
+  // OpenRouter API key. When set, LLM workloads can route through OpenRouter
+  // (free model first, then cheap paid) via the AI Gateway.
   OPENROUTER_API_KEY?: string;
   // Merge Gateway (https://gateway.merge.dev) — a second multi-provider LLM
   // gateway that runs in parallel with OpenRouter. Key format "mg_...". It is
@@ -109,9 +83,6 @@ export interface Env {
   OMNIROUTE_API_KEY?: string;
   // Optional non-secret override for self-hosted/staging OmniRoute instances.
   OMNIROUTE_BASE_URL?: string;
-  // Pateway Economy key, bound to Economy Mode in Pateway's control plane.
-  // Used only for post-response scan verification; it is never in the
-  // synchronous identification cascade and must remain a Worker secret.
   // Monthly USD allowance the admin console meters Merge spend against
   // (default 10). Merge publishes no balance API, so remaining credit is
   // derived from the real per-call `usage.cost` it returns, accumulated in the

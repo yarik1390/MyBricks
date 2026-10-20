@@ -21,11 +21,9 @@ export type IntegrationName =
   | 'rebrickable'
   | 'brickinsights'
   | 'firecrawl'
-  | 'scrapingant'
   | 'brightdata'
   | 'pricecharting'
-  | 'amazon'
-  | 'stockx';
+  | 'amazon';
 
 export type IntegrationStatus = 'ok' | 'degraded' | 'down' | 'unknown' | 'unconfigured';
 
@@ -124,9 +122,9 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
       !env.EBAY_CLIENT_SECRET.includes('dummy')
     ),
     required_secrets: ['EBAY_APP_ID', 'EBAY_CLIENT_SECRET'],
-    used_by: ['sold-price checks', 'deal score', 'listing draft'],
-    notes: 'Uses eBay Browse active-listing ASK prices (basic OAuth scope, works on any keyset). Sold comps (Marketplace Insights) are disabled pending Buy-API approval.',
-    recommended_action: 'Add EBAY_APP_ID and EBAY_CLIENT_SECRET for ask-price enrichment. Sold comps stay off until Marketplace Insights (Buy) approval is granted and EBAY_SOLD_COMPS_ENABLED is set.',
+    used_by: ['asking prices', 'deal score', 'listing draft'],
+    notes: 'Uses eBay Browse active-listing ASK prices (basic OAuth scope, works on any keyset).',
+    recommended_action: 'Add EBAY_APP_ID and EBAY_CLIENT_SECRET for ask-price enrichment.',
   },
   bricklink: {
     label: 'BrickLink',
@@ -143,14 +141,12 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
   },
   brickeconomy: {
     label: 'BrickEconomy',
-    // Now sourced by scraping the public BrickEconomy pages via Firecrawl (the
-    // be_* columns), not the paid API — so it's "configured" whenever Firecrawl
-    // (or the legacy API key) is present.
-    configured: (env) => !!env.FIRECRAWL_API_KEY || !!env.BRICKECONOMY_API_KEY,
-    required_secrets: ['FIRECRAWL_API_KEY'],
-    used_by: ['set valuation (sealed/used)', 'forecasts (2y/5y)', 'retail price enrichment'],
-    notes: 'Valuation + forecast source. Now scraped from public BrickEconomy pages via Firecrawl (be_* columns) under the isPlausibleMarketValue gate — the paid BRICKECONOMY_API_KEY is no longer required. Status reflects BrickEconomy data flowing into valuations.',
-    recommended_action: 'No key required — BrickEconomy data comes via the Firecrawl brickeconomy-enrich cron. The legacy BRICKECONOMY_API_KEY can be retired.',
+    // Stored be_* values only; nothing fetches BrickEconomy any more.
+    configured: () => true,
+    required_secrets: [],
+    used_by: ['set valuation (sealed/used)', 'forecasts (2y/5y)'],
+    notes: 'Historical BrickEconomy values stored in the be_* columns, read under the isPlausibleMarketValue gate. The scraper is retired, so these values are no longer refreshed.',
+    recommended_action: 'No action required.',
   },
   brickset: {
     label: 'Brickset',
@@ -164,9 +160,9 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     label: 'Gemini',
     configured: (env) => hasConfiguredSecret(env, 'GEMINI_API_KEY'),
     required_secrets: ['GEMINI_API_KEY'],
-    used_by: ['server valuation fallback', 'BYOK photo scan', 'BYOK advisor'],
+    used_by: ['BYOK photo scan', 'BYOK advisor', 'translations'],
     notes: 'Server key is optional; user-supplied BYOK Gemini keys still work from the browser.',
-    recommended_action: 'Add GEMINI_API_KEY as a GitHub Actions secret to enable server-side Gemini fallback.',
+    recommended_action: 'Add GEMINI_API_KEY as a GitHub Actions secret to enable server-side Gemini features.',
   },
   email: {
     label: 'Email Alerts',
@@ -197,17 +193,17 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     label: 'OpenAI',
     configured: (env) => !!env.OPENAI_API_KEY,
     required_secrets: ['OPENAI_API_KEY'],
-    used_by: ['photo scan', 'advisor', 'listing draft', 'valuation fallback'],
+    used_by: ['photo scan', 'advisor', 'listing draft'],
     notes: 'Server key is rate-limited; users can bring their own key for scans, advisor, and listing drafts.',
-    recommended_action: 'Add OPENAI_API_KEY for shared scan, advisor, listing, and fallback valuation features.',
+    recommended_action: 'Add OPENAI_API_KEY for shared scan, advisor, and listing features.',
   },
   openrouter: {
     label: 'OpenRouter',
     configured: (env) => !!env.OPENROUTER_API_KEY,
     required_secrets: ['OPENROUTER_API_KEY'],
-    used_by: ['valuation fallback'],
-    notes: 'Cheap valuation fallback routed through the AI Gateway: a free model first, then cheap paid (DeepSeek), then gpt-4o-mini. Valuation only — public set metadata, no user data.',
-    recommended_action: 'Add OPENROUTER_API_KEY (and the AI Gateway) to enable the free-first, low-cost valuation fallback.',
+    used_by: ['scan', 'advisor', 'listing'],
+    notes: 'Free-first LLM provider routed through the AI Gateway: free models first, then cheap paid. Where each workload tries it is admin-tunable under LLM routing.',
+    recommended_action: 'Add OPENROUTER_API_KEY (and the AI Gateway) to enable the free-first, low-cost LLM route.',
   },
   omniroute: {
     label: 'OmniRoute',
@@ -241,36 +237,20 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     notes: 'Aggregated LEGO set review score (0-100) from the BrickInsights public API. No key required.',
     recommended_action: 'No action required; set BRICKINSIGHTS_ENABLED=0 to disable.',
   },
-  stockx: {
-    label: 'StockX (lowest ask)',
-    configured: (env) => !!env.FIRECRAWL_API_KEY?.trim() || !!env.FIRECRAWL_API_KEYS?.split(',').some((k) => k.trim()),
-    required_secrets: ['FIRECRAWL_API_KEY'],
-    used_by: ['StockX lowest-ask (scraped, corroborating new-condition signal)'],
-    notes: 'Rendered Firecrawl (enhanced proxy) scrape of StockX search for a set\'s lowest ask — a corroborating ceiling, never a sold comp. OFF by default (STOCKX_ENABLED=1 or the admin stockx flag); a slow ~30-45s call, so it runs only from the background cron.',
-    recommended_action: 'Validate via the admin StockX probe, then set STOCKX_ENABLED=1 (or flip the stockx flag) to start the enrichment cron.',
-  },
   firecrawl: {
     label: 'Firecrawl',
     configured: (env) => !!env.FIRECRAWL_API_KEY,
     required_secrets: ['FIRECRAWL_API_KEY'],
-    used_by: ['BrickEconomy valuation + forecasts', 'lego.com stock/retirement checks', 'eBay sold comps (structured extraction)', 'Brickset page enrichment'],
-    notes: 'Web-scraping engine (handles JS rendering + bot-protection). Now the BrickEconomy data source (replaces the paid API), plus lego.com stock, eBay sold comps, and Brickset enrichment. Metered in CREDITS: 1 per basic/product scrape, 5 per JSON LLM extract. Daily ceiling is env-tunable via FIRECRAWL_DAILY_CREDITS (default 2000/day).',
+    used_by: ['lego.com stock/retirement checks', 'Brickset page enrichment', 'store offers'],
+    notes: 'Web-scraping engine (handles JS rendering + bot-protection) for lego.com stock, Brickset enrichment, and store offers. Metered in CREDITS: 1 per basic/product scrape, 5 per JSON LLM extract. Daily ceiling is env-tunable via FIRECRAWL_DAILY_CREDITS (default 2000/day).',
     recommended_action: 'Add FIRECRAWL_API_KEY as a Worker/Actions secret. Raise FIRECRAWL_DAILY_CREDITS temporarily for the one-time catalog bootstrap, then reset.',
-  },
-  scrapingant: {
-    label: 'ScrapingAnt',
-    configured: (env) => !!env.SCRAPINGANT_API_KEY?.trim(),
-    required_secrets: ['SCRAPINGANT_API_KEY'],
-    used_by: ['BrickEconomy valuation + forecasts', 'Brickset page enrichment', 'lego.com stock/retirement checks'],
-    notes: 'First-choice raw-HTML lane for plain pages only. The client enforces browser=false, datacenter proxying, bounded timeouts, and a fail-closed 250-credit daily cap. It is never used for eBay.',
-    recommended_action: 'Add SCRAPINGANT_API_KEY as a Cloudflare Worker secret. Keep the source daily cap at or below 250 for the free 10k-credit monthly plan.',
   },
   brightdata: {
     label: 'Bright Data Web Unlocker',
     configured: (env) => !!env.BRIGHTDATA_API_TOKEN?.trim()
       || !!env.BRIGHTDATA_API_TOKENS?.split(',').some((token) => token.trim()),
     required_secrets: ['BRIGHTDATA_API_TOKENS'],
-    used_by: ['BrickEconomy valuation + forecasts', 'Brickset page enrichment', 'lego.com stock/retirement checks'],
+    used_by: ['Brickset page enrichment', 'lego.com stock/retirement checks'],
     notes: 'Primary raw-HTML lane with deterministic parsers. Tokens rotate by least monthly usage; D1 stores hashes only and caps each token at 4,900 calls/month. Firecrawl remains the rich fallback.',
     recommended_action: 'Configure BRIGHTDATA_API_TOKENS as comma-separated Worker secrets and optionally BRIGHTDATA_ZONE.',
   },
@@ -282,9 +262,6 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     notes: 'Aggregated eBay closed-auction comps (sealed/complete/loose + yearly sales volume) — the sold-comp replacement for eBay\'s retired Marketplace Insights API. VERIFIED-ONLY: signals flow solely from pricing_source_map rows proven by unique UPC (weekly bulk CSV) or cross-source price agreement (daily pricecharting-verify); unverified mappings stay quarantined. Collapses into the ebay_market family. The bulk CSV needs the Legendary tier (PRICECHARTING_PRO).',
     recommended_action: 'Add PRICECHARTING_TOKEN as a Worker secret; set PRICECHARTING_PRO=1 on the Legendary tier so the weekly bulk CSV refreshes the whole catalog in one download.',
   },
-  // pricesAPI.io was removed 2026-08 (key lapsed, provider 5xx); retail/stock
-  // truth now comes from the LEGO.com stock-refresh lane. Historical pa_* rows
-  // in set_market_ext remain readable as fading deal-signal history.
   amazon: {
     label: 'Amazon Creators API',
     configured: (env) => !!(env.AMAZON_CREATORS_PUBLIC_KEY && env.AMAZON_CREATORS_PRIVATE_KEY
@@ -317,17 +294,16 @@ function isWorkerCapacityIssue(error?: string | null): boolean {
 // A quota / rate-limit refusal, as opposed to a credential problem. Worth
 // distinguishing because the generic "refresh credentials" advice is actively
 // harmful here: rotating a throttled-but-healthy key throws away whatever
-// balance is left on it. Firecrawl (HTTP 429 per-minute ceiling), Gemini (free
-// tier 429) and UPCitemdb (EXCEED_LIMIT) all land in this bucket.
+// balance is left on it. Firecrawl (HTTP 429 per-minute ceiling) and Gemini
+// (free tier 429) land in this bucket.
 function isQuotaIssue(error?: string | null): boolean {
   return !!error && /(HTTP 429|EXCEED_LIMIT|rate limit|quota|too many requests|daily cap|credit ceiling)/i.test(error);
 }
 
 // A failure on the PROVIDER's side — 5xx, an unavailable upstream, or a page
 // that came back empty. There is nothing to fix locally, so the credential
-// advice is just as misleading here as it is for a quota refusal: Bright Data
-// (HTTP 502), pricesAPI (scraper unavailable HTTP 503) and StockX (empty/short
-// body) were all telling the admin to go rotate working keys.
+// advice is just as misleading here as it is for a quota refusal (e.g. Bright
+// Data HTTP 502 or an empty/short body).
 function isProviderOutage(error?: string | null): boolean {
   return !!error && /(HTTP 5\d\d|unavailable|bad gateway|service unavailable|gateway timeout|empty\/short body|empty body)/i.test(error);
 }

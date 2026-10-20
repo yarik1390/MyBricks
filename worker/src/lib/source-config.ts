@@ -25,14 +25,11 @@ export interface SourceTuning {
 
 export type SourceName =
   | 'bricklink' | 'ebay' | 'brickeconomy'
-  | 'pricecharting' | 'firecrawl' | 'scrapingant' | 'brightdata' | 'apify' | 'amazon' | 'stockx';
+  | 'pricecharting' | 'firecrawl' | 'brightdata' | 'amazon';
 
 export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
   bricklink:     { enabled: true,  weight: 1.0,  dailyCap: 4000, refreshDays: 14 },
-  // Master eBay switch: the sanctioned Browse basic-scope ASK lane runs under
-  // this flag. The *scraped* sold-comps lane (Firecrawl/Apify against eBay
-  // sold-search) carries its own separate compliance hold — see
-  // ebaySoldLaneAuthorized below — so enabling eBay here never reopens scraping.
+  // Master eBay switch for the Browse basic-scope ASK lane.
   ebay:          { enabled: true,  weight: 1.0,  dailyCap: 4000, refreshDays: 14 },
   brickeconomy:  { enabled: true,  weight: 1.0,  dailyCap: 80,   refreshDays: 14 },
   // Verified-mappings-only: signals flow solely through pricing_source_map rows
@@ -47,48 +44,17 @@ export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
   // and can never be re-activated. Residual pricing_signals rows are filtered
   // out at read time by RETIRED_PRICING_SOURCES in market-sources.ts.
   firecrawl:     { enabled: true,  weight: 1.0,  dailyCap: 2000, refreshDays: 14 },
-  // ScrapingAnt free plan: first-choice raw HTML for the three plain sources.
-  // browser=false + datacenter is enforced by the client; one request is one
-  // credit in live validation. 250/day stays below 10k/month.
-  scrapingant:   { enabled: true,  weight: 1.0,  dailyCap: 250,  refreshDays: 7 },
-  // Bright Data Web Unlocker: raw-HTML transport (primary lane) for BrickEconomy,
-  // Brickset, and LEGO stock. The daily cap counts one request per unlocker call;
+  // Bright Data Web Unlocker: raw-HTML transport (primary lane) for Brickset
+  // and LEGO stock. The daily cap counts one request per unlocker call;
   // the monthly safety ledger (brightdata_keys) is the real ceiling.
   brightdata:    { enabled: true,  weight: 1.0,  dailyCap: 300,  refreshDays: 7 },
-  // Alternate eBay sold-comps transport. It writes the existing eBay fields, so
-  // weight is operational metadata rather than a separate blend contribution.
-  apify:         { enabled: true,  weight: 1.0,  dailyCap: 30,   refreshDays: 30 },
   // Amazon Creators API retail offers (ephemeral KV only, never a valuation
   // input — weight is 0 by design and must stay 0 per Associates terms).
   amazon:        { enabled: true,  weight: 0,    dailyCap: 300,  refreshDays: 1 },
-  // StockX lowest-ask (Firecrawl). Low cap: slow rendered scrape,
-  // corroborating-only (an ASK is a ceiling, not a sold comp). Source-config is
-  // enabled so the `stockx` FEATURE FLAG (OFF by default) is the single
-  // activation gate; flip it in the admin console to start the cron.
-  stockx:        { enabled: true,  weight: 0.6,  dailyCap: 100,  refreshDays: 30 },
 };
 
 const SETTINGS_KEY = 'source_config';
 const MEMO_TTL_MS = 60_000;
-// Compliance hold: SCOPED TO THE SOLD-COMPS LANE ONLY. Runtime settings cannot
-// re-enable scraping eBay sold-search (Firecrawl enhanced/mobile-residential,
-// or the Apify actor) until provider/site authorization is documented and this
-// guard is removed in a reviewed release. The Browse basic-scope ASK lane is
-// sanctioned (documented public API, works on any keyset) and is governed by
-// plain source tuning (`ebay.enabled`) instead.
-function ebaySoldLaneAuthorized(env: Env): boolean {
-  // Deliberately unavailable in deployed configuration. The test-only escape
-  // hatch lets isolated job tests exercise parsers and persistence without
-  // weakening the production hold.
-  return env.ENVIRONMENT === 'test' && env.EBAY_SOURCE_AUTHORIZED_FOR_TESTS === '1';
-}
-
-/** Is the eBay *scraped* sold-comps lane allowed? Independent of ask tuning:
- *  false in production until the compliance hold above is lifted. */
-export function ebaySoldLaneEnabled(env: Env): boolean {
-  return ebaySoldLaneAuthorized(env);
-}
-
 let memo: Record<SourceName, SourceTuning> | null = null;
 let memoAt = 0;
 

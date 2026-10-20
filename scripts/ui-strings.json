@@ -691,12 +691,6 @@
     ]
   },
   {
-    "text": "Approved eBay sold comps",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
     "text": "Architect",
     "files": [
       "lib/kids-xp.js"
@@ -734,7 +728,7 @@
     ]
   },
   {
-    "text": "Asking data plus sold comps only when approved and reachable. No weak sold fallback.",
+    "text": "Asking data from current listings.",
     "files": [
       "views/me-admin-config.js"
     ]
@@ -1065,12 +1059,6 @@
     ]
   },
   {
-    "text": "BrickEconomy values",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
     "text": "BrickInsights ratings",
     "files": [
       "views/me-admin-config.js"
@@ -1211,7 +1199,7 @@
     ]
   },
   {
-    "text": "Bright Data Web Unlocker — raw page transport for BrickEconomy, Brickset, and LEGO stock.",
+    "text": "Bright Data Web Unlocker — raw page transport for Brickset and LEGO stock.",
     "files": [
       "views/me-admin-config.js"
     ]
@@ -1340,7 +1328,7 @@
     ]
   },
   {
-    "text": "Catalog coverage is measured against all catalog rows. Barcode coverage uses scannable retail sets where a UPC is expected. eBay sold coverage stays at zero when Marketplace Insights or sold-comps access is blocked.",
+    "text": "Catalog coverage is measured against all catalog rows. Barcode coverage uses scannable retail sets where a UPC is expected.",
     "files": [
       "views/me-admin.js"
     ]
@@ -1421,12 +1409,6 @@
     "text": "Check current price",
     "files": [
       "lib/amazon-affiliate.js"
-    ]
-  },
-  {
-    "text": "Check eBay sold-comps access under Overview → Pricing; do not fall back to active listings for sold value.",
-    "files": [
-      "views/me-admin.js"
     ]
   },
   {
@@ -3135,12 +3117,6 @@
     "text": "Faster sale after fees",
     "files": [
       "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "Feasibility probe — can Firecrawl reach StockX market data? Not a live valuation source yet.",
-    "files": [
-      "views/me-admin-config.js"
     ]
   },
   {
@@ -5508,13 +5484,6 @@
     ]
   },
   {
-    "text": "No weak sold fallback",
-    "files": [
-      "runtime-exact",
-      "views/me-admin.js"
-    ]
-  },
-  {
     "text": "None (loose parts)",
     "files": [
       "views/portfolio-detail.js"
@@ -6836,13 +6805,7 @@
     ]
   },
   {
-    "text": "Raw-HTML transport used first for BrickEconomy, Brickset, and LEGO stock scrapes; monthly token pool.",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
-    "text": "Re-prices a small batch of sets from current market sources.",
+    "text": "Raw-HTML transport used first for Brickset and LEGO stock scrapes; monthly token pool.",
     "files": [
       "views/me-admin-config.js"
     ]
@@ -7471,7 +7434,6 @@
   {
     "text": "Revalue prices",
     "files": [
-      "views/me-admin-config.js",
       "views/me-admin.js"
     ]
   },
@@ -7627,12 +7589,6 @@
     ]
   },
   {
-    "text": "Run eBay-sold scrape",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
     "text": "Run next slice if coverage remains",
     "files": [
       "views/me-admin.js"
@@ -7676,7 +7632,7 @@
     ]
   },
   {
-    "text": "Runs small protected slices against every configured and reachable provider. Blocked eBay sold comps stay unavailable instead of falling back to weak data.",
+    "text": "Runs small protected slices against every configured and reachable provider.",
     "files": [
       "views/me-admin.js"
     ]
@@ -7855,12 +7811,6 @@
     "text": "Scenario range based on the current fair value.",
     "files": [
       "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "Scrapes eBay sold comps now (Firecrawl).",
-    "files": [
-      "views/me-admin-config.js"
     ]
   },
   {
@@ -8202,18 +8152,6 @@
     ]
   },
   {
-    "text": "Sets with validated new/sealed sold comps.",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Sets with validated used sold comps.",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
     "text": "Sets you own more than one of are listed first.",
     "files": [
       "views/swaps.js"
@@ -8468,12 +8406,6 @@
     ]
   },
   {
-    "text": "Small batch",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
     "text": "Snackbar action failed",
     "files": [
       "utils.js"
@@ -8650,12 +8582,6 @@
     ]
   },
   {
-    "text": "Spends Firecrawl credits; runs synchronously and returns the result.",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
     "text": "Spends PriceCharting API quota (500/day cap); a daily 14:00 cron drains 150 sets on its own.",
     "files": [
       "views/me-admin-config.js"
@@ -8734,18 +8660,6 @@
     ]
   },
   {
-    "text": "StockX (probe)",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "StockX lowest ask",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
     "text": "Stop auto-run",
     "files": [
       "views/me-admin.js"
@@ -8780,6 +8694,12 @@
     "files": [
       "components/copies.js",
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Stored historical values and forecasts; no longer refreshed.",
+    "files": [
+      "views/me-admin-config.js"
     ]
   },
   {
@@ -9306,7 +9226,7 @@
     ]
   },
   {
-    "text": "To run one job on its own — catalog imports, PriceCharting bulk, or the eBay sold-comps scrape — use its",
+    "text": "To run one job on its own — catalog imports or PriceCharting bulk — use its",
     "files": [
       "views/me-admin.js"
     ]
@@ -9470,12 +9390,6 @@
     ]
   },
   {
-    "text": "Two gates: this switch controls the eBay",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
     "text": "Two or more independent families of fresh sold data agree within a tight band.",
     "files": [
       "methodology.html"
@@ -9601,12 +9515,6 @@
   },
   {
     "text": "Up to ~60s for 10 sets",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
-    "text": "Up to ~60s for 5 sets",
     "files": [
       "views/me-admin-config.js"
     ]
@@ -9754,12 +9662,6 @@
     ]
   },
   {
-    "text": "Useful historical and forecast signal when reachable.",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
     "text": "User ID",
     "files": [
       "views/me-admin.js"
@@ -9784,12 +9686,6 @@
     ]
   },
   {
-    "text": "Uses the current daily source budgets.",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
     "text": "Using Cloud AI for scanning and the advisor.",
     "files": [
       "views/me-integrations.js"
@@ -9805,12 +9701,6 @@
     "text": "Valuation blend",
     "files": [
       "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Valuation sources",
-    "files": [
-      "views/me-admin-config.js"
     ]
   },
   {
@@ -11816,21 +11706,9 @@
     ]
   },
   {
-    "text": "eBay new sold",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
     "text": "eBay sold",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "eBay sold comps",
-    "files": [
-      "views/me-admin-config.js"
     ]
   },
   {
@@ -11843,12 +11721,6 @@
     "text": "eBay sold used",
     "files": [
       "views/portfolio-detail-market.js"
-    ]
-  },
-  {
-    "text": "eBay used sold",
-    "files": [
-      "views/me-admin.js"
     ]
   },
   {
@@ -11891,18 +11763,6 @@
     "text": "is a grab",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "lane only. The scraped",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "lane stays held pending provider authorization regardless of this setting.",
-    "files": [
-      "views/me-admin.js"
     ]
   },
   {
@@ -12083,25 +11943,6 @@
     "text": "skipped —",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "sold comps available",
-    "files": [
-      "runtime-exact"
-    ]
-  },
-  {
-    "text": "sold comps blocked",
-    "files": [
-      "runtime-exact"
-    ]
-  },
-  {
-    "text": "sold comps not populated",
-    "files": [
-      "runtime-exact",
-      "views/me-admin.js"
     ]
   },
   {

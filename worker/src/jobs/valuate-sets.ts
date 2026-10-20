@@ -1,34 +1,15 @@
-import OpenAI from 'openai';
 import type { Env } from '../types';
 import { fetchSetPricing, fetchSetPricingDetailed, fetchSetStockAsk, fetchUsedPricing } from '../lib/bricklink';
 import type { BrickLinkStockAsk, BrickLinkThinSold } from '../lib/bricklink';
-import { ebaySoldCompsEnabled } from '../lib/pricing-flags';
-import { callGeminiValuation } from '../lib/gemini';
-import { MODELS, getOpenRouterPools, openAIServerBaseURL, gatewayHeaders, gatewayMetadataHeader, openRouterBaseURL } from '../lib/llm';
-import {
-  buildEbayAskUpdate,
-  buildEbaySoldUpdate,
-  ebaySoldNewValue,
-  fetchEbayActiveListings,
-  fetchEbaySoldPrices,
-  isEbayAccessError,
-  type EbaySoldPrices,
-} from '../lib/ebay';
+import { buildEbayAskUpdate, fetchEbayActiveListings, isEbayAccessError } from '../lib/ebay';
 import { recomputeBlendedValues } from '../lib/market-sources';
-import { beDetailsFromRow } from '../lib/brickeconomy-firecrawl';
+import { beDetailsFromRow } from '../lib/brickeconomy-stored';
 import { valuationExpiryModifier, isPlausibleMarketValue, independentRetailAnchor, formulaValuation, plausibleAskValue } from '../lib/valuation';
 import { computeRetirementRisk } from '../lib/retirement-risk';
 import { runValuateMinifigs } from './valuate-minifigs';
 import { sourceEnabled } from '../lib/source-config';
 import { discoveryWantsUsed, selectDueSets, blBackedOffAt, type ValuationQuotaGrants } from './valuate-select';
-import {
-  clearIntegrationBlock,
-  isIntegrationBlocked,
-  recordIntegrationHealth,
-  setIntegrationBlock,
-  type IntegrationName,
-} from '../lib/integration-health';
-import { createAiUsageAccumulator, flushAiUsage, getAiSpendStatus } from '../lib/ai-usage';
+import { recordIntegrationHealth, type IntegrationName } from '../lib/integration-health';
 
 export interface ValuateSetsOptions {
   scope?: 'owned' | 'all';
@@ -63,24 +44,15 @@ export interface ValuateSetsOptions {
   conflictTiebreak?: boolean;
   /**
    * BrickEconomy-replacement discovery: fetch a first BrickLink guide for sets
-   * whose only market value is BrickEconomy and that BrickLink has never been
-   * asked about, most valuable first. Builds licensed coverage before the
-   * scraped BrickEconomy source is phased out.
+   * whose only market value is a stored BrickEconomy figure and that BrickLink
+   * has never been asked about, most valuable first.
    */
   blDiscovery?: boolean;
   minValue?: number;
   includeFresh?: boolean;
   includeSupplemental?: boolean;
   includeEbay?: boolean;
-  /**
-   * Whether to attempt eBay Marketplace Insights sold comps (restricted
-   * scope). Defaults to includeEbay. Set false to harvest only the
-   * basic-scope Browse "ask" signal without burning calls on an
-   * unapproved sold-comps keyset or tripping the shared eBay breaker.
-   */
-  includeEbaySold?: boolean;
   includeMinifigs?: boolean;
-  includeAiFallback?: boolean;
   sourceRetries?: number;
   sourceTimeoutMs?: number;
   /**
@@ -112,20 +84,12 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     ebay: { ok: 0, fail: 0 },
     bricklink: { ok: 0, fail: 0 },
     brickeconomy: { ok: 0, fail: 0 },
-    // Gemini is tracked separately via fetchTracked inside callGeminiValuation;
-    // the cron's OpenAI fallback was previously untracked — record it here so
-    // its server-key usage shows up in the admin integration-health panel.
-    openai: { ok: 0, fail: 0 },
-    openrouter: { ok: 0, fail: 0 },
   };
   const tallyOk = (s: IntegrationName) => { health[s].ok++; };
   const tallyFail = (s: IntegrationName, e: unknown) => {
     health[s].fail++;
     health[s].lastError = (e as Error)?.message || String(e);
   };
-  // Per-run AI usage/cost accumulator (server-key calls only); flushed once at the
-  // end into the daily ai_usage ledger that powers the admin panel + spend alerts.
-  const aiUsage = createAiUsageAccumulator();
   const scope = options.scope ?? 'owned';
   const sourceOptions = {
     recordHealth: false,
@@ -140,15 +104,10 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   const bricklinkConfigured = bricklinkEnabled && !!env.BRICKLINK_CONSUMER_KEY;
   const includeEbay = options.includeEbay === true && await sourceEnabled(env, 'ebay')
     && !!env.EBAY_APP_ID && !!env.EBAY_CLIENT_SECRET;
-  // Sold comps need the restricted Marketplace Insights scope; ask-only
-  // callers (the recurring cron) skip them so a non-approved keyset never
-  // burns calls or trips the breaker. Defaults to includeEbay (back-compat).
-  const includeEbaySold = (options.includeEbaySold ?? includeEbay) && ebaySoldCompsEnabled(env);
-  const includeAiFallback = options.includeAiFallback !== false;
   const { results, limit, grants } = await selectDueSets(env, {
     scope, options, includeSupplemental,
     includeBrickLink: bricklinkConfigured,
-    includeEbay, includeEbaySold, includeAiFallback,
+    includeEbay,
   });
   const quotaRemaining: ValuationQuotaGrants = { ...grants };
   const takeQuota = (service: keyof ValuationQuotaGrants, units = 1): boolean => {
@@ -157,119 +116,9 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     return true;
   };
 
-  const openai = env.OPENAI_API_KEY
-    ? new OpenAI({
-        apiKey: env.OPENAI_API_KEY,
-        // Server-key cron: route through Cloudflare AI Gateway when configured.
-        baseURL: openAIServerBaseURL(env),
-        defaultHeaders: { ...gatewayHeaders(env), ...gatewayMetadataHeader({ workload: 'valuation-cron' }) },
-      })
-    : null;
-  // OpenRouter (cheap) via the gateway's OpenRouter provider path — the paid
-  // valuation fallback: a free model first, then cheap paid (the models[] chain
-  // below). Valuation only (public set metadata, no user data). Falls back to
-  // direct OpenAI (gpt-4o-mini) when no OpenRouter key is configured.
-  const openrouter = env.OPENROUTER_API_KEY
-    ? new OpenAI({ apiKey: env.OPENROUTER_API_KEY, baseURL: openRouterBaseURL(env), defaultHeaders: { ...gatewayHeaders(env), ...gatewayMetadataHeader({ workload: 'valuation-cron' }) } })
-    : null;
-  // Parse a JSON valuation out of an AI completion (tolerates markdown fences);
-  // returns null on empty/unparseable/missing current_value.
-  const parseAiVals = (text: string | null | undefined) => {
-    if (!text) return null;
-    try {
-      const v = JSON.parse(text.replace(/```json?\n?|```/g, '').trim()) as {
-        retail_price?: number; current_value?: number; forecast_2y?: number; forecast_5y?: number;
-      };
-      return typeof v.current_value === 'number' ? v : null;
-    } catch { return null; }
-  };
-  const aiMessages = (s: { name: string; theme: string | null; year: number; pieces: number; minifigs: number }) => [
-    { role: 'system' as const, content: 'You are a LEGO market analyst. Return JSON only: { "retail_price": number, "current_value": number, "forecast_2y": number, "forecast_5y": number, "retired": boolean }' },
-    { role: 'user' as const, content: `Set: ${s.name}. Theme: ${s.theme || 'Unknown'}. Year: ${s.year}. Pieces: ${s.pieces}. Minifigs: ${s.minifigs}. Estimate market values in USD.` },
-  ];
-  // Cheap AI valuation. OpenRouter path: a pinned free model first, then escalate
-  // to cheap paid (DeepSeek) on error/empty/unparseable — a 200-with-empty does
-  // NOT trigger OpenRouter's own fallback, so we escalate app-side. Otherwise:
-  // direct OpenAI (gpt-4o-mini). Tallies under the actual provider for the panel.
-  const aiValuate = async (s: { set_num: string; name: string; theme: string | null; year: number; pieces: number; minifigs: number }) => {
-    const ask = (client: OpenAI, model: string) => client.chat.completions.create({
-      // 600 (not 200) gives the pinned reasoning free model headroom so it
-      // emits complete JSON instead of truncating -> fewer paid escalations.
-      model, max_tokens: 600, response_format: { type: 'json_object' }, messages: aiMessages(s),
-    });
-    if (openrouter) {
-      // Try each free model in order (live-validated pool from the daily
-      // model-refresh cron, curated constants as fallback); fall through on
-      // error/empty/unparseable so a single churned/unavailable free model
-      // never forces a paid call.
-      const { text: freePool } = await getOpenRouterPools(env);
-      for (const model of freePool) {
-        if (!takeQuota('openrouter')) break;
-        try {
-          const completion = await ask(openrouter, model);
-          aiUsage.record('openrouter', model, completion.usage);
-          const v = parseAiVals(completion.choices[0]?.message?.content);
-          if (v) { tallyOk('openrouter'); return v; }
-          console.warn(`[valuate] ${s.set_num}: OpenRouter free model ${model} returned no usable JSON — trying next`);
-        } catch (e) {
-          console.warn(`[valuate] ${s.set_num}: OpenRouter free model ${model} failed (${(e as Error).message}) — trying next`);
-        }
-      }
-      // Every free model missed — escalate to the cheap paid backstop when its
-      // separately reserved call unit remains.
-      if (!takeQuota('openrouter')) return null;
-      try {
-        const completion = await ask(openrouter, MODELS.openrouterPaid);
-        aiUsage.record('openrouter', MODELS.openrouterPaid, completion.usage);
-        const v = parseAiVals(completion.choices[0]?.message?.content);
-        tallyOk('openrouter');
-        return v;
-      } catch (e) { tallyFail('openrouter', e); return null; }
-    }
-    if (openai && takeQuota('openai')) {
-      try {
-        const completion = await ask(openai, MODELS.openaiFallback);
-        aiUsage.record('openai', MODELS.openaiFallback, completion.usage);
-        const v = parseAiVals(completion.choices[0]?.message?.content);
-        tallyOk('openai');
-        return v;
-      } catch (e) { tallyFail('openai', e); return null; }
-    }
-    return null;
-  };
-  let updated = 0, market = 0, ai = 0;
-  // Circuit breaker: honor a persisted block from a previous run so each batch
-  // doesn't re-probe an access-denied eBay keyset. Expires automatically.
-  let ebayBlocked = includeEbay ? await isIntegrationBlocked(env, 'ebay') : false;
-  let ebayBlockPersisted = ebayBlocked;
-  let ebayBlockCleared = false;
-  // Browse API (basic scope) access tracked separately from the Marketplace
-  // Insights block — run-local only, since most keysets have basic scope.
+  let updated = 0, market = 0;
+  // Browse API (basic scope) access is tracked run-locally.
   let browseDenied = false;
-
-  const markEbayBlocked = async () => {
-    ebayBlocked = true;
-    if (!ebayBlockPersisted) {
-      ebayBlockPersisted = true;
-      await setIntegrationBlock(env, 'ebay', 6);
-    }
-  };
-
-  const tallyEbayResult = async (prices: EbaySoldPrices | null) => {
-    if (!prices || prices.status === 'unconfigured') return;
-    if (prices.status === 'error' || prices.status === 'unauthorized') {
-      tallyFail('ebay', prices.error || prices.status);
-      if (prices.status === 'unauthorized' || isEbayAccessError(prices.error)) {
-        await markEbayBlocked();
-      }
-      return;
-    }
-    tallyOk('ebay');
-    if (!ebayBlockCleared) {
-      ebayBlockCleared = true;
-      await clearIntegrationBlock(env, 'ebay');
-    }
-  };
 
   let processed = 0;
   // See ValuateSetsOptions.budgetMs — one hanging set must not be able to stall
@@ -286,7 +135,6 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     try {
     let pricing: { current_value: number } | null = null;
     let usedPricing: { used_value: number; lot_count?: number; min_price?: number | null; max_price?: number | null } | null = null;
-    let ebayPrices: EbaySoldPrices | null = null;
     let valMethod = 'market';
     let beRejected = false;
 
@@ -338,24 +186,10 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       if (usedPricing) tallyOk('bricklink');
       return usedPricing;
     };
-    let ebaySoldAttempted = false;
-    const loadEbaySold = async (): Promise<typeof ebayPrices> => {
-      if (ebaySoldAttempted || ebayBlocked || !takeQuota('ebay', 2)) return ebayPrices;
-      ebaySoldAttempted = true;
-      ebayPrices = await fetchEbaySoldPrices(set.set_num, set.name, env, sourceOptions)
-        .catch(async (err) => {
-          tallyFail('ebay', err);
-          if (isEbayAccessError((err as Error)?.message || String(err))) await markEbayBlocked();
-          return null;
-        });
-      await tallyEbayResult(ebayPrices);
-      return ebayPrices;
-    };
 
-    // BrickEconomy values come from the be_* staging columns populated by the
-    // brickeconomy-enrich Firecrawl cron — no hot-path API call (the ~$1,000/mo
-    // API is gone). beDetailsFromRow also strips a fabricated retail echo
-    // (retail==value) so a scraped value can never anchor itself.
+    // Stored BrickEconomy values (be_* columns) — read only, never fetched.
+    // beDetailsFromRow strips a fabricated retail echo (retail==value) so a
+    // stored value can never anchor itself.
     const beDetails = brickeconomyEnabled ? beDetailsFromRow(set as unknown as Record<string, unknown>) : null;
     if (beDetails) {
       tallyOk('brickeconomy');
@@ -403,21 +237,18 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       } else if (!usedPricing && wantUsed) usedPricing = await loadBrickLinkUsed();
     }
 
-    if (includeEbay && includeEbaySold) ebayPrices = await loadEbaySold();
-
     if (!pricing) {
-      // BrickEconomy not configured or returned no data — use BrickLink as primary
+      // No usable stored BrickEconomy value — use BrickLink as primary
       // (still honoring the no-data backoff + retired-only used-guide savers).
       if (bricklinkConfigured && !blBackedOff) {
         if (!blPricing) blPricing = await loadBrickLinkNew();
         if (!usedPricing && wantUsed) usedPricing = await loadBrickLinkUsed();
       }
-      if (includeEbay && includeEbaySold && ebayPrices === null) ebayPrices = await loadEbaySold();
       pricing = blPricing;
       valMethod = 'market';
     }
 
-    // Write used + eBay + BrickLink new prices (independent of main valuation path)
+    // Write used + eBay ask + BrickLink new prices (independent of main valuation path)
     const supplementStmts: D1PreparedStatement[] = [];
     if (usedPricing) {
       supplementStmts.push(
@@ -425,12 +256,9 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
           .bind(usedPricing.used_value, set.set_num)
       );
     }
-    const ebayStmt = buildEbaySoldUpdate(env.DB, set.set_num, ebayPrices);
-    if (ebayStmt) supplementStmts.push(ebayStmt);
     // Supply signal: weekly refresh of active-listing ask price + count for
     // prioritized (owned/wishlisted) sets only. The Browse API needs only the
-    // basic OAuth scope, so a Marketplace Insights block must not starve it —
-    // it runs regardless of ebayBlocked, with its own run-local access flag.
+    // basic OAuth scope.
     if (includeEbay && !browseDenied && set.ask_stale && takeQuota('ebay')) {
       const listings = await fetchEbayActiveListings(set.set_num, set.name, env, sourceOptions)
         .catch((err) => { tallyFail('ebay', err); return null; });
@@ -492,10 +320,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
           .bind(usedPricing?.lot_count ?? null, usedPricing?.min_price ?? null, usedPricing?.max_price ?? null, set.set_num)
       );
     }
-    // NB: be_cached_at / be_growth_12m are owned by the brickeconomy-enrich
-    // Firecrawl cron — valuate-sets only READS the be_* columns, never stamps
-    // be_cached_at (doing so would make the enrich cron treat the set as freshly
-    // scraped and skip it).
+    // NB: valuate-sets only READS the be_* columns and never stamps be_cached_at.
     if (supplementStmts.length) await env.DB.batch(supplementStmts);
 
     if (!pricing && beRejected) {
@@ -527,8 +352,6 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         if (beDetails.forecast_value_new_2_years !== null) {
           forecast_2y = beDetails.forecast_value_new_2_years;
         }
-        // Real 5-year forecast straight from the BrickEconomy scrape — the old
-        // API never exposed it, so this used to be a growth-formula estimate.
         if (beDetails.forecast_value_new_5_years !== null) {
           forecast_5y = beDetails.forecast_value_new_5_years;
         }
@@ -537,7 +360,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
         }
       }
 
-      // Backfill-only: a scraped BE retail may fill a missing RRP but must never
+      // Backfill-only: a stored BE retail may fill a missing RRP but must never
       // OVERWRITE an existing one — BE-sourced retail overwriting real retail is
       // what poisoned the plausibility anchor for rare/promo sets.
       await env.DB.prepare(`
@@ -558,107 +381,13 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       continue;
     }
 
-    const ebayPrice = ebaySoldNewValue(ebayPrices);
-    if (ebayPrice !== null && ebayPrice !== undefined) {
-      const yr = set.retired ? 0.15 : 0.10;
-      const forecast_2y = Math.round(ebayPrice * Math.pow(1 + yr, 2) * 100) / 100;
-      const forecast_5y = Math.round(ebayPrice * Math.pow(1 + yr, 5) * 100) / 100;
-      await env.DB.prepare(`
-        UPDATE lego_sets SET
-          current_value=?, forecast_2y=?, forecast_5y=?,
-          valuation_method='ebay_sold',
-          valuation_expires_at=datetime('now', ?),
-          cached_at=datetime('now')
-        WHERE set_num=?
-      `).bind(ebayPrice, forecast_2y, forecast_5y, valuationExpiryModifier('ebay_sold'), set.set_num).run();
-      updated++;
-      processed++;
-      if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
-      continue;
-    }
-
-    if (!includeAiFallback) {
-      await env.DB.prepare(`
-        UPDATE lego_sets SET
-          valuation_expires_at=datetime('now', '+1 day'),
-          cached_at=datetime('now')
-        WHERE set_num=?
-      `).bind(set.set_num).run();
-      processed++;
-      if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
-      continue;
-    }
-
-    // Fall back to Gemini (cheaper) then GPT-4o-mini
-    if (env.GEMINI_API_KEY && takeQuota('gemini')) {
-      try {
-        const gemVals = await callGeminiValuation(set.set_num as string, set.name, env.GEMINI_API_KEY, env, { routeThroughGateway: true });
-        // Count the completed server Gemini call (free tier → $0 billable cost).
-        aiUsage.record('gemini', MODELS.valuation, null);
-        if (gemVals?.current_value) {
-          if (isPlausibleMarketValue(gemVals.current_value, { retailPrice: independentRetailAnchor(set), pieces: set.pieces, corroborators: [plausibleAskValue(set as unknown as Record<string, unknown>), blPricing?.current_value] })) {
-            await env.DB.prepare(`
-              UPDATE lego_sets SET
-                current_value=?, used_value=COALESCE(?, used_value),
-                valuation_method='ai',
-                valuation_expires_at=datetime('now', ?),
-                cached_at=datetime('now')
-              WHERE set_num=?
-            `).bind(gemVals.current_value, gemVals.used_value ?? null,
-                    valuationExpiryModifier('ai'), set.set_num).run();
-            updated++; ai++;
-          } else {
-            console.warn(`[valuate] ${set.set_num}: rejected implausible AI (Gemini) value $${gemVals.current_value} (retail $${set.retail_price ?? '?'})`);
-          }
-          processed++;
-          if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
-          continue;
-        }
-      } catch (e) {
-        console.warn(`[valuate] Gemini failed for ${set.set_num}:`, (e as Error).message);
-      }
-    }
-    // Cheap AI fallback: OpenRouter free model -> escalate to cheap paid, else
-    // direct OpenAI (handled inside aiValuate, which also records health).
-    const vals = await aiValuate(set);
-    if (!vals || typeof vals.current_value !== 'number') {
-      processed++;
-      if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
-      continue;
-    }
-    // Sanity-check the AI value against its own retail estimate to reject hallucinations.
-    if (vals.retail_price && vals.current_value) {
-      const pieceCount = Number(set.pieces ?? 0);
-      const maxCapMultiplier = pieceCount > 500 ? 8 : 15;
-      if (vals.current_value < 0.3 * vals.retail_price || vals.current_value > maxCapMultiplier * vals.retail_price) {
-        console.warn(`[valuate] ${set.set_num}: AI value $${vals.current_value} out of sanity range vs retail $${vals.retail_price} (limit ${maxCapMultiplier}x, pieces: ${pieceCount}) — skipped`);
-        processed++;
-        if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
-        continue;
-      }
-    }
-    // Catalog-retail plausibility: catches AI hallucinations even when the AI's
-    // own retail estimate is also off (the check above only compares to that).
-    if (!isPlausibleMarketValue(vals.current_value, { retailPrice: independentRetailAnchor(set), pieces: set.pieces, corroborators: [plausibleAskValue(set as unknown as Record<string, unknown>), blPricing?.current_value] })) {
-      console.warn(`[valuate] ${set.set_num}: rejected implausible AI value $${vals.current_value} vs catalog retail $${set.retail_price ?? '?'} — skipped`);
-      processed++;
-      if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
-      continue;
-    }
+    // No market value: retry tomorrow, keeping the current value.
     await env.DB.prepare(`
       UPDATE lego_sets SET
-        -- An AI retail guess only fills a gap; it never replaces a real
-        -- figure, and magazine gifts have no retail to guess.
-        retail_price=CASE WHEN LOWER(COALESCE(subtheme, '')) = 'magazine gift' THEN retail_price
-                          ELSE COALESCE(retail_price, ?) END,
-        current_value=?, forecast_2y=?, forecast_5y=?,
-        valuation_method='ai',
-        valuation_expires_at=datetime('now', ?),
+        valuation_expires_at=datetime('now', '+1 day'),
         cached_at=datetime('now')
       WHERE set_num=?
-    `).bind(vals.retail_price ?? null, vals.current_value ?? null, vals.forecast_2y ?? null, vals.forecast_5y ?? null,
-            valuationExpiryModifier('ai'), set.set_num).run();
-    updated++; ai++;
+    `).bind(set.set_num).run();
     processed++;
     if (options.onProgress) await options.onProgress({ processed, updated, total: results.length, currentSet: set.set_num });
     } catch (e) {
@@ -688,31 +417,20 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     await recordIntegrationHealth(env, service as IntegrationName, t);
   }
 
-  // Persist this run's server-key AI usage into the daily ledger, then emit an
-  // anomaly log if today's spend crossed the warn/over threshold (the weekly
-  // Pricing Sentinel + admin AI-usage panel surface the same status).
-  await flushAiUsage(env, aiUsage.entries());
-  if (aiUsage.entries().length) {
-    const spend = await getAiSpendStatus(env);
-    if (spend.status !== 'ok') {
-      console.warn(`[ai-usage] DAILY AI SPEND ${spend.status.toUpperCase()}: $${spend.total_usd.toFixed(4)} of $${spend.budget_usd}/day (${spend.pct}%) — ${spend.paid_calls} paid call(s) today`);
-    }
-  }
-
   // When the budget cut the run short, report what was ACTUALLY processed —
   // results.length would claim the skipped tail was done. Unchanged when no
   // budget is set, so existing callers/tests see the same numbers as before.
   return {
     processed: budgetExhausted ? processed : results.length,
-    updated, market, ai, scope, limit,
+    updated, market, scope, limit,
     ...(budgetExhausted ? { budget_exhausted: true } : {}),
   };
 }
 
-// runEbayBackfill / runEbayAskBackfill / runValuateMinifigs live in their own
-// modules now; re-exported here so existing importers (index.ts, admin.ts, tests)
-// keep importing them from ./valuate-sets unchanged.
-export { runEbayBackfill, runEbayAskBackfill } from './ebay-backfill';
+// runEbayAskBackfill / runValuateMinifigs live in their own modules now;
+// re-exported here so existing importers (index.ts, admin.ts, tests) keep
+// importing them from ./valuate-sets unchanged.
+export { runEbayAskBackfill } from './ebay-backfill';
 export { runValuateMinifigs };
 
 // Batch-update retirement risk scores for sets due for refresh (null or >7 days old).

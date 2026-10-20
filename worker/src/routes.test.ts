@@ -2,7 +2,6 @@
 import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import app from './index';
-import { runEbaySoldScrape } from './jobs/ebay-sold-scrape';
 import { USER_SCOPED_TABLES } from './routes/me';
 import { recomputeBlendedValues } from './lib/market-sources';
 import { applyTestTables } from './test-schema';
@@ -714,18 +713,6 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       await db.prepare(`DROP TABLE firecrawl_keys`).run();
     });
 
-    it('ebay-sold-scrape admin job is dispatchable (skips cleanly when no scraper is configured)', async () => {
-      delete (env as any).FIRECRAWL_API_KEY;
-      const res = await app.fetch(new Request('http://localhost/api/admin/jobs/ebay-sold-scrape?limit=3', {
-        method: 'POST', headers: auth(adminToken),
-      }), env);
-      expect(res.status).toBe(200);
-      const data = await res.json<any>();
-      expect(data.ok).toBe(true);
-      expect(data.job).toBe('ebay-sold-scrape');
-      expect(String(data.skipped || '')).toMatch(/ebay disabled in source tuning|sold-comps lane held|firecrawl not configured/i);
-    });
-
     it('per-service test probe: d1 passes and an unknown service 400s', async () => {
       const good = await app.fetch(new Request('http://localhost/api/admin/test/d1', {
         method: 'POST', headers: auth(adminToken),
@@ -741,13 +728,11 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       }), env);
       expect(bad.status).toBe(400);
 
-      // Legacy console id 'stockx' aliases to the renamed 'stockx_firecrawl' probe.
-      const aliased = await app.fetch(new Request('http://localhost/api/admin/test/stockx', {
+      // The retired StockX probe is gone.
+      const retired = await app.fetch(new Request('http://localhost/api/admin/test/stockx', {
         method: 'POST', headers: auth(adminToken),
       }), env);
-      expect(aliased.status).toBe(200);
-      const ad = await aliased.json<any>();
-      expect(ad.service).toBe('stockx_firecrawl');
+      expect(retired.status).toBe(400);
     });
   });
 

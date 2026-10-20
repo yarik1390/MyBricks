@@ -1,102 +1,19 @@
 import type { Env } from '../types';
-import { ebaySoldCompsEnabled } from '../lib/pricing-flags';
 import {
   buildEbayAskUpdate,
-  buildEbaySoldUpdate,
-  ebaySoldHasValue,
   fetchEbayActiveListings,
-  fetchEbaySoldPrices,
   isEbayAccessError,
 } from '../lib/ebay';
 import { reserveQuota } from '../lib/api-quota';
 import { recomputeBlendedValues } from '../lib/market-sources';
-import { isIntegrationBlocked, recordIntegrationHealth, setIntegrationBlock } from '../lib/integration-health';
+import { recordIntegrationHealth } from '../lib/integration-health';
 import { sourceEnabled } from '../lib/source-config';
-
-export async function runEbayBackfill(env: Env, options: { limit?: number } = {}) {
-  if (!(await sourceEnabled(env, 'ebay'))) {
-    return { processed: 0, updated: 0, limit: 0, skipped: 'ebay disabled in source tuning' };
-  }
-  // eBay sold comps are disabled unless EBAY_SOLD_COMPS_ENABLED is set.
-  if (!ebaySoldCompsEnabled(env)) {
-    return { processed: 0, updated: 0, limit: 0, skipped: 'ebay sold comps disabled' };
-  }
-  const requestedLimit = Number(options.limit);
-  const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
-    ? Math.min(Math.floor(requestedLimit), 2)
-    : 1;
-  // Circuit breaker: skip the whole backfill while a previous access-denied
-  // block is still active.
-  if (await isIntegrationBlocked(env, 'ebay')) {
-    return { processed: 0, updated: 0, limit, skipped: 'ebay access blocked' };
-  }
-  const { results } = await env.DB.prepare(`
-    SELECT ls.set_num, ls.name
-    FROM lego_sets ls
-    WHERE (
-      (ls.ebay_new_value IS NULL AND (ls.ebay_new_cached_at IS NULL OR ls.ebay_new_cached_at < datetime('now', '-7 days')))
-      OR (ls.ebay_used_value IS NULL AND (ls.ebay_used_cached_at IS NULL OR ls.ebay_used_cached_at < datetime('now', '-7 days')))
-    )
-    ORDER BY
-      CASE WHEN EXISTS (
-        SELECT 1 FROM user_collection uc
-        WHERE uc.set_num = ls.set_num AND uc.deleted_at IS NULL
-      ) OR EXISTS (
-        SELECT 1 FROM user_wishlist uw
-        WHERE uw.set_num = ls.set_num
-      ) THEN 0 ELSE 1 END,
-      COALESCE(ls.ebay_new_cached_at, '2000-01-01') ASC,
-      COALESCE(ls.ebay_used_cached_at, '2000-01-01') ASC,
-      ls.set_num ASC
-    LIMIT ?
-  `).bind(limit).all<{ set_num: string; name: string }>();
-
-  // Marketplace Insights performs two condition calls (new + used) per set.
-  // Only complete two-unit grants may start an item; any odd remainder stays
-  // conservatively unused rather than making an unaccounted condition call.
-  const grants = await reserveQuota(env, { ebay: results.length * 2 });
-  const grantedCount = Math.min(results.length, Math.floor((grants.ebay ?? 0) / 2));
-  const grantedResults = results.slice(0, grantedCount);
-
-  let updated = 0;
-  let processed = 0;
-  const health = { ok: 0, fail: 0, lastError: undefined as string | undefined };
-  for (const set of grantedResults) {
-    processed++;
-    const prices = await fetchEbaySoldPrices(set.set_num, set.name, env, { recordHealth: false })
-      .catch((err) => {
-        health.fail++;
-        health.lastError = (err as Error)?.message || String(err);
-        return null;
-      });
-    if (prices?.status === 'error' || prices?.status === 'unauthorized') {
-      health.fail++;
-      health.lastError = prices.error || prices.status;
-    } else if (prices?.status && prices.status !== 'unconfigured') {
-      health.ok++;
-    }
-    const stmt = buildEbaySoldUpdate(env.DB, set.set_num, prices);
-    if (stmt) {
-      await stmt.run();
-      if (ebaySoldHasValue(prices)) updated++;
-    }
-    if (prices?.status === 'unauthorized' || isEbayAccessError(prices?.error)) {
-      await setIntegrationBlock(env, 'ebay', 6);
-      break;
-    }
-  }
-
-  await recordIntegrationHealth(env, 'ebay', health);
-
-  return { processed, updated, limit };
-}
 
 // Browse-API ASK backfill: refresh the eBay active-listing ask price + count for
 // sets whose ask is missing/stale, prioritized owned/wishlist then retired (where
-// secondary-market value lives) then oldest. Basic OAuth scope only — fully
-// independent of the disabled sold-comps path — so it grows the free ask signal
-// that feeds the blended value. Bounded by `limit`; the eBay daily quota is wide
-// open. Fails open per set and honors a Browse access denial by stopping early.
+// secondary-market value lives) then oldest. Basic OAuth scope only, so it
+// grows the free ask signal that feeds the blended value. Bounded by `limit`;
+// the eBay daily quota is wide open. Fails open per set and honors a Browse access denial by stopping early.
 export async function runEbayAskBackfill(env: Env, options: { limit?: number } = {}) {
   if (!(await sourceEnabled(env, 'ebay'))) {
     return { processed: 0, updated: 0, limit: 0, skipped: 'ebay disabled in source tuning' };

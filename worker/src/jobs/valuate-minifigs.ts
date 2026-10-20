@@ -1,26 +1,23 @@
 import type { Env } from '../types';
 import { fetchMinifigPricing } from '../lib/bricklink';
-import { firecrawlEnabled } from '../lib/pricing-flags';
-import { fetchMinifigEbaySoldViaFirecrawl } from '../lib/ebay-firecrawl';
 import { normalizeMinifigName, namePrefixes, matchBlCandidates } from '../lib/bricklink-minifigs';
 import type { BlNameCandidate } from '../lib/bricklink-minifigs';
-import { computeMinifigRarity, plausibleEbayOnlyFigValue } from '../lib/minifig-rarity';
+import { computeMinifigRarity } from '../lib/minifig-rarity';
 import { reserveQuota } from '../lib/api-quota';
-import { ebaySoldLaneEnabled, sourceEnabled } from '../lib/source-config';
+import { sourceEnabled } from '../lib/source-config';
 
 export interface ValuateMinifigsSummary {
   figs: number;       // candidates pulled this run
   priced: number;     // rows that came away with a market value
   bl_matched: number; // BrickLink ids newly resolved
   parked: number;     // figs handed to the price-agreement verifier
-  ebay: number;       // eBay scrapes spent
   missed: number;     // attempted, no value from any source
   failed: number;     // provider failure; observation clocks unchanged
 }
 
 export async function runValuateMinifigs(
   env: Env,
-  options: { limit?: number; ebayLimit?: number; budgetMs?: number } = {},
+  options: { limit?: number } = {},
 ): Promise<ValuateMinifigsSummary> {
   const limit = Math.min(Math.max(1, Math.floor(options.limit ?? 10)), 400);
   // Price the figs users actually browse — not just owned ones (which left the
@@ -67,31 +64,12 @@ export async function runValuateMinifigs(
   // hard processing ceiling: accounting failure/exhaustion must not leak calls,
   // and rows outside a partial grant must remain immediately eligible.
   if (!(await sourceEnabled(env, 'bricklink'))) {
-    return { figs: results.length, priced: 0, bl_matched: 0, parked: 0, ebay: 0, missed: 0, failed: 0 };
+    return { figs: results.length, priced: 0, bl_matched: 0, parked: 0, missed: 0, failed: 0 };
   }
   const grants = await reserveQuota(env, { bricklink: results.length });
   const grantedResults = results.slice(0, Math.min(results.length, grants.bricklink ?? 0));
 
-  // Multi-source (G1b): only worth an eBay scrape (5 Firecrawl credits) for
-  // figs valuable enough that a second source matters — cheap commons don't.
-  const fcOn = ebaySoldLaneEnabled(env) && firecrawlEnabled(env)
-    && await sourceEnabled(env, 'ebay') && await sourceEnabled(env, 'firecrawl');
-  const EBAY_MIN_VALUE = 10;
-  // eBay-as-primary is now open to every queued fig, so cap the scrapes per run:
-  // the candidate list is already ordered by priority, so the cap spends itself
-  // on owned → valuable → Collectible-Minifigures before generic popular figs.
-  // Also keeps the invocation inside the subrequest budget.
-  const ebayBudget = Math.min(Math.max(0, Math.floor(options.ebayLimit ?? 60)), limit);
-  // WALL-CLOCK guard. The scrapes run one at a time, so the run length is set by
-  // provider latency, not by our batch size: 60 scrapes at a normal ~10s is 10
-  // minutes, at a bad 30s it is half an hour and the invocation gets killed
-  // before it writes (exactly how ebay-sold-scrape lost six days). Past the
-  // deadline we stop STARTING scrapes and let the cheap D1-only work finish, so
-  // a slow provider costs coverage for one run instead of the whole run.
-  const deadline = Date.now() + Math.max(30_000, Math.floor(options.budgetMs ?? 240_000));
-
-  const summary: ValuateMinifigsSummary = { figs: results.length, priced: 0, bl_matched: 0, parked: 0, ebay: 0, missed: 0, failed: 0 };
-  let ebaySpent = 0;
+  const summary: ValuateMinifigsSummary = { figs: results.length, priced: 0, bl_matched: 0, parked: 0, missed: 0, failed: 0 };
   for (const fig of grantedResults) {
     // Resolve the BrickLink id lazily: Rebrickable fig-numbers aren't valid on
     // BrickLink, so we match this fig's normalized name (+year) against the
@@ -150,81 +128,15 @@ export async function runValuateMinifigs(
     const blValue = px && px.value != null && px.value > 0 ? px.value : null;
     const blLots = px?.lots ?? 0;
 
-    let value = blValue;
-    let lots = blLots;
-    let ebayValue: number | null = null;
-    let ebayQty = 0;
-
-    // eBay sold comps: corroborate a real BrickLink value for valuable figs, OR
-    // act as the PRIMARY source for any queued fig BrickLink couldn't price.
-    // The old gate restricted eBay-as-primary to priority 0 (owned), and with
-    // no owned figs in the database that branch never fired — leaving every
-    // unmapped fig permanently unpriced. Spend is bounded by ebayBudget rather
-    // than by priority, so the highest-priority figs still go first.
-    const wantEbay = fcOn && ebaySpent < ebayBudget && Date.now() < deadline && (
-      (blValue != null && blValue >= EBAY_MIN_VALUE)
-      || blValue == null
-    );
-    let ebayObserved = false;
-    let ebayFailed = false;
-    if (wantEbay) {
-      ebaySpent++;
-      summary.ebay++;
-      const eb = await fetchMinifigEbaySoldViaFirecrawl(fig.fig_num, fig.name, env).catch(() => null);
-      ebayFailed = !eb || eb.status === 'error' || eb.status === 'disabled';
-      if (eb && eb.status === 'ok' && eb.value != null && eb.value > 0) {
-        if (blValue == null) {
-          // eBay is the SOLE source — apply the plausibility guard (<= $150, or
-          // within 3x of the fig's own previous value). On rejection: record
-          // the observation + stamp cached_at so the fig doesn't re-queue at
-          // the head of every run, but leave current_value/rarity untouched,
-          // and surface the reject in the admin anomaly panel.
-          if (plausibleEbayOnlyFigValue(eb.value, { prior: fig.current_value })) {
-            value = eb.value;          // eBay is the only source
-            ebayValue = eb.value;
-            ebayQty = eb.count;
-            ebayObserved = true;
-            lots = 0;
-          } else {
-            await env.DB.prepare(`
-              UPDATE minifigs SET ebay_value = ?, ebay_qty = ?, ebay_cached_at = datetime('now'),
-                attempted_at = datetime('now')
-              WHERE fig_num = ?
-            `).bind(eb.value, eb.count, fig.fig_num).run().catch(() => {});
-            await env.DB.prepare(`
-              INSERT INTO pricing_anomalies (
-                anomaly_key, set_num, condition, source, anomaly_type, severity,
-                detail_json, status, first_seen_at, last_seen_at
-              ) VALUES (?1, NULL, 'used_complete', 'ebay_sold', 'implausible_solo_value', 'warning', ?2, 'open', datetime('now'), datetime('now'))
-              ON CONFLICT(anomaly_key) DO UPDATE SET
-                detail_json=excluded.detail_json, status='open', last_seen_at=datetime('now'), resolved_at=NULL
-            `).bind(
-              `minifig:${fig.fig_num}:ebay_solo`,
-              JSON.stringify({ fig_num: fig.fig_num, observed: eb.value, prior: fig.current_value ?? null }),
-            ).run().catch(() => {});
-            summary.missed++;
-            continue;
-          }
-        } else if (eb.value >= blValue / 3 && eb.value <= blValue * 3) {  // corroboration gate
-          ebayValue = eb.value;
-          ebayQty = eb.count;
-          ebayObserved = true;
-          const w1 = Math.max(1, blLots);
-          const w2 = Math.max(1, eb.count);
-          value = Math.round(((blValue * w1 + eb.value * w2) / (w1 + w2)) * 100) / 100;
-        }
-      }
-    }
-
-    if (value == null || value <= 0) {
+    if (blValue == null) {
       // Do not cool the row after a provider failure; keep it eligible for the
       // next run. A verified empty guide still receives the normal miss stamp.
-      if (brickLinkFailed || ebayFailed) {
+      if (brickLinkFailed) {
         summary.failed++;
         summary.missed++;
         continue;
       }
-      // No market value from either source. STAMP THE ATTEMPT anyway: the
+      // No market value. STAMP THE ATTEMPT anyway: the
       // candidate query is stale-first on cached_at, so a fig left un-stamped
       // sorted straight back to the head of the next run — the queue ground on
       // the same few hundred unpriceable figs forever and never reached the
@@ -237,16 +149,12 @@ export async function runValuateMinifigs(
       continue;
     }
 
-    // Rarity reflects the blended value + combined market liquidity.
-    const rarity = computeMinifigRarity(value, fig.appears_in_sets, lots + ebayQty);
-    const source = ebayValue != null ? (blValue != null ? 'bricklink+ebay' : 'ebay') : 'bricklink';
+    const rarity = computeMinifigRarity(blValue, fig.appears_in_sets, blLots);
     await env.DB.prepare(`
-      UPDATE minifigs SET current_value = ?, rarity = ?, source = ?,
-        ebay_value = COALESCE(?, ebay_value), ebay_qty = CASE WHEN ? IS NOT NULL THEN ? ELSE ebay_qty END,
-        ebay_cached_at = CASE WHEN ? THEN datetime('now') ELSE ebay_cached_at END,
+      UPDATE minifigs SET current_value = ?, rarity = ?, source = 'bricklink',
         cached_at = datetime('now'), attempted_at = datetime('now')
       WHERE fig_num = ?
-    `).bind(value, rarity, source, ebayValue, ebayValue, ebayQty, ebayObserved ? 1 : 0, fig.fig_num).run();
+    `).bind(blValue, rarity, fig.fig_num).run();
     summary.priced++;
   }
   return summary;

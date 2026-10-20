@@ -4,16 +4,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { applyTestTables } from './test-schema';
 
 vi.mock('./lib/bricklink', () => ({ fetchMinifigPricing: vi.fn() }));
-vi.mock('./lib/ebay-firecrawl', () => ({ fetchMinifigEbaySoldViaFirecrawl: vi.fn() }));
 import { fetchMinifigPricing } from './lib/bricklink';
-import { fetchMinifigEbaySoldViaFirecrawl } from './lib/ebay-firecrawl';
 import { runValuateMinifigs } from './jobs/valuate-minifigs';
 
 const db = (env as any).DB as D1Database;
 const mockBl = vi.mocked(fetchMinifigPricing);
-const mockEbay = vi.mocked(fetchMinifigEbaySoldViaFirecrawl);
-// Firecrawl on, so the eBay branch is reachable.
-const fcEnv = { ...env, FIRECRAWL_API_KEY: 'fc-test', ENVIRONMENT: 'test', EBAY_SOURCE_AUTHORIZED_FOR_TESTS: '1' } as any;
+const fcEnv = { ...env } as any;
 
 const seedFig = (figNum: string, name: string, year: number | null = 2014, appears = 5) =>
   db.prepare(`INSERT INTO minifigs (fig_num, name, year, appears_in_sets) VALUES (?, ?, ?, ?)`)
@@ -27,9 +23,8 @@ const readFig = (figNum: string) =>
 
 describe('runValuateMinifigs', () => {
   beforeEach(async () => {
-    mockBl.mockReset(); mockEbay.mockReset();
+    mockBl.mockReset();
     mockBl.mockResolvedValue(null as any);
-    mockEbay.mockResolvedValue({ status: 'no_data', value: null, count: 0 } as any);
     await applyTestTables(db, [
       'lego_sets', 'minifigs', 'user_minifigs', 'set_minifigs',
       'minifig_bl_candidates', 'bricklink_minifigs', 'pricing_anomalies', 'api_quota',
@@ -50,45 +45,16 @@ describe('runValuateMinifigs', () => {
     expect((await runValuateMinifigs(fcEnv, { limit: 5 })).figs).toBe(0);
   });
 
-  it('never calls sold scraping in production and preserves prior clocks on failures', async () => {
+  it('preserves prior clocks on BrickLink failures', async () => {
     await db.batch([seedFig('fig-held', 'Batman'), seedBl('bat001','batman',2014)]);
     await db.prepare(`UPDATE minifigs SET current_value=30, cached_at='2020-01-01',
       ebay_value=35, ebay_cached_at='2020-01-02' WHERE fig_num='fig-held'`).run();
     mockBl.mockRejectedValue(new Error('provider down'));
-    const result = await runValuateMinifigs({ ...fcEnv, ENVIRONMENT: 'production' }, { limit: 5 });
-    expect(result).toMatchObject({ ebay: 0, failed: 1, priced: 0 });
-    expect(mockEbay).not.toHaveBeenCalled();
+    const result = await runValuateMinifigs(fcEnv, { limit: 5 });
+    expect(result).toMatchObject({ failed: 1, priced: 0 });
     expect(await readFig('fig-held')).toMatchObject({ current_value: 30, cached_at: '2020-01-01', ebay_value: 35 });
     expect((await db.prepare(`SELECT ebay_cached_at FROM minifigs WHERE fig_num='fig-held'`).first<any>()).ebay_cached_at)
       .toBe('2020-01-02');
-  });
-
-  it('uses eBay as the primary source for a fig nobody owns', async () => {
-    // The old gate only allowed eBay-as-primary for priority 0 (owned) figs;
-    // with no owned figs that branch never fired.
-    await seedFig('fig-2', 'Sir Fangar').run();
-    mockEbay.mockResolvedValue({ status: 'ok', value: 24, count: 4 } as any);
-
-    const r = await runValuateMinifigs(fcEnv, { limit: 5 });
-
-    expect(r).toMatchObject({ priced: 1, ebay: 1 });
-    const fig = await readFig('fig-2');
-    expect(fig!.current_value).toBe(24);
-    expect(fig!.source).toBe('ebay');
-  });
-
-  it('respects the per-run eBay budget, spending it on the highest priority figs', async () => {
-    await db.batch([
-      seedFig('fig-cheap', 'Generic Citizen'),
-      db.prepare(`INSERT INTO minifigs (fig_num, name, year, appears_in_sets, current_value) VALUES ('fig-rich','Rich Fig',2014,5,40)`),
-    ]);
-    mockEbay.mockResolvedValue({ status: 'ok', value: 40, count: 3 } as any);
-
-    const r = await runValuateMinifigs(fcEnv, { limit: 5, ebayLimit: 1 });
-
-    expect(r.ebay).toBe(1);
-    expect(mockEbay).toHaveBeenCalledTimes(1);
-    expect(mockEbay.mock.calls[0][0]).toBe('fig-rich'); // priority 1 beats priority 3
   });
 
   it('resolves a BrickLink id when its name merely extends ours', async () => {
@@ -136,22 +102,5 @@ describe('runValuateMinifigs', () => {
     ).all<{ bl_id: string; status: string }>();
     expect(parked.results.map((x) => x.bl_id)).toEqual(['loc050', 'loc068']);
     expect(parked.results.every((x) => x.status === 'pending')).toBe(true);
-  });
-
-  it('rejects an implausible eBay-only value but still cools the fig down', async () => {
-    await seedFig('fig-6', 'Overpriced Fig').run();
-    mockEbay.mockResolvedValue({ status: 'ok', value: 5000, count: 1 } as any);
-
-    const r = await runValuateMinifigs(fcEnv, { limit: 5 });
-
-    expect(r).toMatchObject({ priced: 0, missed: 1 });
-    const fig = await readFig('fig-6');
-    expect(fig!.current_value).toBeNull(); // not adopted
-    expect(fig!.ebay_value).toBe(5000);    // but recorded as an observation
-    expect(fig!.cached_at).toBeNull();
-    const anomaly = await db.prepare(
-      `SELECT anomaly_type FROM pricing_anomalies WHERE anomaly_key='minifig:fig-6:ebay_solo'`,
-    ).first<{ anomaly_type: string }>();
-    expect(anomaly!.anomaly_type).toBe('implausible_solo_value');
   });
 });

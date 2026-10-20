@@ -116,14 +116,7 @@ export const CONFLICT_PREDICATE = `ls.set_num IN (
 export interface ValuationQuotaGrants {
   bricklink: number;
   ebay: number;
-  gemini: number;
-  openrouter: number;
-  openai: number;
 }
-
-// model-refresh can publish at most three curated survivors plus three
-// discovered text models. Reserve one more unit for the paid backstop.
-export const OPENROUTER_CALLS_PER_SET = 7;
 
 export interface SelectDueSetsConfig {
   scope: 'owned' | 'all';
@@ -135,8 +128,6 @@ export interface SelectDueSetsConfig {
   includeSupplemental: boolean;
   includeBrickLink?: boolean;
   includeEbay: boolean;
-  includeEbaySold: boolean;
-  includeAiFallback: boolean;
 }
 
 // Select the batch of sets due for (re)valuation and reserve today's external-API
@@ -148,7 +139,7 @@ export async function selectDueSets(
   cfg: SelectDueSetsConfig,
 ): Promise<{ results: DueSetRow[]; limit: number; grants: ValuationQuotaGrants }> {
   const {
-    scope, options, includeSupplemental, includeEbay, includeEbaySold, includeAiFallback,
+    scope, options, includeSupplemental, includeEbay,
   } = cfg;
   const includeBrickLink = cfg.includeBrickLink !== false;
 
@@ -159,13 +150,8 @@ export async function selectDueSets(
     ? Math.min(Math.floor(requestedLimit), 250)
     : 12;
   const packProfile: PackProfile = {
-    // BrickEconomy is no longer a per-set subrequest — its values are read from
-    // the be_* columns (populated by the brickeconomy-enrich Firecrawl cron), so
-    // the packer treats every set as BrickLink-primary.
-    brickEconomy: false,
     supplemental: includeSupplemental,
     ebay: includeEbay,
-    aiFallback: includeAiFallback && !!(env.GEMINI_API_KEY || env.OPENAI_API_KEY),
     progressWrites: !!options.onProgress,
   };
   const requestedBudget = Number(options.subrequestBudget);
@@ -289,8 +275,7 @@ export async function selectDueSets(
   // Multiplicity:
   //   BrickLink NEW=1, retired USED=1 (discovery: current listings=1, plus USED=1
   //   for sets 4+ years old — see discoveryWantsUsed);
-  //   eBay sold NEW+USED=2 and stale ask=1; Gemini/OpenAI=1 logical call;
-  //   OpenRouter <=6 free attempts + 1 paid backstop per set.
+  //   eBay stale ask=1.
   const blReserve = includeBrickLink ? results.reduce(
     // Discovery always spends a second call: the used guide or current listings.
     (n, s) => (blBackedOffAt(s.bl_nodata_at) ? n
@@ -300,21 +285,12 @@ export async function selectDueSets(
   const rawGrants = await reserveQuota(env, {
     bricklink: blReserve,
     ebay: includeEbay
-      ? results.reduce((n, s) => n + (includeEbaySold ? 2 : 0) + (s.ask_stale ? 1 : 0), 0)
+      ? results.reduce((n, s) => n + (s.ask_stale ? 1 : 0), 0)
       : 0,
-    // AI quota service names are intentionally unbudgeted by default today, so
-    // reserveQuota passes these through without a D1 row. If an operator/code cap
-    // is introduced, these same returned grants immediately become hard gates.
-    gemini: includeAiFallback && !!env.GEMINI_API_KEY ? results.length : 0,
-    openrouter: includeAiFallback && !!env.OPENROUTER_API_KEY ? results.length * OPENROUTER_CALLS_PER_SET : 0,
-    openai: includeAiFallback && !env.OPENROUTER_API_KEY && !!env.OPENAI_API_KEY ? results.length : 0,
   });
   const grants: ValuationQuotaGrants = {
     bricklink: rawGrants.bricklink ?? 0,
     ebay: rawGrants.ebay ?? 0,
-    gemini: rawGrants.gemini ?? 0,
-    openrouter: rawGrants.openrouter ?? 0,
-    openai: rawGrants.openai ?? 0,
   };
 
   return { results, limit, grants };

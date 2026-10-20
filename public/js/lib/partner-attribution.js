@@ -2,7 +2,7 @@
  * Public provider registry + attribution renderer.
  *
  * Only PriceCharting is a confirmed data PARTNER. Everything else (BrickLink,
- * eBay, BrickEconomy, Brickset, Rebrickable, StockX, Amazon) is a
+ * eBay, BrickEconomy, Brickset, Rebrickable, Amazon) is a
  * named source with no partner status. No logos are used anywhere.
  *
  * Rules encoded here (do not bypass):
@@ -63,13 +63,6 @@ export const PROVIDERS = {
     homepage: 'https://rebrickable.com',
     isPartner: false,
     role: 'estimate',
-  },
-  stockx: {
-    id: 'stockx',
-    name: 'StockX',
-    homepage: 'https://stockx.com',
-    isPartner: false,
-    role: 'asking',
   },
 };
 

@@ -4,7 +4,6 @@ import { quotaRemaining } from '../lib/api-quota';
 import { firecrawlEnabled } from '../lib/pricing-flags';
 import { sourceEnabled } from '../lib/source-config';
 import { brightDataEnabled } from '../lib/brightdata-keys';
-import { scrapingAntEnabled } from '../lib/scrapingant';
 import { FIRECRAWL_MAX_CONCURRENCY } from '../lib/firecrawl';
 
 /**
@@ -19,11 +18,10 @@ import { FIRECRAWL_MAX_CONCURRENCY } from '../lib/firecrawl';
  * and (when Firecrawl returns a price) retail_price if the fetched value differs.
  */
 export async function runLegoStockRefresh(env: Env, options: { limit?: number } = {}) {
-  const hasScrapingAnt = (await sourceEnabled(env, 'scrapingant')) && scrapingAntEnabled(env);
   const hasBrightData = (await sourceEnabled(env, 'brightdata')) && brightDataEnabled(env);
   const hasFirecrawl = (await sourceEnabled(env, 'firecrawl')) && firecrawlEnabled(env);
-  if (!hasScrapingAnt && !hasBrightData && !hasFirecrawl) {
-    return { processed: 0, updated: 0, failed: 0, no_data: 0, partial: 0, limit: 0, skipped: 'ScrapingAnt, Bright Data, and Firecrawl disabled or unconfigured' };
+  if (!hasBrightData && !hasFirecrawl) {
+    return { processed: 0, updated: 0, failed: 0, no_data: 0, partial: 0, limit: 0, skipped: 'Bright Data and Firecrawl disabled or unconfigured' };
   }
 
   const requestedLimit = Number(options.limit);
@@ -36,13 +34,12 @@ export async function runLegoStockRefresh(env: Env, options: { limit?: number } 
   // front here would double-count against that guard and make the admin Firecrawl
   // credits panel over-report.
   const remaining = await quotaRemaining(env, 'firecrawl');
-  if (!hasScrapingAnt && !hasBrightData && remaining < 5) return { processed: 0, updated: 0, failed: 0, no_data: 0, partial: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
-  const effLimit = (hasScrapingAnt || hasBrightData) ? limit : Math.min(limit, Math.floor(remaining / 5));
+  if (!hasBrightData && remaining < 5) return { processed: 0, updated: 0, failed: 0, no_data: 0, partial: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
+  const effLimit = hasBrightData ? limit : Math.min(limit, Math.floor(remaining / 5));
 
   // Owned/wishlisted sets first; when that pool runs dry, keep going catalog-wide
   // over active retail sets. This makes the lane the authoritative retail-price +
-  // stock-truth source after pricesAPI was removed (2026-08) instead of only a
-  // per-user checker.
+  // stock-truth source instead of only a per-user checker.
   const { results } = await env.DB.prepare(`
     SELECT candidates.set_num FROM (
       SELECT ls.set_num, COALESCE(ls.lego_retiring_soon, 0) AS prio
@@ -79,7 +76,7 @@ export async function runLegoStockRefresh(env: Env, options: { limit?: number } 
 
   // A catalog-wide limit of 200 cannot run serially within a scheduled Worker
   // invocation. Use the account-wide Firecrawl concurrency ceiling because any
-  // ScrapingAnt/Bright Data miss can fall through to Firecrawl.
+  // Bright Data miss can fall through to Firecrawl.
   for (let i = 0; i < results.length; i += FIRECRAWL_MAX_CONCURRENCY) {
     const batch = results.slice(i, i + FIRECRAWL_MAX_CONCURRENCY);
     const outs = await Promise.all(batch.map(async ({ set_num }) => {

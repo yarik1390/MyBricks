@@ -27,24 +27,14 @@ describe('source-config', () => {
     expect(cfg).toEqual(DEFAULT_SOURCE_CONFIG);
   });
 
-  it('keeps the eBay sold-comps lane held while the ask lane follows tuning', async () => {
-    // Master eBay switch is ON by default (Browse ask lane is sanctioned);
-    // the scraped sold lane stays held regardless of any setting.
+  it('enables the eBay ask lane by default', async () => {
+    // Master eBay switch is ON by default (Browse ask lane is sanctioned).
     const cfg = await getSourceConfig(env as any);
     expect(cfg.ebay.enabled).toBe(true);
     expect(await sourceEnabled(env as any, 'ebay')).toBe(true);
   });
 
-  it('ebaySoldLaneEnabled is false in production-like envs and true only in tests with the escape hatch', async () => {
-    const { ebaySoldLaneEnabled } = await import('./lib/source-config');
-    expect(ebaySoldLaneEnabled(env as any)).toBe(false); // cloudflare:test env has no test escape hatch vars
-    const prod = { ENVIRONMENT: 'production', EBAY_SOURCE_AUTHORIZED_FOR_TESTS: '1' };
-    expect(ebaySoldLaneEnabled(prod as any)).toBe(false);
-    const test = { ENVIRONMENT: 'test', EBAY_SOURCE_AUTHORIZED_FOR_TESTS: '1' };
-    expect(ebaySoldLaneEnabled(test as any)).toBe(true);
-  });
-
-  it('a stored override can now enable the eBay ask source (only the sold lane is held)', async () => {
+  it('a stored override can disable and re-enable the eBay ask source', async () => {
     await (env as any).DB.prepare(
       `INSERT INTO app_settings (key, value, updated_at) VALUES ('source_config', ?1, datetime('now'))`,
     ).bind(JSON.stringify({ ebay: { enabled: false } })).run();

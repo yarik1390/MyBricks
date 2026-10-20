@@ -1763,9 +1763,8 @@ export const en = {
     anomalyResolveFailed: 'Could not update anomaly.',
     tools: {
       sets: 'Import sets', figs: 'Import minifigs', upc: 'Backfill barcodes',
-      populate: 'Populate coverage', revalue: 'Revalue prices', everything: 'Populate all safe sources',
+      populate: 'Populate coverage', everything: 'Populate all safe sources',
       pricechartingBulk: 'Refresh PriceCharting (LEGO bulk)', pricechartingVerify: 'Verify PriceCharting mappings',
-      ebaySold: 'Run eBay-sold scrape',
     },
     maintenanceTools: { expire: 'Expire valuations', repair: 'Repair search index' },
     countRunningOne: '{n} running', countRunningFew: '{n} running', countRunningMany: '{n} running', countRunningOther: '{n} running',
