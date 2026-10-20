@@ -48,20 +48,20 @@ describe('quotaDay', () => {
 
 describe('spendQuota', () => {
   it('allows spends under the cap and increments usage', async () => {
-    expect(await spendQuota(testEnv, 'brickeconomy')).toBe(true);
-    expect(await spendQuota(testEnv, 'brickeconomy', 2)).toBe(true);
-    const row = await readRow('brickeconomy');
+    expect(await spendQuota(testEnv, 'brickset')).toBe(true);
+    expect(await spendQuota(testEnv, 'brickset', 2)).toBe(true);
+    const row = await readRow('brickset');
     expect(row?.used).toBe(3);
-    expect(row?.cap).toBe(QUOTA_CAPS.brickeconomy);
+    expect(row?.cap).toBe(QUOTA_CAPS.brickset);
   });
 
   it('denies spends once the daily budget is exhausted', async () => {
     await testEnv.DB.prepare(
       'INSERT INTO api_quota (service, day, used, cap) VALUES (?1, ?2, ?3, ?3)'
-    ).bind('brickeconomy', quotaDay(), QUOTA_CAPS.brickeconomy).run();
-    expect(await spendQuota(testEnv, 'brickeconomy')).toBe(false);
-    const row = await readRow('brickeconomy');
-    expect(row?.used).toBe(QUOTA_CAPS.brickeconomy);
+    ).bind('brickset', quotaDay(), QUOTA_CAPS.brickset).run();
+    expect(await spendQuota(testEnv, 'brickset')).toBe(false);
+    const row = await readRow('brickset');
+    expect(row?.used).toBe(QUOTA_CAPS.brickset);
   });
 
   it('never gates services without a configured cap', async () => {
@@ -93,28 +93,28 @@ describe('reserveQuota', () => {
   });
 
   it('honors an admin daily-cap override', async () => {
-    setQuotaCapOverrides({ apify: 7 });
-    const grants = await reserveQuota(testEnv, { apify: 20 });
-    expect(grants.apify).toBe(7);
-    expect(await readRow('apify')).toMatchObject({ used: 7, cap: 7 });
+    setQuotaCapOverrides({ pricecharting: 7 });
+    const grants = await reserveQuota(testEnv, { pricecharting: 20 });
+    expect(grants.pricecharting).toBe(7);
+    expect(await readRow('pricecharting')).toMatchObject({ used: 7, cap: 7 });
   });
 
   it('grants only what remains of an almost-spent budget', async () => {
     await testEnv.DB.prepare(
       'INSERT INTO api_quota (service, day, used, cap) VALUES (?1, ?2, ?3, ?4)'
-    ).bind('brickeconomy', quotaDay(), QUOTA_CAPS.brickeconomy - 10, QUOTA_CAPS.brickeconomy).run();
-    const grants = await reserveQuota(testEnv, { brickeconomy: 25, bricklink: 5 });
-    expect(grants.brickeconomy).toBe(10);
+    ).bind('brickset', quotaDay(), QUOTA_CAPS.brickset - 10, QUOTA_CAPS.brickset).run();
+    const grants = await reserveQuota(testEnv, { brickset: 25, bricklink: 5 });
+    expect(grants.brickset).toBe(10);
     expect(grants.bricklink).toBe(5);
-    expect((await readRow('brickeconomy'))?.used).toBe(QUOTA_CAPS.brickeconomy);
+    expect((await readRow('brickset'))?.used).toBe(QUOTA_CAPS.brickset);
   });
 
   it('grants zero when a budget is fully spent', async () => {
     await testEnv.DB.prepare(
       'INSERT INTO api_quota (service, day, used, cap) VALUES (?1, ?2, ?3, ?3)'
-    ).bind('brickeconomy', quotaDay(), QUOTA_CAPS.brickeconomy).run();
-    const grants = await reserveQuota(testEnv, { brickeconomy: 4 });
-    expect(grants.brickeconomy).toBe(0);
+    ).bind('brickset', quotaDay(), QUOTA_CAPS.brickset).run();
+    const grants = await reserveQuota(testEnv, { brickset: 4 });
+    expect(grants.brickset).toBe(0);
   });
 
   it('does not overgrant concurrent reservations', async () => {
@@ -146,15 +146,15 @@ describe('reserveQuota', () => {
 
 describe('getQuotaUsage', () => {
   it('zero-fills every budgeted service and computes remaining', async () => {
-    await spendQuota(testEnv, 'brickeconomy', 5);
+    await spendQuota(testEnv, 'brickset', 5);
     const usage = await getQuotaUsage(testEnv);
     const services = usage.map(u => u.service);
     for (const service of Object.keys(QUOTA_CAPS)) {
       expect(services).toContain(service);
     }
-    const be = usage.find(u => u.service === 'brickeconomy')!;
-    expect(be.used).toBe(5);
-    expect(be.remaining).toBe(QUOTA_CAPS.brickeconomy - 5);
+    const bs = usage.find(u => u.service === 'brickset')!;
+    expect(bs.used).toBe(5);
+    expect(bs.remaining).toBe(QUOTA_CAPS.brickset - 5);
     const bl = usage.find(u => u.service === 'bricklink')!;
     expect(bl.used).toBe(0);
     expect(bl.remaining).toBe(QUOTA_CAPS.bricklink);
@@ -163,17 +163,13 @@ describe('getQuotaUsage', () => {
 
 describe('invocation packing', () => {
   const cronProfile: PackProfile = {
-    brickEconomy: true,
     supplemental: false,
     ebay: false,
-    aiFallback: true,
     progressWrites: false,
   };
   const fullSliceProfile: PackProfile = {
-    brickEconomy: true,
     supplemental: true,
     ebay: true,
-    aiFallback: false,
     progressWrites: true,
   };
 

@@ -357,7 +357,7 @@ test.describe(() => {
         integrations: [{ service: 'ebay', configured: true, status: 'ok', last_ok_at: null, last_fail_at: null }],
         coverage: { sets_with_ebay_new: 1, sets_with_ebay_ask: 1 },
       });
-      if (path === '/api/admin/feature-flags') return json({ flags: [], overrides: { ebay_sold_comps: true }, effective: { ebay_sold_comps: false } });
+      if (path === '/api/admin/feature-flags') return json({ flags: [], overrides: { firecrawl: true }, effective: { firecrawl: false } });
       return route.fallback();
     });
     await page.goto('/#/me/admin', { waitUntil: 'commit' });

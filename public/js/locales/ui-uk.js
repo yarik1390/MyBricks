@@ -368,13 +368,11 @@ export const ui = {
   "Appreciated": "Оцінено",
   "Approve": "Схвалити",
   "Approved community content will appear on set detail pages.": "Схвалений контент спільноти з'явиться на сторінках деталей набору.",
-  "Approved eBay sold comps": "Схвалені продажі eBay для порівняння",
   "Architect": "Архітектор",
   "Architecture": "Архітектура",
   "As an Amazon Associate, Brickvault earns from qualifying purchases.": "Як учасник партнерської програми Amazon, Brickvault отримує винагороду за відповідні покупки.",
   "As of": "Станом на",
   "Ask AI Advisor": "Запитати ШІ-радника",
-  "Asking data plus sold comps only when approved and reachable. No weak sold fallback.": "Дані про запитувані ціни плюс продані аналоги лише коли схвалено й доступно. Без слабкого резерву проданих.",
   "Asking the master builder…": "Питаємо майстра-будівника…",
   "Auth not configured": "Автентифікацію не налаштовано",
   "Authentication and user identity.": "Автентифікація та ідентифікація користувача.",
@@ -417,7 +415,6 @@ export const ui = {
   "Box": "Коробка",
   "Box with backing card": "Коробка з картонною основою",
   "Box with handle": "Коробка з ручкою",
-  "BrickEconomy values": "Ціни BrickEconomy",
   "BrickInsights ratings": "Оцінки BrickInsights",
   "BrickLink (new)": "BrickLink (новий)",
   "BrickLink coverage": "Покриття BrickLink",
@@ -653,7 +650,6 @@ export const ui = {
   "Failing": "Не працює",
   "Falling": "Падіння",
   "Fast-sale estimate after fees and a liquidity haircut.": "Оцінка швидкого продажу після комісій і знижки на ліквідність.",
-  "Feasibility probe — can Firecrawl reach StockX market data? Not a live valuation source yet.": "Перевірка можливості — чи може Firecrawl отримати ринкові дані StockX? Ще не є активним джерелом оцінки.",
   "Fees & Ship": "Комісії та доставка",
   "Few/no minifigs — value driven by set alone": "Мало/немає мініфігурок — вартість визначається лише набором",
   "Filesystem": "Файлова система",
@@ -928,7 +924,6 @@ export const ui = {
   "No token found": "Токен не знайдено",
   "No users found.": "Користувачів не знайдено.",
   "No valid rows found — check set_num column exists": "Дійсних рядків не знайдено — перевірте наявність стовпця set_num",
-  "No weak sold fallback": "Немає слабкого резервного показника продажу",
   "None (loose parts)": "Немає (розсипом)",
   "Not available": "Недоступно",
   "Not enough history yet": "Поки недостатньо історії",
@@ -1079,7 +1074,6 @@ export const ui = {
   "Rarest": "Найрідкісніший",
   "Rarity": "Рідкість",
   "Rarity ↓": "Рідкість ↓",
-  "Re-prices a small batch of sets from current market sources.": "Переоцінює невеликий пакет наборів на основі поточних ринкових джерел.",
   "Reading your shelf...": "Читання вашої полиці...",
   "Ready": "Готово",
   "Ready / no calls": "Готово / без запитів",
@@ -1164,7 +1158,6 @@ export const ui = {
   "Rows with persisted blended values.": "Рядки зі збереженими змішаними значеннями.",
   "Rummaging the parts bin…": "Порпаємося в коробці з деталями…",
   "Run Populate all safe sources to advance the next safe slice.": "Запустіть «Заповнити всі безпечні джерела», щоб перейти до наступної безпечної частини.",
-  "Run eBay-sold scrape": "Запустити збір проданих eBay",
   "Run next slice if coverage remains": "Запустити наступну частину, якщо покриття лишається неповним",
   "Run now": "Запустити зараз",
   "Run safe slice": "Запустити безпечну частину",
@@ -1172,7 +1165,6 @@ export const ui = {
   "Running now": "Виконується зараз",
   "Runs one safe slice of barcode + asking-price refresh.": "Запускає одну безпечну частину оновлення штрихкодів і запитуваних цін.",
   "Runs safe slices across every configured source until done.": "Запускає безпечні частини для кожного налаштованого джерела, доки не завершиться.",
-  "Runs small protected slices against every configured and reachable provider. Blocked eBay sold comps stay unavailable instead of falling back to weak data.": "Запускає невеликі захищені частини для кожного налаштованого й доступного провайдера. Заблоковані продані аналоги eBay лишаються недоступними замість повернення до слабких даних.",
   "Runtime switch — applies within about 1 minute, no redeploy.": "Перемикач під час виконання — застосовується протягом близько 1 хвилини, без повторного розгортання.",
   "SETUP NEEDED": "ПОТРІБНЕ НАЛАШТУВАННЯ",
   "STRONG BUY": "СИЛЬНА КУПІВЛЯ",
@@ -1189,7 +1181,6 @@ export const ui = {
   "Scanner success (14d)": "Успішність сканера (14 дн)",
   "Scanning and the advisor use": "Сканування й радник використовують",
   "Scenario range based on the current fair value.": "Діапазон сценарію на основі поточної справедливої вартості.",
-  "Scrapes eBay sold comps now (Firecrawl).": "Збирає продані аналоги eBay зараз (Firecrawl).",
   "Scraping": "Скрапінг",
   "Scraping runtime for structured market enrichment.": "Середовище скрапінгу для структурованого збагачення ринкових даних.",
   "Sealed": "Запечатаний",
@@ -1226,8 +1217,6 @@ export const ui = {
   "Set up photo scanning": "Налаштувати сканування фото",
   "Set-exclusive": "Ексклюзив набору",
   "Sets with BrickLink market data.": "Набори з ринковими даними BrickLink.",
-  "Sets with validated new/sealed sold comps.": "Набори з підтвердженими проданими аналогами нових/запечатаних.",
-  "Sets with validated used sold comps.": "Набори з підтвердженими проданими аналогами вживаних.",
   "Settings → On-Device Offline AI": "Налаштування → Локальний офлайн-ШІ",
   "Setup needed": "Потрібне налаштування",
   "Several minutes": "Кілька хвилин",
@@ -1257,7 +1246,6 @@ export const ui = {
   "Simple": "Простий",
   "Skip": "Пропустити",
   "Skip to content": "Перейти до вмісту",
-  "Small batch": "Малий пакет",
   "Snapping together nicely!": "Складається чудово!",
   "Sold Out at LEGO.com": "Розпродано на LEGO.com",
   "Sold beats asking": "Продане дорожче за запитувану ціну",
@@ -1274,15 +1262,12 @@ export const ui = {
   "Source conflict": "Конфлікт джерел",
   "Source match rejected.": "Збіг джерела відхилено.",
   "Source match verified.": "Збіг джерела підтверджено.",
-  "Spends Firecrawl credits; runs synchronously and returns the result.": "Витрачає кредити Firecrawl; виконується синхронно й повертає результат.",
   "Spreadsheet ID:": "ID таблиці:",
   "Stale data": "Застарілі дані",
   "Stale states": "Застарілі стани",
   "Stalled": "Застрягло",
   "Static asset + PWA hosting on Cloudflare Pages.": "Хостинг статичних файлів і PWA на Cloudflare Pages.",
   "Steady demand": "Стабільний попит",
-  "StockX (probe)": "StockX (перевірка)",
-  "StockX lowest ask": "Найнижча ціна пропозиції StockX",
   "Stop auto-run": "Зупинити автозапуск",
   "Stopped": "Зупинено",
   "Stops only for hard errors; unavailable providers stay degraded.": "Зупиняється лише через критичні помилки; недоступні провайдери залишаються погіршеними.",
@@ -1391,15 +1376,12 @@ export const ui = {
   "Used sold": "Продано вживаних",
   "Used — acceptable": "Вживане — прийнятне",
   "Used — good": "Вживане — хороше",
-  "Useful historical and forecast signal when reachable.": "Корисний історичний та прогнозний сигнал, коли доступний.",
   "User ID": "ID користувача",
   "User bring-your-own AI key (stored client-side).": "Власний ключ ШІ користувача (зберігається на пристрої).",
   "User search unavailable": "Пошук користувачів недоступний",
-  "Uses the current daily source budgets.": "Використовує поточні денні бюджети джерел.",
   "Using Cloud AI for scanning and the advisor.": "Використовується хмарний ШІ для сканування й радника.",
   "Valuation": "Оцінка",
   "Valuation blend": "Зведена оцінка",
-  "Valuation sources": "Джерела оцінки",
   "Value": "Вартість",
   "Value of parts and minifigures sold separately.": "Вартість деталей і мініфігурок, проданих окремо.",
   "Value ↓": "Вартість ↓",
@@ -1475,12 +1457,9 @@ export const ui = {
   "e.g. Look for sealed, boxed only": "напр. Шукати лише запечатані, в коробці",
   "eBay asking": "Запитувані ціни eBay",
   "eBay asking data": "Дані запитуваних цін eBay",
-  "eBay new sold": "eBay нові продані",
   "eBay sold": "Продані eBay",
-  "eBay sold comps": "Продані аналоги eBay",
   "eBay sold new": "eBay продано нове",
   "eBay sold used": "eBay продано вживане",
-  "eBay used sold": "eBay вживані продані",
   "feature.": "функцію.",
   "five or more independent collectors": "п’ять або більше незалежних колекціонерів",
   "grant supporter status to": "надати статус прихильника",
@@ -1502,7 +1481,6 @@ export const ui = {
   "secret (wrangler secret put / dashboard → Settings → Variables) — a GitHub Actions secret is not uploaded for this name.": "секрет (wrangler secret put / панель → Налаштування → Змінні) — секрет GitHub Actions для цього імені не завантажено.",
   "set_num required": "потрібен set_num",
   "skipped —": "пропущено —",
-  "sold comps not populated": "продані аналоги не заповнені",
   "tab for unlimited advice.": "для необмежених порад.",
   "to manually force Chrome to download the model weights.": "щоб вручну змусити Chrome завантажити ваги моделі.",
   "to use the advisor offline.": "щоб використовувати радника офлайн.",
@@ -1528,10 +1506,8 @@ export const ui = {
   "← Back to app": "← Назад до застосунку",
   "✓ Already in your vault!": "✓ Уже у вашому сховищі!",
   "Bright Data Web Unlocker": "Bright Data Web Unlocker",
-  "Bright Data Web Unlocker — raw page transport for BrickEconomy, Brickset, and LEGO stock.": "Bright Data Web Unlocker — транспорт необроблених сторінок для BrickEconomy, Brickset і наявності LEGO.",
   "Fresh price from a market source": "Свіжа ціна з ринкового джерела",
   "Marketplace": "Маркетплейс",
-  "Raw-HTML transport used first for BrickEconomy, Brickset, and LEGO stock scrapes; monthly token pool.": "Транспорт необробленого HTML використовується першим для збору BrickEconomy, Brickset і наявності LEGO; місячний пул токенів.",
   "Pro options are available from Settings once setup is done.": "Після завершення налаштування опції Pro будуть доступні в Налаштуваннях.",
   "Pro unlocked — thank you! ⭐": "Pro розблоковано — дякуємо! ⭐",
   "The store didn't open. You can continue setup and try again from Settings.": "Магазин не відкрився. Ви можете продовжити налаштування та спробувати ще раз у Налаштуваннях.",
@@ -1560,12 +1536,9 @@ ui["Loading processes..."] = "Завантаження процесів...";
 ui["Loading queue..."] = "Завантаження черги...";
 ui["Processing queue..."] = "Обробка черги...";
 ui["Searching..."] = "Пошук...";
-ui["Up to ~60s for 5 sets"] = "До ~60 с для 5 наборів";
 ui["asking data available"] = "дані запитуваних цін доступні";
 ui["needs key"] = "потрібен ключ";
 ui["pieces missing"] = "деталей відсутні";
-ui["sold comps available"] = "продані аналоги доступні";
-ui["sold comps blocked"] = "продані аналоги заблоковано";
 ui["— Requires Chrome on desktop/Android with Gemini Nano flags enabled."] = "— потрібен Chrome на комп'ютері/Android з увімкненими прапорцями Gemini Nano.";
 ui["✓ Earned!"] = "✓ Отримано!";
 ui["Downloading..."] = "Завантаження...";
@@ -1573,7 +1546,6 @@ ui["Resuming..."] = "Відновлення...";
 ui["approved contribution"] = "схвалений внесок";
 ui["last run"] = "останній запуск";
 ui["— Ready for offline text advice."] = "— Готово до офлайн-порад.";
-ui["Catalog coverage is measured against all catalog rows. Barcode coverage uses scannable retail sets where a UPC is expected. eBay sold coverage stays at zero when Marketplace Insights or sold-comps access is blocked."] = "Покриття каталогу вимірюється за всіма рядками каталогу. Покриття штрихкодами використовує придатні до сканування роздрібні набори, для яких очікується UPC. Покриття проданих лотів eBay лишається нульовим, коли доступ до Marketplace Insights або проданих аналогів заблоковано.";
 ui["Connecting…"] = "Підключення…";
 ui["Done!"] = "Готово!";
 ui["Importing..."] = "Імпортування…";

@@ -5,7 +5,6 @@ import { firecrawlEnabled } from './pricing-flags';
 import { sourceEnabled } from './source-config';
 import { brightDataUnlock } from './brightdata';
 import { parseLegoStockHtml } from './brightdata-parsers';
-import { scrapingAntFetchHtml } from './scrapingant';
 
 export interface LegoStockResult {
   in_stock: boolean | null;
@@ -137,13 +136,6 @@ async function checkLegoStockRaw(setNum: string, env?: Env): Promise<LegoStockRe
   // Both lanes honor the admin source-tuning kill switches: disabling a
   // provider in the console stops its use here (not just in the job selector).
   const num = setNum.replace(/-\d+$/, '');
-  if (env && (await sourceEnabled(env, 'scrapingant'))) {
-    const html = await scrapingAntFetchHtml(`https://www.lego.com/en-us/product/${num}`, env, { timeoutMs: 25_000 });
-    if (html) {
-      const parsed = parseLegoStockHtml(html, num);
-      if (parsed) return parsed;
-    }
-  }
   if (env && (await sourceEnabled(env, 'brightdata'))) {
     const html = await brightDataUnlock(`https://www.lego.com/en-us/product/${num}`, env, { timeoutMs: 25_000 });
     if (html) {

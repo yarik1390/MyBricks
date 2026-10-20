@@ -2,8 +2,6 @@ import type { Env } from '../types';
 import { fetchSetPricing } from './bricklink';
 import { fetchEbayActiveListings } from './ebay';
 import { configuredFirecrawlKeys, isCreditExhaustion } from './firecrawl-keys';
-import { firecrawlEnabled } from './pricing-flags';
-import { fetchStockXViaFirecrawl } from './stockx';
 import { configuredBrightDataTokens, brightDataEnabled } from './brightdata-keys';
 import { recordAiUsage } from './ai-usage';
 
@@ -142,21 +140,6 @@ const PROBES: Record<string, Probe> = {
     } catch (e) { return err((e as Error).message); }
   },
 
-  // StockX via Firecrawl (ENHANCED proxy, mobile/anti-bot) — the PREFERRED engine
-  // for the bulk backfill (large credit pool). Spends ~5 credits: renders the
-  // Eiffel (10307) search and confirms the parser reads a Lowest Ask.
-  async stockx_firecrawl(env) {
-    if (!firecrawlEnabled(env)) return configured('Firecrawl not enabled (key missing or flag off)');
-    const r = await fetchStockXViaFirecrawl('10307-1', 'LEGO Eiffel Tower', env);
-    if (r.status === 'ok' && r.ask != null) {
-      return ok(`Firecrawl(enhanced) rendered StockX — Eiffel (10307) ask $${r.ask} (${r.url}). Bulk backfill via Firecrawl IS viable (~5cr/set).`);
-    }
-    if (r.status === 'no_data') {
-      return { ok: true, status: 'degraded', detail: `Firecrawl rendered StockX but no Lowest Ask parsed${r.url ? ` (matched ${r.url})` : ''} — prices may not have hydrated in time.` };
-    }
-    return err(`Firecrawl StockX scrape failed: ${r.error || 'unknown'}`);
-  },
-
   async firecrawl(env) {
     const keys = configuredFirecrawlKeys(env);
     if (!keys.length) return configured('no FIRECRAWL_API_KEY(S)');
@@ -189,12 +172,6 @@ const PROBES: Record<string, Probe> = {
     // Some keys work → the service is usable; flag as degraded, not down.
     if (good.length > 0) return { ok: true, status: 'degraded', detail };
     return err(detail);
-  },
-
-  async brickeconomy(env) {
-    // BrickEconomy is scraped via Firecrawl; a Firecrawl-key check is the proxy.
-    const res = await PROBES.firecrawl(env);
-    return { ok: res.ok, status: res.status, detail: `via Firecrawl — ${res.detail}` };
   },
 
   async pricecharting(env) {
@@ -312,23 +289,15 @@ const PROBES: Record<string, Probe> = {
 
 export const TESTABLE_SERVICES = Object.keys(PROBES);
 
-/** Friendly aliases for probe names that were renamed server-side after the
- *  admin console shipped its Test buttons (e.g. 'stockx' -> 'stockx_firecrawl').
- *  Keeps the frontend's stable service ids working. */
-const SERVICE_ALIASES: Record<string, string> = {
-  stockx: 'stockx_firecrawl',
-};
-
 /** Run a single service's probe. Unknown service -> null. Always resolves. */
 export async function runServiceTest(env: Env, service: string): Promise<ServiceTestResult | null> {
-  const probe = PROBES[SERVICE_ALIASES[service] ?? service];
+  const probe = PROBES[service];
   if (!probe) return null;
   const t0 = Date.now();
   try {
     const r = await probe(env);
-    // Report the RESOLVED service id so the console shows which probe ran.
-    return { service: SERVICE_ALIASES[service] ?? service, ...r, ms: Date.now() - t0 };
+    return { service, ...r, ms: Date.now() - t0 };
   } catch (e) {
-    return { service: SERVICE_ALIASES[service] ?? service, ok: false, status: 'error', detail: (e as Error).message, ms: Date.now() - t0 };
+    return { service, ok: false, status: 'error', detail: (e as Error).message, ms: Date.now() - t0 };
   }
 }

@@ -285,7 +285,6 @@ jobs:
             "SELECT stockx_ask, stockx_cached_at, ebay_sold_attempted_at, ebay_used_attempted_at, pc_attempted_at FROM set_market_ext LIMIT 0"
             "SELECT bl_nodata_at, bl_thin_value, bl_thin_qty, bl_ask_value, bl_ask_qty, bl_fallback_cached_at, model_value, model_cached_at, bs_retail_alt FROM set_market_ext LIMIT 0"
             "SELECT set_num, pc_loose_value, pc_sales_volume, pa_retail_value, pa_lowest_offer, pa_in_stock, pa_best_merchant, pa_offer_count, pa_market, pa_cached_at FROM set_market_ext LIMIT 0"
-            "SELECT key_hash, used, cap, period_month, exhausted_at FROM pricesapi_keys LIMIT 0"
             "SELECT key_hash, used, cap, period_month, exhausted_at FROM brightdata_keys LIMIT 0"
             "SELECT key, value, updated_at FROM app_settings LIMIT 0"
             "SELECT id, name, started_at, finished_at, status, summary, error, duration_ms FROM cron_runs LIMIT 0"
@@ -418,7 +417,6 @@ jobs:
           BRICKLINK_TOKEN_SECRET: ${{ secrets.BRICKLINK_TOKEN_SECRET }}
           EBAY_APP_ID: ${{ secrets.EBAY_APP_ID }}
           EBAY_CLIENT_SECRET: ${{ secrets.EBAY_CLIENT_SECRET }}
-          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
           BRICKECONOMY_API_KEY: ${{ secrets.BRICKECONOMY_API_KEY }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
@@ -457,7 +455,6 @@ jobs:
           put_optional BRICKLINK_TOKEN_SECRET "${BRICKLINK_TOKEN_SECRET}"
           put_optional EBAY_APP_ID "${EBAY_APP_ID}"
           put_optional EBAY_CLIENT_SECRET "${EBAY_CLIENT_SECRET}"
-          put_optional APIFY_API_TOKEN "${APIFY_API_TOKEN}"
           put_optional BRICKECONOMY_API_KEY "${BRICKECONOMY_API_KEY}"
           put_optional GOOGLE_CLIENT_ID "${GOOGLE_CLIENT_ID}"
           put_optional GOOGLE_CLIENT_SECRET "${GOOGLE_CLIENT_SECRET}"
@@ -468,8 +465,6 @@ jobs:
           # wrangler.toml. As a secret it was masked to `$***` in deploy logs,
           # and a secret would shadow the var if both existed.
           put_optional MERGE_GATEWAY_API_KEY "${MERGE_GATEWAY_API_KEY}"
-          # Economy-mode key only. Pateway runs as post-response scan telemetry;
-          # it is deliberately not part of the synchronous routing cascade.
           # NOTE: OPENROUTER_API_KEY is currently set DIRECTLY as a Cloudflare
           # Worker secret, not here. The -n guard makes this line a no-op while
           # the GitHub secret is unset, so a push_secrets run cannot clobber the
@@ -496,7 +491,7 @@ jobs:
           # until a FIRECRAWL_API_KEYS GitHub secret is actually added.
           put_optional FIRECRAWL_API_KEYS "${FIRECRAWL_API_KEYS}"
           # Bright Data Web Unlocker tokens. Single token or comma-separated pool;
-          # used first for BrickEconomy, Brickset, and LEGO stock raw-HTML lanes.
+          # used first for Brickset and LEGO stock raw-HTML lanes.
           put_optional BRIGHTDATA_API_TOKEN "${BRIGHTDATA_API_TOKEN}"
           put_optional BRIGHTDATA_API_TOKENS "${BRIGHTDATA_API_TOKENS}"
           # Web Unlocker zone name. Code defaults to web_unlocker1.
@@ -631,16 +626,6 @@ jobs:
           curl -sf "${WORKER_URL}/api/admin/import-status" \
             -H "Authorization: Bearer ${ADMIN_JWT}" \
             | jq -e '.runs | type == "array"' >/dev/null
-          # Compliance gate: the scraped eBay sold-comps lane (Firecrawl/Apify)
-          # must stay held until provider/site authorization is recorded. The
-          # hold is enforced in code (ebaySoldLaneEnabled), not by source tuning,
-          # so verify behavior: a manual sold-scrape trigger must skip with the
-          # hold reason rather than scrape.
-          curl -sf -X POST "${WORKER_URL}/api/admin/jobs/ebay-sold-scrape?limit=1" \
-            -H "Authorization: Bearer ${ADMIN_JWT}" \
-            | jq -e 'if (.skipped | type) == "string"
-                     then (.skipped | test("sold-comps lane held|disabled in source tuning|firecrawl|apify"; "i"))
-                     else (.ok == true or .error != null) end' >/dev/null
           # LLM routing must resolve to a real path for every workload. An empty
           # effective list means every step named a provider with no key, which
           # silently disables that workload's AI rather than failing loudly.

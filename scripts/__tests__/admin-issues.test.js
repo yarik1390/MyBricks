@@ -59,10 +59,10 @@ describe('buildAdminIssues', () => {
   it('never reports an outage for an explicitly disabled status or feature flag', () => {
     const issues = buildAdminIssues({
       diagnostics: [
-        diagnostic('ebay', { reachable: false, status: 'down', last_fail_at: fresh }),
+        diagnostic('firecrawl', { reachable: false, status: 'down', last_fail_at: fresh }),
         diagnostic('amazon', { reachable: false, status: 'disabled', last_fail_at: fresh }),
       ],
-      featureFlags: { ebay_sold_comps: false },
+      featureFlags: { firecrawl: false },
       now: NOW,
     });
 
@@ -137,7 +137,6 @@ describe('buildAdminIssues', () => {
         diagnostic('bricklink', { configured: true, status: 'down', reachable: false, last_fail_at: fresh, last_error: 'HTTP 403 secret detail' }),
         diagnostic('amazon', { status: 'down', reachable: false, last_fail_at: fresh }),
       ],
-      featureFlags: { ebay_sold_comps: true },
       now: NOW,
       maxIssues: 4,
     });

@@ -18,7 +18,7 @@ export function computeRetirementRisk(set: {
   lego_retiring_soon?: number | boolean | null;
   lego_availability?: string | null;
   exit_date?: string | null;
-  // pricesAPI live-retail corroboration: when the set is still in stock across
+  // Store-offer live-retail corroboration: when the set is still in stock across
   // retailers, a LEGO.com "sold out" is only a local stockout, not a retirement.
   pa_in_stock?: number | boolean | null;
 }): number {

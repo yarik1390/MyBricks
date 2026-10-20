@@ -39,7 +39,7 @@ describe('PriceCharting partner release (worker payload)', () => {
 describe('PriceCharting partner registry (public JS)', () => {
   it('names PriceCharting as the only partner', () => {
     assert.match(partnerModule, /id: 'pricecharting',[\s\S]*?isPartner: true/);
-    for (const other of ['bricklink', 'ebay_market', 'brickeconomy', 'brickset', 'rebrickable', 'stockx']) {
+    for (const other of ['bricklink', 'ebay_market', 'brickeconomy', 'brickset', 'rebrickable']) {
       const block = partnerModule.split(`${other}: {`)[1]?.split('},')[0] ?? '';
       assert.ok(block && !block.includes('isPartner: true'), `${other} must not be a partner`);
     }

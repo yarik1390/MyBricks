@@ -55,14 +55,10 @@ import { priceChartingBulkNeedsRetry, runPriceChartingBulkFetch } from './jobs/p
 import { runPriceChartingTriage } from './jobs/pricecharting-triage';
 import { importSets, importFigs } from './jobs/import-catalog';
 import { runBrickInsightsBackfill } from './jobs/brickinsights';
-import { runEbaySoldScrape } from './jobs/ebay-sold-scrape';
-import { runEbaySoldApifyScrape } from './jobs/ebay-sold-apify';
-import { runStockXEnrich } from './jobs/stockx-enrich';
 import { runStoreOffers } from './jobs/store-offers';
 import { runPromotionsRefresh } from './jobs/promotions-refresh';
 import { runLegoStockRefresh } from './jobs/lego-stock-refresh';
 import { runBricksetEnrich } from './jobs/brickset-enrich';
-import { runBrickEconomyEnrich } from './jobs/brickeconomy-enrich';
 import { runBlendRecomputeBackfill } from './jobs/recompute-blends';
 import { applySourceConfig } from './lib/source-config';
 import { recordCronFinish, summarizeResult, resultFailed } from './lib/cron-runs';
@@ -237,8 +233,8 @@ app.get('/api/config', (c) => {
         configured: ebayMissing.length === 0,
         missing_secrets: ebayMissing,
         recommended_action: ebayMissing.length
-          ? `Add ${ebayMissing.join(' and ')} as GitHub Actions secrets; eBay sold comps stay disabled until both are present.`
-          : 'eBay US/USD sold comps are ready.',
+          ? `Add ${ebayMissing.join(' and ')} as GitHub Actions secrets; eBay asking prices stay disabled until both are present.`
+          : 'eBay US/USD asking prices are ready.',
       },
       gemini: {
         configured: geminiMissing.length === 0,
@@ -393,28 +389,23 @@ export default {
     switch (event.cron) {
       // Hourly: BrickLink-primary catalog sweep. scope:'all' so idle capacity
       // (once owned/wishlisted are fresh) steadily converts the formula_bulk
-      // catalog to real market prices. BrickEconomy is rationed by the daily
-      // ledger (80/day) and BrickLink (4000/day) carries the rest. On Workers
+      // catalog to real market prices. BrickLink (4000/day) carries it. On Workers
       // Paid the packer can fit a much larger batch under the 1,000-subrequest
       // cap, so we lift the per-run limit to 80 (was the ~5 the free 50-cap
       // allowed); reserveQuota gates it to the remaining daily BrickLink budget
-      // (~80/run × 24h ≈ within 4,000/day). Source-light (no supplemental/eBay/
-      // AI) to maximize sets/run; those run in daily maintenance + on-demand.
+      // (~80/run × 24h ≈ within 4,000/day). Source-light (no supplemental/eBay)
+      // to maximize sets/run; those run in daily maintenance + on-demand.
       case '0 * * * *': {
         // Pass 1 — user-visible slice. Fan out every working source
-        // (BrickLink, BrickEconomy, eBay *ask*, AI fallback) over
-        // owned/wishlisted sets still on a formula/stale value so the sets
-        // users actually see get real-market coverage within the hour.
-        // eBay sold-comps stays OFF (includeEbaySold:false — needs Marketplace
-        // Insights approval); the basic-scope Browse ask runs regardless. The
-        // slice is tiny and prioritized, so its own subrequest budget bounds it.
+        // (BrickLink, stored BrickEconomy, eBay ask) over owned/wishlisted
+        // sets still on a formula/stale value so the sets users actually see
+        // get real-market coverage within the hour. The slice is tiny and
+        // prioritized, so its own subrequest budget bounds it.
         await run('valuate-owned-deep', () => runValuateSets(env, {
           scope: 'owned',
           limit: 14,
           includeSupplemental: true,
           includeEbay: true,
-          includeEbaySold: false,
-          includeAiFallback: true,
           subrequestBudget: 240,
         }));
         // Pass 2 — catalog sweep. BrickLink-primary, source-light; idle
@@ -425,10 +416,9 @@ export default {
           limit: 80,
           includeSupplemental: false,
           includeEbay: false,
-          includeAiFallback: false,
           subrequestBudget: 360,
         }));
-        // Pass 3 — eBay ASK backfill (Browse basic scope; sold stays off).
+        // Pass 3 — eBay ASK backfill (Browse basic scope).
         // Refreshes the free active-listing ask signal for ask-stale sets
         // (owned/wishlist + retired first), feeding the persisted blended
         // value. Small + bounded so all three passes fit one invocation's
@@ -438,7 +428,7 @@ export default {
         // worth >= $150 that have gone stale/expired, refreshed most-valuable
         // first so the visible top of the catalog (and the Value sort) reads
         // "Market price", not "Older price". reserveQuota shares the daily
-        // BrickLink/BE budget; the pass self-tapers as the head gets fresh.
+        // BrickLink budget; the pass self-tapers as the head gets fresh.
         await run('valuate-topvalue', () => runValuateSets(env, {
           scope: 'all',
           prioritizeValue: true,
@@ -446,8 +436,6 @@ export default {
           limit: 30,
           includeSupplemental: true,
           includeEbay: true,
-          includeEbaySold: false,
-          includeAiFallback: false,
           subrequestBudget: 320,
         }));
         // Change-only v3 shadow sweep. PriceCharting-era records are healed
@@ -472,8 +460,8 @@ export default {
       case '0 5 * * SUN': await run('collection-backups', () => runCollectionBackups(env)); break;
       // Formula-head value converter, hourly at :15 — converts the high-value
       // formula ESTIMATE head (>= $50, value-first, not tried in 3d) to real
-      // BrickLink/BE market values using idle BrickLink budget. No AI fallback
-      // (keep the formula value if no market data; retry later). Complements
+      // BrickLink market values using idle BrickLink budget (keep the formula
+      // value if no market data; retry later). Complements
       // Pass 4, which refreshes already-real values.
       // Hourly BrickLink-staleness refresh: re-query sets whose BrickLink value has
       // aged past the blend's 14-day freshness window, eBay-corroborated ones first.
@@ -488,8 +476,7 @@ export default {
       case '45 * * * *':
         // Tie-breaker first, from the same BrickLink allowance: sets where two
         // sources disagree get a BrickLink guide as the deciding third source.
-        // BrickLink is the only sanctioned third witness (the eBay sold lane is
-        // compliance-held), so this lane gets 12/h (+96 calls/day worst case).
+        // BrickLink is the only sanctioned third witness, so this lane gets 12/h (+96 calls/day worst case).
         // The 4,500 ledger fails closed, so any overshoot only trims the last
         // lanes of the day, never BrickLink's own 5,000 cap.
         await run('valuate-conflict-tiebreak', () => runValuateSets(env, {
@@ -498,8 +485,6 @@ export default {
           limit: 12,
           includeSupplemental: false,
           includeEbay: false,
-          includeEbaySold: false,
-          includeAiFallback: false,
           // packBatch: (budget - 20) / 7-8 per BrickLink-only set must fit 12.
           subrequestBudget: 120,
         }));
@@ -509,8 +494,6 @@ export default {
           limit: 16,
           includeSupplemental: false,
           includeEbay: false,
-          includeEbaySold: false,
-          includeAiFallback: false,
           // packBatch sizes the batch to (budget - 20 overhead) / perSetCost, and
           // perSetCost is 7 for this BrickLink-only profile — so 200 would silently
           // clamp the 30 back to 25. 260 lets the full batch through.
@@ -528,8 +511,6 @@ export default {
           limit: 28,
           includeSupplemental: false,
           includeEbay: false,
-          includeEbaySold: false,
-          includeAiFallback: false,
           // (360 - 20 overhead) / 7 per BrickLink-only set fits all 28.
           subrequestBudget: 360,
         }));
@@ -537,7 +518,7 @@ export default {
       case '15 * * * *':
         await run('valuate-formula-head', () => runValuateSets(env, {
           scope: 'all', formulaHead: true, minValue: 50, limit: 40,
-          includeSupplemental: false, includeEbay: false, includeAiFallback: false,
+          includeSupplemental: false, includeEbay: false,
           subrequestBudget: 300,
         }));
         // PriceCharting agreement-promotion drain: idempotent and change-only,
@@ -568,21 +549,13 @@ export default {
       case '0 5 * * *': await run('valuate-minifigs', () => runValuateMinifigs(env, { limit: 200 })); break;
       case '0 6 * * *': await run('brickinsights-ratings', () => runBrickInsightsBackfill(env, { limit: 80 })); break;
       case '30 5 * * *': await run('build-alts-index', () => indexMissingAlts(env, { limit: 120 })); break;
-      // eBay sold comps via Bright Data — 8 runs/day (every 3h) at up to 150 each
-      // (~1200/day) to BURST through the never-scraped sets fast. It self-tapers:
-      // freshly-cached rows aren't due again for 30 days, and no-data sets are also
-      // stamped, so once the backfill is done daily volume drops to the refresh
-      // rate (~eligible/30) on its own — well within the ~25k/mo token pool.
-      case '0 0,3,6,9,12,15,18,21 * * *': await run('ebay-sold-scrape', () => runEbaySoldScrape(env, { limit: 16 })); break;
-      case '30 21 * * SUN': await run('ebay-sold-apify', () => runEbaySoldApifyScrape(env, { limit: 20 })); break;
       // Phase-2 lean cadence (ongoing Firecrawl ~25k/mo budget): brickset is
       // mostly-static metadata (trimmed 50->30); LEGO stock is scoped to active
       // owned/wishlisted on a 14-day cycle inside the job (trimmed 100->40, it
-      // self-tapers); brickeconomy refreshes/new-sets stay at 40. Ongoing value
-      // freshness rides on the free APIs (BrickLink/eBay), not Firecrawl.
+      // self-tapers). Ongoing value freshness rides on the free APIs
+      // (BrickLink/eBay), not Firecrawl.
       case '0 9 * * *': await run('brickset-enrich', () => runBricksetEnrich(env, { limit: 30 })); break;
       case '0 10 * * *': await run('lego-stock-refresh', () => runLegoStockRefresh(env, { limit: 200 })); break;
-      case '0 11 * * *': await run('brickeconomy-enrich', () => runBrickEconomyEnrich(env, { limit: 60 })); break;
       // Part-out (E1): trickle the shared part_prices cache from BrickLink's NEW
       // price guide, most-shared parts first. Budget-gated (reserveQuota shares
       // the BrickLink cap; never starves valuations). limit 150 → ~150 parts/day.
@@ -613,9 +586,6 @@ export default {
         await run('promotions-refresh', () => runPromotionsRefresh(env));
         break;
       case '0 16 * * *': await run('minifig-verify', () => runMinifigVerify(env)); break;
-      // pricesAPI live-retail runs in 3 daily slots (~18 sets/day) now that the
-      // key pool spreads the monthly budget; cold calls are 30–90s so each slot
-      // stays small. The job prioritizes owned/wishlisted sets first.
       // Amazon Creators API offer refresh — KV-only (24h TTL, Associates terms),
       // owned/wishlisted + catalog head. No-ops until AMAZON_CREATORS_ENABLED=1
       // with eligible credentials (>= 10 qualifying sales / 30 days).
@@ -626,22 +596,7 @@ export default {
         await run('store-offers', () => runStoreOffers(env, { limit: 20 }));
         break;
       case '30 16 * * *': await run('amazon-offers', () => runAmazonOffers(env, { limit: 60 })); break;
-      case '0 18 * * *': await run('stockx-enrich', () => runStockXEnrich(env, { limit: 20 })); break;
       case '0 22 * * *': await run('community-comps', () => runCommunityComps(env)); break;
-      // AI gap-fill: high-value formula sets that NO market source can price get a
-      // free Gemini estimate (tries market first, AI only on a full miss). Small
-      // limit + 3-day formula-head cooldown keep it well under the free tier; the
-      // plausibility guard + AI-spend ledger block bad/runaway values. BYOK honored.
-      case '0 20 * * *': await run('valuate-ai-gapfill', () => runValuateSets(env, {
-        scope: 'all', formulaHead: true, minValue: 50, limit: 30,
-        includeSupplemental: false, includeEbay: false, includeAiFallback: true,
-        subrequestBudget: 300,
-      })); break;
-      // NB: the temporary BrickEconomy bootstrap (was "5,20,35,50 * * * *", 4×/hour)
-      // was retired once the full year>=2000 catalog was swept (~67% populated =
-      // BrickEconomy's real coverage ceiling). Steady-state refresh now rides the
-      // daily brickeconomy-enrich (0 11) at limit 40; bootstrap-brickeconomy.yml
-      // (manual, budget-capped) fills any later gaps on demand.
       case '0 4 * * *': {
         await run('db-hygiene', () => runDbHygiene(env));
         await run('daily-catalog-maintenance', () => runDailyCatalogMaintenance(env));
@@ -666,11 +621,6 @@ export default {
       // cheapest freshness available anywhere in this system.
       case '30 4 * * *':
         await run('pricecharting-bulk-fetch', () => runPriceChartingBulkFetch(env));
-        break;
-      // BrickEconomy weekly refresh cycle — see wrangler.toml [triggers].
-      case '25 * * * *':
-      case '50 * * * *':
-        await run('brickeconomy-enrich', () => runBrickEconomyEnrich(env, { limit: 60 }));
         break;
     }
   },

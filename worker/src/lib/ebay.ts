@@ -1,51 +1,27 @@
 import type { Env } from '../types';
 import { fetchTracked } from './http';
-import { ebaySoldCompsEnabled } from './pricing-flags';
-import { ebaySoldLaneEnabled, sourceEnabled } from './source-config';
+import { sourceEnabled } from './source-config';
 
-const EBAY_SCOPE_MARKETPLACE_INSIGHTS = 'https://api.ebay.com/oauth/api_scope/buy.marketplace.insights';
 const EBAY_MARKETPLACE_ID = 'EBAY_US';
 const MIN_VALID_SOLD_COMPS = 3;
 
 let tokenCache: { token: string; expiresAt: number; scope: string } | null = null;
-
-export type EbaySoldStatus = 'ok' | 'partial' | 'no_data' | 'unconfigured' | 'unauthorized' | 'error';
-export type EbaySoldCondition = 'new' | 'used';
 
 export interface EbayConditionPricing {
   value: number | null;
   sample_count: number;
   valid_count: number;
   filtered_count: number;
-  last_sold?: string | null;
-  error?: string | null;
 }
 
-export interface EbaySoldPrices {
-  source: 'marketplace_insights';
-  status: EbaySoldStatus;
-  new_value: number | null;
-  used_value: number | null;
-  new_sample_count: number;
-  used_sample_count: number;
-  new_last_sold?: string | null;
-  used_last_sold?: string | null;
-  error?: string | null;
-}
-
-interface MarketplaceSaleItem {
+interface EbayListingItem {
   title?: string;
   price?: {
     value?: string | number;
     currency?: string;
     currencyCode?: string;
   };
-  // Marketplace Insights returns the sale date per sold item; captured (when
-  // present) to show comp recency. Optional/defensive — null if eBay omits it.
-  lastSoldDate?: string;
 }
-
-const USED_CONDITIONS = 'USED_EXCELLENT|USED_VERY_GOOD|USED_GOOD|USED_ACCEPTABLE';
 
 function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
@@ -213,174 +189,12 @@ export function isValidLegoSetSaleTitle(title: string, setNum: string): boolean 
   return !BAD_TITLE_PATTERNS.some(re => re.test(normalized));
 }
 
-function priceFromSale(item: MarketplaceSaleItem, setNum: string): number | null {
+function priceFromListing(item: EbayListingItem, setNum: string): number | null {
   if (!isValidLegoSetSaleTitle(item.title || '', setNum)) return null;
   const currency = item.price?.currency || item.price?.currencyCode || 'USD';
   if (String(currency).toUpperCase() !== 'USD') return null;
   const value = Number(item.price?.value ?? NaN);
   return Number.isFinite(value) && value > 0 ? value : null;
-}
-
-async function fetchMarketplaceInsightsCondition(
-  token: string,
-  setNum: string,
-  condition: EbaySoldCondition,
-  env: Env,
-  options: { recordHealth?: boolean } = {},
-): Promise<EbayConditionPricing> {
-  const params = new URLSearchParams({
-    q: cleanKeywords(setNum),
-    limit: '50',
-    filter: condition === 'new' ? 'conditions:{NEW}' : `conditions:{${USED_CONDITIONS}}`,
-  });
-  const resp = await fetchTracked(
-    env,
-    'ebay',
-    `https://api.ebay.com/buy/marketplace_insights/v1_beta/item_sales/search?${params}`,
-    {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json',
-        'X-EBAY-C-MARKETPLACE-ID': EBAY_MARKETPLACE_ID,
-      },
-    },
-    { retries: 1, timeoutMs: 10000, record: options.recordHealth !== false },
-  );
-
-  if (!resp.ok) {
-    throw new Error(await ebayErrorMessage(resp, 'eBay Marketplace Insights'));
-  }
-
-  const data = await resp.json() as { itemSales?: MarketplaceSaleItem[] };
-  // Track price + sale date together so we can report the most recent sale
-  // among the valid comps (defensive: lastSoldDate may be absent).
-  const valid = (data.itemSales || [])
-    .map(item => ({ price: priceFromSale(item, setNum), date: typeof item.lastSoldDate === 'string' ? item.lastSoldDate : null }))
-    .filter((x): x is { price: number; date: string | null } => x.price != null);
-  const prices = valid.map(x => x.price);
-  const dates = valid.map(x => x.date).filter((d): d is string => !!d);
-  // ISO-8601 timestamps sort lexicographically, so max() = most recent sale.
-  const last_sold = dates.length ? dates.reduce((a, b) => (a > b ? a : b)) : null;
-  return { ...summarizeSoldPrices(prices), last_sold };
-}
-
-export async function fetchEbaySoldPrices(
-  setNum: string,
-  setName: string,
-  env: Env,
-  options: { recordHealth?: boolean } = {},
-): Promise<EbaySoldPrices> {
-  void setName;
-  // Compliance hold first: until the scraped/MI sold lane is authorized, every
-  // caller (crons AND user-facing set-detail refreshes) gets the benign
-  // unconfigured result — no external call, no health failure recorded. This
-  // used to be gated only by the feature flag, which let on-demand set-page
-  // refreshes bypass the hold and pollute eBay health with pending-approval
-  // errors (the console then showed "Failing" while /test/ebay passed).
-  if (!ebaySoldLaneEnabled(env) || !ebaySoldCompsEnabled(env)) {
-    return {
-      source: 'marketplace_insights',
-      status: 'unconfigured',
-      new_value: null,
-      used_value: null,
-      new_sample_count: 0,
-      used_sample_count: 0,
-      error: 'eBay sold comps disabled — Marketplace Insights access pending.',
-    };
-  }
-  if (!hasConfiguredEbaySecrets(env)) {
-    return {
-      source: 'marketplace_insights',
-      status: 'unconfigured',
-      new_value: null,
-      used_value: null,
-      new_sample_count: 0,
-      used_sample_count: 0,
-      error: 'EBAY_APP_ID and EBAY_CLIENT_SECRET are required for eBay Marketplace Insights sold comps.',
-    };
-  }
-
-  let token: string | null = null;
-  try {
-    token = await getEbayApplicationToken(env, EBAY_SCOPE_MARKETPLACE_INSIGHTS, options);
-  } catch (error) {
-    const message = (error as Error).message || String(error);
-    const unauthorized = /401|403|authorized|scope|permission/i.test(message);
-    return {
-      source: 'marketplace_insights',
-      status: unauthorized ? 'unauthorized' : 'error',
-      new_value: null,
-      used_value: null,
-      new_sample_count: 0,
-      used_sample_count: 0,
-      error: message,
-    };
-  }
-  if (!token) {
-    return {
-      source: 'marketplace_insights',
-      status: 'unauthorized',
-      new_value: null,
-      used_value: null,
-      new_sample_count: 0,
-      used_sample_count: 0,
-      error: 'eBay OAuth token request failed.',
-    };
-  }
-
-  const newResult = await fetchMarketplaceInsightsCondition(token, setNum, 'new', env, options).catch((error) => ({
-    value: null,
-    sample_count: 0,
-    valid_count: 0,
-    filtered_count: 0,
-    last_sold: null,
-    error: (error as Error).message || String(error),
-  }));
-
-  if (isEbayAccessError(newResult.error)) {
-    return {
-      source: 'marketplace_insights',
-      status: 'unauthorized',
-      new_value: null,
-      used_value: null,
-      new_sample_count: 0,
-      used_sample_count: 0,
-      error: newResult.error,
-    };
-  }
-
-  const usedResult = await fetchMarketplaceInsightsCondition(token, setNum, 'used', env, options).catch((error) => ({
-    value: null,
-    sample_count: 0,
-    valid_count: 0,
-    filtered_count: 0,
-    last_sold: null,
-    error: (error as Error).message || String(error),
-  }));
-
-  const hasValue = newResult.value != null || usedResult.value != null;
-  const hadSamples = newResult.valid_count > 0 || usedResult.valid_count > 0;
-  const errors = [newResult.error, usedResult.error].filter(Boolean).join('; ') || null;
-  const unauthorized = isEbayAccessError(errors);
-  const status: EbaySoldStatus = hasValue
-    ? (newResult.value != null && usedResult.value != null ? 'ok' : 'partial')
-    : errors
-      ? (unauthorized ? 'unauthorized' : 'error')
-      : hadSamples
-        ? 'no_data'
-        : 'no_data';
-
-  return {
-    source: 'marketplace_insights',
-    status,
-    new_value: newResult.value,
-    used_value: usedResult.value,
-    new_sample_count: newResult.sample_count,
-    used_sample_count: usedResult.sample_count,
-    new_last_sold: newResult.last_sold ?? null,
-    used_last_sold: usedResult.last_sold ?? null,
-    error: errors,
-  };
 }
 
 const EBAY_SCOPE_BASIC = 'https://api.ebay.com/oauth/api_scope';
@@ -393,7 +207,7 @@ export interface EbayActiveListings {
 
 /**
  * Supply-side signal: median asking price and count of current eBay listings
- * via the Browse API. Unlike Marketplace Insights, the basic api_scope is
+ * via the Browse API. The basic api_scope is
  * available to every eBay keyset, so this works wherever OAuth works at all.
  */
 export async function fetchEbayActiveListings(
@@ -444,7 +258,7 @@ export async function fetchEbayActiveListings(
       itemSummaries?: Array<{ title?: string; price?: { value?: string | number; currency?: string } }>;
     };
     const prices = (data.itemSummaries || [])
-      .map(item => priceFromSale(item, setNum))
+      .map(item => priceFromListing(item, setNum))
       .filter((price): price is number => price != null);
     const summary = summarizeSoldPrices(prices);
     return { ask_value: summary.value, ask_qty: summary.sample_count, error: null };
@@ -466,57 +280,6 @@ export function buildEbayAskUpdate(
       ebay_ask_cached_at=datetime('now')
     WHERE set_num=?
   `).bind(listings.ask_value, listings.ask_qty, setNum);
-}
-
-export function ebaySoldNewValue(prices: EbaySoldPrices | null | undefined): number | null {
-  return prices?.new_value ?? null;
-}
-
-export function ebaySoldUsedValue(prices: EbaySoldPrices | null | undefined): number | null {
-  return prices?.used_value ?? null;
-}
-
-export function ebaySoldHasValue(prices: EbaySoldPrices | null | undefined): boolean {
-  return ebaySoldNewValue(prices) != null || ebaySoldUsedValue(prices) != null;
-}
-
-export function buildEbaySoldUpdate(
-  db: D1Database,
-  setNum: string,
-  prices: EbaySoldPrices | null | undefined,
-): D1PreparedStatement | null {
-  if (!prices || prices.status === 'unconfigured') return null;
-  const hasNewValue = prices.new_value != null ? 1 : 0;
-  const hasUsedValue = prices.used_value != null ? 1 : 0;
-  // No-data and provider failures must not refresh an old observation or spend
-  // a D1 write. Retry/backoff state belongs in KV/integration health.
-  if (!hasNewValue && !hasUsedValue) return null;
-  return db.prepare(`
-    UPDATE lego_sets SET
-      ebay_new_value=COALESCE(?, ebay_new_value),
-      ebay_new_qty=CASE WHEN ? IS NULL THEN ebay_new_qty ELSE ? END,
-      ebay_new_cached_at=CASE WHEN ? = 1 THEN datetime('now') ELSE ebay_new_cached_at END,
-      ebay_new_last_sold=COALESCE(?, ebay_new_last_sold),
-      ebay_used_value=COALESCE(?, ebay_used_value),
-      ebay_used_qty=CASE WHEN ? IS NULL THEN ebay_used_qty ELSE ? END,
-      ebay_used_cached_at=CASE WHEN ? = 1 THEN datetime('now') ELSE ebay_used_cached_at END,
-      ebay_used_last_sold=COALESCE(?, ebay_used_last_sold),
-      ebay_value=COALESCE(?, ebay_value),
-      ebay_cached_at=CASE WHEN ? = 1 THEN datetime('now') ELSE ebay_cached_at END
-    WHERE set_num=?
-  `).bind(
-    prices.new_value,
-    prices.new_sample_count, prices.new_sample_count,
-    hasNewValue,
-    prices.new_last_sold ?? null,
-    prices.used_value,
-    prices.used_sample_count, prices.used_sample_count,
-    hasUsedValue,
-    prices.used_last_sold ?? null,
-    prices.new_value,
-    hasNewValue,
-    setNum,
-  );
 }
 
 export function __resetEbayTokenCacheForTests() {

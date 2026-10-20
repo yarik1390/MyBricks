@@ -9,9 +9,6 @@ import { flagOverride, type FeatureFlag } from './feature-flags';
 //      override is set (preserves exactly the prior semantics).
 // A required token/key is a separate PREREQUISITE: an override can express intent
 // but can never conjure a missing secret, so those checks stay outside resolve().
-function flagOn(value: unknown): boolean {
-  return /^(1|true|yes|on)$/i.test(String(value ?? ''));
-}
 function flagOff(value: unknown): boolean {
   return /^(0|false|no|off)$/i.test(String(value ?? ''));
 }
@@ -22,17 +19,11 @@ function resolve(name: FeatureFlag, envDefaultOn: boolean): boolean {
   return typeof o === 'boolean' ? o : envDefaultOn;
 }
 
-export function ebaySoldCompsEnabled(env: Env): boolean {
-  // OFF by default; on after eBay Marketplace Insights approval (env "1" or override).
-  return resolve('ebay_sold_comps', flagOn(env.EBAY_SOLD_COMPS_ENABLED));
-}
-
 // BrickInsights review ratings use a sanctioned, documented public API, so this
 // source is ON by default; disable via a falsy BRICKINSIGHTS_ENABLED or override.
 export function brickInsightsEnabled(env: Env): boolean {
   return resolve('brickinsights', !flagOff(env.BRICKINSIGHTS_ENABLED));
 }
-
 
 // Firecrawl web scraping. PREREQUISITE: FIRECRAWL_API_KEY or FIRECRAWL_API_KEYS.
 // On by default once a key exists; pause via FIRECRAWL_ENABLED=0 or override.
@@ -41,20 +32,4 @@ export function firecrawlEnabled(env: Env): boolean {
     !!env.FIRECRAWL_API_KEY ||
     !!(env.FIRECRAWL_API_KEYS?.split(',').some((k) => k.trim()));
   return hasKey && resolve('firecrawl', !flagOff(env.FIRECRAWL_ENABLED));
-}
-
-// Apify eBay sold-comps actor. PREREQUISITE: APIFY_API_TOKEN. On by default once
-// configured; APIFY_ENABLED=0 is the migration-free emergency kill switch.
-export function apifyEnabled(env: Env): boolean {
-  return !!env.APIFY_API_TOKEN && !flagOff(env.APIFY_ENABLED);
-}
-
-// StockX lowest-ask scrape (rendered). PREREQUISITE: a Firecrawl key — the only
-// engine since the Bright Data unlocker was removed. OFF by default — a fragile,
-// slow scrape that must be validated before it feeds valuations, so it needs an
-// explicit opt-in (STOCKX_ENABLED=1 or the admin `stockx` flag).
-export function stockxEnabled(env: Env): boolean {
-  const hasFirecrawl = !!env.FIRECRAWL_API_KEY
-    || !!(env.FIRECRAWL_API_KEYS?.split(',').some((k) => k.trim()));
-  return hasFirecrawl && resolve('stockx', flagOn(env.STOCKX_ENABLED));
 }

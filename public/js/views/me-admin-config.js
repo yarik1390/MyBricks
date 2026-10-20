@@ -70,21 +70,10 @@ export const ADMIN_JOB_TOOLS = {
     quota: 'Barcode pages plus asking-price refresh.',
     icon: I.refresh({ w: 16 }),
   },
-  revalue: {
-    url: '/api/admin/revalue-brickeconomy',
-    method: 'POST',
-    body: { scope: 'all', limit: 4 },
-    label: 'Revalue prices',
-    desc: 'Re-prices a small batch of sets from current market sources.',
-    source: 'Valuation sources',
-    duration: 'Small batch',
-    quota: 'Uses the current daily source budgets.',
-    icon: I.trend(),
-  },
   everything: {
     url: '/api/admin/populate-everything',
     method: 'POST',
-    body: { valuation_limit: 6, barcode_pages: 4, ebay_limit: 2 },
+    body: { valuation_limit: 6, barcode_pages: 4 },
     label: 'Populate all safe sources',
     desc: 'Runs safe slices across every configured source until done.',
     source: 'All configured providers',
@@ -112,17 +101,6 @@ export const ADMIN_JOB_TOOLS = {
     source: 'PriceCharting (stored data)',
     duration: 'Seconds — set-based SQL, no external calls',
     quota: 'Auto-runs hourly (drain) + daily (full signal refresh); writes count against the D1 pricing ledger.',
-    icon: I.refresh({ w: 16 }),
-  },
-  ebaySold: {
-    url: '/api/admin/jobs/ebay-sold-scrape?limit=5',
-    method: 'POST',
-    body: {},
-    label: 'Run eBay-sold scrape',
-    desc: 'Scrapes eBay sold comps now (Firecrawl).',
-    source: 'Firecrawl',
-    duration: 'Up to ~60s for 5 sets',
-    quota: 'Spends Firecrawl credits; runs synchronously and returns the result.',
     icon: I.refresh({ w: 16 }),
   },
   pricecharting: {
@@ -175,19 +153,19 @@ export const MAINTENANCE_TOOLS = {
 
 export const SOURCE_META = {
   bricklink: ['BrickLink', 'Primary collector-market pricing. Strong signal for new and used values.'],
-  ebay: ['eBay', 'Asking data plus sold comps only when approved and reachable. No weak sold fallback.'],
-  brickeconomy: ['BrickEconomy', 'Useful historical and forecast signal when reachable.'],
+  ebay: ['eBay', 'Asking data from current listings.'],
+  brickeconomy: ['BrickEconomy', 'Stored historical values and forecasts; no longer refreshed.'],
   pricecharting: ['PriceCharting', 'eBay closed-auction sold comps (Marketplace Insights replacement). Verified mappings only — unique UPC or cross-source price agreement; the rest stay quarantined.'],
   amazon: ['Amazon Creators API', 'Live Amazon offers for the buy slot. KV-only (24h) per Associates terms; never a valuation input — weight stays 0.'],
   firecrawl: ['Firecrawl', 'Scraping runtime for structured market enrichment.'],
-  brightdata: ['Bright Data Web Unlocker', 'Raw-HTML transport used first for BrickEconomy, Brickset, and LEGO stock scrapes; monthly token pool.'],
+  brightdata: ['Bright Data Web Unlocker', 'Raw-HTML transport used first for Brickset and LEGO stock scrapes; monthly token pool.'],
 };
 
 export const PROVIDER_GROUPS = [
   ['Core', ['d1', 'supabase', 'worker', 'pages']],
   ['Catalog', ['rebrickable', 'brickset', 'upc']],
   ['Pricing', ['bricklink', 'brickeconomy', 'ebay', 'pricecharting', 'brickinsights', 'amazon']],
-  ['Scraping', ['firecrawl', 'brightdata', 'stockx']],
+  ['Scraping', ['firecrawl', 'brightdata']],
   ['AI', ['gemini', 'openai', 'openrouter', 'merge', 'byok']],
   ['Notifications', ['resend', 'push', 'vapid', 'discord']],
   ['Sync', ['google', 'patreon']],
@@ -197,17 +175,13 @@ export const PROVIDER_GROUPS = [
 // Service key -> runtime feature flag (an env-default override you can flip from
 // the console with no redeploy). Kept in sync with worker FEATURE_FLAGS.
 export const SERVICE_FLAG = {
-  ebay: 'ebay_sold_comps',
   brickinsights: 'brickinsights',
   firecrawl: 'firecrawl',
-  stockx: 'stockx',
 };
 
 export const FLAG_LABEL = {
-  ebay_sold_comps: 'eBay sold comps',
   brickinsights: 'BrickInsights ratings',
   firecrawl: 'Firecrawl scraping',
-  stockx: 'StockX lowest ask',
 };
 
 // Services the worker /test/:service probe can check (mirrors TESTABLE_SERVICES
@@ -218,8 +192,8 @@ export const FLAG_LABEL = {
 // to click. A test in pure.test.js now enforces the pairing.
 export const TESTABLE = new Set([
   'd1', 'supabase', 'rebrickable', 'brickset', 'brickinsights', 'bricklink', 'ebay',
-  'firecrawl', 'brickeconomy', 'pricecharting', 'brightdata',
-  'openrouter', 'gemini', 'openai', 'merge', 'resend', 'turnstile', 'patreon', 'push', 'stockx',
+  'firecrawl', 'pricecharting', 'brightdata',
+  'openrouter', 'gemini', 'openai', 'merge', 'resend', 'turnstile', 'patreon', 'push',
 ]);
 
 // Pricing sources with weight/cap/refresh tuning (worker DEFAULT_SOURCE_CONFIG).
@@ -235,7 +209,7 @@ export const SERVICE_DESC = {
   pages: 'Static asset + PWA hosting on Cloudflare Pages.',
   rebrickable: 'Master LEGO set and minifig catalog import.',
   brickset: 'Set metadata, retail price, and barcode enrichment.',
-  brightdata: 'Bright Data Web Unlocker — raw page transport for BrickEconomy, Brickset, and LEGO stock.',
+  brightdata: 'Bright Data Web Unlocker — raw page transport for Brickset and LEGO stock.',
   upc: 'Barcode backfill so sets can be scanned.',
   brickinsights: 'Aggregated community set ratings shown on set pages.',
   turnstile: 'Cloudflare bot check on keyless web photo scans. Site key and secret must come from the SAME widget, or every scan is rejected.',
@@ -250,7 +224,6 @@ export const SERVICE_DESC = {
   vapid: 'Web-push signing keys.',
   discord: 'Optional Discord webhook alerts.',
   google: 'Google Sheets collection export and sync.',
-  stockx: 'Feasibility probe — can Firecrawl reach StockX market data? Not a live valuation source yet.',
 };
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

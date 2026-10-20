@@ -13,7 +13,6 @@ import {
 } from './lib/brightdata-keys';
 import { brightDataUnlock } from './lib/brightdata';
 import {
-  parseBrickEconomyHtml,
   parseBricksetHtml,
   parseLegoStockHtml,
 } from './lib/brightdata-parsers';
@@ -203,32 +202,6 @@ describe('Bright Data Web Unlocker client', () => {
 });
 
 describe('deterministic Bright Data HTML parsers', () => {
-  it('parses BrickEconomy labels without confusing current, forecast, or used values', () => {
-    const html = `
-      <script type="application/ld+json">{"@type":"Product","offers":{"price":"1448.03"}}</script>
-      <div>Retail price</div><div>$849.99</div>
-      <div>Today's value</div><div>$1,448.03</div>
-      <div>Rolling growth</div><div>+2.93% <small>Previous 12 months</small></div>
-      <div>5 year forecast</div><div>$2,089.05</div>
-      <section><h3>Set Pricing Models</h3>
-        <h4>New/Sealed</h4><div>Machine Learning/AI Model</div>
-        <div>Value(today)</div><div>$1,448.03</div>
-        <div>Value(in 2 years)</div><div>$1,951.71</div>
-        <div>Statistical Model</div><div>Value(today)</div><div>$1,468.06</div>
-        <h4>Used</h4><div>Machine Learning/AI Model</div>
-        <div>Value(today)</div><div>$821.37</div><div>Low</div><div>$700</div>
-      </section>`;
-    expect(parseBrickEconomyHtml(html)).toEqual({
-      retail_price_us: 849.99,
-      current_value_new: 1448.03,
-      current_value_used: 821.37,
-      forecast_value_new_2_years: 1951.71,
-      forecast_value_new_5_years: 2089.05,
-      rolling_growth_12months: 2.93,
-    });
-    expect(parseBrickEconomyHtml('<h1>Yikes!</h1><p>The page you requested could not be found.</p>')).toBeNull();
-  });
-
   it('parses Brickset dt/dd metadata, US RRP, dates, tags, age and rating', () => {
     const html = `<dl>
       <dt>Theme group</dt><dd>Licensed</dd><dt>Subtheme</dt><dd>Ultimate Collector Series</dd>
