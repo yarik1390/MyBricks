@@ -354,7 +354,10 @@ test.describe(() => {
       const json = (body) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
       if (path === '/api/me') return json({ display_name: 'Test Collector', handle: 'tester', currency: 'USD', is_guest: false, is_admin: true, portfolio_stats: {} });
       if (path === '/api/admin/integrations') return json({
-        integrations: [{ service: 'ebay', configured: true, status: 'ok', last_ok_at: null, last_fail_at: null }],
+        integrations: [
+          { service: 'ebay', configured: true, status: 'ok', last_ok_at: null, last_fail_at: null },
+          { service: 'firecrawl', configured: true, status: 'ok', last_ok_at: null, last_fail_at: null },
+        ],
         coverage: { sets_with_ebay_new: 1, sets_with_ebay_ask: 1 },
       });
       if (path === '/api/admin/feature-flags') return json({ flags: [], overrides: { firecrawl: true }, effective: { firecrawl: false } });
@@ -364,8 +367,10 @@ test.describe(() => {
     await expect(page.getByText('Консоль адміністратора')).toBeVisible();
     await page.locator('[data-service-tab="Pricing"]').evaluate((button) => button.click());
     await page.locator('details[data-svc="ebay"] > summary').evaluate((summary) => summary.click());
-    await expect(page.getByText('потрібен ключ')).toBeVisible();
     await expect(page.getByText('дані запитуваних цін доступні')).toBeVisible();
+    await page.locator('[data-service-tab="Scraping"]').evaluate((button) => button.click());
+    await page.locator('details[data-svc="firecrawl"] > summary').evaluate((summary) => summary.click());
+    await expect(page.getByText('потрібен ключ')).toBeVisible();
   });
 
   test('admin uploader has one visible keyboard control and delegates to its file input', async ({ page }) => {
