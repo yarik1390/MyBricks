@@ -99,6 +99,10 @@ describe('runValuateSets quota grant enforcement', () => {
   it('does no provider work at zero grant while still applying stored and local pricing', async () => {
     setQuotaCapOverrides({ bricklink: 1, ebay: 1 });
     await Promise.all(['bricklink', 'ebay'].map((service) => exhaust(service)));
+    // Stored BrickEconomy values apply only while that source is switched on.
+    await db.prepare(`INSERT INTO app_settings (key, value) VALUES ('source_config', ?)`)
+      .bind(JSON.stringify({ brickeconomy: { enabled: true, weight: 1 } })).run();
+    clearSourceConfigCache();
     await seedSet('QZERO-BE', { be_value_new: 180 });
     await seedSet('QZERO-LOCAL', { pieces: 100, retail_price: 6, be_value_new: 10_000 });
 

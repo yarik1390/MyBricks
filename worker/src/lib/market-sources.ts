@@ -100,7 +100,7 @@ export function buildMarketSources(row: Record<string, unknown>): MarketSource[]
     row.bl_cached_at ? sourceFreshness(row, 'bl_cached_at', valueField) : marketFreshness(row);
   const sources: MarketSource[] = [];
 
-  if (method === 'brickeconomy' && num(row.current_value)) {
+  if (method === 'brickeconomy' && brickEconomyOn() && num(row.current_value)) {
     sources.push({
       // `id` stays as the internal provider key (persisted in basis_json, keyed on
       // by the admin panels and source tuning). `name` is the USER-FACING label and
@@ -441,7 +441,7 @@ export function setSourceWeightMultipliers(m: Record<string, number>): void {
 }
 // BrickEconomy's own forecast and value may only seed the "external" growth
 // scenario while that source is enabled (it is retired in production).
-const brickEconomyOn = (): boolean => sourceWeightMultipliers.brickeconomy !== 0;
+export const brickEconomyOn = (): boolean => sourceWeightMultipliers.brickeconomy !== 0;
 export function resetSourceWeightMultipliers(): void {
   for (const k of Object.keys(sourceWeightMultipliers)) delete sourceWeightMultipliers[k];
 }
@@ -591,7 +591,7 @@ export function blendMarketValue(row: Record<string, unknown>, history?: BlendHi
   // if refreshed today. Falls back to fetch time when no sale date was captured.
   push('ebay_sold_new', 'eBay sold', num(row.ebay_new_value), num(row.ebay_new_qty), row.ebay_new_last_sold || row.ebay_new_cached_at, 1.0, true, RANK_SOLD);
   // BrickEconomy's value is only stored as current_value when it's the method.
-  if (method === 'brickeconomy') push('brickeconomy', 'BrickEconomy', num(row.current_value), null, row.be_cached_at || row.cached_at, 0.9, false, RANK_MODEL);
+  if (method === 'brickeconomy' && brickEconomyOn()) push('brickeconomy', 'BrickEconomy', num(row.current_value), null, row.be_cached_at || row.cached_at, 0.9, false, RANK_MODEL);
   // PriceCharting sealed price — aggregated closed eBay auctions; an independent
   // sold comp source. When it agrees with BrickLink within ~40%, the blend reaches
   // "high" confidence without eBay Marketplace Insights approval.

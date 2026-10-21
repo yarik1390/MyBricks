@@ -31,7 +31,9 @@ export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
   bricklink:     { enabled: true,  weight: 1.0,  dailyCap: 4000, refreshDays: 14 },
   // Master eBay switch for the Browse basic-scope ASK lane.
   ebay:          { enabled: true,  weight: 1.0,  dailyCap: 4000, refreshDays: 14 },
-  brickeconomy:  { enabled: true,  weight: 1.0,  dailyCap: 80,   refreshDays: 14 },
+  // Retired scraper; stored be_* values are unlicensed for display. Off by
+  // default so a missing config row can't bring them back into headlines.
+  brickeconomy:  { enabled: false, weight: 0,    dailyCap: 80,   refreshDays: 14 },
   // Verified-mappings-only: signals flow solely through pricing_source_map rows
   // proven by unique UPC (bulk import) or cross-source price agreement
   // (pricecharting-verify). Unverified mappings stay quarantined. PriceCharting

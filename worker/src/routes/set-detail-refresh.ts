@@ -3,7 +3,7 @@ import { fetchSetPricing, fetchUsedPricing } from '../lib/bricklink';
 import { buildEbayAskUpdate, fetchEbayActiveListings } from '../lib/ebay';
 import { beDetailsFromRow } from '../lib/brickeconomy-stored';
 import { independentRetailAnchor, isPlausibleMarketValue, plausibleAskValue } from '../lib/valuation';
-import { persistBlendedValue } from '../lib/market-sources';
+import { brickEconomyOn, persistBlendedValue } from '../lib/market-sources';
 
 // Context shape used by the detail refresh — typed by what we actually touch
 // (env + waitUntil) rather than importing Hono's full Context.
@@ -27,7 +27,8 @@ export function scheduleSetDetailRefresh(c: RefreshCtx, activeSet: Record<string
 
     if (needsRefresh) {
       // BrickEconomy values come from the stored be_* columns — never fetched.
-      const be = beDetailsFromRow(activeSet);
+      // Only while the BrickEconomy source is enabled (off in production).
+      const be = brickEconomyOn() ? beDetailsFromRow(activeSet) : null;
       if (be?.current_value_new != null && c.env.BRICKLINK_CONSUMER_KEY) {
         // A plausible stored BE value wins; BrickLink + eBay ask still refresh live
         // for the price strip + cross-validation. When there's no stored BE

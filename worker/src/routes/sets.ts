@@ -12,7 +12,7 @@ import { beDetailsFromRow } from '../lib/brickeconomy-stored';
 import { spendQuota } from '../lib/api-quota';
 import { getCachedPriceTrend } from '../lib/price-trend';
 import { fetchTracked } from '../lib/http';
-import { enrichSetRecord, persistBlendedValue } from '../lib/market-sources';
+import { brickEconomyOn, enrichSetRecord, persistBlendedValue } from '../lib/market-sources';
 import { applySourceConfig } from '../lib/source-config';
 import { recentValueMedian } from '../lib/price-trend';
 import { isSearchIndexCorruption, rebuildSearchIndex } from '../lib/search-index';
@@ -1052,8 +1052,10 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
   let usedPricing: { used_value: number; lot_count?: number } | null = null;
   let valMethod = 'market';
 
-  // BrickEconomy values come from the stored be_* columns — never fetched.
-  const beDetails = beDetailsFromRow(set);
+  // BrickEconomy values come from the stored be_* columns — never fetched — and
+  // only while the source is enabled (off in production: unlicensed for display;
+  // the value model may still train on them).
+  const beDetails = brickEconomyOn() ? beDetailsFromRow(set) : null;
 
   if (beDetails?.current_value_new != null && c.env.BRICKLINK_CONSUMER_KEY) {
     // Stored BE value present — fetch BrickLink live alongside it to

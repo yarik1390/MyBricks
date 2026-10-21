@@ -12,6 +12,7 @@ export interface DueSetRow {
   bl_nodata_at: string | null; be_value_new: number | null; be_value_used: number | null;
   be_forecast_2y: number | null; be_forecast_5y: number | null; be_retail: number | null;
   be_growth_12m: number | null; ask_stale: number;
+  valuation_method: string | null;
 }
 
 /**
@@ -243,6 +244,7 @@ export async function selectDueSets(
       ls.pc_new_value, ls.pc_complete_value,
       ${blDiscovery ? `CASE WHEN ${LISTINGS_NEVER_ASKED} THEN NULL ELSE sme.bl_nodata_at END` : 'sme.bl_nodata_at'} AS bl_nodata_at,
       ls.be_value_new, ls.be_value_used, ls.be_forecast_2y, ls.be_forecast_5y, ls.be_retail, ls.be_growth_12m,
+      ls.valuation_method,
       (ls.ebay_ask_cached_at IS NULL OR ls.ebay_ask_cached_at < datetime('now', '-7 days')) AS ask_stale
     FROM lego_sets ls
     LEFT JOIN set_market_ext sme ON sme.set_num = ls.set_num
