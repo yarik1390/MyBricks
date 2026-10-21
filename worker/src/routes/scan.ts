@@ -21,17 +21,28 @@ import type { Env, Variables } from '../types';
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // Shared server-key scan limits; bypassed when the user supplies their own
-// Gemini/OpenAI key (BYOK). Quotas are measured in units so the larger Shelf
-// Snap request can be charged more accurately than a single-set photo.
+// Gemini/OpenAI key (BYOK). Single-set photos are free for everyone with a
+// daily cap (Pro gets 5x). Shelf Snap (many sets from one photo) is a Pro perk:
+// free accounts get a few a month as a teaser, Pro gets a daily abuse cap.
 const SCAN_DAILY_LIMIT = 20;
+const PRO_SCAN_DAILY_LIMIT = 100;
+const FREE_SHELF_MONTHLY_LIMIT = 3;
+// Every shelf attempt (matched or not) counts here, so a free account cannot
+// burn provider calls on misses that the monthly allowance gives back.
+const FREE_SHELF_DAILY_ATTEMPTS = 10;
+const PRO_SHELF_DAILY_LIMIT = 20;
 const SINGLE_SCAN_UNITS = 1;
-const SHELF_SCAN_UNITS = 3;
+const SHELF_SCAN_UNITS = 1;
+// The teaser allowance; a shelf scan that finds nothing gives it back.
+const SHELF_MONTH_ENDPOINT = 'scan_shelf_month';
 
 type ScanQuotaBucket = {
   endpoint: string;
   windowStart: string;
   limit: number;
   label: string;
+  /** Machine-readable reason sent with a 429 so the app can show the right card. */
+  reason: 'scan_limit' | 'shelf_daily_limit' | 'shelf_pro';
 };
 
 async function scanRequestFingerprint(mode: 'image' | 'shelf', image: string): Promise<string> {
@@ -42,15 +53,71 @@ async function scanRequestFingerprint(mode: 'image' | 'shelf', image: string): P
   return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-function scanQuotaBuckets(now = new Date()): ScanQuotaBucket[] {
-  const dayStart = new Date(now);
-  dayStart.setUTCHours(0, 0, 0, 0);
-  return [{
-    endpoint: 'scan_image',
-    windowStart: dayStart.toISOString(),
-    limit: SCAN_DAILY_LIMIT,
-    label: `${SCAN_DAILY_LIMIT} scan units per day`,
-  }];
+function windowStarts(now = new Date()): { day: string; month: string } {
+  const day = new Date(now);
+  day.setUTCHours(0, 0, 0, 0);
+  const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  return { day: day.toISOString(), month: month.toISOString() };
+}
+
+function scanQuotaBuckets(shelf: boolean, pro: boolean, now = new Date()): ScanQuotaBucket[] {
+  const { day, month } = windowStarts(now);
+  if (!shelf) {
+    const limit = pro ? PRO_SCAN_DAILY_LIMIT : SCAN_DAILY_LIMIT;
+    return [{ endpoint: 'scan_image', windowStart: day, limit, label: `${limit} scan units per day`, reason: 'scan_limit' }];
+  }
+  if (pro) {
+    return [{ endpoint: 'scan_shelf', windowStart: day, limit: PRO_SHELF_DAILY_LIMIT, label: `${PRO_SHELF_DAILY_LIMIT} shelf scans per day`, reason: 'shelf_daily_limit' }];
+  }
+  return [
+    { endpoint: 'scan_shelf', windowStart: day, limit: FREE_SHELF_DAILY_ATTEMPTS, label: `${FREE_SHELF_DAILY_ATTEMPTS} shelf scans per day`, reason: 'shelf_daily_limit' },
+    { endpoint: SHELF_MONTH_ENDPOINT, windowStart: month, limit: FREE_SHELF_MONTHLY_LIMIT, label: `${FREE_SHELF_MONTHLY_LIMIT} free shelf scans per month`, reason: 'shelf_pro' },
+  ];
+}
+
+async function isProMember(db: D1Database, userId: string): Promise<boolean> {
+  if (!userId) return false;
+  const pref = await db.prepare('SELECT is_supporter FROM user_prefs WHERE user_id=?')
+    .bind(userId).first<{ is_supporter: number }>().catch(() => null);
+  return !!pref?.is_supporter;
+}
+
+async function bucketUsed(db: D1Database, userId: string, endpoint: string, windowStart: string): Promise<number> {
+  const row = await db.prepare(`
+    SELECT COALESCE((SELECT hit_count FROM rate_limits
+      WHERE user_id=? AND endpoint=? AND window_start=?), 0)
+      + COALESCE((SELECT SUM(units) FROM scan_quota_reservations
+        WHERE user_id=? AND endpoint=? AND window_start=?
+          AND state IN ('reserved', 'consumed')), 0) AS used
+  `).bind(userId, endpoint, windowStart, userId, endpoint, windowStart).first<{ used: number }>();
+  return Number(row?.used || 0);
+}
+
+type ScanAllowance = {
+  pro: boolean;
+  photo: { used: number; limit: number; remaining: number; period: 'day' };
+  /** Free accounts: the monthly teaser. Pro: the daily cap. */
+  shelf: { used: number; limit: number; remaining: number; period: 'day' | 'month' };
+};
+
+async function scanAllowance(db: D1Database, userId: string, pro: boolean): Promise<ScanAllowance> {
+  const [photoBucket] = scanQuotaBuckets(false, pro);
+  const shelfBuckets = scanQuotaBuckets(true, pro);
+  const shelfBucket = shelfBuckets[shelfBuckets.length - 1];
+  const [photoUsed, shelfUsed] = await Promise.all([
+    bucketUsed(db, userId, photoBucket.endpoint, photoBucket.windowStart),
+    bucketUsed(db, userId, shelfBucket.endpoint, shelfBucket.windowStart),
+  ]);
+  return {
+    pro,
+    photo: { used: photoUsed, limit: photoBucket.limit, remaining: Math.max(0, photoBucket.limit - photoUsed), period: 'day' },
+    shelf: {
+      used: shelfUsed,
+      limit: shelfBucket.limit,
+      remaining: Math.max(0, shelfBucket.limit - shelfUsed),
+      period: shelfBucket.endpoint === SHELF_MONTH_ENDPOINT ? 'month' : 'day',
+    },
+  };
 }
 
 async function consumeSharedScanQuota(
@@ -58,8 +125,8 @@ async function consumeSharedScanQuota(
   userId: string,
   requestKey: string,
   units: number,
-): Promise<{ allowed: true; buckets: ScanQuotaBucket[] } | { allowed: false; label: string }> {
-  const buckets = scanQuotaBuckets();
+  buckets: ScanQuotaBucket[],
+): Promise<{ allowed: true; buckets: ScanQuotaBucket[] } | { allowed: false; bucket: ScanQuotaBucket }> {
   // Reclaim abandoned leases at admission so a killed invocation cannot hold
   // allowance until the daily hygiene cron.
   await db.prepare(`
@@ -103,7 +170,7 @@ async function consumeSharedScanQuota(
         WHERE user_id=? AND request_key=? AND endpoint=? AND window_start=? AND state='reserved'
       `).bind(userId, requestKey, reserved.endpoint, reserved.windowStart)));
     }
-    return { allowed: false, label: bucket.label };
+    return { allowed: false, bucket };
   }
   return { allowed: true, buckets };
 }
@@ -446,6 +513,15 @@ app.get('/backend-health', requireAdmin, async (c) => {
   return c.json({ available: true, service: result.service, version: result.version });
 });
 
+// What the signed-in member has left on the shared server quota. The scanner
+// shows the shelf count on the Shelf tab; BYOK users are never limited.
+app.get('/quota', async (c) => {
+  const userId = c.get('userId') || '';
+  if (!userId) return c.json({ error: 'Sign in to see your scan allowance.' }, 401);
+  const pro = await isProMember(c.env.DB, userId);
+  return c.json(await scanAllowance(c.env.DB, userId, pro));
+});
+
 app.post('/identify', async (c) => {
   const userId = c.get('userId') || '';
   const body = await c.req.json<{ mode?: string; image?: string; barcode?: string; ocr_candidates?: unknown }>();
@@ -494,17 +570,29 @@ app.post('/identify', async (c) => {
   const requestFingerprint = await scanRequestFingerprint(shelfMode ? 'shelf' : 'image', image);
   let sharedQuotaReserved = false;
   let sharedQuotaSettled = false;
+  let sharedPro = false;
+  let sharedBuckets: ScanQuotaBucket[] = [];
 
   const settleReservedQuota = async (
     quotaState: 'consumed' | 'released',
     terminal?: { payload: Record<string, unknown>; status: number },
+    releaseEndpoint?: string,
   ) => {
     if (!sharedQuotaReserved || sharedQuotaSettled) return;
-    const statements = [c.env.DB.prepare(`
+    // A consumed scan can still hand one bucket back (the free monthly shelf
+    // allowance on a scan that found nothing). Release it first so the main
+    // statement below settles everything else.
+    const statements = releaseEndpoint && quotaState === 'consumed' ? [c.env.DB.prepare(`
+      UPDATE scan_quota_reservations
+      SET state='released', updated_at=CURRENT_TIMESTAMP
+      WHERE user_id=? AND request_key=? AND endpoint=? AND state='reserved'
+    `).bind(userId, quotaRequestKey, releaseEndpoint)] : [];
+    const main = statements.length;
+    statements.push(c.env.DB.prepare(`
       UPDATE scan_quota_reservations
       SET state=?, updated_at=CURRENT_TIMESTAMP
       WHERE user_id=? AND request_key=? AND state='reserved'
-    `).bind(quotaState, userId, quotaRequestKey)];
+    `).bind(quotaState, userId, quotaRequestKey));
     if (sharedRequestClaimed) {
       statements.push(c.env.DB.prepare(`
         UPDATE scan_requests
@@ -522,19 +610,30 @@ app.post('/identify', async (c) => {
       ));
     }
     const results = await c.env.DB.batch(statements);
-    if ((results[0]?.meta.changes ?? 0) < 1) {
+    if ((results[0]?.meta.changes ?? 0) + (main ? results[main]?.meta.changes ?? 0 : 0) < 1) {
       throw new Error('Scan quota settlement lost its reservation lease.');
     }
-    if (sharedRequestClaimed && (results[1]?.meta.changes ?? 0) !== 1) {
+    if (sharedRequestClaimed && (results[main + 1]?.meta.changes ?? 0) !== 1) {
       throw new Error('Scan request settlement lost its processing lease.');
     }
     sharedQuotaSettled = true;
   };
 
   const finalizeShared = async (payload: Record<string, unknown>, status: 200 | 202 | 400 | 409 | 413 | 429 | 500 | 503 = 200) => {
+    // Shelf Snap tells the app what is left so it can show "2 of 3 left".
+    if (shelfMode && sharedQuotaReserved && status < 500) {
+      const missed = payload.identified === false;
+      const allowance = await scanAllowance(c.env.DB, userId, sharedPro);
+      // Still-reserved units are counted as used; a miss hands one back below.
+      const giveBack = missed && !sharedPro ? 1 : 0;
+      payload = {
+        ...payload,
+        quota: { ...allowance.shelf, used: allowance.shelf.used - giveBack, remaining: Math.min(allowance.shelf.limit, allowance.shelf.remaining + giveBack), pro: sharedPro },
+      };
+    }
     const terminal = { payload, status };
     if (status >= 500) await settleReservedQuota('released', terminal);
-    else await settleReservedQuota('consumed', terminal);
+    else await settleReservedQuota('consumed', terminal, shelfMode && payload.identified === false ? SHELF_MONTH_ENDPOINT : undefined);
     // A denial has no reservation to settle but is still terminal/replayable.
     if (sharedRequestClaimed && !sharedQuotaReserved) {
       const finalized = await c.env.DB.prepare(`
@@ -691,14 +790,20 @@ app.post('/identify', async (c) => {
 
   {
     // Per-user cap on the shared server quota (BYOK above bypasses this entirely).
-    // One normal photo costs one unit; Shelf Snap costs three. Every account
-    // uses the same general daily bucket; paid status never changes scan access.
+    // Single photos use the daily photo bucket (Pro gets 5x). Shelf Snap has its
+    // own buckets: a monthly teaser for free accounts, a daily cap for Pro.
     const units = shelfMode ? SHELF_SCAN_UNITS : SINGLE_SCAN_UNITS;
-    const quota = await consumeSharedScanQuota(c.env.DB, userId, quotaRequestKey, units);
+    sharedPro = await isProMember(c.env.DB, userId);
+    sharedBuckets = scanQuotaBuckets(shelfMode, sharedPro);
+    const quota = await consumeSharedScanQuota(c.env.DB, userId, quotaRequestKey, units, sharedBuckets);
     if (!quota.allowed) {
-      const charge = units === 1 ? '' : ` Shelf Snap uses ${units} scan units.`;
+      const shelfPro = quota.bucket.reason === 'shelf_pro';
       return finalizeShared({
-        error: `Rate limit: ${quota.label}.${charge} Add your own Gemini/OpenAI key for unlimited scanning.`,
+        error: shelfPro
+          ? `You've used your ${FREE_SHELF_MONTHLY_LIMIT} free shelf scans this month. Shelf scanning is a Pro perk; single photo and barcode scans stay free.`
+          : `Rate limit: ${quota.bucket.label}. Add your own Gemini/OpenAI key for unlimited scanning.`,
+        reason: quota.bucket.reason,
+        ...(shelfMode ? { quota: { used: quota.bucket.limit, limit: quota.bucket.limit, remaining: 0, period: quota.bucket.endpoint === SHELF_MONTH_ENDPOINT ? 'month' : 'day', pro: sharedPro } } : {}),
       }, 429);
     }
     sharedQuotaReserved = true;
@@ -709,7 +814,7 @@ app.post('/identify', async (c) => {
         WHERE user_id=? AND request_key=?
       `).bind(
         units,
-        JSON.stringify(scanQuotaBuckets().map((bucket) => ({ endpoint: bucket.endpoint, windowStart: bucket.windowStart }))),
+        JSON.stringify(sharedBuckets.map((bucket) => ({ endpoint: bucket.endpoint, windowStart: bucket.windowStart }))),
         userId,
         requestKey,
       ).run();

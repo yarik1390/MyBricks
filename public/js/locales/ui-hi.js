@@ -304,6 +304,7 @@ export const ui = {
   "25 sets! Nice collection.": "25 सेट! बढ़िया संग्रह।",
   "50 sets! Dedicated collector 🏅": "50 सेट! समर्पित संग्राहक 🏅",
   "5× scan and revaluation limits": "5× स्कैन और पुनर्मूल्यांकन सीमाएँ",
+  "Shelf scans: a whole shelf from one photo": "शेल्फ़ स्कैन: एक फ़ोटो से पूरा शेल्फ़",
   "A bit old": "थोड़ा पुराना",
   "A catalog job is already running": "एक कैटलॉग जॉब पहले से चल रही है",
   "A chime on milestones and rewards.": "माइलस्टोन और रिवॉर्ड पर एक चाइम।",

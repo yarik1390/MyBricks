@@ -8212,6 +8212,12 @@
     ]
   },
   {
+    "text": "Shelf scans: a whole shelf from one photo",
+    "files": [
+      "components/onboarding.js"
+    ]
+  },
+  {
     "text": "Shelf, box, room…",
     "files": [
       "components/copies.js"

@@ -304,6 +304,7 @@ export const ui = {
   "25 sets! Nice collection.": "25 Sets! Schöne Sammlung.",
   "50 sets! Dedicated collector 🏅": "50 Sets! Engagierter Sammler 🏅",
   "5× scan and revaluation limits": "5× Scan- und Neubewertungslimits",
+  "Shelf scans: a whole shelf from one photo": "Regal-Scans: ein ganzes Regal mit einem Foto",
   "A bit old": "Etwas veraltet",
   "A catalog job is already running": "Ein Katalog-Job läuft bereits",
   "A chime on milestones and rewards.": "Ein Klingelton bei Meilensteinen und Belohnungen.",
