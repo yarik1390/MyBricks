@@ -323,7 +323,11 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     // NB: valuate-sets only READS the be_* columns and never stamps be_cached_at.
     if (supplementStmts.length) await env.DB.batch(supplementStmts);
 
-    if (!pricing && beRejected) {
+    // A headline still carried over from BrickEconomy while that source is off
+    // (unlicensed for display) is replaced the same way when nothing else
+    // prices the set; the blend then prefers the value model where it has one.
+    const staleBrickEconomy = !brickeconomyEnabled && set.valuation_method === 'brickeconomy';
+    if (!pricing && (beRejected || staleBrickEconomy)) {
       // BrickEconomy returned an implausible value and no clean market source
       // replaced it — write the formula estimate so the bad value never persists.
       const f = formulaValuation({

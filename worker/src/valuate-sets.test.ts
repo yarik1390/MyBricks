@@ -3,6 +3,7 @@ import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { runValuateSets } from './jobs/valuate-sets';
 import { applyTestTables } from './test-schema';
+import { clearSourceConfigCache } from './lib/source-config';
 
 const db = (env as any).DB as D1Database;
 
@@ -39,14 +40,23 @@ async function seedDueSet(over: Record<string, unknown> = {}) {
   ).bind(...keys.map(k => cols[k])).run();
 }
 
+// BrickEconomy is off by default (unlicensed for display); tests of its guards
+// switch it on the way Admin > Source tuning would.
+async function enableBrickEconomy() {
+  await db.prepare(`INSERT INTO app_settings (key, value) VALUES ('source_config', ?)`)
+    .bind(JSON.stringify({ brickeconomy: { enabled: true, weight: 1 } })).run();
+  clearSourceConfigCache();
+}
+
 const blNodataAt = async (setNum: string) =>
   db.prepare(`SELECT bl_nodata_at FROM set_market_ext WHERE set_num=?`).bind(setNum).first<{ bl_nodata_at: string | null }>();
 
 describe('runValuateSets — BrickLink no-data backoff correctness', () => {
   beforeEach(async () => {
-    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota', 'integration_health']);
+    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota', 'integration_health', 'app_settings']);
+    clearSourceConfigCache();
   });
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => { vi.unstubAllGlobals(); clearSourceConfigCache(); });
 
   it('does NOT stamp bl_nodata_at when BrickLink fails transiently (503)', async () => {
     await seedDueSet();
@@ -73,6 +83,7 @@ describe('runValuateSets — BrickLink no-data backoff correctness', () => {
 
   it('rejects an implausible BrickEconomy value and falls back to the formula', async () => {
     // $10k on a $6 retail set with no corroborator → implausible → must not persist.
+    await enableBrickEconomy();
     await seedDueSet({ set_num: '99002-1', name: 'Cheap Vintage', pieces: 100, be_value_new: 10000, retail_price: 6 });
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
@@ -86,6 +97,21 @@ describe('runValuateSets — BrickLink no-data backoff correctness', () => {
     expect(row!.current_value).toBeGreaterThan(0);
     expect(row!.current_value).toBeLessThan(1000); // formula, NOT the rejected $10k
     expect(fetchSpy).not.toHaveBeenCalled(); // no BL key configured → no network at all
+  });
+
+  it('replaces a headline carried over from BrickEconomy while that source is off', async () => {
+    // A plausible stored BE value, previously the headline. With the source off
+    // and nothing else pricing the set, the formula estimate replaces it.
+    await seedDueSet({ set_num: '99003-1', name: 'Old BE Headline', pieces: 500, be_value_new: 80,
+      retail_price: 50, valuation_method: 'brickeconomy', current_value: 80 });
+    vi.stubGlobal('fetch', vi.fn());
+
+    await runValuateSets({ ...env, CACHE_KV: undefined, ...noSources, BRICKLINK_CONSUMER_KEY: '' } as any, OPTS);
+
+    const row = await db.prepare(`SELECT valuation_method, current_value FROM lego_sets WHERE set_num='99003-1'`)
+      .first<{ valuation_method: string; current_value: number }>();
+    expect(row!.valuation_method).toBe('formula_bulk');
+    expect(row!.current_value).toBeGreaterThan(0);
   });
 });
 

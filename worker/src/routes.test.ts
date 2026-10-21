@@ -619,11 +619,11 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       await db.prepare(
         `INSERT INTO lego_sets (set_num, name, theme, year, pieces, retired,
            bl_new_value, bl_cached_at, pc_new_value, pc_cached_at,
-           be_value_new, be_cached_at, ebay_ask_value, ebay_ask_cached_at,
+           ebay_new_value, ebay_new_qty, ebay_new_cached_at, ebay_ask_value, ebay_ask_cached_at,
            blended_value, blended_confidence, blended_low, blended_high)
          VALUES ('RECOMP-1', 'Recompute Test Set', 'Icons', 2020, 1000, 1,
            100, datetime('now'), 105, datetime('now'),
-           102, datetime('now'), 120, datetime('now'),
+           102, 8, datetime('now'), 120, datetime('now'),
            103, NULL, NULL, NULL)`
       ).run();
 
