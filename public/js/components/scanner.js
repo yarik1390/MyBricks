@@ -161,6 +161,14 @@ function trackScanPath(path, { final = false } = {}) {
   track("scan_path", `${state.camera.mode || "barcode"}:${path}`);
 }
 
+// Why the scanner failed, short enough for the admin metric key (32 chars):
+// "barcode:err:" + the first letters of the plugin's error code or message.
+function trackScanError(where, error) {
+  const raw = String(error?.code || error?.message || error || "unknown");
+  const slug = raw.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 16) || "unknown";
+  track("scan_path", `${state.camera.mode || "barcode"}:${where}:${slug}`);
+}
+
 function armMoveCloser() {
   clearTimeout(_moveCloserTimer);
   if (state.camera.mode !== "barcode") return;
@@ -648,8 +656,18 @@ async function startLiveNativeScan(stale = () => false) {
     const mod = await import("../lib/native-barcode.js");
     if (!(await mod.nativeLiveScanSupported(window))) return false;
     if (stale()) return true;
+    let sawEvent = false;
+    let sawError = false;
     stop = await mod.startNativeLiveScan(window, {
+      // The decoder fires barcodesScanned only when ML Kit reads something, so
+      // the first event proves the camera feed reaches the decoder.
+      onError: (event) => {
+        if (sawError) return;
+        sawError = true;
+        trackScanError("lerr", event?.message ? event : { message: "scan-error" });
+      },
       onBarcodes: (barcodes) => {
+        if (!sawEvent) { sawEvent = true; trackScanPath("live-hit"); }
         if (!state.camera.scanning || _scanPending || $("#scanResult")?.classList.contains("show")) return;
         const b = barcodes.find((x) => x?.rawValue || x?.displayValue);
         if (!b) return;
@@ -674,7 +692,8 @@ async function startLiveNativeScan(stale = () => false) {
     armMoveCloser();
     armSystemScanOffer();
     return true;
-  } catch {
+  } catch (error) {
+    trackScanError("lfail", error);
     stop?.().catch(() => {});
     document.documentElement.classList.remove("bv-scan-native-live");
     _liveStop = null;
@@ -737,6 +756,7 @@ async function runNativeBarcodeScan() {
   // The overlay may have been dismissed (back button / swipe) mid-scan.
   if (!overlay?.classList.contains("open")) return;
   trackScanPath(code ? "mlkit-ok" : scanError ? "mlkit-error" : "mlkit-cancel", { final: true });
+  if (scanError) trackScanError("err", scanError);
   if (code) {
     overlay.classList.remove("native-handoff");
     _scanTrapRelease = activateFocusTrap(overlay, closeScan);

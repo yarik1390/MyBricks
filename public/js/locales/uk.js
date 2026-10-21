@@ -2,7 +2,7 @@
 export const uk = {
   bvCommon: {
     comingSoon: 'Незабаром',
-    retired: 'Знятий з виробництва',
+    retired: 'Не випускається',
     upPct: 'зростання на {pct} відсотка',
     downPct: 'падіння на {pct} відсотка',
   },
