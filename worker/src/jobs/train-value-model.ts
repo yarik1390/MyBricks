@@ -45,11 +45,18 @@ const RETAIL = `COALESCE(NULLIF(ls.brickset_msrp, 0), NULLIF(ext.bs_retail_alt, 
 // Sets with no independent retail may still be estimated from the
 // BrickEconomy-echo retail_price (Iaroslav's choice, 2026-10-19), but only
 // when it is believable for the piece count: $1-$1,000 and $0.03-$2 a piece.
-// Brickset MSRP sits in that band for 97% of sets.
+// Brickset MSRP sits in that band for 97% of sets. A count of 0-5 pieces is
+// not a real count (bundles, old Duplo/Primo/Quatro, education kits), so there
+// only the $1-$1,000 band applies, except for gear, books and games, which are
+// not collectible sets.
 export const ECHO_PPP_MIN = 0.03;
 export const ECHO_PPP_MAX = 2;
-const TARGET_RETAIL = `COALESCE(${RETAIL}, CASE WHEN ls.pieces > 0 AND ls.retail_price BETWEEN 1 AND 1000
-  AND ls.retail_price BETWEEN ls.pieces * ${ECHO_PPP_MIN} AND ls.pieces * ${ECHO_PPP_MAX} THEN ls.retail_price END)`;
+export const NO_PIECE_COUNT_MAX = 5;
+const NOT_SETS = `('Gear', 'Books', 'Games')`;
+const TARGET_RETAIL = `COALESCE(${RETAIL}, CASE WHEN ls.retail_price BETWEEN 1 AND 1000 AND (
+    (ls.pieces > ${NO_PIECE_COUNT_MAX} AND ls.retail_price BETWEEN ls.pieces * ${ECHO_PPP_MIN} AND ls.pieces * ${ECHO_PPP_MAX})
+    OR (COALESCE(ls.pieces, 0) <= ${NO_PIECE_COUNT_MAX} AND COALESCE(ls.theme, '') NOT IN ${NOT_SETS}))
+  THEN ls.retail_price END)`;
 
 // Shared feature projection. `ac` is the coarse age class the deviations are
 // fitted within (0-3, 4-10, 11+ years since release).
@@ -112,9 +119,10 @@ INSERT INTO set_market_ext (set_num, model_value, model_cached_at)
 SELECT set_num, CASE WHEN v >= 20 THEN ROUND(v, 0) ELSE ROUND(v, 1) END, datetime('now')
 FROM final WHERE v > 0
 ON CONFLICT(set_num) DO UPDATE SET model_value = excluded.model_value, model_cached_at = excluded.model_cached_at
-WHERE set_market_ext.model_value IS NOT excluded.model_value
+-- A bundle priced from its contents (jobs/bundle-values.ts) keeps that value.
+WHERE set_market_ext.bundle_value IS NULL AND (set_market_ext.model_value IS NOT excluded.model_value
    OR set_market_ext.model_cached_at IS NULL
-   OR set_market_ext.model_cached_at < datetime('now', '-7 days')`;
+   OR set_market_ext.model_cached_at < datetime('now', '-7 days'))`;
 
 export async function runTrainValueModel(env: Env): Promise<{ trained: number; written: number; skipped?: string }> {
   if (!(await pricingWritesAllowed(env.DB))) {

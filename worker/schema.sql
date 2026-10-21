@@ -160,7 +160,12 @@ CREATE TABLE IF NOT EXISTS set_market_ext (
   model_cached_at TEXT,
   -- Brickset UK/DE/CA launch price in USD-equivalent, kept only when Brickset
   -- has no US price (jobs/backfill-upc.ts). Retail anchor for the value model.
-  bs_retail_alt REAL
+  bs_retail_alt REAL,
+  -- Bundle value (jobs/bundle-values.ts): sum of the sets a multi-pack, complete
+  -- minifigure series or sealed box contains, from Rebrickable's inventory
+  -- files. While set, it is the model_value and the value model leaves it alone.
+  bundle_value REAL,
+  bundle_cached_at TEXT
 );
 
 -- Pricing Engine v3 keeps identity, normalized observations and condition-aware

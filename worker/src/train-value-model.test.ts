@@ -122,6 +122,34 @@ describe('runTrainValueModel', () => {
     expect(await modelValue('ECHO-BAD-1')).toBeNull();
   });
 
+  it('estimates sets without a real piece count from retail, except gear and books', async () => {
+    await insertSets([
+      ...trainingSets(240),
+      // Old Duplo with a broken 3-piece count and a multi-pack with none.
+      { set_num: 'DUPLO-3P-1', name: 'Tiny', year: YEAR - 10, retired: 1, pieces: 3, theme: 'City', retail_price: 24.99, be_retail: 24.99 },
+      { set_num: 'PACK-1', name: 'Value Pack', year: YEAR - 10, retired: 1, pieces: 0, theme: 'City', retail_price: 59.99, be_retail: 59.99 },
+      { set_num: 'KEYCHAIN-1', name: 'Key Chain', year: YEAR - 10, retired: 1, pieces: 0, theme: 'Gear', retail_price: 4.99, be_retail: 4.99 },
+      { set_num: 'BOOK-1', name: 'Book', year: YEAR - 10, retired: 1, pieces: 2, theme: 'Books', retail_price: 19.99, be_retail: 19.99 },
+      { set_num: 'NOPCS-HUGE-1', name: 'Huge', year: YEAR - 10, retired: 1, pieces: 0, theme: 'City', retail_price: 4515, be_retail: 4515 },
+    ]);
+    await runTrainValueModel(env as any);
+    expect((await modelValue('DUPLO-3P-1'))!.model_value!).toBeGreaterThan(20);
+    expect((await modelValue('PACK-1'))!.model_value!).toBeGreaterThan(50);
+    expect(await modelValue('KEYCHAIN-1')).toBeNull();
+    expect(await modelValue('BOOK-1')).toBeNull();
+    expect(await modelValue('NOPCS-HUGE-1')).toBeNull();
+  });
+
+  it('leaves a bundle priced from its contents alone', async () => {
+    await insertSets([
+      ...trainingSets(240),
+      { set_num: 'PACK-2', name: 'Super Pack', year: YEAR - 10, retired: 1, pieces: 0, theme: 'City', retail_price: 59.99, be_retail: 59.99 },
+    ]);
+    await db.prepare('INSERT INTO set_market_ext (set_num, bundle_value, model_value) VALUES (?, ?, ?)').bind('PACK-2', 140, 140).run();
+    await runTrainValueModel(env as any);
+    expect((await modelValue('PACK-2'))!.model_value).toBe(140);
+  });
+
   it('anchors on the Brickset UK/DE/CA price when there is no US one', async () => {
     await insertSets([
       ...trainingSets(240),
