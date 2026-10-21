@@ -45,7 +45,54 @@ const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce
 function scanHintText(mode, shelf) {
   if (mode === "blindbox") return t("bvAdd.hintBlindBox");
   if (mode === "barcode") return t("bvAdd.hintBarcode");
-  return shelf ? t("bvAdd.hintShelf") : t("bvAdd.hintPhoto");
+  return shelf ? [t("bvAdd.hintShelf"), shelfQuotaText(_shelfQuota)].filter(Boolean).join(" · ") : t("bvAdd.hintPhoto");
+}
+
+// Shelf Snap is a Pro perk: free accounts get a few a month (the server
+// enforces it; see routes/scan.ts). The Shelf tab fetches what is left so the
+// hint can say so before the photo is taken. BYOK and guests are not counted.
+let _shelfQuota = null;
+async function refreshShelfQuota() {
+  if (getProviderCredential("gemini") || getProviderCredential("openai") || isGuestMode() || !getSessionUserId()) {
+    _shelfQuota = null;
+    return null;
+  }
+  try {
+    const q = await api("/api/scan/quota", { retry: false });
+    _shelfQuota = q?.shelf ? { ...q.shelf, pro: !!q.pro } : null;
+  } catch { _shelfQuota = null; }
+  return _shelfQuota;
+}
+
+function shelfQuotaText(q) {
+  if (!q || q.pro || q.period !== "month") return "";
+  return tPlural("bvAdd.shelfFreeLeft", q.remaining, { count: q.remaining, limit: q.limit });
+}
+
+// Free shelf scans used up: say why, when they come back, and offer the two
+// ways forward (Pro, or scanning one set at a time, which stays free).
+function showShelfUpsell(el, quota = _shelfQuota) {
+  if (!el) return;
+  const limit = Number(quota?.limit) || 3;
+  const now = new Date();
+  const reset = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  let resetText = "";
+  try { resetText = reset.toLocaleDateString(document.documentElement.lang || undefined, { month: "long", day: "numeric", timeZone: "UTC" }); } catch { resetText = reset.toISOString().slice(0, 10); }
+  haptic("medium");
+  showChip("");
+  el.classList.add("show");
+  el.classList.remove("loading", "manual");
+  document.querySelector(".bv-scan")?.classList.add("has-result");
+  el.innerHTML = `${sheetTop()}
+    <div class="bv-scanres bv-scanres--upsell" data-upsell="shelf">
+      <div class="bv-scanres__miss">${kitIcon("star", { size: 22 })}<div><h2>${escapeHtml(t("bvAdd.shelfProTitle"))}</h2></div></div>
+      <p class="bv-scanres__body">${escapeHtml(t("bvAdd.shelfProBody", { limit }))}</p>
+      <p class="bv-field__help">${escapeHtml(t("bvAdd.shelfProReset", { date: resetText }))}</p>
+      <button type="button" class="bv-btn bv-btn--primary bv-btn--full" id="scanGoPro">${kitIcon("star", { size: 20 })}<span>${escapeHtml(t("bvAdd.shelfProCta"))}</span></button>
+      <button type="button" class="bv-btn bv-btn--outline bv-btn--full" id="scanOnePhoto">${kitIcon("camera", { size: 20 })}<span>${escapeHtml(t("bvAdd.shelfProPhoto"))}</span></button>
+    </div>`;
+  $("#scanGoPro")?.addEventListener("click", () => { haptic("light"); track("shelf_upsell_pro"); closeScan(); location.hash = "#/pro"; });
+  $("#scanOnePhoto")?.addEventListener("click", () => { haptic("light"); openScan("image"); });
 }
 
 function closeLabelHTML() {
@@ -519,6 +566,19 @@ export function openScan(mode = "barcode", { deferStart = false, shelf = false, 
         processBulkScanQueue(files);
       });
     }
+  }
+
+  if (state.camera.shelf) {
+    const openedAt = _scanGeneration;
+    refreshShelfQuota().then((q) => {
+      if (!state.camera.shelf || openedAt !== _scanGeneration) return;
+      const hint = $("#scanHint");
+      if (hint && !document.querySelector(".bv-scan.has-result")) hint.textContent = scanHintText("image", true);
+      if (q && !q.pro && q.period === "month" && q.remaining <= 0) {
+        stopCamera();
+        showShelfUpsell($("#scanResult"), q);
+      }
+    });
   }
 
   if (!deferStart) startCamera();
@@ -1289,6 +1349,11 @@ async function sendScanToAPI(payload) {
     // A 503 "no provider could identify it" still carries a readable reason:
     // show that, not the raw status text and reason code.
     const miss = e?.body;
+    if (!timedOut && miss?.reason === "shelf_pro") {
+      if (miss.quota) _shelfQuota = miss.quota;
+      showShelfUpsell($("#scanResult"), miss.quota);
+      return;
+    }
     if (!timedOut && miss && miss.identified === false && miss.reasoning) {
       if (miss.diag) console.warn(`[scan] ${miss.diag.total_ms}ms total :: ${(miss.diag.timings || []).map(s => `${s.provider}/${s.model} ${s.ms}ms ${s.outcome}`).join(' | ')}`);
       showScanResult({ identified: false, reason: miss.reason, reasoning: miss.reasoning });
@@ -1438,6 +1503,7 @@ export function showScanResult(res) {
   if (res?.identified && state.camera.mode !== "barcode") {
     track("scan_success", state.camera.mode || "image");
   }
+  if (res?.quota && state.camera.shelf) _shelfQuota = res.quota;
   el.classList.add("show");
   el.classList.remove("loading", "manual");
   document.querySelector(".bv-scan")?.classList.add("has-result");
@@ -1779,6 +1845,7 @@ function showShelfChecklist(el, sets, minifigs) {
       <div class="bv-scanres__head"><h2>${escapeHtml(tPlural("bvAdd.shelfFound", sets.length, { count: sets.length }))}</h2><span class="bv-label" id="shelfSummary"></span></div>
       <div class="bv-scanres__list">${rows}</div>
       ${minifigs.length ? `<h3 class="bv-scanres__sub">${escapeHtml(t("bvAdd.minifigures"))}</h3><div class="bv-scanres__list">${minifigs.map(figRowHTML).join("")}</div>` : ""}
+      ${shelfQuotaText(_shelfQuota) ? `<p class="bv-field__help" id="shelfQuotaLeft">${escapeHtml(shelfQuotaText(_shelfQuota))} · <a href="#/pro" id="shelfQuotaPro" style="color:var(--accent-ink, var(--ink));font-weight:600;">${escapeHtml(t("bvAdd.shelfProLink"))}</a></p>` : ""}
       <div class="bv-btn-row">
         <button type="button" class="bv-btn bv-btn--outline" id="scanRetake">${kitIcon("camera", { size: 20 })}<span>${escapeHtml(t("bvAdd.retake"))}</span></button>
         <button type="button" class="bv-btn bv-btn--primary" id="scanAdd">${kitIcon("plus", { size: 20, stroke: 2.2 })}<span id="shelfAddLabel"></span></button>
@@ -1795,6 +1862,7 @@ function showShelfChecklist(el, sets, minifigs) {
   summarize();
   $$(".scan-select-check").forEach((c) => c.addEventListener("change", summarize));
   $("#scanRetake")?.addEventListener("click", () => clearScanResult({ restartCamera: true }));
+  $("#shelfQuotaPro")?.addEventListener("click", () => closeScan());
   $("#scanAdd")?.addEventListener("click", async () => {
     const checked = $$(".scan-select-check:checked").map((c) => sets[Number(c.dataset.idx)]);
     haptic("heavy");

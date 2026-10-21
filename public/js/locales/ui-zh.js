@@ -304,6 +304,7 @@ export const ui = {
   "25 sets! Nice collection.": "25 套！收藏不错。",
   "50 sets! Dedicated collector 🏅": "50 套！资深收藏家 🏅",
   "5× scan and revaluation limits": "5倍扫描和重新估值额度",
+  "Shelf scans: a whole shelf from one photo": "架子扫描：一张照片扫整层架子",
   "A bit old": "略微过时",
   "A catalog job is already running": "目录任务已在运行",
   "A chime on milestones and rewards.": "达成里程碑和奖励时发出提示音。",

@@ -37,6 +37,8 @@ vi.mock('openai', () => {
                 suggested_price: 849,
                 price_reasoning: 'Suggested near current market value with room for offers.',
               })
+            : promptText.includes('data:image/x-non-lego')
+            ? JSON.stringify({ image_class: 'not_lego', sets: [], minifigs: [] })
             // Shelf Snap prompt -> many sets, including one not in the catalog
             // (must be dropped by matching, not returned).
             : systemText.includes('COLLECTION on a shelf')
@@ -1021,122 +1023,135 @@ describe('BrickVault API Worker Tests', () => {
       expect(row?.hit_count).toBe(20);
     });
 
-    it('charges a successful Shelf Snap exactly three units', async () => {
+    const shelfRequest = (image = 'data:image/png;base64,mock') => app.fetch(
+      new Request('http://localhost/api/scan/identify', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'shelf', image }),
+      }),
+      env,
+    );
+    const monthStart = () => {
+      const now = new Date();
+      return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+    };
+    const consumed = async (endpoint: string) => (await db.prepare(`
+      SELECT COALESCE(SUM(units), 0) AS used FROM scan_quota_reservations
+      WHERE user_id=? AND endpoint=? AND state='consumed'
+    `).bind(testUserId, endpoint).first<{ used: number }>())?.used ?? 0;
+
+    it('charges a free Shelf Snap to the monthly allowance, not the photo bucket', async () => {
       const windowStart = new Date();
       windowStart.setUTCHours(0, 0, 0, 0);
-      const ws = windowStart.toISOString();
       await db.prepare(`
         INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
-        VALUES (?, 'scan_image', ?, 17)
-      `).bind(testUserId, ws).run();
+        VALUES (?, 'scan_image', ?, 20)
+      `).bind(testUserId, windowStart.toISOString()).run();
 
-      const allowed = await app.fetch(
-        new Request('http://localhost/api/scan/identify', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'shelf', image: 'data:image/png;base64,mock' }),
-        }),
-        env,
-      );
+      const allowed = await shelfRequest();
       expect(allowed.status).toBe(200);
-      const quota = await db.prepare(`
-        SELECT COALESCE((SELECT hit_count FROM rate_limits
-          WHERE user_id=? AND endpoint='scan_image' AND window_start=?), 0)
-          + COALESCE((SELECT SUM(units) FROM scan_quota_reservations
-            WHERE user_id=? AND endpoint='scan_image' AND window_start=? AND state='consumed'), 0) AS used
-      `).bind(testUserId, ws, testUserId, ws).first<{ used: number }>();
-      expect(quota?.used).toBe(20);
+      expect(await allowed.json()).toMatchObject({
+        identified: true,
+        quota: { used: 1, limit: 3, remaining: 2, period: 'month', pro: false },
+      });
+      expect(await consumed('scan_shelf_month')).toBe(1);
+      expect(await consumed('scan_shelf')).toBe(1);
+      expect(await consumed('scan_image')).toBe(0);
     });
 
-    it('charges Shelf Snap three units and does not consume units when it would exceed the free cap', async () => {
-      const windowStart = new Date();
-      windowStart.setUTCHours(0, 0, 0, 0);
-      const ws = windowStart.toISOString();
+    it('blocks the 4th free Shelf Snap in a month with the Pro upsell reason', async () => {
       await db.prepare(`
         INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
-        VALUES (?, 'scan_image', ?, 18)
-      `).bind(testUserId, ws).run();
+        VALUES (?, 'scan_shelf_month', ?, 3)
+      `).bind(testUserId, monthStart()).run();
 
-      const blocked = await app.fetch(
-        new Request('http://localhost/api/scan/identify', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'shelf', image: 'data:image/png;base64,mock' }),
-        }),
-        env,
-      );
+      const blocked = await shelfRequest();
       expect(blocked.status).toBe(429);
       expect(await blocked.json()).toMatchObject({
-        error: expect.stringContaining('3 scan units'),
+        reason: 'shelf_pro',
+        quota: { remaining: 0, limit: 3, period: 'month', pro: false },
       });
-      const row = await db.prepare(
-        `SELECT hit_count FROM rate_limits WHERE user_id=? AND endpoint='scan_image' AND window_start=?`,
-      ).bind(testUserId, ws).first<{ hit_count: number }>();
-      expect(row?.hit_count).toBe(18);
+      // Nothing is held when a bucket blocks.
+      expect(await consumed('scan_shelf')).toBe(0);
+      const held = await db.prepare(`SELECT COUNT(*) AS n FROM scan_quota_reservations WHERE state IN ('reserved', 'consumed')`).first<{ n: number }>();
+      expect(held?.n).toBe(0);
     });
 
-    it('applies the same general 20-unit daily cap to supporters', async () => {
+    it('gives the free monthly shelf scan back when nothing was found', async () => {
+      const miss = await shelfRequest('data:image/x-non-lego;base64,mock');
+      expect(miss.status).toBe(200);
+      expect(await miss.json()).toMatchObject({
+        identified: false,
+        quota: { used: 0, remaining: 3, period: 'month' },
+      });
+      expect(await consumed('scan_shelf_month')).toBe(0);
+      expect(await consumed('scan_shelf')).toBe(1);
+    });
+
+    it('lets Pro members shelf scan past the free monthly allowance and raises their photo cap', async () => {
       await db.prepare(`INSERT INTO user_prefs (user_id, is_supporter) VALUES (?, 1)`).bind(testUserId).run();
       const dayStart = new Date();
       dayStart.setUTCHours(0, 0, 0, 0);
-
       await db.prepare(`
         INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
-        VALUES (?, 'scan_image', ?, 18)
-      `).bind(testUserId, dayStart.toISOString()).run();
+        VALUES (?, 'scan_shelf_month', ?, 3), (?, 'scan_image', ?, 20)
+      `).bind(testUserId, monthStart(), testUserId, dayStart.toISOString()).run();
 
-      const blocked = await app.fetch(
+      const shelf = await shelfRequest();
+      expect(shelf.status).toBe(200);
+      expect(await shelf.json()).toMatchObject({ quota: { limit: 20, period: 'day', pro: true } });
+
+      const photo = await app.fetch(
         new Request('http://localhost/api/scan/identify', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'shelf', image: 'data:image/png;base64,mock' }),
+          body: JSON.stringify({ mode: 'image', image: 'data:image/png;base64,mock' }),
         }),
         env,
       );
+      expect(photo.status).toBe(200);
+    });
+
+    it('caps Pro Shelf Snap at 20 a day', async () => {
+      await db.prepare(`INSERT INTO user_prefs (user_id, is_supporter) VALUES (?, 1)`).bind(testUserId).run();
+      const dayStart = new Date();
+      dayStart.setUTCHours(0, 0, 0, 0);
+      await db.prepare(`
+        INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
+        VALUES (?, 'scan_shelf', ?, 20)
+      `).bind(testUserId, dayStart.toISOString()).run();
+      const blocked = await shelfRequest();
       expect(blocked.status).toBe(429);
-      expect(await blocked.json()).toMatchObject({ error: expect.stringContaining('20 scan units per day') });
-
-      const general = await db.prepare(`
-        SELECT hit_count FROM rate_limits
-        WHERE user_id=? AND endpoint='scan_image' AND window_start=?
-      `).bind(testUserId, dayStart.toISOString()).first<{ hit_count: number }>();
-      expect(general?.hit_count).toBe(18);
-      const supporterBucket = await db.prepare(`
-        SELECT hit_count FROM rate_limits
-        WHERE user_id=? AND endpoint='scan_image_supporter_daily'
-      `).bind(testUserId).first<{ hit_count: number }>();
-      expect(supporterBucket).toBeNull();
+      expect(await blocked.json()).toMatchObject({ reason: 'shelf_daily_limit', error: expect.stringContaining('20 shelf scans per day') });
     });
 
-    it('atomically admits only one concurrent supporter Shelf Snap under the general cap', async () => {
-      await db.prepare(`INSERT INTO user_prefs (user_id, is_supporter) VALUES (?, 1)`).bind(testUserId).run();
-      const dayStart = new Date();
-      dayStart.setUTCHours(0, 0, 0, 0);
+    it('atomically admits only one concurrent free Shelf Snap for the last monthly scan', async () => {
       await db.prepare(`
         INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
-        VALUES (?, 'scan_image', ?, 17)
-      `).bind(testUserId, dayStart.toISOString()).run();
+        VALUES (?, 'scan_shelf_month', ?, 2)
+      `).bind(testUserId, monthStart()).run();
+      const responses = await Promise.all([shelfRequest(), shelfRequest()]);
+      expect(responses.map(response => response.status).sort()).toEqual([200, 429]);
+      expect(await consumed('scan_shelf_month')).toBe(1);
+    });
 
-      const request = () => app.fetch(
-        new Request('http://localhost/api/scan/identify', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'shelf', image: 'data:image/png;base64,mock' }),
-        }),
+    it('reports the remaining allowance on GET /api/scan/quota', async () => {
+      await db.prepare(`
+        INSERT INTO rate_limits (user_id, endpoint, window_start, hit_count)
+        VALUES (?, 'scan_shelf_month', ?, 1)
+      `).bind(testUserId, monthStart()).run();
+      const res = await app.fetch(
+        new Request('http://localhost/api/scan/quota', { headers: { 'Authorization': `Bearer ${token}` } }),
         env,
       );
-      const responses = await Promise.all([request(), request()]);
-      expect(responses.map(response => response.status).sort()).toEqual([200, 429]);
-
-      const count = await db.prepare(`
-        SELECT baseline.endpoint,
-          baseline.hit_count + COALESCE((SELECT SUM(units) FROM scan_quota_reservations r
-            WHERE r.user_id=baseline.user_id AND r.endpoint=baseline.endpoint
-              AND r.window_start=baseline.window_start AND r.state='consumed'), 0) AS used
-        FROM rate_limits baseline
-        WHERE baseline.user_id=? AND baseline.endpoint='scan_image' AND baseline.window_start=?
-      `).bind(testUserId, dayStart.toISOString()).first<{ endpoint: string; used: number }>();
-      expect(count?.used).toBe(20);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({
+        pro: false,
+        photo: { used: 0, limit: 20, remaining: 20, period: 'day' },
+        shelf: { used: 1, limit: 3, remaining: 2, period: 'month' },
+      });
+      const anon = await app.fetch(new Request('http://localhost/api/scan/quota'), env);
+      expect(anon.status).toBe(401);
     });
   });
 

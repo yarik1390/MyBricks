@@ -24,7 +24,9 @@ export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, 
     // A killed invocation cannot finalize its lease; expire it promptly so a
     // provider outage does not strand a user's hourly/daily allowance.
     env.DB.prepare(`UPDATE scan_quota_reservations SET state='released', updated_at=CURRENT_TIMESTAMP WHERE state='reserved' AND updated_at < datetime('now', '-30 minutes')`),
-    env.DB.prepare(`DELETE FROM scan_quota_reservations WHERE updated_at < datetime('now', '-48 hours')`),
+    // The free monthly shelf allowance has to outlive its month, so its ledger
+    // rows stay 40 days; every other bucket is daily.
+    env.DB.prepare(`DELETE FROM scan_quota_reservations WHERE updated_at < datetime('now', '-48 hours') AND (endpoint != 'scan_shelf_month' OR state = 'released' OR updated_at < datetime('now', '-40 days'))`),
     env.DB.prepare(`DELETE FROM scan_requests WHERE updated_at < datetime('now', '-48 hours')`),
     // Admin operation keys protect retries only for the lifetime of a job. Keep
     // enough history to absorb delayed client retries without growing forever.

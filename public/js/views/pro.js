@@ -16,6 +16,7 @@ const BENEFITS = [
   ['trend', 'bvAccount.proInsights', 'bvAccount.proInsightsSub'],
   ['clock', 'bvAccount.proHistory', 'bvAccount.proHistorySub'],
   ['camera', 'bvAccount.proScans', 'bvAccount.proScansSub'],
+  ['scan', 'bvAccount.proShelf', 'bvAccount.proShelfSub'],
   ['download', 'bvAccount.proExports', 'bvAccount.proExportsSub'],
   ['tag', 'bvAccount.proTax', 'bvAccount.proTaxSub'],
   ['box', 'bvAccount.proLots', 'bvAccount.proLotsSub'],

@@ -304,6 +304,7 @@ export const ui = {
   "25 sets! Nice collection.": "25点達成！素敵なコレクションです。",
   "50 sets! Dedicated collector 🏅": "50点達成！熱心なコレクター 🏅",
   "5× scan and revaluation limits": "スキャンと再評価の上限が5倍に",
+  "Shelf scans: a whole shelf from one photo": "棚スキャン：写真 1 枚で棚ごと",
   "A bit old": "やや古い",
   "A catalog job is already running": "カタログジョブは既に実行中です",
   "A chime on milestones and rewards.": "マイルストーンや報酬達成時にチャイムを鳴らします。",

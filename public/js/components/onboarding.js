@@ -557,6 +557,7 @@ function stepBodyHTML(key) {
         <li>Full 1-year portfolio history &amp; ROI export</li>
         <li>Premium &amp; Gold ★ skins + ⭐ profile badge</li>
         <li>5× scan and revaluation limits</li>
+        <li>Shelf scans: a whole shelf from one photo</li>
       </ul>
       <div class="bv-note">No pressure — everything you need stays free. You can go Pro anytime from Settings.</div>`;
   }
