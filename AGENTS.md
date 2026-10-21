@@ -600,7 +600,11 @@ Newest first. (Service-worker `VERSION` in parentheses where relevant.)
 **OpenCodex Core01 scan-vision migration (2026-10-21, v606)**
 - **Replaced OmniRoute with OpenCodex on Core01 for vision scanning.** The Railway
   OmniRoute gateway was decommissioned; scanning now routes to OpenCodex through the
-  Cloudflare Access Tunnel (defaults to `https://opencodex-api.bricksvault.app/v1`).
+  `OPENCODEX_VPC` Workers VPC binding (service `opencodex-core01` -> Core01
+  127.0.0.1:10100 over the dedicated tunnel `core01-opencodex-vpc`, whose connector
+  runs as the Core01 user service `bv-opencodex-tunnel.service`). No public hostname.
+  `OPENCODEX_BASE_URL` is only an optional HTTPS fallback when the binding is absent.
+  The API key `brickvault-worker` is the Worker secret `OPENCODEX_API_KEY`.
 - **Dedicated scan and shelf combos:**
   - Single scan (`OPENCODEX_SCAN_COMBO = 'brickvault-scan-vision'`) leads with
     Claude Sonnet 5.5 (34/34 on benchmark, 2.7s median, 100% within the 8s step),

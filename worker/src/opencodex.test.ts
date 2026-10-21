@@ -82,6 +82,30 @@ describe('OpenCodex scan route', () => {
     expect(openCodexBaseURL(env({ OPENCODEX_BASE_URL: 'http://127.0.0.1:10100/v1' }))).toBe('http://127.0.0.1:10100/v1');
   });
 
+  it('is unconfigured without a VPC binding or an explicit URL', () => {
+    const bare = { OPENCODEX_API_KEY: 'test-only-key' } as any;
+    expect(openCodexBaseURL(bare)).toBeNull();
+    expect(openCodexConfigured(bare)).toBe(false);
+  });
+
+  it('sends requests through the Workers VPC binding without Cloudflare Access secrets', async () => {
+    const globalFetch = vi.fn();
+    vi.stubGlobal('fetch', globalFetch);
+    const requests: Request[] = [];
+    const vpc = { fetch: vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push(new Request(input, init));
+      return new Response(validBody, { status: 200, headers: { 'content-type': 'application/json' } });
+    }) };
+    const client = openCodexClient(env({ OPENCODEX_VPC: vpc as any }))!;
+    const result = await openaiVisionDescribe(client, OPENCODEX_SCAN_COMBO, 'data:image/jpeg;base64,AA==', {}, 1_000);
+    expect(result.parsed).toBe(true);
+    expect(globalFetch).not.toHaveBeenCalled();
+    expect(requests).toHaveLength(1);
+    expect(requests[0].url).toBe('http://127.0.0.1:10100/v1/chat/completions');
+    expect(requests[0].headers.get('authorization')).toBe('Bearer test-only-key');
+    expect(requests[0].headers.get('cf-access-client-secret')).toBeNull();
+  });
+
   it('treats capacity failure as a provider error without retrying', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ error: { message: 'quota exhausted' } }), {
       status: 429, headers: { 'content-type': 'application/json' },

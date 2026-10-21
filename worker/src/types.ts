@@ -79,9 +79,12 @@ export interface Env {
   CF_ACCESS_CLIENT_SECRET?: string;
   RECOGNITION_ORIGIN_TOKEN?: string;
   // OpenCodex: our own OpenAI-compatible gateway on Core01 over subscription-backed AI.
-  // OPENCODEX_API_KEY is a Worker secret; OPENCODEX_BASE_URL defaults to the Core01 tunnel.
+  // OPENCODEX_API_KEY is a Worker secret. OPENCODEX_VPC (Workers VPC binding to
+  // Core01's loopback through a private tunnel) is the production route;
+  // OPENCODEX_BASE_URL is an optional HTTPS fallback when the binding is absent.
   OPENCODEX_API_KEY?: string;
   OPENCODEX_BASE_URL?: string;
+  OPENCODEX_VPC?: Fetcher;
   // Monthly USD allowance the admin console meters Merge spend against
   // (default 10). Merge publishes no balance API, so remaining credit is
   // derived from the real per-call `usage.cost` it returns, accumulated in the

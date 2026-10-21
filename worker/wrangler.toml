@@ -29,6 +29,13 @@ dataset = "brickvault_events"
 binding = "PHOTO_BUCKET"
 bucket_name = "brickvault-photos"
 
+# Workers VPC: private route to OpenCodex on Core01 (127.0.0.1:10100) through
+# the dedicated "core01-opencodex-vpc" Cloudflare Tunnel. The connector runs on
+# Core01 as the user service bv-opencodex-tunnel.service.
+[[vpc_services]]
+binding = "OPENCODEX_VPC"
+service_id = "01a15f34-a954-7a32-8e1c-a06bf87f12ad"
+
 # Workers PAID plan allows up to 250 cron triggers. The daily maintenance that was
 # packed into a single 04:00 invocation is split into dedicated slots so each heavy
 # job runs in its own invocation (own subrequest budget + failure isolation):
@@ -97,9 +104,8 @@ RECOGNITION_API_URL = "https://recognition-api.bricksvault.app"
 # when AI_GATEWAY_ACCOUNT_ID is also present (uploaded as a secret in CI), so this
 # stays dormant until the gateway is provisioned + the account id is wired.
 AI_GATEWAY_ID = "brickvault"
-# OpenCodex OpenAI-compatible gateway on Core01.
-# OPENCODEX_API_KEY is a Worker secret. Base URL defaults to Core01 private service tunnel.
-OPENCODEX_BASE_URL = "https://opencodex-api.bricksvault.app/v1"
+# OpenCodex on Core01 is reached through the OPENCODEX_VPC binding below;
+# OPENCODEX_API_KEY is a Worker secret.
 # Monthly Merge Gateway allowance the admin console meters spend against.
 #
 # It lives HERE, not as a secret and not as a dashboard var, for two reasons.

@@ -9,14 +9,21 @@ import type { Env } from '../types';
  */
 export const OPENCODEX_SCAN_COMBO = 'brickvault-scan-vision';
 export const OPENCODEX_SHELF_COMBO = 'brickvault-shelf-vision';
-const DEFAULT_BASE_URL = 'https://opencodex-api.bricksvault.app/v1';
+/**
+ * With the Workers VPC binding, the Worker reaches OpenCodex on Core01's
+ * loopback through a private Cloudflare Tunnel. The URL host is resolved by
+ * the VPC service (127.0.0.1:10100 on Core01), so nothing is exposed publicly.
+ */
+export const OPENCODEX_VPC_BASE_URL = 'http://127.0.0.1:10100/v1';
 const RETRIES = 0;
 const MODELS_TTL_MS = 5 * 60_000;
 let modelsMemo: { ids: string[]; at: number } | null = null;
 
 export function openCodexBaseURL(env: Env): string | null {
+  if (env.OPENCODEX_VPC) return OPENCODEX_VPC_BASE_URL;
   const configured = (env.OPENCODEX_BASE_URL ?? '').trim().replace(/\/$/, '');
-  const target = configured || DEFAULT_BASE_URL;
+  if (!configured) return null;
+  const target = configured;
   try {
     const url = new URL(target);
     const local = url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1';
@@ -43,6 +50,17 @@ export function openCodexClient(env: Env): OpenAI | null {
   const defaultHeaders: Record<string, string> = {
     'X-OpenCodex-No-Cache': 'true',
   };
+  const vpc = env.OPENCODEX_VPC;
+  if (vpc) {
+    return new OpenAI({
+      apiKey,
+      baseURL,
+      maxRetries: RETRIES,
+      defaultHeaders,
+      fetch: (input, init) => vpc.fetch(input as RequestInfo, init as RequestInit),
+    });
+  }
+  // Public HTTPS route (e.g. behind Cloudflare Access) when no VPC binding exists.
   if (env.CF_ACCESS_CLIENT_ID) {
     defaultHeaders['CF-Access-Client-Id'] = env.CF_ACCESS_CLIENT_ID.trim();
   }
