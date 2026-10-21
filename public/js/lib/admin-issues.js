@@ -11,7 +11,7 @@ const PRICING_SERVICES = new Set([
   'brickinsights', 'amazon', 'firecrawl', 'brightdata',
 ]);
 const CATALOG_SERVICES = new Set(['rebrickable', 'brickset', 'upc']);
-const AI_SERVICES = new Set(['gemini', 'openai', 'openrouter', 'omniroute', 'merge']);
+const AI_SERVICES = new Set(['gemini', 'openai', 'openrouter', 'opencodex', 'merge']);
 // Sources disabled by default require positive effective-config evidence before an
 // integration failure can be called an outage. Keep this aligned with the
 // server's DEFAULT_SOURCE_CONFIG opt-in entries. (BrickPicker was the last one;

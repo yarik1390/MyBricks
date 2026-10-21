@@ -1,4 +1,5 @@
 import type { Env } from '../types';
+import { openCodexConfigured } from './opencodex';
 
 // Services whose configuration and recent outcomes are visible in the admin
 // diagnostics panel. The stored table is intentionally aggregate-only.
@@ -16,7 +17,7 @@ export type IntegrationName =
   | 'firebase'
   | 'openai'
   | 'openrouter'
-  | 'omniroute'
+  | 'opencodex'
   | 'merge'
   | 'rebrickable'
   | 'brickinsights'
@@ -205,13 +206,13 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     notes: 'Free-first LLM provider routed through the AI Gateway: free models first, then cheap paid. Where each workload tries it is admin-tunable under LLM routing.',
     recommended_action: 'Add OPENROUTER_API_KEY (and the AI Gateway) to enable the free-first, low-cost LLM route.',
   },
-  omniroute: {
-    label: 'OmniRoute',
-    configured: (env) => !!(env.OMNIROUTE_API_KEY ?? '').trim(),
-    required_secrets: ['OMNIROUTE_API_KEY'],
-    used_by: ['scan primary'],
-    notes: 'Subscription-backed OpenAI-compatible gateway. Scans pin the benchmarked Antigravity Gemini route, bypass response caching, and reject silent provider/model changes.',
-    recommended_action: 'Add OMNIROUTE_API_KEY as a Worker secret and monitor Google subscription quotas and cooldowns.',
+  opencodex: {
+    label: 'OpenCodex',
+    configured: (env) => openCodexConfigured(env),
+    required_secrets: ['OPENCODEX_API_KEY'],
+    used_by: ['scan', 'advisor', 'valuation', 'listing'],
+    notes: 'Subscription-backed OpenAI-compatible gateway on Core01. High-speed vision scanning via dedicated combos with Cloudflare Access protection.',
+    recommended_action: 'Configure OPENCODEX_API_KEY as a Worker secret and check OpenCodex status on Core01.',
   },
   merge: {
     label: 'Merge Gateway',

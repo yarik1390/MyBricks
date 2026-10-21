@@ -1,6 +1,6 @@
 import type { Env } from '../types';
 import { MODELS } from './llm';
-import { OMNIROUTE_SCAN_COMBO } from './omniroute';
+import { OPENCODEX_SCAN_COMBO, OPENCODEX_SHELF_COMBO, openCodexConfigured } from './opencodex';
 
 // ---------------------------------------------------------------------------
 // Admin-tunable LLM routing. One DB-backed row (app_settings['llm_routing'])
@@ -19,12 +19,12 @@ import { OMNIROUTE_SCAN_COMBO } from './omniroute';
 // ---------------------------------------------------------------------------
 
 /** Providers a route step can name. */
-export type LlmProvider = 'gemini' | 'omniroute' | 'merge' | 'openrouter' | 'openai';
-export const LLM_PROVIDERS: LlmProvider[] = ['gemini', 'omniroute', 'merge', 'openrouter', 'openai'];
+export type LlmProvider = 'gemini' | 'opencodex' | 'merge' | 'openrouter' | 'openai';
+export const LLM_PROVIDERS: LlmProvider[] = ['gemini', 'opencodex', 'merge', 'openrouter', 'openai'];
 
 /** Workloads that resolve their cascade through this config. */
-export type LlmWorkload = 'scan' | 'advisor' | 'valuation' | 'listing';
-export const LLM_WORKLOADS: LlmWorkload[] = ['scan', 'advisor', 'valuation', 'listing'];
+export type LlmWorkload = 'scan' | 'shelf' | 'advisor' | 'valuation' | 'listing';
+export const LLM_WORKLOADS: LlmWorkload[] = ['scan', 'shelf', 'advisor', 'valuation', 'listing'];
 
 export interface RouteStep {
   provider: LlmProvider;
@@ -53,15 +53,20 @@ export interface RouteStep {
 export const DEFAULT_LLM_ROUTES: Record<LlmWorkload, RouteStep[]> = {
   // Vision. Fast measured primary -> accurate measured fallback -> best effort.
   scan: [
-    { provider: 'omniroute', model: OMNIROUTE_SCAN_COMBO, enabled: true },
+    { provider: 'opencodex', model: OPENCODEX_SCAN_COMBO, enabled: true },
     { provider: 'merge', model: 'google/gemini-3.5-flash-lite', enabled: true },
     { provider: 'merge', model: 'openai/gpt-4o', enabled: true },
     { provider: 'openrouter', model: '', enabled: true },
     { provider: 'openai', model: MODELS.openaiFallback, enabled: true },
   ],
-  // Streaming chat. Server Gemini leads: the SSE path already exists for BYOK,
-  // and the advisor previously went straight to paid gpt-4o-mini for every
-  // signed-in user without their own key.
+  // Shelf Snap. Thorough multi-set vision -> accurate fallback -> best effort.
+  shelf: [
+    { provider: 'opencodex', model: OPENCODEX_SHELF_COMBO, enabled: true },
+    { provider: 'merge', model: 'openai/gpt-4o', enabled: true },
+    { provider: 'merge', model: 'google/gemini-3.5-flash-lite', enabled: true },
+    { provider: 'openrouter', model: '', enabled: true },
+    { provider: 'openai', model: MODELS.openaiFallback, enabled: true },
+  ],
   advisor: [
     { provider: 'gemini', model: MODELS.advisor, enabled: true },
     { provider: 'merge', model: 'openai/gpt-4o-mini', enabled: true },
@@ -122,6 +127,7 @@ const RETIRED_SCAN_MODELS = new Set([
   // The pinned Antigravity model was deprecated upstream ("Gemini 3.5 Flash is
   // no longer available"); superseded by the brickvault-scan-vision combo.
   'omniroute:antigravity/gemini-3.5-flash-low',
+  'omniroute:brickvault-scan-vision',
 ]);
 
 function staleProductionScanGeneration(stored: unknown): number {
@@ -170,7 +176,7 @@ function removeActiveRetiredScanModels(stored: unknown): unknown {
 function mergeAll(stored: Record<string, unknown> | null): Record<LlmWorkload, RouteStep[]> {
   const out = {} as Record<LlmWorkload, RouteStep[]>;
   for (const name of LLM_WORKLOADS) {
-    const saved = name === 'scan'
+    const saved = (name === 'scan' || name === 'shelf')
       ? removeActiveRetiredScanModels(stored?.[name])
       : stored?.[name];
     out[name] = mergeSteps(name, saved);
@@ -205,7 +211,7 @@ export async function resolveRoute(env: Env, workload: LlmWorkload): Promise<Rou
 export function providerConfigured(env: Env, provider: LlmProvider): boolean {
   switch (provider) {
     case 'gemini': return !!env.GEMINI_API_KEY;
-    case 'omniroute': return !!(env.OMNIROUTE_API_KEY ?? '').trim();
+    case 'opencodex': return openCodexConfigured(env);
     case 'merge': return !!(env.MERGE_GATEWAY_API_KEY ?? '').trim();
     case 'openrouter': return !!env.OPENROUTER_API_KEY;
     case 'openai': return !!env.OPENAI_API_KEY;

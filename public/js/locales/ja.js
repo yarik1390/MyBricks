@@ -1720,7 +1720,7 @@ Object.assign(ja.admin, { llmUnavailable: 'LLM ルーティングを利用でき
 
 Object.assign(ja.admin, { llmModelPlaceholder: "プロバイダ/モデル（例: openai/gpt-5.6-luna）" });
 
-Object.assign(ja.admin, { llmReload: "再読み込み", llmChooseModel: "モデルを選択", llmCustomModel: "カスタムモデル ID…", llmSpentOf: "{budget} のうち {spent} 使用", llmLivePoolShort: "無料プール", llmUnsaved: "未保存の変更", llmModelsOther: "その他", llmWorkload_scan: "写真スキャン", llmWorkload_advisor: "AI アドバイザー", llmWorkload_valuation: "評価額", llmWorkload_listing: "出品ドラフト" });
+Object.assign(ja.admin, { llmReload: "再読み込み", llmChooseModel: "モデルを選択", llmCustomModel: "カスタムモデル ID…", llmSpentOf: "{budget} のうち {spent} 使用", llmLivePoolShort: "無料プール", llmUnsaved: "未保存の変更", llmModelsOther: "その他", llmWorkload_scan: "写真スキャン", llmWorkload_shelf: "シェルフスキャン", llmWorkload_advisor: "AI アドバイザー", llmWorkload_valuation: "評価額", llmWorkload_listing: "出品ドラフト" });
 
 Object.assign(ja.admin, { llmLivePoolHint: "OpenRouter から毎日自動更新" });
 

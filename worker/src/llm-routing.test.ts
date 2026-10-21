@@ -28,7 +28,7 @@ async function freshSchema() {
 const withKeys = (extra: Record<string, string> = {}) => ({
   ...(env as any),
   GEMINI_API_KEY: 'g', OPENROUTER_API_KEY: 'or', OPENAI_API_KEY: 'oa',
-  OMNIROUTE_API_KEY: 'omni', MERGE_GATEWAY_API_KEY: 'mg_test', ...extra,
+  OPENCODEX_API_KEY: 'oc_test', MERGE_GATEWAY_API_KEY: 'mg_test', ...extra,
 });
 
 describe('llm-routing', () => {
@@ -40,9 +40,9 @@ describe('llm-routing', () => {
     for (const w of LLM_WORKLOADS) expect(routes[w].length).toBeGreaterThan(0);
   });
 
-  it('defaults scan to the dedicated OmniRoute scan-vision combo, then independent Merge fallbacks', () => {
+  it('defaults scan to the dedicated OpenCodex scan-vision combo, then independent Merge fallbacks', () => {
     expect(DEFAULT_LLM_ROUTES.scan.slice(0, 3)).toEqual([
-      { provider: 'omniroute', model: 'brickvault-scan-vision', enabled: true },
+      { provider: 'opencodex', model: 'brickvault-scan-vision', enabled: true },
       { provider: 'merge', model: 'google/gemini-3.5-flash-lite', enabled: true },
       { provider: 'merge', model: 'openai/gpt-4o', enabled: true },
     ]);
@@ -51,7 +51,7 @@ describe('llm-routing', () => {
   it('keeps the metered OpenAI backstop last', async () => {
     const scan = DEFAULT_LLM_ROUTES.scan.map((s) => s.provider);
     const firstMerge = scan.indexOf('merge');
-    expect(scan[0]).toBe('omniroute');
+    expect(scan[0]).toBe('opencodex');
     expect(firstMerge).toBeGreaterThanOrEqual(0);
     expect(firstMerge).toBeLessThan(scan.indexOf('openai'));
     expect(scan[scan.length - 1]).toBe('openai');

@@ -1715,7 +1715,7 @@ Object.assign(nl.admin, { llmUnavailable: 'LLM-routering niet beschikbaar', llmM
 
 Object.assign(nl.admin, { llmModelPlaceholder: "provider/model, bijv. openai/gpt-5.6-luna" });
 
-Object.assign(nl.admin, { llmReload: "Opnieuw laden", llmChooseModel: "Kies een model", llmCustomModel: "Eigen model-ID…", llmSpentOf: "{spent} van {budget} besteed", llmLivePoolShort: "gratis pool", llmUnsaved: "Niet-opgeslagen wijzigingen", llmModelsOther: "Overig", llmWorkload_scan: "Fotoscan", llmWorkload_advisor: "AI-adviseur", llmWorkload_valuation: "Waardering", llmWorkload_listing: "Advertentieconcepten" });
+Object.assign(nl.admin, { llmReload: "Opnieuw laden", llmChooseModel: "Kies een model", llmCustomModel: "Eigen model-ID…", llmSpentOf: "{spent} van {budget} besteed", llmLivePoolShort: "gratis pool", llmUnsaved: "Niet-opgeslagen wijzigingen", llmModelsOther: "Overig", llmWorkload_scan: "Fotoscan", llmWorkload_shelf: "Plankscan", llmWorkload_advisor: "AI-adviseur", llmWorkload_valuation: "Waardering", llmWorkload_listing: "Advertentieconcepten" });
 
 Object.assign(nl.admin, { llmLivePoolHint: "Dagelijks automatisch bijgewerkt via OpenRouter" });
 

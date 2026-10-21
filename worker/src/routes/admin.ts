@@ -28,7 +28,7 @@ import { runPriceChartingBacktest } from '../lib/pricing-backtest';
 import { runPricingBenchmark } from '../lib/pricing-benchmark';
 import { getSourceConfig, saveSourceConfig, DEFAULT_SOURCE_CONFIG, applySourceConfig } from '../lib/source-config';
 import { getLlmRoutes, saveLlmRoutes, resolveRoute, providerConfigured, DEFAULT_LLM_ROUTES, LLM_PROVIDERS, LLM_WORKLOADS } from '../lib/llm-routing';
-import { OMNIROUTE_SCAN_COMBO } from '../lib/omniroute';
+import { openCodexModels } from '../lib/opencodex';
 import { mergeMonthlyBudgetUsd, mergeEnabled, fetchMergeModels, MERGE_KNOWN_MODELS } from '../lib/merge-gateway';
 import { monthlyAiSpend } from '../lib/ai-usage';
 import { getOpenRouterPools, MODELS } from '../lib/llm';
@@ -629,7 +629,7 @@ app.get('/llm-routing', async (c) => {
       supports_live_pool: p === 'openrouter',
     })),
     models: {
-      omniroute: [OMNIROUTE_SCAN_COMBO],
+      opencodex: await openCodexModels(c.env),
       // Merge serves no usable /v1/models on this plan, so the picker is the
       // union of: whatever a catalog refresh did manage to cache, the curated
       // known-good ids, and OpenRouter's live catalog (Merge shares its

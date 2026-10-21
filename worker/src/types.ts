@@ -78,11 +78,10 @@ export interface Env {
   CF_ACCESS_CLIENT_ID?: string;
   CF_ACCESS_CLIENT_SECRET?: string;
   RECOGNITION_ORIGIN_TOKEN?: string;
-  // OmniRoute OpenAI-compatible gateway. Its subscription-backed Antigravity
-  // Gemini route is the shared scan primary; the key must be a Worker secret.
-  OMNIROUTE_API_KEY?: string;
-  // Optional non-secret override for self-hosted/staging OmniRoute instances.
-  OMNIROUTE_BASE_URL?: string;
+  // OpenCodex: our own OpenAI-compatible gateway on Core01 over subscription-backed AI.
+  // OPENCODEX_API_KEY is a Worker secret; OPENCODEX_BASE_URL defaults to the Core01 tunnel.
+  OPENCODEX_API_KEY?: string;
+  OPENCODEX_BASE_URL?: string;
   // Monthly USD allowance the admin console meters Merge spend against
   // (default 10). Merge publishes no balance API, so remaining credit is
   // derived from the real per-call `usage.cost` it returns, accumulated in the

@@ -6,7 +6,7 @@ import { enrichSetRecord } from '../lib/market-sources';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { logEvent } from '../lib/analytics';
 import { MODELS, gatewayHeaders, gatewayMetadataHeader, SCAN_SYSTEM_PROMPT, SHELF_SCAN_PROMPT } from '../lib/llm';
-import { resolveRoute } from '../lib/llm-routing';
+import { resolveRoute, type LlmWorkload } from '../lib/llm-routing';
 import { openAiCompatibleStep } from '../lib/llm-clients';
 import { isMergeBudgetExhausted, mergeReportedCostUsd } from '../lib/merge-gateway';
 import { recordAiUsage } from '../lib/ai-usage';
@@ -154,10 +154,10 @@ function openAIIdentificationMessage(error: unknown): string {
 // 14s leaves real headroom on both sides. The trade is fewer attempts per scan,
 // which is the right trade: a fast wrong answer the user can retry beats a slow
 // timeout that tells them nothing.
-const SCAN_BUDGET_MS = 14_000;
-// Per-model ceiling. A cold vision call that has not answered in 7s is not
-// about to; better to spend the remaining budget on the next provider.
-const STEP_TIMEOUT_MS = 7_000;
+const SCAN_BUDGET_MS = 16_000;
+const STEP_TIMEOUT_MS = 8_000;
+const SHELF_SCAN_BUDGET_MS = 35_000;
+const SHELF_STEP_TIMEOUT_MS = 25_000;
 // Do not start another model unless there is realistically time to finish it.
 const MIN_STEP_MS = 3_000;
 const NOT_LEGO_REASON = "Plot twist: that doesn't look like a LEGO set. Try pointing me at some bricks!";
@@ -179,21 +179,25 @@ export async function openaiVisionDescribe(
   usage?: { prompt_tokens?: number; completion_tokens?: number };
   rawUsage?: unknown;
 }> {
+  const userText = (opts.prompt?.includes('shelf') || opts.prompt?.includes('SHELF') || opts.prompt?.includes('cabinet'))
+    ? 'Identify EVERY distinct LEGO set visible in this shelf or display image. Respond with JSON.'
+    : 'Identify the LEGO set(s) and minifigure(s) in this image. Respond with JSON.';
   const messages: Parameters<typeof client.chat.completions.create>[0]['messages'] = [
     { role: 'system', content: opts.prompt || SCAN_SYSTEM_PROMPT },
     { role: 'user', content: [
       { type: 'image_url', image_url: { url: image } },
-      { type: 'text', text: 'Identify the LEGO set(s) and minifigure(s) in this image.' },
+      { type: 'text', text: userText },
     ] },
   ];
   // A step that never returns is worse than a step that fails: the caller has a
   // hard deadline, and one hung provider would spend the entire budget.
   const completion = await client.chat.completions.create({
     model,
-    max_tokens: opts.maxTokens || 700,
+    max_tokens: opts.maxTokens || 1200,
     stream: false,
     temperature: 0,
     response_format: { type: 'json_object' },
+    reasoning_effort: 'low',
     // OpenAI rejects tool_choice when no tools are sent (HTTP 400), which took
     // gpt-4o out of every scan cascade. Other routes accept it as a no-op.
     ...(isOpenAIModel(model) ? {} : { tool_choice: 'none' as const }),
@@ -296,6 +300,7 @@ async function describeSharedScan(
   opts: ScanPromptOpts = {},
   timings: StepTiming[] = [],
   routeDeadline = Date.now() + SCAN_BUDGET_MS,
+  workload: LlmWorkload = 'scan',
 ): Promise<{
   sets: DescribedSet[];
   minifigs: DescribedMinifig[];
@@ -303,7 +308,8 @@ async function describeSharedScan(
   classification?: 'not_lego';
 } | { error: string }> {
   const meta = { ...gatewayHeaders(env), ...gatewayMetadataHeader({ workload: 'scan-shared' }) };
-  const steps = await resolveRoute(env, 'scan');
+  const steps = await resolveRoute(env, workload);
+  const stepTimeout = workload === 'shelf' ? SHELF_STEP_TIMEOUT_MS : STEP_TIMEOUT_MS;
   let lastOpenAiError: unknown = null;
   let notLegoVotes = 0;
   let lastNotLegoModel = '';
@@ -324,7 +330,7 @@ async function describeSharedScan(
         const outcome = await callGeminiScanOutcome(image, env.GEMINI_API_KEY ?? '', env, {
           routeThroughGateway: true, prompt: opts.prompt,
           model: step.model,
-          timeoutMs: Math.min(STEP_TIMEOUT_MS, msLeft()),
+          timeoutMs: Math.min(stepTimeout, msLeft()),
         });
         await recordAiUsage(env, 'gemini', step.model, null);
         if (!outcome.ok) {
@@ -367,7 +373,7 @@ async function describeSharedScan(
       const t0 = Date.now();
       try {
         const { sets, minifigs, imageClass, parsed, usage, rawUsage } = await openaiVisionDescribe(
-          client, model, image, opts, Math.min(STEP_TIMEOUT_MS, msLeft()),
+          client, model, image, opts, Math.min(stepTimeout, msLeft()),
         );
         // Merge reports what the call actually cost; everyone else is estimated.
         const cost = step.provider === 'merge' ? mergeReportedCostUsd(rawUsage) : null;
@@ -390,6 +396,7 @@ async function describeSharedScan(
         if (!parsed) await recordIntegrationAttempt(env, step.provider, false, 'Malformed scan response');
       } catch (e) {
         timings.push({ provider: step.provider, model, ms: Date.now() - t0, outcome: `error: ${(e as Error).message.slice(0, 60)}` });
+        await recordIntegrationAttempt(env, step.provider, false, (e as Error).message);
         if (step.provider === 'openai') lastOpenAiError = e;
         // A hard budget or a rejected key takes the whole provider out for this
         // request — no point walking its remaining models.
@@ -440,12 +447,13 @@ app.get('/backend-health', requireAdmin, async (c) => {
 });
 
 app.post('/identify', async (c) => {
-  // One deadline covers validation, anti-abuse/quota work, provider calls, and
-  // catalog matching. Provider steps receive only the time still available.
-  const routeDeadline = Date.now() + SCAN_BUDGET_MS;
   const userId = c.get('userId') || '';
   const body = await c.req.json<{ mode?: string; image?: string; barcode?: string; ocr_candidates?: unknown }>();
   const { mode, image, barcode } = body;
+  const shelfMode = mode === 'shelf';
+  // One deadline covers validation, anti-abuse/quota work, provider calls, and
+  // catalog matching. Shelf Snap receives an expanded budget for multi-set analysis.
+  const routeDeadline = Date.now() + (shelfMode ? SHELF_SCAN_BUDGET_MS : SCAN_BUDGET_MS);
 
   if (mode === 'barcode') {
     if (!barcode) return c.json({ error: 'barcode required' }, 400);
@@ -471,8 +479,7 @@ app.post('/identify', async (c) => {
 
   // Shelf Snap: same pipeline, exhaustive prompt + a completion budget sized
   // for up to SHELF_MAX_SETS sets instead of one.
-  const shelfMode = mode === 'shelf';
-  const promptOpts: ScanPromptOpts = shelfMode ? { prompt: SHELF_SCAN_PROMPT, maxTokens: 2800 } : {};
+  const promptOpts: ScanPromptOpts = shelfMode ? { prompt: SHELF_SCAN_PROMPT, maxTokens: 3500 } : { maxTokens: 1200 };
 
   const geminiKey = c.req.header('X-Gemini-Key');
   const openaiKey = c.req.header('X-OpenAI-Key');
@@ -809,7 +816,7 @@ app.post('/identify', async (c) => {
 
   let desc: Awaited<ReturnType<typeof describeSharedScan>>;
   try {
-    desc = await describeSharedScan(c.env, image, promptOpts, timings, routeDeadline);
+    desc = await describeSharedScan(c.env, image, promptOpts, timings, routeDeadline, shelfMode ? 'shelf' : 'scan');
   } catch (error) {
     await settleReservedQuota('released');
     throw error;

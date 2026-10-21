@@ -1715,7 +1715,7 @@ Object.assign(es.admin, { llmUnavailable: 'Enrutamiento de LLM no disponible', l
 
 Object.assign(es.admin, { llmModelPlaceholder: "proveedor/modelo, p. ej. openai/gpt-5.6-luna" });
 
-Object.assign(es.admin, { llmReload: "Recargar", llmChooseModel: "Elegir modelo", llmCustomModel: "ID de modelo personalizado…", llmSpentOf: "{spent} gastado de {budget}", llmLivePoolShort: "grupo gratuito", llmUnsaved: "Cambios sin guardar", llmModelsOther: "Otros", llmWorkload_scan: "Escaneo de fotos", llmWorkload_advisor: "Asesor de IA", llmWorkload_valuation: "Valoración", llmWorkload_listing: "Borradores de anuncios" });
+Object.assign(es.admin, { llmReload: "Recargar", llmChooseModel: "Elegir modelo", llmCustomModel: "ID de modelo personalizado…", llmSpentOf: "{spent} gastado de {budget}", llmLivePoolShort: "grupo gratuito", llmUnsaved: "Cambios sin guardar", llmModelsOther: "Otros", llmWorkload_scan: "Escaneo de fotos", llmWorkload_shelf: "Escaneo de estantería", llmWorkload_advisor: "Asesor de IA", llmWorkload_valuation: "Valoración", llmWorkload_listing: "Borradores de anuncios" });
 
 Object.assign(es.admin, { llmLivePoolHint: "Actualizado a diario desde OpenRouter" });
 

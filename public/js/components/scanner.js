@@ -1267,10 +1267,11 @@ async function sendScanToAPI(payload) {
     return;
   }
   let timedOut = false;
+  const timeoutMs = payload.mode === 'shelf' ? 45_000 : 30_000;
   const tid = setTimeout(() => {
     timedOut = true;
     controller.abort();
-  }, 30_000);
+  }, timeoutMs);
   try {
     const { idempotencyKey: _retryKey, ...requestPayload } = payload;
     const res = await cloudScanIdentify(requestPayload, controller.signal, idempotencyKey);

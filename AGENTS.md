@@ -597,6 +597,30 @@ Both one-time bootstraps — PriceCharting per-set (`10,25,40,55`) and BrickEcon
 
 Newest first. (Service-worker `VERSION` in parentheses where relevant.)
 
+**OpenCodex Core01 scan-vision migration (2026-10-21, v606)**
+- **Replaced OmniRoute with OpenCodex on Core01 for vision scanning.** The Railway
+  OmniRoute gateway was decommissioned; scanning now routes to OpenCodex through the
+  Cloudflare Access Tunnel (defaults to `https://opencodex-api.bricksvault.app/v1`).
+- **Dedicated scan and shelf combos:**
+  - Single scan (`OPENCODEX_SCAN_COMBO = 'brickvault-scan-vision'`) leads with
+    Claude Sonnet 5.5 (34/34 on benchmark, 2.7s median, 100% within the 8s step),
+    falling back to Gemini 3.8 Flash (Antigravity subscription).
+  - Shelf Snap (`OPENCODEX_SHELF_COMBO = 'brickvault-shelf-vision'`) leads with
+    Gemini 3.8 Flash (46/46 sets on benchmark shelves, 0 false positives),
+    falling back to Claude Sonnet 5.5.
+- **Scanning speed and reliability hardening:**
+  - Expanded budget and timeouts: single scan step 8s / total 16s; shelf scan step
+    25s / total 35s (client shelf timeout expanded to 45s in scanner.js).
+  - Explicit JSON directive ('Respond with JSON.') added to user prompts; completion
+    tokens increased to 1,200 for single and 3,500 for shelf; `reasoning_effort: 'low'`.
+  - Catalog match contradiction guard: `matchSetsToCatalog` verifies that an exact
+    `set_num` is plausible against the candidate's described name; if contradictory
+    (e.g. model guessed set digits from an unrelated set), it rejects the false number
+    and falls back to FTS name resolution.
+  - Automatic Cloudflare Access client credentials header attachment when configured.
+  - Provider failure tracking: errors thrown by OpenCodex or OpenAI-compatible steps
+    are recorded in `integration_health`.
+
 **OmniRoute scan-vision combo (2026-09-03, no SW bump — worker-only)**
 - **Brickvault scanning now routes its AI fallback through a dedicated OmniRoute
   combo, `brickvault-scan-vision`** (OmniRoute gateway id

@@ -1851,7 +1851,7 @@ Object.assign(uk.admin, { llmUnavailable: 'Маршрутизація LLM нед
 
 Object.assign(uk.admin, { llmModelPlaceholder: "провайдер/модель, напр. openai/gpt-5.6-luna" });
 
-Object.assign(uk.admin, { llmReload: "Перезавантажити", llmChooseModel: "Оберіть модель", llmCustomModel: "Власний ID моделі…", llmSpentOf: "Витрачено {spent} із {budget}", llmLivePoolShort: "безкоштовний пул", llmUnsaved: "Незбережені зміни", llmModelsOther: "Інші", llmWorkload_scan: "Сканування фото", llmWorkload_advisor: "ШІ-радник", llmWorkload_valuation: "Оцінка", llmWorkload_listing: "Чернетки оголошень" });
+Object.assign(uk.admin, { llmReload: "Перезавантажити", llmChooseModel: "Оберіть модель", llmCustomModel: "Власний ID моделі…", llmSpentOf: "Витрачено {spent} із {budget}", llmLivePoolShort: "безкоштовний пул", llmUnsaved: "Незбережені зміни", llmModelsOther: "Інші", llmWorkload_scan: "Сканування фото", llmWorkload_shelf: "Сканування полиці", llmWorkload_advisor: "ШІ-радник", llmWorkload_valuation: "Оцінка", llmWorkload_listing: "Чернетки оголошень" });
 
 Object.assign(uk.admin, { llmLivePoolHint: "Щодня оновлюється з OpenRouter" });
 

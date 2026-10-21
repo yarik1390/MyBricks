@@ -59,6 +59,20 @@ function inferredSetNumber(cand: DescribedSet): string {
   return match?.[1] ?? '';
 }
 
+export function isNameCompatible(catalogName: unknown, candidateName: unknown): boolean {
+  const cName = normalizeMatchText(catalogName);
+  const wName = normalizeMatchText(candidateName);
+  if (!cName || !wName) return true;
+  if (cName === wName || cName.includes(wName) || wName.includes(cName)) return true;
+
+  const STOP = new Set(['the', 'of', 'and', 'lego', 'set', 'a', 'series', 'edition', 'collectors', 'collector', 'pack']);
+  const cWords = cName.split(' ').filter(w => w.length > 2 && !STOP.has(w));
+  const wWords = wName.split(' ').filter(w => w.length > 2 && !STOP.has(w));
+  if (!cWords.length || !wWords.length) return true;
+
+  return wWords.some(w => cWords.includes(w) || cWords.some(cw => cw.startsWith(w) || w.startsWith(cw)));
+}
+
 function rankCatalogMatch(row: Record<string, unknown>, cand: DescribedSet): number {
   const rowName = normalizeMatchText(row.name);
   const wantedName = normalizeMatchText(cand.name);
@@ -109,6 +123,13 @@ export async function matchSetsToCatalog(env: Env, described: DescribedSet[]): P
   for (const cand of candidates) {
     const n = inferredSetNumber(cand);
     let row: Record<string, unknown> | null = n ? (byNum.get(n) ?? byNum.get(`${n}-1`) ?? null) : null;
+    // Guard against vision models hallucinating digits for a set that actually
+    // exists under an unrelated name (e.g. 21031 Burj Khalifa for Willis Tower).
+    // If the catalog row name directly contradicts the described name, reject
+    // the exact-number match and fall through to FTS name resolution.
+    if (row && cand.name && !isNameCompatible(row.name, cand.name)) {
+      row = null;
+    }
 
     // 2. FTS fallback by the described name. BM25 alone can rank an accessory
     // such as "Millennium Falcon Bag Tag" above the actual Millennium Falcon.

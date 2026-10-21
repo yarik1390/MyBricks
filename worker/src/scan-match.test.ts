@@ -85,6 +85,27 @@ describe('scan catalog matching', () => {
     expect(result.sets[1]?.set_num).toBe('52236-1');
     expect(result.sets[1]).not.toHaveProperty('scan_box');
   });
+
+  it('rejects an exact set number when the catalog name contradicts the described name', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, year, theme) VALUES
+      ('21031-1', 'Burj Khalifa', 2016, 'Architecture'),
+      ('21000-1', 'Willis Tower', 2011, 'Architecture')`).run();
+    await db.prepare(`INSERT INTO lego_sets_fts(rowid, set_num, name, theme)
+      SELECT rowid, set_num, name, theme FROM lego_sets WHERE set_num IN ('21031-1', '21000-1')`).run();
+
+    // Model hallucinated 21031 (Burj Khalifa) for a photo it correctly described as Willis Tower.
+    const result = await matchSetsToCatalog(env as any, [{
+      set_num: '21031',
+      name: 'Willis Tower',
+      theme: 'Architecture',
+      year: 2011,
+      confidence: 'high',
+      reasoning: 'Black skyscraper model of Willis Tower',
+    }]);
+
+    expect(result.sets[0]?.set_num).toBe('21000-1');
+    expect(result.sets[0]?.name).toBe('Willis Tower');
+  });
 });
 
 describe('scanBox', () => {

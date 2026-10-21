@@ -1715,7 +1715,7 @@ Object.assign(zh.admin, { llmUnavailable: 'LLM 路由不可用', llmMergeBalance
 
 Object.assign(zh.admin, { llmModelPlaceholder: "提供方/模型，例如 openai/gpt-5.6-luna" });
 
-Object.assign(zh.admin, { llmReload: "重新加载", llmChooseModel: "选择模型", llmCustomModel: "自定义模型 ID…", llmSpentOf: "已用 {spent}，共 {budget}", llmLivePoolShort: "免费池", llmUnsaved: "有未保存的更改", llmModelsOther: "其他", llmWorkload_scan: "照片扫描", llmWorkload_advisor: "AI 顾问", llmWorkload_valuation: "估值", llmWorkload_listing: "listing 草稿" });
+Object.assign(zh.admin, { llmReload: "重新加载", llmChooseModel: "选择模型", llmCustomModel: "自定义模型 ID…", llmSpentOf: "已用 {spent}，共 {budget}", llmLivePoolShort: "免费池", llmUnsaved: "有未保存的更改", llmModelsOther: "其他", llmWorkload_scan: "照片扫描", llmWorkload_shelf: "货架扫描", llmWorkload_advisor: "AI 顾问", llmWorkload_valuation: "估值", llmWorkload_listing: "listing 草稿" });
 
 Object.assign(zh.admin, { llmLivePoolHint: "每日自动从 OpenRouter 更新" });
 
