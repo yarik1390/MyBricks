@@ -40,10 +40,12 @@ vi.mock('openai', () => {
             // Shelf Snap prompt -> many sets, including one not in the catalog
             // (must be dropped by matching, not returned).
             : systemText.includes('COLLECTION on a shelf')
+            // No image_class and one off-schema row, as real models answer:
+            // neither may throw the rest of the shelf away.
             ? JSON.stringify({
-                image_class: 'lego',
                 sets: [
                   { set_num: '75192', name: 'Millennium Falcon', theme: 'Star Wars', year: 2017, confidence: 'high', reasoning: 'UCS dish visible' },
+                  { set_num: '10294', name: 'Titanic', theme: 'Icons', year: '2021', confidence: 'certain' },
                   { set_num: '10497', name: 'Galaxy Explorer', theme: 'Icons', year: 2022, confidence: 'medium', reasoning: 'Classic space colors' },
                   { set_num: '55555', name: 'Not A Real Set', theme: null, year: null, confidence: 'low', reasoning: 'Partial view' },
                 ],
