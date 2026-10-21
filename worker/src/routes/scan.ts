@@ -194,7 +194,9 @@ export async function openaiVisionDescribe(
     stream: false,
     temperature: 0,
     response_format: { type: 'json_object' },
-    tool_choice: 'none',
+    // OpenAI rejects tool_choice when no tools are sent (HTTP 400), which took
+    // gpt-4o out of every scan cascade. Other routes accept it as a no-op.
+    ...(isOpenAIModel(model) ? {} : { tool_choice: 'none' as const }),
     messages,
   }, { timeout: timeoutMs });
   const text = completion.choices[0]?.message?.content;
@@ -207,11 +209,11 @@ export async function openaiVisionDescribe(
       // Some Gemini-compatible routes ignore response_format and add one outer
       // Markdown fence. Accept exactly that wrapper, never arbitrary prose.
       const normalized = text.trim().replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/i, '$1').trim();
-      const payload: unknown = JSON.parse(normalized);
-      if (validScanPayload(payload)) {
+      const payload = readScanPayload(JSON.parse(normalized));
+      if (payload) {
         sets = payload.sets;
         minifigs = payload.minifigs;
-        imageClass = payload.image_class;
+        imageClass = payload.imageClass;
         parsed = true;
       }
     } catch { /* malformed model output — let the provider cascade continue */ }
@@ -225,22 +227,32 @@ function nullableString(value: unknown): boolean {
   return value === null || typeof value === 'string';
 }
 
-function validScanPayload(payload: unknown): payload is {
-  image_class: 'lego' | 'not_lego' | 'uncertain';
+// OpenAI's own models (direct, or "openai/..." through a gateway).
+function isOpenAIModel(model: string): boolean {
+  return /^(openai\/|gpt-|o\d)/i.test(model);
+}
+
+// Validate a model's scan JSON. Entries that break the schema are dropped one
+// by one, so a single odd row no longer throws away a whole shelf of good
+// ones; the payload is rejected only when nothing valid is left of a non-empty
+// list. A missing image_class is inferred instead of failing the response.
+function readScanPayload(payload: unknown): {
+  imageClass: 'lego' | 'not_lego' | 'uncertain';
   sets: DescribedSet[];
   minifigs: DescribedMinifig[];
-} {
-  if (!payload || typeof payload !== 'object') return false;
+} | null {
+  if (!payload || typeof payload !== 'object') return null;
   const row = payload as Record<string, unknown>;
-  if (!['lego', 'not_lego', 'uncertain'].includes(String(row.image_class))) return false;
-  if (!Array.isArray(row.sets) || !Array.isArray(row.minifigs)) return false;
+  if (!Array.isArray(row.sets)) return null;
+  const rawFigs = row.minifigs == null ? [] : row.minifigs;
+  if (!Array.isArray(rawFigs)) return null;
   const validSet = (item: unknown) => {
     if (!item || typeof item !== 'object') return false;
     const set = item as Record<string, unknown>;
     return nullableString(set.set_num)
       && typeof set.name === 'string'
       && nullableString(set.theme)
-      && (set.year === null || (typeof set.year === 'number' && Number.isInteger(set.year)))
+      && (set.year === null || set.year === undefined || (typeof set.year === 'number' && Number.isInteger(set.year)))
       && CONFIDENCE_VALUES.has(String(set.confidence))
       && typeof set.reasoning === 'string';
   };
@@ -252,7 +264,14 @@ function validScanPayload(payload: unknown): payload is {
       && CONFIDENCE_VALUES.has(String(fig.confidence))
       && typeof fig.reasoning === 'string';
   };
-  return row.sets.every(validSet) && row.minifigs.every(validMinifig);
+  const sets = row.sets.filter(validSet) as DescribedSet[];
+  const minifigs = rawFigs.filter(validMinifig) as DescribedMinifig[];
+  if (!sets.length && !minifigs.length && (row.sets.length || rawFigs.length)) return null;
+  const declared = String(row.image_class);
+  const imageClass = ['lego', 'not_lego', 'uncertain'].includes(declared)
+    ? declared as 'lego' | 'not_lego' | 'uncertain'
+    : (sets.length || minifigs.length ? 'lego' : 'uncertain');
+  return { imageClass, sets, minifigs };
 }
 
 /**

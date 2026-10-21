@@ -91,8 +91,9 @@ export const SHELF_SCAN_PROMPT =
   'For each: if a printed set number is readable, return just the digits in set_num; otherwise identify by official set name, ' +
   'theme, and approximate release year from the model\'s appearance (most display sets have no visible number — a confident ' +
   'name identification is expected and useful). List at most 25 sets, largest/clearest first. Ignore loose parts and non-LEGO items. ' +
+  'Set image_class to "lego" when any LEGO is visible, "not_lego" only when you are confident none is, otherwise "uncertain". ' +
   'Return ONLY raw JSON (no markdown fences) in this shape: ' +
-  '{ "sets": [ { "set_num": string|null, "name": string, "theme": string|null, "year": number|null, "confidence": "high"|"medium"|"low"|"none", "reasoning": string, "box": [ymin, xmin, ymax, xmax] } ], ' +
+  '{ "image_class": "lego"|"not_lego"|"uncertain", "sets": [ { "set_num": string|null, "name": string, "theme": string|null, "year": number|null, "confidence": "high"|"medium"|"low"|"none", "reasoning": string, "box": [ymin, xmin, ymax, xmax] } ], ' +
   '"minifigs": [] }. ' +
   'Use confidence "none" only when you cannot even guess the set; prefer "low" with your best name guess. ' +
   '"box" is where that set sits in the photo, as integers 0-1000 of the image height (y) and width (x).';
