@@ -13,6 +13,9 @@ export default defineConfig({
       wrangler: {
         configPath: './wrangler.toml',
       },
+      // The OPENCODEX_VPC (Workers VPC) binding is remote-only. Tests stub it, and
+      // a remote proxy session would need live Cloudflare credentials in CI.
+      remoteBindings: false,
     }),
   ],
 });
