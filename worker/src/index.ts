@@ -40,6 +40,7 @@ import { runModelRefresh } from './jobs/model-refresh';
 import { runPartPriceBackfill } from './jobs/part-price-backfill';
 import { runPartOutCompute } from './jobs/part-out-compute';
 import { runTrainValueModel } from './jobs/train-value-model';
+import { runBundleValues } from './jobs/bundle-values';
 import { runWishlistAlerts } from './jobs/wishlist-alerts';
 import { runWeeklyDigest } from './jobs/weekly-digest';
 import { runSetAnniversaries } from './jobs/set-anniversaries';
@@ -567,6 +568,9 @@ export default {
         // BricksVault value model: retrain from BrickLink-priced sets and store
         // each set's estimate (pure D1, one statement).
         await run('train-value-model', () => runTrainValueModel(env));
+        // Bundles (multi-packs, complete minifigure series, sealed boxes):
+        // the sum of the sets inside, from Rebrickable's inventory files.
+        await run('bundle-values', () => runBundleValues(env));
         break;
       // Image pre-warm: pull Rebrickable set images into the R2 cache so first
       // views are instant. Gentle (limit 100, concurrency 3) to respect
