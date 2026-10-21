@@ -1,0 +1,219 @@
+name: Merge vision suite (single + shelf)
+
+# Compares Merge-hosted vision models on the production scan prompts:
+# 15 single-set photos + 1 non-LEGO image, and 2 composed "shelf" images of 7
+# sets each. Expected answers are used only by the scorer. Dispatch-only
+# because it spends the Merge allowance; reported spend is capped.
+on:
+  workflow_dispatch:
+    inputs:
+      models:
+        description: "1-3 comma-separated Merge model ids"
+        required: false
+        default: "google/gemini-3.5-flash-lite"
+      list_models:
+        description: "Only print the Merge model ids matching this filter (blank = run benchmark)"
+        required: false
+        default: ""
+      max_cost_usd:
+        description: "Stop once reported spend reaches this (max 1.00)"
+        required: false
+        default: "0.50"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: merge-vision-suite
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MERGE_KEY: ${{ secrets.MERGE_GATEWAY_API_KEY }}
+      MODELS: ${{ inputs.models }}
+      LIST_MODELS: ${{ inputs.list_models }}
+      MAX_COST_USD: ${{ inputs.max_cost_usd }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: List Merge models
+        if: ${{ inputs.list_models != '' }}
+        run: |
+          set -euo pipefail
+          for path in v1/openai/models v1/models; do
+            echo "== GET /$path"
+            curl -sS --max-time 30 -H "Authorization: Bearer ${MERGE_KEY}" \
+              "https://api-gateway.merge.dev/$path" -o /tmp/models.json -w "HTTP %{http_code}\n" || true
+            node -e '
+              const f = process.env.LIST_MODELS.toLowerCase();
+              let j; try { j = JSON.parse(require("fs").readFileSync("/tmp/models.json","utf8")); } catch { console.log("not JSON"); process.exit(0); }
+              const ids = (j.data || j.models || []).map(m => m.id || m.name || m).filter(x => typeof x === "string");
+              console.log(`${ids.length} ids total`);
+              for (const id of ids.filter(i => i.toLowerCase().includes(f))) console.log(id);
+            '
+          done
+
+      - name: Build fixtures
+        if: ${{ inputs.list_models == '' }}
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y imagemagick >/dev/null 2>&1 || true
+          mkdir -p /tmp/fx
+          fetch() { curl --fail -sS --location --retry 3 --max-time 30 --proto '=https' "https://cdn.rebrickable.com/media/sets/$1-1.jpg" -o "/tmp/fx/$1.jpg"; }
+          for s in 75192 10307 21348 21019 7153 10300 42115 10281 76419 43222 10295 10316 10302 75367 76269 10276; do fetch "$s"; done
+          curl --fail -sS --location --retry 3 --max-time 30 https://cdn.rebrickable.com/static/img/title.png -o /tmp/fx/notlego.png
+          # Phone-sized singles, like the app uploads.
+          for f in /tmp/fx/*.jpg /tmp/fx/notlego.png; do
+            convert "$f" -resize '1024x1024>' -quality 85 "/tmp/fx/single-$(basename "${f%.*}").jpg"
+          done
+          # Two "shelves": 7 sets side by side, like a row of boxes on a shop page.
+          tile() { out=$1; shift; args=(); for s in "$@"; do args+=("/tmp/fx/$s.jpg"); done
+            montage "${args[@]}" -tile 7x1 -geometry 360x360+8+8 -background white "/tmp/fx/$out.big.jpg"
+            convert "/tmp/fx/$out.big.jpg" -resize '1600x1600>' -quality 85 "/tmp/fx/$out.jpg"; }
+          tile shelf-a 10276 10295 42115 21348 10281 76419 10316
+          tile shelf-b 75192 10307 21019 10300 43222 75367 76269
+          ls -la /tmp/fx | grep -E 'single-|shelf-' | grep -v big
+
+      - name: Run benchmark
+        if: ${{ inputs.list_models == '' }}
+        run: |
+          set -euo pipefail
+          test -n "${MERGE_KEY}" || { echo "::error::MERGE_GATEWAY_API_KEY is missing"; exit 1; }
+          cat > /tmp/bench.mjs <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          // Production prompts, read from the source so the suite never drifts.
+          const llm = readFileSync('worker/src/lib/llm.ts', 'utf8');
+          const prompt = (name) => {
+            const m = llm.match(new RegExp(`export const ${name} =([\\s\\S]*?);\\n`));
+            if (!m) throw new Error(`prompt ${name} not found`);
+            return new Function(`return (${m[1]});`)();
+          };
+          const SINGLE = prompt('SCAN_SYSTEM_PROMPT');
+          const SHELF = prompt('SHELF_SCAN_PROMPT');
+          const models = process.env.MODELS.split(',').map((m) => m.trim()).filter(Boolean);
+          if (!models.length || models.length > 3) throw new Error('models must list 1-3 ids');
+          const cap = Number(process.env.MAX_COST_USD);
+          if (!(cap > 0 && cap <= 1)) throw new Error('max_cost_usd must be >0 and <=1');
+
+          // name keywords let a name-only answer count, as the catalog matcher would resolve it
+          const SETS = {
+            75192: ['millennium falcon'], 10307: ['eiffel'], 21348: ['dungeons', 'red dragon'], 21019: ['eiffel'],
+            7153: ['jango'], 10300: ['back to the future', 'delorean', 'time machine'], 42115: ['lamborghini', 'sián', 'sian'],
+            10281: ['bonsai'], 76419: ['hogwarts'], 43222: ['disney castle'], 10295: ['porsche'], 10316: ['rivendell'],
+            10302: ['optimus'], 75367: ['venator'], 76269: ['avengers tower'], 10276: ['colosseum'],
+          };
+          const singles = Object.keys(SETS).filter((s) => s !== '10276').map((s) => ({ id: `single-${s}`, kind: 'single', expected: [s] }));
+          singles.push({ id: 'single-notlego', kind: 'single', expected: [] });
+          const shelves = [
+            { id: 'shelf-a', kind: 'shelf', expected: ['10276', '10295', '42115', '21348', '10281', '76419', '10316'] },
+            { id: 'shelf-b', kind: 'shelf', expected: ['75192', '10307', '21019', '10300', '43222', '75367', '76269'] },
+          ];
+          const fixtures = [...singles, ...shelves];
+          const img = (id) => `data:image/jpeg;base64,${readFileSync(`/tmp/fx/${id}.jpg`).toString('base64')}`;
+          const base = (s) => String(s ?? '').trim().replace(/-\d+$/, '');
+
+          function score(fx, sets) {
+            const found = new Set();
+            let falsePos = 0;
+            for (const s of sets) {
+              const num = base(s?.set_num);
+              const name = String(s?.name ?? '').toLowerCase();
+              let hit = null;
+              if (num && fx.expected.includes(num)) hit = num;
+              else if (!num || !SETS[num]) {
+                // name-only (or unknown number) answer: credit it if the name is unambiguous
+                hit = fx.expected.find((e) => SETS[e].some((k) => name.includes(k))) ?? null;
+              }
+              if (hit) found.add(hit); else falsePos += 1;
+            }
+            return { found: found.size, expected: fx.expected.length, falsePos };
+          }
+
+          async function call(model, fx) {
+            const shelf = fx.kind === 'shelf';
+            const t0 = Date.now();
+            try {
+              const r = await fetch('https://api-gateway.merge.dev/v1/openai/chat/completions', {
+                method: 'POST', signal: AbortSignal.timeout(shelf ? 25_000 : 8_000),
+                headers: { Authorization: `Bearer ${process.env.MERGE_KEY}`, 'Content-Type': 'application/json', 'X-Project-ID': 'bricksvault-vision-suite' },
+                body: JSON.stringify({
+                  model, temperature: 0, max_tokens: shelf ? 3500 : 1200, response_format: { type: 'json_object' },
+                  messages: [
+                    { role: 'system', content: shelf ? SHELF : SINGLE },
+                    { role: 'user', content: [
+                      { type: 'image_url', image_url: { url: img(fx.id) } },
+                      { type: 'text', text: shelf ? 'Identify EVERY distinct LEGO set visible in this shelf or display image. Respond with JSON.' : 'Identify the LEGO set(s) and minifigure(s) in this image. Respond with JSON.' },
+                    ] },
+                  ],
+                }),
+              });
+              const body = await r.json().catch(() => ({}));
+              const ms = Date.now() - t0;
+              const text = String(body?.choices?.[0]?.message?.content ?? '');
+              let parsed = null;
+              try { parsed = JSON.parse(text.trim().replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/i, '$1')); } catch {}
+              const sets = Array.isArray(parsed?.sets) ? parsed.sets : [];
+              const sc = score(fx, sets);
+              const correct = fx.expected.length ? sc.found === sc.expected && sc.falsePos === 0
+                : sets.length === 0 && parsed?.image_class !== 'lego';
+              return { model, fixture: fx.id, kind: fx.kind, status: r.status, ms, json: !!parsed, ...sc, correct,
+                answer: sets.map((s) => `${s?.set_num ?? '-'} ${s?.name ?? ''}`.trim()).slice(0, 10),
+                in_tok: body?.usage?.prompt_tokens ?? null, out_tok: body?.usage?.completion_tokens ?? null,
+                cost: Number.isFinite(Number(body?.usage?.cost)) ? Number(body.usage.cost) : null,
+                error: r.ok ? null : String(body?.error?.message ?? text ?? 'error').slice(0, 160) };
+            } catch (e) {
+              return { model, fixture: fx.id, kind: fx.kind, status: 0, ms: Date.now() - t0, json: false, found: 0,
+                expected: fx.expected.length, falsePos: 0, correct: false, answer: [], cost: null,
+                error: e?.name === 'TimeoutError' ? 'timeout' : String(e?.message).slice(0, 160) };
+            }
+          }
+
+          const rows = [];
+          let spend = 0, stopped = false;
+          // Interleave models per fixture so time-of-day load hits them equally.
+          outer: for (const fx of fixtures) {
+            for (const model of models) {
+              if (spend >= cap) { stopped = true; break outer; }
+              const row = await call(model, fx);
+              rows.push(row);
+              if (row.cost) spend += row.cost;
+              console.log(JSON.stringify(row));
+            }
+          }
+          const med = (a) => { const x = [...a].sort((p, q) => p - q); return x.length ? x[Math.floor(x.length / 2)] : null; };
+          const sum = (a) => a.reduce((p, q) => p + q, 0);
+          let md = `# Merge vision suite\n\nReported spend $${spend.toFixed(4)}${stopped ? ' (stopped at cap)' : ''}\n\n` +
+            '| Model | Single correct | Shelf sets found | Shelf wrong sets | Errors/timeouts | Median single | Median shelf | Avg $ single | Avg $ shelf |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|\n';
+          for (const m of models) {
+            const r = rows.filter((x) => x.model === m);
+            const si = r.filter((x) => x.kind === 'single'), sh = r.filter((x) => x.kind === 'shelf');
+            const ok = (a) => a.filter((x) => x.status >= 200 && x.status < 300);
+            const avg = (a) => { const c = a.map((x) => x.cost).filter((x) => x != null); return c.length ? (sum(c) / c.length).toFixed(5) : 'n/a'; };
+            md += `| ${m} | ${si.filter((x) => x.correct).length}/${si.length} | ${sum(sh.map((x) => x.found))}/${sum(sh.map((x) => x.expected))} | ${sum(sh.map((x) => x.falsePos))} | ${r.filter((x) => x.error).length} | ${med(ok(si).map((x) => x.ms))} ms | ${med(ok(sh).map((x) => x.ms))} ms | ${avg(si)} | ${avg(sh)} |\n`;
+          }
+          md += '\n## Misses\n\n';
+          for (const x of rows.filter((x) => !x.correct)) md += `- ${x.model} · ${x.fixture}: ${x.error ?? `found ${x.found}/${x.expected}, wrong ${x.falsePos}`} → ${x.answer.join('; ') || '(nothing)'}\n`;
+          writeFileSync('merge-vision-suite.md', md);
+          writeFileSync('merge-vision-suite.json', JSON.stringify({ spend, stopped, rows }, null, 2));
+          console.log(md);
+          NODE
+          node /tmp/bench.mjs
+          cat merge-vision-suite.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload results
+        if: ${{ always() && inputs.list_models == '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: merge-vision-suite
+          path: |
+            merge-vision-suite.md
+            merge-vision-suite.json
+            /tmp/fx/shelf-a.jpg
+            /tmp/fx/shelf-b.jpg
+          if-no-files-found: ignore
