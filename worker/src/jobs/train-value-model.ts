@@ -60,7 +60,10 @@ const TARGET_RETAIL = `COALESCE(${RETAIL}, CASE WHEN ls.retail_price BETWEEN 1 A
 
 // Shared feature projection. `ac` is the coarse age class the deviations are
 // fitted within (0-3, 4-10, 11+ years since release).
-const features = (retail: string) => `
+// Sets estimated with no real piece count (0-5) score in the unknown piece
+// bucket, not the tiny-set buckets learned from key chains and figures that
+// sell for many times retail.
+const features = (retail: string, minPieces = 0) => `
   ls.set_num,
   MIN(MAX(CAST(strftime('%Y','now') AS INTEGER) - ls.year, 0), 30) AS age,
   CASE WHEN CAST(strftime('%Y','now') AS INTEGER) - ls.year <= 3 THEN 0
@@ -68,7 +71,7 @@ const features = (retail: string) => `
   COALESCE(ls.retired, 0) AS ret,
   COALESCE(ls.theme, '?') AS th,
   COALESCE(ls.theme, '?') || '/' || COALESCE(ls.subtheme, '') AS st,
-  CASE WHEN ls.pieces > 0 THEN MIN(CAST(ln(ls.pieces) * 2 AS INTEGER), 18) ELSE -1 END AS pb,
+  CASE WHEN ls.pieces > ${minPieces} THEN MIN(CAST(ln(ls.pieces) * 2 AS INTEGER), 18) ELSE -1 END AS pb,
   ${retail} AS rp,
   CASE WHEN ls.bl_used_qty > 0 AND ls.used_value > 0 THEN ls.used_value END AS u`;
 
@@ -94,7 +97,7 @@ WITH
   d_pb AS (SELECT pb, ac, SUM(res3) / (COUNT(*) + ${SHRINK_PIECES}) AS d FROM r3 GROUP BY pb, ac),
   used_ratio AS (SELECT ac, AVG(ln(bl / u)) AS m FROM train WHERE u > 0 GROUP BY ac),
   target AS (
-    SELECT ${features(TARGET_RETAIL)}
+    SELECT ${features(TARGET_RETAIL, NO_PIECE_COUNT_MAX)}
     FROM lego_sets ls LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
     WHERE ls.year > 0 AND ${TARGET_RETAIL} > 0),
   scored AS (
