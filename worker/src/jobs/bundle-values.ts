@@ -174,11 +174,13 @@ export async function runBundleValues(env: Env): Promise<{
 
   // Show new estimates today instead of waiting for the multi-day recompute
   // rotation: the bundles that moved, then sets the value model priced that
-  // still have no valuation.
+  // still have no valuation, then sets it re-estimated in today's run.
   const { results: fresh } = await db.prepare(
     `SELECT ext.set_num FROM set_market_ext ext
        LEFT JOIN set_valuation_state sv ON sv.set_num = ext.set_num AND sv.condition = 'new_sealed'
-      WHERE ext.model_value > 0 AND (sv.fair_value IS NULL OR sv.fair_value <= 0)
+      WHERE ext.model_value > 0 AND (sv.fair_value IS NULL OR sv.fair_value <= 0
+        OR ext.model_cached_at >= datetime('now', '-2 hours'))
+      ORDER BY (sv.fair_value IS NULL OR sv.fair_value <= 0) DESC
       LIMIT ?1`,
   ).bind(RECOMPUTE_LIMIT).all<{ set_num: string }>();
   const toRecompute = [...new Set([...changed, ...fresh.map(r => r.set_num)])].slice(0, RECOMPUTE_LIMIT);
