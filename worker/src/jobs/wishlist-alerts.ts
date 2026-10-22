@@ -11,7 +11,7 @@ export async function sendPushToUser(env: Env, userId: string, payload: string) 
     const { results } = await env.DB.prepare(
       'SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id=?'
     ).bind(userId).all<{ endpoint: string; p256dh: string; auth: string }>();
-    const subject = env.VAPID_SUBJECT || 'mailto:alerts@brickvault.app';
+    const subject = env.VAPID_SUBJECT || 'mailto:support@bricksvault.app';
     for (const sub of results) {
       try {
         const ok = await sendWebPush(sub, payload, env.VAPID_PRIVATE_KEY, env.VAPID_PUBLIC_KEY, subject);

@@ -16,7 +16,8 @@ export async function sendAlertEmail(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'BricksVault <alerts@brickvault.app>',
+        // Must be on a domain verified in Resend: alerts.bricksvault.app.
+        from: 'BricksVault <alerts@alerts.bricksvault.app>',
         to: [to],
         subject,
         html,
