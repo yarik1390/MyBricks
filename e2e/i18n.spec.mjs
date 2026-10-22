@@ -416,9 +416,16 @@ test.describe(() => {
       await new Promise((resolve) => setTimeout(resolve, 500));
       await route.fulfill({ path: 'public/methodology.html' });
     });
+    // The sheet reads the Ukrainian copy first; hold it too so the loading
+    // state is observable, then check the translated body replaces it.
+    await page.route('**/methodology/uk.html', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await route.fulfill({ path: 'public/methodology/uk.html' });
+    });
     await page.goto('/#/me', { waitUntil: 'domcontentloaded' });
     await page.locator('a[href="/methodology.html"]').click();
     await expect(page.getByText('Завантаження методології ціноутворення...')).toBeVisible();
+    await expect(page.locator('.methodology-sheet h2').first()).toHaveText("П'ять чисел, п'ять різних завдань");
 
     await page.route('**/api/me', (route) => route.fulfill({
       status: 200, contentType: 'application/json',

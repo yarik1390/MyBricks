@@ -17,6 +17,7 @@ import { getCapacitorPlugin } from '../lib/native-auth.js';
 import { clearVaultWidget } from '../lib/native-widget.js';
 import { appIconAvailable, getAppIcon, setAppIcon, syncAppIconWithPro } from '../lib/app-icon.js';
 import { openLegalSheet } from '../components/legal-sheet.js';
+import { openFeedbackSheet } from '../components/feedback.js';
 import { topbar, iconBtn, icon, row, group, sheetBody, btn, toggle, seg, banner } from '../ui/kit.js';
 
 // The picker shows each language in its OWN language — "German" is no help to
@@ -121,6 +122,7 @@ function pageHTML(me) {
     guest ? '' : row({ icon: 'kid', title: t('bvAccount.kidsMode'), sub: t(me.has_kids_pin ? 'bvAccount.kidsOn' : 'bvAccount.kidsOff'), id: 'kidsModeRow' }),
     row({ icon: 'walk', title: t('bvAccount.tour'), sub: t('bvAccount.tourSub'), id: 'replayTourRow' }),
   ].join('');
+  const help = guest ? '' : row({ icon: 'chat', title: t('bvAccount.feedbackRow'), sub: t('bvAccount.feedbackRowSub'), id: 'feedbackRow' });
   const membership = row({ icon: 'star', title: t('bvAccount.proTitle'), sub: me.is_supporter ? t('bvAccount.proActive') : t('bvAccount.proPitch'), href: '#/pro', id: 'proRow' });
   const account = guest
     ? row({ icon: 'user', title: t('bvAccount.signIn'), sub: t('bvAccount.signInSub'), id: 'signInRow' })
@@ -137,6 +139,7 @@ function pageHTML(me) {
         ${group(t('bvAccount.groupPreferences'), prefs)}
         ${group(t('bvAccount.groupData'), data)}
         ${group(t('bvAccount.groupPlay'), play)}
+        ${help ? group(t('bvAccount.groupHelp'), help) : ''}
         ${group(t('bvAccount.groupMembership'), membership)}
         ${me.is_admin ? group(t('bvAccount.groupOwner'), row({ icon: 'shield', title: t('bvAccount.admin'), sub: t('bvAccount.adminSub'), href: '#/me/admin' })) : ''}
         ${group(t('bvAccount.groupAccount'), account)}
@@ -207,6 +210,7 @@ function wire(me, shelf) {
     if (line && info?.version) line.textContent = `BRICKSVAULT · v${info.version} · STACK SOMETHING BEAUTIFUL`;
   }).catch(() => {});
 
+  $("#feedbackRow")?.addEventListener("click", () => { haptic("light"); openFeedbackSheet(location.hash); });
   $("#replayTourRow")?.addEventListener("click", () => { haptic("light"); startOnboarding(); });
   $("#wrappedRow")?.addEventListener("click", () => { haptic("medium"); go("#/wrapped"); });
   $$("[data-legal-sheet]").forEach(link => link.addEventListener("click", () => openLegalSheet(link.dataset.legalSheet)));

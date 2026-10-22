@@ -50,3 +50,14 @@ export const I = {
   trendDown:(o) => s('<path d="M3 7l6 6 4-4 8 9"/><path d="M14 18h7v-7"/>', o),
   money:    (o) => s('<circle cx="12" cy="12" r="9"/><path d="M12 6v12M15 9.5c0-1.4-1.3-2.5-3-2.5s-3 .9-3 2.25 1.2 2 3 2.25 3 .9 3 2.25-1.3 2.25-3 2.25-3-1.1-3-2.5"/>', o),
 };
+
+// The "Vault Dial" app icon glyph (dark vault door, yellow stud hub) drawn to
+// sit on a yellow rounded tile, matching the launcher and Play Store icon.
+export function vaultMark(size = 40) {
+  const ticks = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
+    const a = (i / 8) * 2 * Math.PI - Math.PI / 2;
+    const [c, n] = [Math.cos(a), Math.sin(a)];
+    return `<line x1="${(50 + c * 23).toFixed(1)}" y1="${(50 + n * 23).toFixed(1)}" x2="${(50 + c * 27).toFixed(1)}" y2="${(50 + n * 27).toFixed(1)}"/>`;
+  }).join('');
+  return `<svg class="bv-vault-mark" viewBox="0 0 100 100" width="${size}" height="${size}" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="31" fill="#21241c"/><g stroke="#ffd23a" stroke-width="2.4" stroke-linecap="round">${ticks}</g><circle cx="50" cy="50" r="19" fill="none" stroke="#ffd23a" stroke-width="1.2" stroke-opacity=".35"/><circle cx="50" cy="50" r="12" fill="#ffd23a"/><ellipse cx="47" cy="46" rx="3.5" ry="2" fill="#fff" opacity=".35"/></svg>`;
+}

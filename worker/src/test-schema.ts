@@ -407,6 +407,20 @@ export const TABLE_DDL: Record<string, string> = {
   PRIMARY KEY (user_id, request_key, endpoint, window_start)
 )`,
 
+  app_feedback: `CREATE TABLE IF NOT EXISTS app_feedback (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  email TEXT,
+  message TEXT NOT NULL,
+  screen TEXT,
+  app_version TEXT,
+  platform TEXT,
+  user_agent TEXT,
+  locale TEXT,
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`,
+
   admin_audit_log: `CREATE TABLE IF NOT EXISTS admin_audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   occurred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

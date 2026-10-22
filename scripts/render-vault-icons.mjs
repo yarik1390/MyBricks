@@ -65,7 +65,16 @@ const ART = {
   // Open Graph card and splash: the rounded tile floating on dark.
   glow: (p, tile = 0.62) => svg(p, `<rect width="512" height="512" fill="${DARK}"/><circle cx="256" cy="256" r="230" fill="url(#glow)"/>
     <g transform="translate(256 256) scale(${tile}) translate(-256 -256)"><g filter="url(#sh)"><rect width="512" height="512" rx="112" fill="url(#acc)"/></g>${dial(p)}</g>`),
+  // Pre-Android 12 launch window: the rounded tile centred on the app's
+  // launch background (#F5F1E8 light, #16161C night), any aspect ratio.
+  splash: (p, w, h, bg) => {
+    const t = Math.min(w, h) * 0.16;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${defs(p)}<rect width="${w}" height="${h}" fill="${bg}"/>
+    <g transform="translate(${(w - t) / 2} ${(h - t) / 2}) scale(${t / 512})"><rect width="512" height="512" rx="112" fill="url(#acc)"/>${dial(p)}</g></svg>`;
+  },
 };
+
+const SPLASH_PX = { ldpi: [240, 320], mdpi: [320, 480], hdpi: [480, 800], xhdpi: [720, 1280], xxhdpi: [960, 1600], xxxhdpi: [1280, 1920] };
 
 function png(width, height, rgba, alpha) {
   const channels = alpha ? 4 : 3;
@@ -100,20 +109,27 @@ function png(width, height, rgba, alpha) {
 const browser = await chromium.launch(process.env.PLAYWRIGHT_CHROMIUM ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM } : {});
 const page = await browser.newPage();
 
+// size is a number (square) or [width, height].
 async function render(markup, size, path, { alpha = false } = {}) {
-  const pixels = await page.evaluate(async ({ markup, size }) => {
+  const [w, h] = Array.isArray(size) ? size : [size, size];
+  const pixels = await page.evaluate(async ({ markup, w, h }) => {
     const img = new Image();
     img.src = `data:image/svg+xml;base64,${btoa(markup)}`;
     await img.decode();
     const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = size;
+    canvas.width = w;
+    canvas.height = h;
     const ctx = canvas.getContext('2d');
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(img, 0, 0, size, size);
-    return Array.from(ctx.getImageData(0, 0, size, size).data);
-  }, { markup, size });
+    ctx.drawImage(img, 0, 0, w, h);
+    // Base64, not Array.from: a 2732px splash is 30M numbers as JSON.
+    const data = ctx.getImageData(0, 0, w, h).data;
+    let bin = '';
+    for (let i = 0; i < data.length; i += 0x8000) bin += String.fromCharCode.apply(null, data.subarray(i, i + 0x8000));
+    return btoa(bin);
+  }, { markup, w, h });
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, png(size, size, Uint8Array.from(pixels), alpha));
+  writeFileSync(path, png(w, h, new Uint8Array(Buffer.from(pixels, 'base64')), alpha));
 }
 
 for (const [variant, p] of Object.entries(PALETTES)) {
@@ -137,6 +153,13 @@ await render(ART.tile(classic, 0.82), 512, join(PUBLIC, 'icon-maskable-512.png')
 await render(ART.tile(classic), 180, join(PUBLIC, 'apple-touch-icon.png'));
 await render(ART.glow(classic), 512, join(PUBLIC, 'icon-glow-512.png'));
 await render(ART.glow(classic, 0.3), 2732, join(RES, 'drawable/splash.png'));
+for (const [night, bg] of [['', '#F5F1E8'], ['-night', '#16161C']]) {
+  for (const [density, [w, h]] of Object.entries(SPLASH_PX)) {
+    await render(ART.splash(classic, w, h, bg), [w, h], join(RES, `drawable-port${night}-${density}/splash.png`));
+    await render(ART.splash(classic, h, w, bg), [h, w], join(RES, `drawable-land${night}-${density}/splash.png`));
+  }
+}
+await render(ART.splash(classic, 320, 240, '#16161C'), [320, 240], join(RES, 'drawable-night/splash.png'));
 await render(ART.tile(classic), 512, join(ROOT, 'store/play/icon-512.png'), { alpha: true });
 await render(ART.tile(classic), 512, join(ROOT, 'expo-preview/assets/icon-512.png'));
 await render(ART.tile(classic, 0.82), 512, join(ROOT, 'expo-preview/assets/icon-maskable-512.png'));

@@ -1,3 +1,4 @@
+import { vaultMark } from '../icons.js';
 // Optional biometric app-lock. When enabled, the installed app requires a
 // fingerprint (or the device PIN/pattern fallback) to open, and re-locks after
 // being in the background for a while. Protects the vault/portfolio on a shared
@@ -40,7 +41,7 @@ function overlay() {
     // instead" opens the same prompt.
     el.innerHTML = `
       <div class="app-lock-inner">
-        <div class="app-lock-mark" aria-hidden="true"><svg viewBox="0 0 40 32" width="44" height="36"><rect x="7" y="0" width="9" height="7" rx="2" fill="#c8431f"/><rect x="24" y="0" width="9" height="7" rx="2" fill="#c8431f"/><rect x="0" y="5" width="40" height="27" rx="4" fill="#c8431f"/></svg></div>
+        <div class="app-lock-mark" aria-hidden="true">${vaultMark(72)}</div>
         <h1 class="app-lock-title" id="appLockTitle">${esc(t('bvFirst.lockTitle'))}</h1>
         <p class="app-lock-sub">${esc(t('bvFirst.lockSub'))}</p>
         <div class="app-lock-actions">

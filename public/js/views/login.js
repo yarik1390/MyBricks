@@ -1,3 +1,4 @@
+import { vaultMark } from '../icons.js';
 import { toast, setBtnLoading, escapeHtml } from '../utils.js';
 import { _sbUrl, sbSignIn, sbSignUp, sbRecover, sbSetPassword, saveSession, snapshotGuestVault, migrateGuestVault, readRecoveryGrant, clearRecoveryGrant, installRecoverySession } from '../api.js';
 import { state } from '../state.js';
@@ -177,7 +178,7 @@ export function renderLogin() {
     document.getElementById("root").innerHTML = `
       <main class="bv-login login-view" aria-labelledby="loginTitle">
         <div class="bv-login__hero">
-          <span class="bv-login__mark" aria-hidden="true"><svg viewBox="0 0 40 32" width="40" height="32"><rect x="7" y="0" width="9" height="7" rx="2" fill="#c8431f"/><rect x="24" y="0" width="9" height="7" rx="2" fill="#c8431f"/><rect x="0" y="5" width="40" height="27" rx="4" fill="#c8431f"/></svg></span>
+          <span class="bv-login__mark" aria-hidden="true">${vaultMark(72)}</span>
           <h1 class="bv-login__title" id="loginTitle">${escapeHtml(t('bvFirst.loginTitle'))}</h1>
           <p class="bv-login__sub">${escapeHtml(t('bvFirst.loginSub'))}</p>
         </div>
