@@ -17,7 +17,15 @@ import { FIRECRAWL_MAX_CONCURRENCY } from '../lib/firecrawl';
  * Writes: lego_in_stock, lego_retiring_soon, lego_availability, lego_checked_at,
  * and (when Firecrawl returns a price) retail_price if the fetched value differs.
  */
-export async function runLegoStockRefresh(env: Env, options: { limit?: number } = {}) {
+// A scheduled Worker is cut off at 15 minutes and a slow LEGO.com page costs up
+// to ~50 s (Bright Data then Firecrawl), so 200 sets at concurrency 2 never
+// finished: every run from 2026-10-12 died as "stale" and its stock writes,
+// held until the end, were lost. Stop starting batches after this budget and
+// write each batch as it lands; the attempt stamps rotate the rest to tomorrow.
+export const LEGO_STOCK_TIME_BUDGET_MS = 10 * 60_000;
+
+export async function runLegoStockRefresh(env: Env, options: { limit?: number; budgetMs?: number } = {}) {
+  const deadline = Date.now() + (options.budgetMs ?? LEGO_STOCK_TIME_BUDGET_MS);
   const hasBrightData = (await sourceEnabled(env, 'brightdata')) && brightDataEnabled(env);
   const hasFirecrawl = (await sourceEnabled(env, 'firecrawl')) && firecrawlEnabled(env);
   if (!hasBrightData && !hasFirecrawl) {
@@ -72,12 +80,14 @@ export async function runLegoStockRefresh(env: Env, options: { limit?: number } 
   let failed = 0;
   let no_data = 0;
   let partial = 0;
-  const stmts: D1PreparedStatement[] = [];
+  let stopped_early = false;
 
   // A catalog-wide limit of 200 cannot run serially within a scheduled Worker
   // invocation. Use the account-wide Firecrawl concurrency ceiling because any
   // Bright Data miss can fall through to Firecrawl.
   for (let i = 0; i < results.length; i += FIRECRAWL_MAX_CONCURRENCY) {
+    if (Date.now() >= deadline) { stopped_early = true; break; }
+    const stmts: D1PreparedStatement[] = [];
     const batch = results.slice(i, i + FIRECRAWL_MAX_CONCURRENCY);
     const outs = await Promise.all(batch.map(async ({ set_num }) => {
       try {
@@ -104,12 +114,11 @@ export async function runLegoStockRefresh(env: Env, options: { limit?: number } 
       if (!observedStock || stock.retiring_soon == null) partial++;
       stmts.push(legoStockUpdate(env.DB, set_num, stock));
     }
+    if (stmts.length) {
+      const writes = await env.DB.batch(stmts);
+      updated += writes.reduce((sum, write) => sum + (write.meta.changes ?? 0), 0);
+    }
   }
 
-  for (let i = 0; i < stmts.length; i += 90) {
-    const writes = await env.DB.batch(stmts.slice(i, i + 90));
-    updated += writes.reduce((sum, write) => sum + (write.meta.changes ?? 0), 0);
-  }
-
-  return { processed, updated, failed, no_data, partial, limit: effLimit };
+  return { processed, updated, failed, no_data, partial, limit: effLimit, ...(stopped_early ? { stopped_early } : {}) };
 }

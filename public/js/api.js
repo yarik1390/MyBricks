@@ -258,6 +258,14 @@ export async function sbSignIn(email, password, captchaToken) {
   return d;
 }
 
+// Supabase answers 429 / over_email_send_rate_limit when its mail sender is
+// saturated; the raw "email rate limit exceeded" means nothing to a tester.
+function authErrorMessage(r, d, fallback) {
+  const raw = d.msg || d.error_description || (typeof d.error === 'string' ? d.error : (d.error && d.error.message)) || d.message || '';
+  if (r.status === 429 || /rate_limit|rate limit/i.test(`${d.error_code || ''} ${raw}`)) return t('bvFirst.authEmailLimit');
+  return raw || fallback;
+}
+
 export async function sbSignUp(email, password, captchaToken) {
   const body = { email, password };
   if (captchaToken) body.gotrue_meta_security = { captcha_token: captchaToken };
@@ -266,11 +274,8 @@ export async function sbSignUp(email, password, captchaToken) {
     headers: { "Content-Type": "application/json", apikey: _sbAnonKey },
     body: JSON.stringify(body),
   });
-  const d = await r.json();
-  if (!r.ok || d.error) {
-    const msg = d.msg || d.error_description || (typeof d.error === 'string' ? d.error : (d.error && d.error.message)) || d.message || "Sign up failed";
-    throw new Error(msg);
-  }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.error) throw new Error(authErrorMessage(r, d, "Sign up failed"));
   if (isRepeatedSignup(d)) {
     throw new Error("An account with this email already exists. Sign in instead, or tap Forgot password.");
   }
@@ -287,8 +292,7 @@ export async function sbRecover(email, captchaToken) {
   });
   if (!r.ok) {
     const d = await r.json().catch(() => ({}));
-    const msg = d.msg || d.error_description || d.message || "Couldn't send the reset email";
-    throw new Error(msg);
+    throw new Error(authErrorMessage(r, d, "Couldn't send the reset email"));
   }
 }
 

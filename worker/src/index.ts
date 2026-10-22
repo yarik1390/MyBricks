@@ -334,6 +334,7 @@ import { lotRoute } from './routes/lot'; app.route('/api/lot', lotRoute);
 import { questsRoute } from './routes/quests'; app.route('/api/quests', questsRoute);
 import { familyRoute } from './routes/family'; app.route('/api/family', familyRoute);
 import { swapsRoute } from './routes/swaps'; app.route('/api/swaps', swapsRoute);
+import { feedbackRoute } from './routes/feedback'; app.route('/api/feedback', feedbackRoute);
 app.route('/api/game', gameRoute);
 app.route('/api/contributions', contributionsRoute);
 app.route('/api/push', pushRoute);

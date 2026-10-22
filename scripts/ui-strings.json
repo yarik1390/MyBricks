@@ -649,6 +649,7 @@
     "text": "App",
     "files": [
       "app.js",
+      "components/feedback.js",
       "lib/app-lock.js",
       "lib/native-back.js",
       "views/me.js"
@@ -1993,6 +1994,12 @@
     ]
   },
   {
+    "text": "Could not update",
+    "files": [
+      "views/me-admin-feedback.js"
+    ]
+  },
+  {
     "text": "Could not update source match.",
     "files": [
       "views/me-admin.js"
@@ -2430,6 +2437,7 @@
     "files": [
       "components/onboarding.js",
       "components/scanner.js",
+      "views/me-admin-feedback.js",
       "views/portfolio-detail.js"
     ]
   },
@@ -3117,6 +3125,12 @@
     "text": "Faster sale after fees",
     "files": [
       "views/portfolio-detail-market.js"
+    ]
+  },
+  {
+    "text": "Feedback",
+    "files": [
+      "views/me-admin-feedback.js"
     ]
   },
   {
@@ -4501,6 +4515,12 @@
     ]
   },
   {
+    "text": "Loading feedback...",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Loading issue evidence...",
     "files": [
       "views/me-admin.js"
@@ -4583,6 +4603,12 @@
     "text": "Local model weights deleted",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "Long-term",
+    "files": [
+      "lib/sales-report.js"
     ]
   },
   {
@@ -5279,6 +5305,12 @@
     ]
   },
   {
+    "text": "No feedback yet. Testers send it from Profile > Send feedback.",
+    "files": [
+      "views/me-admin-feedback.js"
+    ]
+  },
+  {
     "text": "No file selected.",
     "files": [
       "lib/local-ai.js"
@@ -5589,6 +5621,12 @@
     ]
   },
   {
+    "text": "Not tax advice: check your country's rules.",
+    "files": [
+      "lib/sales-report.js"
+    ]
+  },
+  {
     "text": "Note: how to reach you",
     "files": [
       "views/swaps.js"
@@ -5605,6 +5643,12 @@
     "text": "Notes / source (optional)",
     "files": [
       "components/contribute.js"
+    ]
+  },
+  {
+    "text": "Notes from Profile > Send feedback, newest first.",
+    "files": [
+      "views/me-admin-feedback.js"
     ]
   },
   {
@@ -7147,6 +7191,12 @@
     "text": "Removed offline — will sync when connected",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Reopen",
+    "files": [
+      "views/me-admin-feedback.js"
     ]
   },
   {

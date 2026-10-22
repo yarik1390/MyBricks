@@ -1242,3 +1242,21 @@ CREATE TABLE IF NOT EXISTS set_description_i18n (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (set_num, lang)
 );
+
+-- In-app feedback from testers and users (Profile > Send feedback). Read by
+-- the owner in Admin; status open|done.
+CREATE TABLE IF NOT EXISTS app_feedback (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  email TEXT,
+  message TEXT NOT NULL,
+  screen TEXT,
+  app_version TEXT,
+  platform TEXT,
+  user_agent TEXT,
+  locale TEXT,
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_app_feedback_created ON app_feedback(created_at);
+CREATE INDEX IF NOT EXISTS idx_app_feedback_user ON app_feedback(user_id, created_at);

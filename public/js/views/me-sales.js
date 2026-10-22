@@ -127,11 +127,13 @@ async function exportFile(kind) {
   if (!data?.rows?.length) return;
   haptic('medium');
   try {
-    const { salesCsv, salesPdf } = await import('../lib/sales-report.js');
+    const { salesCsv, salesPdf, salesLabels, pdfLabels, SALES_REPORT_EN } = await import('../lib/sales-report.js');
+    const strings = Object.fromEntries(Object.keys(SALES_REPORT_EN)
+      .map((k) => [k, t(`salesReport.${k}`)]).filter(([k, v]) => v !== `salesReport.${k}`));
     const ctx = capturedMoneyContext();
     const name = `bricksvault-sales-${data.year}.${kind}`;
     if (kind === 'csv') {
-      await saveBytes(new TextEncoder().encode(salesCsv({ rows: data.rows, currency: ctx.currency || 'USD', rate: Number(ctx.rate) || 1 })), name, 'text/csv');
+      await saveBytes(new TextEncoder().encode(salesCsv({ rows: data.rows, currency: ctx.currency || 'USD', rate: Number(ctx.rate) || 1, label: salesLabels(strings) })), name, 'text/csv');
     } else {
       const bytes = salesPdf({
         owner: state.me?.display_name || 'Collector',
@@ -139,7 +141,8 @@ async function exportFile(kind) {
         summary: data.summary,
         rows: data.rows,
         money: (usd) => fmtMoney(Number(usd) || 0, { cents: 0 }),
-        generated: `Generated ${new Date().toISOString().slice(0, 10)} by BricksVault`,
+        date: new Date().toISOString().slice(0, 10),
+        label: pdfLabels(strings),
       });
       await saveBytes(bytes, name, 'application/pdf');
     }

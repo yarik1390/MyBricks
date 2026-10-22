@@ -19,6 +19,7 @@ import { skelPage, skelSettingRows } from '../components/skeleton.js';
 import { t, tPlural, getLocale } from '../lib/i18n.js';
 import { wireHorizontalRail } from '../lib/horizontal-rail.js';
 import { buildAdminIssues } from '../lib/admin-issues.js';
+import { loadAdminFeedback } from './me-admin-feedback.js';
 
 let activeAdminRunId = null;
 let activeAdminTool = null;
@@ -124,6 +125,7 @@ export async function renderMeAdmin() {
         <h2 class="section-title">Overview & Services</h2>
         <p class="admin-section-intro">Operational triage and background activity. Start with services that need action, or choose a category.</p>
         <div id="adminIssuesContainer" class="admin-panel" aria-live="polite">Loading issue evidence...</div>
+        <div id="adminFeedbackContainer" class="admin-panel" aria-live="polite">Loading feedback...</div>
         <div class="admin-service-filters" role="tablist" aria-label="Service categories">
           ${serviceTabs().map(([id, label]) => serviceTabButtonHTML(id, label)).join('')}
         </div>
@@ -259,6 +261,7 @@ export async function renderMeAdmin() {
   loadActivity();
   updateIntegrationsHealth();
   loadFeatureFlags();
+  loadAdminFeedback();
   loadSourceTuning();
   loadContribQueue();
   loadSupporters();

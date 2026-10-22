@@ -147,4 +147,12 @@ describe('runLegoStockRefresh', () => {
     expect(r).toMatchObject({ processed: 2, updated: 0 });
     expect(maxActive).toBe(2);
   });
+
+  it('stops starting new checks once the time budget is spent', async () => {
+    await seedOwnedActive('X-1');
+    await seedOwnedActive('X-2');
+    mockStock.mockResolvedValue({ in_stock: true, retiring_soon: false, availability: 'in_stock' } as any);
+    expect(await runLegoStockRefresh(withKey, { budgetMs: 0 })).toMatchObject({ processed: 0, stopped_early: true });
+    expect(mockStock).not.toHaveBeenCalled();
+  });
 });

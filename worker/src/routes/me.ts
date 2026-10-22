@@ -289,6 +289,7 @@ export const USER_SCOPED_TABLES = [
   'price_guesses',
   'scan_requests',
   'scan_quota_reservations',
+  'app_feedback',
   'user_prefs',
 ];
 
