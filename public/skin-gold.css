@@ -139,3 +139,37 @@
 :root[data-skin="gold"] .bv-spark polygon { fill: #D9B44A; opacity: .22; }
 :root[data-skin="gold"] .bv-tabs > :is([aria-selected="true"], [aria-current="page"]) { border-bottom: 2px solid #C9A227; }
 :root[data-skin="gold"] #nav { border-top: 1px solid transparent; border-image: linear-gradient(90deg, transparent, #D9B44A, transparent) 1; }
+
+/* ── Gold identity (2026-10) ─────────────────────────────────────
+   Gold's signature is now unmistakable: in light the Vault and set value
+   cards ARE gold leaf (a "gold card" with dark-bronze type), in dark they
+   stay espresso with a gold frame and gold-foil numerals. Cream paper,
+   gold-leaf actions, active chips and nav pill throughout. */
+:root[data-skin="gold"] {
+  --bg: #F7F1E3; --surface: #FFFCF4;
+  --gd-card: linear-gradient(135deg, #F8EBBC 0%, #E8CB6C 34%, #D6B04A 62%, #F0DA92 100%);
+}
+:root[data-skin="gold"][data-theme="dark"] {
+  --bg: #0E0B06; --bg-deep: #090704; --surface: #19150D; --surface-2: #221D12; --surface-3: #2C2617;
+  --bv-nav-bg: #120F08;
+}
+:root[data-skin="gold"]:not([data-theme="dark"]) :is(.bv-hero, .bv-valuecard) {
+  --bv-ink: #2A1F05; --bv-mute: #4A3A12; --bv-acct: #3A2A05; --bv-line: rgba(74, 58, 18, .22);
+  --bv-s2: rgba(255, 255, 255, .38); --bv-acc: #2A1F05; --bv-on-acc: #F8EBBC;
+  --bv-gain: #14532D; --bv-gain-bg: rgba(255, 255, 255, .55); --bv-loss: #7F1D1D; --bv-loss-bg: rgba(255, 255, 255, .55);
+  color: var(--bv-ink); border: 1px solid transparent;
+  background: radial-gradient(120% 90% at 0% 0%, rgba(255, 255, 255, .55), transparent 55%), var(--gd-card) padding-box, linear-gradient(135deg, #FFF6D6, #B8891F 50%, #FFF1C4) border-box;
+  box-shadow: 0 14px 32px rgba(150, 110, 20, .28), 0 2px 6px rgba(120, 90, 20, .18);
+}
+:root[data-skin="gold"]:not([data-theme="dark"]) :is(.bv-hero__value, .bv-valuecard__value, .bv-valuecard .detail-summary-val) { color: #2A1F05; }
+:root[data-skin="gold"]:not([data-theme="dark"]) .bv-spark polyline { stroke: #2A1F05; }
+:root[data-skin="gold"][data-theme="dark"] :is(.bv-hero, .bv-valuecard) {
+  background: radial-gradient(120% 90% at 100% 0%, rgba(229, 193, 88, .22), transparent 60%), linear-gradient(160deg, #241D0F, #120E07) padding-box, var(--gd-edge) border-box;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .6), 0 0 0 1px rgba(229, 193, 88, .08);
+}
+:root[data-skin="gold"] .bv-chip[aria-pressed="true"], :root[data-skin="gold"] .bv-chip.is-on { background: var(--gd-leaf); color: #2A2008; border-color: transparent; }
+:root[data-skin="gold"] .bv-tabs > :is([aria-selected="true"], [aria-current="page"]) { color: var(--bv-acct); }
+:root[data-skin="gold"] .bv-seg > :is([aria-current="true"], [aria-current="page"], [aria-pressed="true"], [aria-selected="true"]) { box-shadow: inset 0 0 0 1px #D9B44A; }
+:root[data-skin="gold"] .bv-range__band { background: var(--gd-leaf); }
+:root[data-skin="gold"] .bv-h2 { color: var(--bv-acct); }
+:root[data-skin="gold"]:not([data-theme="dark"]) .bv-valuecard .bv-range__band { background: rgba(42, 31, 5, .55); }

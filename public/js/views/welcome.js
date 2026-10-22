@@ -196,7 +196,7 @@ function openSelectSheet(kind) {
 function openLookSheet() {
   haptic('light');
   const locked = (v) => !state.me?.is_supporter && (v === 'premium' || v === 'gold');
-  const skins = ['retro', 'modular', 'vivid', 'premium', 'gold'].map((v) => `<button type="button" class="bv-chip" data-skin="${v}" aria-pressed="${getSkinPref() === v}"${locked(v) ? ' data-locked="1"' : ''}>${locked(v) ? icon('lock', { size: 16 }) : ''}<span>${escapeHtml(t(skinKey[v]))}</span></button>`).join('');
+  const skins = ['retro', 'modular', 'vivid', 'premium', 'gold'].map((v) => `<button type="button" class="bv-chip" data-skin="${v}" aria-pressed="${getSkinPref() === v}"${locked(v) ? ' data-locked="1"' : ''}><span class="bv-skin-dot bv-skin-dot--${v}" aria-hidden="true"></span>${locked(v) ? icon('lock', { size: 16 }) : ''}<span>${escapeHtml(t(skinKey[v]))}</span></button>`).join('');
   showSheet(sheetBody({
     title: t('bvFirst.look'),
     id: 'welLookSheet',
