@@ -1,0 +1,96 @@
+  <h1>Wie wir LEGO-Sets bewerten</h1>
+  <p class="updated">Die Regeln hinter jeder Zahl in der App – keine Blackbox.</p>
+
+  <p>Die meisten Preisführer zeigen eine Zahl und verlangen, dass man ihr vertraut.
+  Wir zeigen lieber, wie die Zahl entsteht, worauf sie beruht und – wenn die
+  Datenlage nicht reicht – sagen wir das, statt zu raten.</p>
+
+  <div class="callout"><strong>In einem Satz:</strong> Der Wert eines Sets ist ein
+  gewichteter Median aus <em>verifizierten, aktuellen Verkaufspreisen</em>
+  unabhängiger Märkte – und wenn uns die fehlen, sagen wir genau, was wir
+  stattdessen haben.</div>
+
+  <h2>Fünf Zahlen, fünf Aufgaben</h2>
+  <p>Ein einzelner „Wert“ verschweigt zu viel. Jede Set-Seite trennt:</p>
+  <ol>
+    <li><strong>Marktwert</strong> – wofür das Set tatsächlich weiterverkauft wird, getrennt nach Zustand (neu &amp; versiegelt oder gebraucht &amp; vollständig).</li>
+    <li><strong>Jetzt verkaufen</strong> – Schätzung für einen schnellen Verkauf nach Marktplatzgebühren und einem Liquiditätsabschlag.</li>
+    <li><strong>Jetzt kaufen</strong> – das heutige echte Händlerangebot, nie mit dem Wiederverkaufswert vermischt.</li>
+    <li><strong>Zerlegen</strong> – der Wert von Teilen und Minifiguren, nur gezeigt, wenn die Teileabdeckung für eine ehrliche Angabe hoch genug ist.</li>
+    <li><strong>Prognose</strong> – pessimistisches, mittleres und optimistisches Szenario, erst nach mindestens 180 Tagen und 12 echten Beobachtungen.</li>
+  </ol>
+
+  <h2>Erst die Identität, dann der Preis</h2>
+  <p>Der häufigste Fehler von Preisführern ist kein falscher Preis, sondern der
+  richtige Preis für den <em>falschen Artikel</em> (eine Neuauflage, ein Lot nur
+  mit Minifiguren, eine ähnliche Set-Nummer). Jeder Quelldatensatz muss eine
+  Identitätsprüfung bestehen, bevor sein Preis eine Bewertung beeinflussen darf.
+  Nicht verifizierte Treffer kommen in Quarantäne: für uns sichtbar, von der
+  Berechnung ignoriert.</p>
+
+  <h2>Unabhängige Quellen, ehrlich gezählt</h2>
+  <p>Zwei Datenfeeds, die denselben Marktplatz beobachten, sind eine Quelle, nicht
+  zwei. Wir fassen alle Signale zu <em>Anbieterfamilien</em> zusammen (alles, was
+  letztlich eBay beobachtet, zählt zum Beispiel einmal), sodass Übereinstimmung
+  zwischen „zwei Quellen“ immer echte Übereinstimmung unabhängiger Märkte
+  bedeutet.</p>
+
+  <h2>Verkauft schlägt angeboten</h2>
+  <p>Verkaufspreise sind Fakten, Angebotspreise sind Wünsche. Verkaufsdaten führen
+  jede Bewertung an. Angebote und Modelldaten können die wahrscheinliche Spanne
+  leicht erweitern, aber nie eine auf Verkäufen beruhende Hauptzahl verschieben.</p>
+
+  <h2>Quellen, Rollen und Aktualität</h2>
+  <p>Jeder Anbieter hat eine eigene Rolle. Verkäufe führen; Modell- und
+  Angebotsdaten erweitern nur Spannen; Referenzdaten berühren nie Preise.</p>
+  <table>
+    <tr><th>Quelle</th><th>Rolle</th><th>Aktualisierung</th></tr>
+    <tr><td>BrickLink</td><td>Verkaufswerte aus dem Preisführer</td><td>Pro Set aktualisiert, mit Zeitstempel am Set</td></tr>
+    <tr><td>eBay</td><td>Vergleichsverkäufe · Angebote als Ersatz</td><td>Verkäufe: wöchentlich · Angebote: etwa täglich</td></tr>
+    <tr><td>PriceCharting</td><td>Verkäufe (verifizierte Zuordnungen) · Liquidität</td><td>Historie in Masse + Prüfung bei Bedarf, mit Zeitstempel</td></tr>
+    <tr><td>BricksVault-Wertmodell</td><td>Schätzung für Sets ohne Verkäufe, trainiert mit BrickLink-Verkäufen</td><td>Täglich neu trainiert</td></tr>
+    <tr><td>Brickset / Rebrickable</td><td>Referenz (Bewertungen, UVP, Katalog)</td><td>Durchläufe über den ganzen Katalog</td></tr>
+  </table>
+  <p class="muted">Jeder angezeigte Wert ist eine Schätzung aus täglichen
+  Momentaufnahmen, kein erzielter Erlös. Welche Anbieter Partner sind (und was
+  eine „Quelle“ ist): <a href="/data-partners.html">Datenquellen &amp; Partner</a>.</p>
+
+  <h2>Sichtbare Verlässlichkeit</h2>
+  <table>
+    <tr><th>Kennzeichen</th><th>Bedeutung</th></tr>
+    <tr><td><span class="tier high">Verlässlicher Preis</span></td><td>Zwei oder mehr unabhängige Familien aktueller Verkaufsdaten stimmen in einem engen Band überein.</td></tr>
+    <tr><td><span class="tier med">Gute Schätzung</span></td><td>Aktuelle Verkäufe stützen die Zahl, aber aus weniger Märkten oder mit größerer Streuung.</td></tr>
+    <tr><td><span class="tier low">Geringe Verlässlichkeit / Geschätzt</span></td><td>Die Datenlage ist dünn, veraltet oder widersprüchlich – nehmen Sie die Spanne, nicht die Hauptzahl, als Antwort.</td></tr>
+  </table>
+  <p>Jeder Wert trägt seine Belege: wie viele unabhängige Familien, wie viele
+  verifizierte Verkäufe, die wahrscheinliche Spanne und wann zuletzt geprüft
+  wurde.</p>
+
+  <h2>Jede Nacht laufen Kontrollen</h2>
+  <ul>
+    <li>Wertsprünge über Nacht von ±40 % bei einem Set werden markiert und geprüft – automatisch übernommen nur, wenn der Markt sie wirklich bestätigt.</li>
+    <li>Ein ausgelesener Preis, der mehr als 3× vom bestätigten Wert des Sets abweicht, wird verworfen statt eingerechnet.</li>
+    <li>Ausreißer aus nur einer Quelle (ein Marktplatz, keine Bestätigung) können keinen Wert überschreiben, dem die Historie widerspricht.</li>
+  </ul>
+
+  <h2>Echte Sammler-Transaktionen</h2>
+  <p>BricksVault-Sammler können erfassen, was sie für ein Set tatsächlich bezahlt
+  und wofür sie es tatsächlich verkauft haben. Daraus bilden wir ein
+  Community-Preissignal. Es wird nur veröffentlicht, wenn <strong>fünf oder mehr
+  unabhängige Sammler</strong> beigetragen haben, immer anonymisiert (gespeichert
+  werden nur Mediane und Spannen) und wie jede andere Quelle um Ausreißer
+  bereinigt. Mit wachsender Community wird daraus eine Verkaufspreisquelle, die
+  kein Marktplatzausfall und keine Sperre wegnehmen kann.</p>
+
+  <h2>Was wir nicht tun</h2>
+  <ul>
+    <li>Keine erfundenen Zahlen: Ein Set ohne ausreichend verifizierte Belege zeigt <em>„nicht genug verifizierte Daten“</em> – das halten wir für nützlicher als eine Vermutung.</li>
+    <li>Keine Vermischung von Händlerangeboten mit dem Wiederverkaufswert.</li>
+    <li>Keine Fünfjahresprognosen. Niemand kann LEGO-Preise fünf Jahre im Voraus vorhersagen; so zu tun als ob, würde Ihr Vertrauen in jede andere Zahl zerstören.</li>
+  </ul>
+
+  <footer>
+    Fragen oder ein Preis, der falsch aussieht? Nutzen Sie <em>Korrektur vorschlagen</em> auf jeder
+    Set-Seite – Korrekturen durchlaufen dieselbe Prüfung.
+    · <a href="/privacy.html">Datenschutz</a> · <a href="/terms.html">Nutzungsbedingungen</a>
+  </footer>

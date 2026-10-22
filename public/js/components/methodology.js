@@ -1,16 +1,41 @@
 import { $, haptic } from '../utils.js';
 import { I } from '../icons.js';
 import { hideSheet, showSheet } from './sheet.js';
+import { getLocale } from '../lib/i18n.js';
 
 let cachedContent = '';
+let cachedLocale = '';
+
+// Translated copies of #methodologyContent live in /methodology/<locale>.html
+// (fragments only, same headings in the same order so the 01-09 numbering
+// holds). English, or a missing translation, reads the page itself.
+async function loadTranslatedContent(locale) {
+  if (!locale || locale === 'en') return '';
+  try {
+    const response = await fetch(`/methodology/${locale}.html`, { credentials: 'same-origin' });
+    if (!response.ok) return '';
+    const doc = new DOMParser().parseFromString(`<main>${await response.text()}</main>`, 'text/html');
+    return doc.querySelector('main')?.querySelector('h1') ? doc.querySelector('main').innerHTML : '';
+  } catch {
+    return '';
+  }
+}
 
 async function loadMethodologyContent() {
-  if (cachedContent) return cachedContent;
+  const locale = getLocale();
+  if (cachedContent && cachedLocale === locale) return cachedContent;
+  const translated = await loadTranslatedContent(locale);
+  if (translated) {
+    cachedLocale = locale;
+    cachedContent = translated;
+    return cachedContent;
+  }
   const response = await fetch('/methodology.html', { credentials: 'same-origin' });
   if (!response.ok) throw new Error(`Methodology HTTP ${response.status}`);
   const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
   const content = doc.querySelector('#methodologyContent');
   if (!content) throw new Error('Methodology content is missing');
+  cachedLocale = locale;
   cachedContent = content.innerHTML;
   return cachedContent;
 }

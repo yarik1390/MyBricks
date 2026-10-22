@@ -1,0 +1,100 @@
+  <h1>Comment nous estimons les sets LEGO</h1>
+  <p class="updated">Les règles derrière chaque chiffre de l'app, sans boîte noire.</p>
+
+  <p>La plupart des guides de prix affichent un seul chiffre et vous demandent de
+  lui faire confiance. Nous préférons vous montrer comment il est calculé, sur
+  quoi il repose et, quand les preuves ne suffisent pas, vous le dire au lieu de
+  deviner.</p>
+
+  <div class="callout"><strong>En une phrase :</strong> la valeur d'un set est une
+  médiane pondérée de prix de <em>ventes réelles, récentes et vérifiées</em> sur
+  des marchés indépendants. Si nous ne les avons pas, nous vous disons exactement
+  ce que nous avons à la place.</div>
+
+  <h2>Cinq chiffres, cinq rôles</h2>
+  <p>Une seule « valeur » cache trop de choses. Chaque page de set distingue :</p>
+  <ol>
+    <li><strong>Valeur de marché</strong> : le prix de revente réel, selon l'état (neuf et scellé ou d'occasion et complet).</li>
+    <li><strong>Vendre maintenant</strong> : une estimation de vente rapide après frais de plateforme et décote de liquidité.</li>
+    <li><strong>Acheter maintenant</strong> : l'offre réelle en magasin aujourd'hui, jamais mélangée à la valeur de revente.</li>
+    <li><strong>En pièces détachées</strong> : la valeur des pièces et minifigurines, affichée seulement si la couverture des pièces est suffisante pour être honnête.</li>
+    <li><strong>Prévision</strong> : scénarios pessimiste, central et optimiste, disponibles seulement après au moins 180 jours et 12 observations réelles.</li>
+  </ol>
+
+  <h2>L'identité avant le prix</h2>
+  <p>L'erreur la plus fréquente des guides de prix n'est pas un mauvais prix, mais
+  le bon prix pour le <em>mauvais article</em> (une réédition, un lot de
+  minifigurines seules, un numéro de set proche). Chaque donnée source doit passer
+  un contrôle d'identité avant que son prix puisse influencer une estimation. Les
+  correspondances non vérifiées sont mises en quarantaine : visibles pour nous,
+  ignorées par le calcul.</p>
+
+  <h2>Des sources indépendantes, comptées honnêtement</h2>
+  <p>Deux flux qui observent la même plateforme sont une seule source, pas deux.
+  Nous regroupons chaque signal en <em>familles de fournisseurs</em> (par exemple,
+  tout ce qui observe eBay compte une seule fois), afin que l'accord entre « deux
+  sources » signifie toujours l'accord de marchés réellement indépendants.</p>
+
+  <h2>Le vendu l'emporte sur le demandé</h2>
+  <p>Les prix de vente sont des faits ; les prix demandés sont des souhaits. Les
+  ventes guident chaque estimation. Les annonces et les données modélisées peuvent
+  légèrement élargir la fourchette probable, mais ne peuvent jamais déplacer un
+  chiffre principal fondé sur des ventes.</p>
+
+  <h2>Sources, rôles et fraîcheur</h2>
+  <p>Chaque fournisseur a un rôle différent. Les ventes mènent ; les données
+  modélisées et les annonces ne font qu'élargir les fourchettes ; les données de
+  référence ne touchent jamais aux prix.</p>
+  <table>
+    <tr><th>Source</th><th>Rôle</th><th>Actualisation</th></tr>
+    <tr><td>BrickLink</td><td>Valeurs de vente du guide</td><td>Par set, horodatée sur le set</td></tr>
+    <tr><td>eBay</td><td>Ventes comparables · annonces en secours</td><td>Ventes : hebdomadaire · annonces : environ quotidienne</td></tr>
+    <tr><td>PriceCharting</td><td>Ventes (correspondances vérifiées) · liquidité</td><td>Historique en masse + vérification à la demande, horodatée</td></tr>
+    <tr><td>Modèle de valeur BricksVault</td><td>Estimation pour les sets sans ventes, entraînée sur les ventes BrickLink</td><td>Réentraîné chaque jour</td></tr>
+    <tr><td>Brickset / Rebrickable</td><td>Référence (notes, prix public, catalogue)</td><td>Passages sur tout le catalogue</td></tr>
+  </table>
+  <p class="muted">Chaque valeur affichée est une estimation issue d'instantanés
+  quotidiens, pas un produit de vente réalisé. Quels fournisseurs sont partenaires
+  (et ce qu'est une « source ») : <a href="/data-partners.html">Sources de données
+  et partenaires</a>.</p>
+
+  <h2>Une confiance visible</h2>
+  <table>
+    <tr><th>Badge</th><th>Signification</th></tr>
+    <tr><td><span class="tier high">Prix fiable</span></td><td>Au moins deux familles indépendantes de ventes récentes concordent dans une fourchette étroite.</td></tr>
+    <tr><td><span class="tier med">Bonne estimation</span></td><td>Des ventes récentes soutiennent le chiffre, mais sur moins de marchés ou avec plus d'écart.</td></tr>
+    <tr><td><span class="tier low">Confiance faible / Estimé</span></td><td>Les preuves sont limitées, anciennes ou contradictoires : fiez-vous à la fourchette plutôt qu'au chiffre principal.</td></tr>
+  </table>
+  <p>Chaque valeur porte ses preuves : combien de familles indépendantes, combien
+  de ventes vérifiées, la fourchette probable et la date de la dernière
+  vérification.</p>
+
+  <h2>Des contrôles chaque nuit</h2>
+  <ul>
+    <li>Les variations de valeur de ±40 % en une nuit sont signalées et examinées, et validées automatiquement seulement si le marché les confirme vraiment.</li>
+    <li>Un prix relevé qui s'écarte de plus de 3× de la valeur confirmée du set est rejeté, pas intégré à la moyenne.</li>
+    <li>Les valeurs aberrantes d'une source unique (une plateforme, sans confirmation) ne peuvent pas écraser une valeur contredite par l'historique.</li>
+  </ul>
+
+  <h2>De vraies transactions de collectionneurs</h2>
+  <p>Les collectionneurs BricksVault peuvent noter ce qu'ils ont réellement payé
+  un set et le prix auquel ils l'ont réellement vendu. Nous agrégeons ces
+  transactions en un signal de prix communautaire, publié seulement quand
+  <strong>au moins cinq collectionneurs indépendants</strong> ont contribué,
+  toujours anonymisé (seules les médianes et fourchettes sont conservées) et
+  filtré des valeurs aberrantes comme toute autre source. À mesure que la
+  communauté grandit, cela devient une source de prix de vente qu'aucune panne de
+  plateforme ni aucun blocage ne peut retirer.</p>
+
+  <h2>Ce que nous ne faisons pas</h2>
+  <ul>
+    <li>Pas de chiffres inventés : un set sans preuves vérifiées suffisantes affiche <em>« données vérifiées insuffisantes »</em>, ce qui nous semble plus utile qu'une supposition.</li>
+    <li>Pas de mélange entre offres en magasin et valeur de revente.</li>
+    <li>Pas de prévisions à cinq ans. Personne ne peut prédire les prix LEGO cinq ans à l'avance ; prétendre le contraire ruinerait votre confiance dans tous les autres chiffres.</li>
+  </ul>
+
+  <footer>
+    Une question ou un prix qui semble faux ? Utilisez <em>Suggérer une correction</em> sur n'importe quelle
+    page de set : les corrections passent par la même vérification.
+    · <a href="/privacy.html">Confidentialité</a> · <a href="/terms.html">Conditions</a>
+  </footer>
