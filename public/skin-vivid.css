@@ -53,3 +53,36 @@
   --surface-2: #242230;
   --surface-3: #2E2B3C;
 }
+
+/* ── 2026 redesign identity (.bv-*) ──────────────────────────────
+   On the redesigned screens Vivid was just Retro's dark mode. Now it
+   plays: a deep indigo canvas, LEGO-red actions with a chunky "pressed
+   brick" edge, a four-colour stud stripe across the value cards and
+   brick-yellow numbers. Same look in light and dark scheme. */
+:root[data-skin="vivid"] {
+  --bg: #17132A; --bg-deep: #110E20; --surface: #231D3D; --surface-2: #2E2750; --surface-3: #3A3263;
+  --ink-mute: #B9B2D9; --ink-faint: #9C95C0;
+  --line-soft: #463D72; --border-soft-c: #3A3263;
+  --bv-acc: #E3261C; --bv-acct: #FFD23F; --bv-on-acc: #FFFFFF;
+  --bv-nav-bg: #1C1733;
+  --bv-shadow: rgba(0, 0, 0, .55);
+  --vv-studs: linear-gradient(90deg, #E3261C 0 25%, #FFD23F 25% 50%, #1E6FE8 50% 75%, #2BD27A 75% 100%);
+}
+:root[data-skin="vivid"][data-theme="dark"] {
+  --bg: #120F22; --bg-deep: #0C0A18; --surface: #1E1936; --surface-2: #29224A; --surface-3: #342C5B;
+  --bv-nav-bg: #17132B;
+}
+:root[data-skin="vivid"] .bv-card { border-width: 2px; border-color: var(--bv-line); box-shadow: 0 4px 0 rgba(0, 0, 0, .45); }
+:root[data-skin="vivid"] :is(.bv-hero, .bv-valuecard) { position: relative; overflow: hidden; padding-top: 22px; }
+:root[data-skin="vivid"] :is(.bv-hero, .bv-valuecard)::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 6px; background: var(--vv-studs); pointer-events: none;
+}
+:root[data-skin="vivid"] :is(.bv-hero__value, .bv-valuecard__value, .bv-valuecard .detail-summary-val) { color: #FFD23F; }
+:root[data-skin="vivid"] :is(.bv-btn--primary, .bv-fab, .bv-card--acc) { box-shadow: 0 4px 0 #8E120B; }
+:root[data-skin="vivid"] :is(.bv-btn--primary, .bv-fab):active { transform: translateY(3px); box-shadow: 0 1px 0 #8E120B; }
+:root[data-skin="vivid"] .bv-chip { border-width: 2px; }
+:root[data-skin="vivid"] .bv-chip[aria-pressed="true"], :root[data-skin="vivid"] .bv-chip.is-on { background: #FFD23F; color: #1A1530; border-color: #FFD23F; }
+:root[data-skin="vivid"] .bv-tabs > :is([aria-selected="true"], [aria-current="page"]) { color: #FFD23F; border-bottom-color: #FFD23F; }
+:root[data-skin="vivid"] .bv-seg > :is([aria-current="true"], [aria-current="page"], [aria-pressed="true"], [aria-selected="true"]) { background: #1E6FE8; color: #FFFFFF; }
+:root[data-skin="vivid"] .bv-range__band { background: #FFD23F; }
+:root[data-skin="vivid"] body.collector-ui #nav { border-top: 2px solid var(--bv-line); }
