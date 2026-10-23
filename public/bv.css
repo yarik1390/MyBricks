@@ -1558,7 +1558,7 @@ body.collector-ui .bv-discover #catalogSortBtn { grid-column: auto; grid-row: au
 .bv-field__box :is(input, select, textarea):focus-visible { outline: none; }
 :root[data-skin="vivid"] .bv-tile__media, :root[data-skin="vivid"] .bv-tile__media.photo-loaded { background: #f4f4f2; }
 :root[data-skin="vivid"] .bv-tile__media img { mix-blend-mode: normal; }
-.bv-discover__toolbar .bv-chips { flex: 1 1 auto; min-width: 0; margin: 0; }
+.bv-discover__toolbar .bv-chips { flex: 1 1 auto; min-width: 0; margin: 0; padding-right: 20px; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent); }
 .bv-discover__toolbar .bv-chip svg { width: 18px; height: 18px; }
 .bv-discover__toolbar > .bv-iconbtn { flex-shrink: 0; background: var(--bv-s2); }
 .bv-discover__count { margin: 8px 20px; font-size: 13px; line-height: 18px; color: var(--bv-mute); }
@@ -2260,6 +2260,7 @@ body.bv-nav-off .advisor-fab { bottom: calc(var(--safe-bottom, 0px) + 20px); }
 .bv-login__email { display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 24px; background: var(--bv-s); border: 1px solid var(--bv-line); }
 .bv-login__h2 { margin: 0 0 2px; font: 600 17px/22px var(--bv-sans); }
 .bv-login__email input { width: 100%; }
+.bv-login__hint { margin: -4px 4px 0; font-size: 12px; line-height: 17px; color: var(--bv-mute); }
 .bv-login__captcha { display: flex; justify-content: center; }
 .bv-login__err { min-height: 18px; font-size: 13px; line-height: 18px; color: var(--bv-loss); text-align: center; }
 .bv-login__err:empty { min-height: 0; }
