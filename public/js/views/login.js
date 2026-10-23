@@ -107,6 +107,7 @@ export function renderLogin() {
   const appleOn = !!(state.config && state.config.apple_signin);
   let captchaToken = null;
   let tsWidgetId = null;
+  let tsFailed = false; // widget errored or never loaded — don't keep the user waiting
   async function mountTurnstile() {
     if (!siteKey) return;
     const host = document.getElementById("authTurnstile");
@@ -115,19 +116,22 @@ export function renderLogin() {
       await ensureTurnstileScript();
       if (!window.turnstile) return;
       captchaToken = null;
+      tsFailed = false;
       tsWidgetId = window.turnstile.render(host, {
         sitekey: siteKey,
-        callback: (tok) => { captchaToken = tok; },
+        callback: (tok) => { captchaToken = tok; tsFailed = false; },
         "expired-callback": () => { captchaToken = null; },
-        "error-callback": () => { captchaToken = null; },
+        "error-callback": () => { captchaToken = null; tsFailed = true; },
       });
-    } catch {}
+    } catch { tsFailed = true; }
   }
-  // Current token, briefly waiting for the managed widget to auto-solve.
-  async function awaitCaptcha(maxMs = 6000) {
+  // Current token, waiting for the managed widget to auto-solve. Supabase
+  // CAPTCHA protection is on, so a request without a token is always refused —
+  // callers stop and ask the user to finish the check instead of sending it.
+  async function awaitCaptcha(maxMs = 15000) {
     if (!siteKey || captchaToken) return captchaToken;
     const start = Date.now();
-    while (!captchaToken && Date.now() - start < maxMs) {
+    while (!captchaToken && !tsFailed && Date.now() - start < maxMs) {
       await new Promise(r => setTimeout(r, 200));
     }
     return captchaToken;
@@ -135,6 +139,7 @@ export function renderLogin() {
   // Tokens are single-use — refresh after each auth attempt so a retry works.
   const resetCaptcha = () => {
     captchaToken = null;
+    tsFailed = false;
     try { if (tsWidgetId != null && window.turnstile) window.turnstile.reset(tsWidgetId); } catch {}
   };
 
@@ -161,7 +166,8 @@ export function renderLogin() {
             <h2 class="bv-login__h2">${mode === "signin" ? "Sign in" : "Create account"}</h2>
             <div class="bv-field"><div class="bv-field__box"><input type="email" id="authEmail" placeholder="Email address" aria-label="Email address" autocomplete="email"></div></div>
             <div class="bv-field"><div class="bv-field__box"><input type="password" id="authPass" placeholder="Password" aria-label="Password"
-              autocomplete="${mode === "signin" ? "current-password" : "new-password"}"></div></div>
+              autocomplete="${mode === "signin" ? "current-password" : "new-password"}"${mode === "signin" ? "" : ` aria-describedby="authPassHint"`}></div></div>
+            ${mode === "signin" ? "" : `<p class="bv-login__hint" id="authPassHint">${escapeHtml(t('bvFirst.authPasswordHint'))}</p>`}
             ${siteKey ? `<div id="authTurnstile" class="bv-login__captcha"></div>` : ""}
             <button type="button" class="bv-btn bv-btn--primary bv-btn--full bv-btn--lg" id="authSubmit">
               <span>${mode === "signin" ? "Sign in" : "Create account"}</span>
@@ -212,11 +218,14 @@ export function renderLogin() {
       const email = await promptSheet({ title: "Reset password", label: "Email address", value: prefill, placeholder: "you@example.com", confirmLabel: "Send reset link" });
       if (!email) return;
       try {
-        await sbRecover(email, await awaitCaptcha());
+        const captcha = await awaitCaptcha();
+        if (siteKey && !captcha) { toast(t('bvFirst.authCaptcha'), "error"); return; }
+        await sbRecover(email, captcha);
         toast("Reset link sent — check your email", "success");
-        resetCaptcha();
       } catch (e) {
         toast(e.message, "error");
+      } finally {
+        resetCaptcha(); // single-use token
       }
     });
 
@@ -274,6 +283,12 @@ export function renderLogin() {
       try {
         const guestSnapshot = snapshotGuestVault();
         const captcha = await awaitCaptcha();
+        if (siteKey && !captcha) {
+          if (errEl) errEl.textContent = t('bvFirst.authCaptcha');
+          setBtnLoading(btn, false);
+          if (tsFailed) resetCaptcha(); // let the widget try again for the next tap
+          return;
+        }
         let session;
         if (mode === "signin") {
           session = await sbSignIn(email, pass, captcha);

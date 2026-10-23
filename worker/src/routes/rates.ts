@@ -30,7 +30,8 @@ app.get('/', async (c) => {
     } catch { /* KV read failure falls through to upstream */ }
   }
   try {
-    const res = await fetch('https://open.er-api.com/v6/latest/USD');
+    // Bounded: a hung upstream must fall back to the stale copy, not stall every page that formats a price.
+    const res = await fetch('https://open.er-api.com/v6/latest/USD', { signal: AbortSignal.timeout(5000) });
     if (!res.ok) throw new Error(`er-api ${res.status}`);
     const json = await res.json() as { rates?: Record<string, number> };
     if (!json.rates) throw new Error('no rates');

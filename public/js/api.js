@@ -249,6 +249,7 @@ export async function sbSignIn(email, password, captchaToken) {
     if (d.error_code === "invalid_credentials") {
       throw new Error("Wrong email or password. If you signed up with Google, use Continue with Google, or tap Forgot password to set one.");
     }
+    if (d.error_code === "captcha_failed") throw new Error(t('bvFirst.authCaptcha'));
     if (d.error_code === "email_not_confirmed") {
       throw new Error("Confirm your email first: open the link we sent you, then sign in.");
     }
@@ -263,6 +264,11 @@ export async function sbSignIn(email, password, captchaToken) {
 function authErrorMessage(r, d, fallback) {
   const raw = d.msg || d.error_description || (typeof d.error === 'string' ? d.error : (d.error && d.error.message)) || d.message || '';
   if (r.status === 429 || /rate_limit|rate limit/i.test(`${d.error_code || ''} ${raw}`)) return t('bvFirst.authEmailLimit');
+  // Supabase CAPTCHA protection is on: a request without a solved Turnstile
+  // token answers "captcha protection: request disallowed (no captcha_token found)".
+  if (d.error_code === 'captcha_failed' || /captcha/i.test(raw)) return t('bvFirst.authCaptcha');
+  // GoTrue lists the whole character alphabet ("abcdefghijklmnopqrstuvwxyz, ABCD…").
+  if (d.error_code === 'weak_password') return t('bvFirst.authWeakPassword');
   return raw || fallback;
 }
 
@@ -357,12 +363,7 @@ export async function sbSetPassword(recoveryAccessToken, password) {
     body: JSON.stringify({ password }),
   });
   const d = await r.json().catch(() => ({}));
-  if (!r.ok || d.error) {
-    const msg = d.msg || d.error_description
-      || (typeof d.error === 'string' ? d.error : (d.error && d.error.message))
-      || d.message || "Couldn't set the new password";
-    throw new Error(msg);
-  }
+  if (!r.ok || d.error) throw new Error(authErrorMessage(r, d, "Couldn't set the new password"));
   return d;
 }
 

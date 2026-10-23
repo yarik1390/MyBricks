@@ -121,7 +121,9 @@ test('set page tabs sit 16px under the value card with an Android status-bar ins
     const tab = document.querySelector('#detailTabs button').getBoundingClientRect();
     return { gap: Math.round(tab.top - card.bottom), hit: !!document.elementFromPoint(card.left + 40, card.bottom - 6)?.closest('.bv-valuecard') };
   });
-  expect(await gap()).toEqual({ gap: 16, hit: true });
+  // Poll: the value card can still be settling (late fonts / async price
+  // rows) right after the tabs first paint, which read 21-24px on CI.
+  await expect.poll(gap).toEqual({ gap: 16, hit: true });
   // Stuck: the bar's padding covers the status bar and the tabs sit below it.
   await page.evaluate(() => { document.querySelector('.bv-setpanels').style.minHeight = '3000px'; scrollTo(0, 1200); });
   await expect(page.locator('#detailTabs')).toHaveClass(/is-stuck/);

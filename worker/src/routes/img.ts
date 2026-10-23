@@ -93,7 +93,7 @@ app.get('/', async (c) => {
     // is ignored (full image returned) when the feature isn't enabled. Cast to
     // any because the workers-types RequestInit.cf expects the inbound-request
     // CfProperties shape, not the fetch-time image-resizing subset.
-    const init = { headers: { Accept: 'image/*' } } as RequestInit;
+    const init = { headers: { Accept: 'image/*' }, signal: AbortSignal.timeout(10_000) } as RequestInit;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (width) (init as any).cf = { image: { width, quality: 82, fit: 'scale-down', format: 'auto' } };
     upstream = await fetch(src, init);
