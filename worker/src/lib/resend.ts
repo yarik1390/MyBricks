@@ -60,12 +60,15 @@ export function wishlistAlertEmailHTML(
         : alertType === 'preorder'
           ? `<strong>${setName}</strong> (${setNum}) from your wishlist is now available to <strong>pre-order</strong> or coming soon. Lock in launch-day availability before it sells out.`
           : `<strong>${setName}</strong> (${setNum}) is now at <strong>${fmt(currentValue)}</strong>, which is at or below your target of ${fmt(targetPrice)}.`;
+  // The /s/<set> share link opens the set's page: on the web it redirects to
+  // #/set/<num>, and on Android it opens in the installed app (App Link).
+  const setUrl = `${baseUrl}/s/${encodeURIComponent(setNum)}`;
 
   return `<!DOCTYPE html><html><body style="font-family:system-ui,sans-serif;background:#f5f5f5;margin:0;padding:24px;">
 <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:28px 32px;box-shadow:0 2px 8px rgba(0,0,0,.08);">
   <div style="font-size:22px;font-weight:700;color:#111;margin-bottom:16px;">${headline}</div>
   <p style="color:#444;line-height:1.6;margin:0 0 20px;">${body}</p>
-  <a href="${baseUrl}" style="display:inline-block;background:#f97316;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:600;font-size:14px;">Open BricksVault</a>
+  <a href="${setUrl}" style="display:inline-block;background:#f97316;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:600;font-size:14px;">View set in BricksVault</a>
   <p style="color:#999;font-size:11px;margin-top:24px;">You're receiving this because alerts are enabled in your BricksVault settings. <a href="${baseUrl}#/me" style="color:#999;">Manage alerts</a></p>
 </div></body></html>`;
 }

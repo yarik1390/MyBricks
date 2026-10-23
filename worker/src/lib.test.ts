@@ -1147,3 +1147,13 @@ describe('kids-xp pure helpers', () => {
   });
 });
 
+
+describe('wishlistAlertEmailHTML', () => {
+  it('links the button to the set page share link, not the home screen', async () => {
+    const { wishlistAlertEmailHTML } = await import('./lib/resend');
+    const html = wishlistAlertEmailHTML('Hot Rod Car', '30735-1', 0, 0, 'retiring', 'https://bricksvault.app');
+    expect(html).toContain('href="https://bricksvault.app/s/30735-1"');
+    expect(html).not.toContain('href="https://bricksvault.app"');
+    expect(html).toContain('href="https://bricksvault.app#/me"');
+  });
+});
