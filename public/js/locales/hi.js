@@ -601,6 +601,7 @@ export const hi = {
     ownCopiesOne: 'आपके पास {count} है — जोड़ने पर {next} प्रतियाँ होंगी।',
     optional: 'वैकल्पिक',
     opening: 'कैमरा खुल रहा है…',
+    downloadingScanner: 'स्कैनर डाउनलोड हो रहा है (सिर्फ़ पहली बार)…',
     openSet: '{name} खोलें',
     onYourWishlist: 'आपकी विशलिस्ट में',
     onWishlistHeading: 'आपकी विशलिस्ट में',

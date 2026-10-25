@@ -689,6 +689,7 @@ export const uk = {
     ownCopiesOne: 'У вас {count} — після додавання буде {next}.',
     optional: 'необов’язково',
     opening: 'Відкриваємо камеру…',
+    downloadingScanner: 'Завантажуємо сканер (лише першого разу)…',
     openSet: 'Відкрити {name}',
     onYourWishlist: 'у списку бажань',
     onWishlistHeading: 'У списку бажань',

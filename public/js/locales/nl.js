@@ -601,6 +601,7 @@ export const nl = {
     ownCopiesOne: 'Je hebt er {count} — hiermee worden het er {next}.',
     optional: 'optioneel',
     opening: 'Camera openen…',
+    downloadingScanner: 'Scanner downloaden (alleen de eerste keer)…',
     openSet: '{name} openen',
     onYourWishlist: 'op je verlanglijst',
     onWishlistHeading: 'Op je verlanglijst',
