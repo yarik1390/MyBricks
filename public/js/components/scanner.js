@@ -811,7 +811,17 @@ async function runNativeBarcodeScan() {
   let scanError = null;
   try {
     const { scanBarcodeNative } = await import("../lib/native-barcode.js");
-    code = await scanBarcodeNative(window);
+    code = await scanBarcodeNative(window, {
+      // The sheet is hidden for the handoff; show it while the one-time
+      // download runs so the user isn't left looking at the page behind.
+      onDownloading: () => {
+        overlay?.classList.remove("native-handoff");
+        if (hint) hint.textContent = t("bvAdd.downloadingScanner");
+      },
+      onDownloaded: () => {
+        if (overlay?.classList.contains("open")) overlay.classList.add("native-handoff");
+      },
+    });
   } catch (error) { scanError = error; }
   // The overlay may have been dismissed (back button / swipe) mid-scan.
   if (!overlay?.classList.contains("open")) return;

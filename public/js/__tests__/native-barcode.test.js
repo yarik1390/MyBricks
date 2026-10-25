@@ -72,6 +72,71 @@ describe('native branded barcode scanning', () => {
   });
 });
 
+describe('Google code-scanner module download', () => {
+  it('waits for the one-time module download before opening the scanner', async () => {
+    let available = false;
+    let progress = null;
+    const calls = [];
+    const plugin = {
+      isGoogleBarcodeScannerModuleAvailable: async () => ({ available }),
+      addListener: async (name, cb) => { if (name === 'googleBarcodeScannerModuleInstallProgress') progress = cb; return { remove: async () => calls.push('removed') }; },
+      installGoogleBarcodeScannerModule: async () => {
+        calls.push('install');
+        setTimeout(() => { available = true; progress?.({ state: 4 }); }, 20);
+      },
+      scan: async () => {
+        calls.push(available ? 'scan-ready' : 'scan-too-early');
+        return { barcodes: [{ rawValue: '5702017419690' }] };
+      },
+    };
+    const events = [];
+    const code = await scanBarcodeNative(nativeWindow(plugin), {
+      onDownloading: () => events.push('downloading'),
+      onDownloaded: () => events.push('downloaded'),
+    });
+    assert.equal(code, '5702017419690');
+    assert.deepEqual(events, ['downloading', 'downloaded']);
+    assert.deepEqual(calls, ['install', 'removed', 'scan-ready']);
+  });
+
+  it('skips the wait when the module is already there', async () => {
+    let installed = false;
+    let downloading = false;
+    const plugin = {
+      isGoogleBarcodeScannerModuleAvailable: async () => ({ available: true }),
+      installGoogleBarcodeScannerModule: async () => { installed = true; },
+      scan: async () => ({ barcodes: [{ rawValue: '1' }] }),
+    };
+    assert.equal(await scanBarcodeNative(nativeWindow(plugin), { onDownloading: () => { downloading = true; } }), '1');
+    assert.equal(installed, false);
+    assert.equal(downloading, false);
+  });
+
+  it('gives up waiting after the timeout so scan() can report the real error', async () => {
+    const { ensureGoogleScannerModule } = await import('../lib/native-barcode.js');
+    const plugin = {
+      isGoogleBarcodeScannerModuleAvailable: async () => ({ available: false }),
+      installGoogleBarcodeScannerModule: async () => {},
+    };
+    const started = Date.now();
+    await ensureGoogleScannerModule(plugin, { timeoutMs: 30 });
+    assert.ok(Date.now() - started < 1000);
+  });
+
+  it('stops waiting when the download fails', async () => {
+    const { ensureGoogleScannerModule } = await import('../lib/native-barcode.js');
+    let progress = null;
+    const plugin = {
+      isGoogleBarcodeScannerModuleAvailable: async () => ({ available: false }),
+      addListener: async (_name, cb) => { progress = cb; return { remove: async () => {} }; },
+      installGoogleBarcodeScannerModule: async () => { setTimeout(() => progress?.({ state: 5 }), 10); },
+    };
+    const started = Date.now();
+    await ensureGoogleScannerModule(plugin, { timeoutMs: 5000 });
+    assert.ok(Date.now() - started < 1000);
+  });
+});
+
 describe('live native scanning', () => {
   it('is on unless turned off, and needs the embedded scanner API', async () => {
     const { liveScanEnabled, nativeLiveScanSupported } = await import('../lib/native-barcode.js');

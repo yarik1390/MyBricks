@@ -25,21 +25,60 @@ function isScannerCancellation(error) {
   return code.includes('cancel') || message.includes('cancelled') || message.includes('canceled');
 }
 
+// Install states from the plugin's GoogleBarcodeScannerModuleInstallState.
+const MODULE_COMPLETED = 4;
+const MODULE_GAVE_UP = new Set([3, 5]); // CANCELED, FAILED
+const MODULE_WAIT_MS = 60000;
+
+// The system scanner needs Google's code-scanner module from Play services.
+// installGoogleBarcodeScannerModule() only STARTS the download and resolves
+// at once, so calling scan() right after it failed with "module is not
+// available" on every phone that didn't have it yet (closed testers, Oct 22-24).
+// Wait for the download to finish (progress events, plus a poll in case an
+// event is missed) before scanning. `onDownloading` fires once if we must wait,
+// `onDownloaded` when that wait ends (finished, failed or timed out).
+export async function ensureGoogleScannerModule(BS, { onDownloading, onDownloaded, timeoutMs = MODULE_WAIT_MS } = {}) {
+  if (!BS?.isGoogleBarcodeScannerModuleAvailable || !BS?.installGoogleBarcodeScannerModule) return;
+  const isAvailable = async () => {
+    try { return !!(await BS.isGoogleBarcodeScannerModuleAvailable())?.available; } catch { return false; }
+  };
+  if (await isAvailable()) return;
+  onDownloading?.();
+  let handle = null;
+  let poll = null;
+  let timer = null;
+  let done = false;
+  try {
+    await new Promise((resolve) => {
+      timer = setTimeout(resolve, timeoutMs);
+      poll = setInterval(async () => { if (await isAvailable()) resolve(); }, 2000);
+      Promise.resolve(BS.addListener?.('googleBarcodeScannerModuleInstallProgress', (event) => {
+        const s = Number(event?.state);
+        if (s === MODULE_COMPLETED || MODULE_GAVE_UP.has(s)) resolve();
+      })).then((h) => { if (done) h?.remove?.(); else handle = h; }, () => {});
+      // Rejects with "already installed" when it landed in the meantime.
+      Promise.resolve(BS.installGoogleBarcodeScannerModule()).catch(resolve);
+    });
+  } finally {
+    done = true;
+    clearTimeout(timer);
+    clearInterval(poll);
+    try { await handle?.remove?.(); } catch { /* already gone */ }
+    onDownloaded?.();
+  }
+}
+
 // Launch the native full-screen scanner. Resolves to the first barcode's raw
 // value, or null when the user cancels / returns no result. Operational failures
 // reject so the scanner UI can offer recovery instead of looking like a cancel.
 // Activity owns its preview surface, avoiding CameraX-behind-WebView failures on
 // edge-to-edge Android releases.
-export async function scanBarcodeNative(win) {
+export async function scanBarcodeNative(win, { onDownloading, onDownloaded } = {}) {
   const BS = getCapacitorPlugin('BarcodeScanner', win);
   if (!BS?.scan) throw new Error('Native barcode scanner is unavailable');
   try {
-    if (BS.isGoogleBarcodeScannerModuleAvailable && BS.installGoogleBarcodeScannerModule) {
-      try {
-        const { available } = await BS.isGoogleBarcodeScannerModuleAvailable();
-        if (!available) await BS.installGoogleBarcodeScannerModule();
-      } catch { /* proceed — scan() surfaces a real failure below */ }
-    }
+    // A failed or timed-out download falls through: scan() reports the real error.
+    await ensureGoogleScannerModule(BS, { onDownloading, onDownloaded });
     const { barcodes } = await BS.scan({ formats: FORMATS });
     const value = barcodes?.[0]?.rawValue ?? barcodes?.[0]?.displayValue;
     return typeof value === 'string' && value ? value : null;

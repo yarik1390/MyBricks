@@ -601,6 +601,7 @@ export const ja = {
     ownCopiesOne: '{count}点所有 — 追加すると{next}点になります。',
     optional: '任意',
     opening: 'カメラを起動中…',
+    downloadingScanner: 'スキャナーをダウンロード中（初回のみ）…',
     openSet: '{name}を開く',
     onYourWishlist: 'ウィッシュリスト内',
     onWishlistHeading: 'ウィッシュリスト',

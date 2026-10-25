@@ -601,6 +601,7 @@ export const zh = {
     ownCopiesOne: '你已有 {count} 套——添加后共 {next} 套。',
     optional: '可选',
     opening: '正在打开相机…',
+    downloadingScanner: '正在下载扫描器（仅首次）…',
     openSet: '打开 {name}',
     onYourWishlist: '在心愿单中',
     onWishlistHeading: '心愿单中',

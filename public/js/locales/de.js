@@ -601,6 +601,7 @@ export const de = {
     ownCopiesOne: 'Du hast {count} — mit diesem sind es {next} Exemplare.',
     optional: 'optional',
     opening: 'Kamera wird geöffnet…',
+    downloadingScanner: 'Scanner wird heruntergeladen (nur beim ersten Mal)…',
     openSet: '{name} öffnen',
     onYourWishlist: 'auf deiner Wunschliste',
     onWishlistHeading: 'Auf deiner Wunschliste',
