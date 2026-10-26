@@ -8,6 +8,10 @@ export interface Env {
   DB: D1Database;
   CACHE_KV?: KVNamespace;
   ANALYTICS?: AnalyticsEngineDataset;
+  // Workers Rate Limiting bindings (wrangler.toml [[ratelimits]]): per-IP
+  // ceilings for signed-out / signed-in API calls — see lib/ip-rate-limit.ts.
+  PUBLIC_RATE_LIMITER?: RateLimit;
+  API_RATE_LIMITER?: RateLimit;
   PHOTO_BUCKET?: R2Bucket;
   OPENAI_API_KEY: string;
   REBRICKABLE_API_KEY: string;

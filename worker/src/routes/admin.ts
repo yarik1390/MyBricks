@@ -40,6 +40,7 @@ import { runPriceChartingVerify } from '../jobs/pricecharting-verify';
 import { PROCESS_REGISTRY, GROUP_ORDER, processInfo } from '../lib/process-registry';
 import { getPricingWriteBudget } from '../lib/pricing-budget';
 import { amazonReadiness } from '../lib/amazon';
+import { integrationReadiness } from '../lib/config-readiness';
 import { holdingValueForRollout } from '../lib/market-sources';
 import { auditAdminMutation, claimAdminOperation, settleAdminOperation } from '../lib/admin-audit';
 import type { Env, Variables } from '../types';
@@ -808,6 +809,8 @@ app.get('/integrations', async (c) => {
       last_bulk: market_ext.last_bulk,
     },
     amazon: amazonReadiness(c.env),
+    // Full secret/binding readiness (moved off the public /api/config).
+    config: integrationReadiness(c.env),
     // Partner licensing revenue meter: PriceCharting's free permission carries a
     // $1,000/month commercial-agreement trigger (see lib/partner-revenue.ts).
     partner_revenue,

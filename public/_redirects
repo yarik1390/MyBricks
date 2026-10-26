@@ -1,0 +1,8 @@
+# Short links (bricksvault.app/scan etc.) open their app route. The app itself
+# maps the same paths in public/js/lib/deep-links.js; this covers browsers,
+# now that unknown paths return 404.html instead of the app shell.
+/scan      /#/pile?scan=barcode  302
+/shelf     /#/pile?scan=shelf    302
+/photo     /#/pile?scan=photo    302
+/wishlist  /#/wishlist           302
+/add       /#/add                302

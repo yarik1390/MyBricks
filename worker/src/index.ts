@@ -27,7 +27,8 @@ import { runUpcomingRefresh } from './jobs/upcoming-refresh';
 import { upcomingRoute } from './routes/upcoming';
 import type { ErrorHandler, MiddlewareHandler } from 'hono';
 import { pushRoute } from './routes/push';
-import { firebasePushConfigured } from './lib/firebase-push';
+import { integrationReadiness, publicConfigStatus } from './lib/config-readiness';
+import { ipRateLimit } from './lib/ip-rate-limit';
 import { bricklinkImportRoute } from './routes/bricklink-import';
 import { buildRoute } from './routes/build';
 import { stripeRoute } from './routes/stripe';
@@ -63,7 +64,6 @@ import { runBricksetEnrich } from './jobs/brickset-enrich';
 import { runBlendRecomputeBackfill } from './jobs/recompute-blends';
 import { applySourceConfig } from './lib/source-config';
 import { recordCronFinish, summarizeResult, resultFailed } from './lib/cron-runs';
-import { amazonReadiness } from './lib/amazon';
 import { CLIENT_EVENTS, logClientEvent, mirrorClientMetric } from './lib/analytics';
 import { setPricingV3ReadPercent } from './lib/market-sources';
 
@@ -102,6 +102,9 @@ export const apiErrorHandler: ErrorHandler<{ Bindings: Env; Variables: Variables
   return c.json({ error: 'Internal server error' }, 500);
 };
 app.onError(apiErrorHandler);
+
+// Per-IP ceiling on every API call (after CORS, so a 429 stays readable).
+app.use('/api/*', ipRateLimit);
 
 app.use('*', async (c, next) => {
   setPricingV3ReadPercent(c.env.PRICING_V3_READ_PERCENT);
@@ -160,52 +163,11 @@ app.post('/api/telemetry', async (c) => {
   return c.body(null, 204);
 });
 
-// Public config for the frontend (Supabase URL + anon key are client-safe)
+// Public config for the frontend (Supabase URL + anon key are client-safe).
+// Readiness detail (missing secrets, every provider) is admin-only — see
+// lib/config-readiness.ts.
 app.get('/api/config', (c) => {
-  const missing = (entries: Array<[string, string | undefined]>) => entries
-    .filter(([, value]) => !value || value.includes('dummy'))
-    .map(([name]) => name);
-  const googleMissing = missing([
-    ['GOOGLE_CLIENT_ID', c.env.GOOGLE_CLIENT_ID],
-    ['GOOGLE_CLIENT_SECRET', c.env.GOOGLE_CLIENT_SECRET],
-  ]);
-  const ebayMissing = missing([
-    ['EBAY_APP_ID', c.env.EBAY_APP_ID],
-    ['EBAY_CLIENT_SECRET', c.env.EBAY_CLIENT_SECRET],
-  ]);
-  const pushMissing = missing([
-    ['VAPID_PUBLIC_KEY', c.env.VAPID_PUBLIC_KEY],
-    ['VAPID_PRIVATE_KEY', c.env.VAPID_PRIVATE_KEY],
-    ['VAPID_SUBJECT', c.env.VAPID_SUBJECT],
-  ]);
-  const nativePushMissing = firebasePushConfigured(c.env) ? [] : ['FIREBASE_SERVICE_ACCOUNT_JSON'];
-  const geminiMissing = missing([['GEMINI_API_KEY', c.env.GEMINI_API_KEY]]);
-  const emailMissing = missing([['RESEND_API_KEY', c.env.RESEND_API_KEY]]);
-  const status = {
-    supabase: !!(c.env.SUPABASE_URL && c.env.SUPABASE_ANON_KEY && c.env.SUPABASE_JWT_SECRET),
-    d1: !!c.env.DB,
-    // Usage analytics (logEvent). The deploy strips this binding unless the
-    // ENABLE_ANALYTICS_ENGINE secret is true — surface it so "is my usage data
-    // actually being collected?" is answerable from /api/config, not CI logs.
-    analytics: !!c.env.ANALYTICS,
-    openai: !!c.env.OPENAI_API_KEY,
-    gemini: geminiMissing.length === 0,
-    email: emailMissing.length === 0,
-    push: pushMissing.length === 0,
-    native_push: nativePushMissing.length === 0,
-    google: googleMissing.length === 0,
-    ebay: ebayMissing.length === 0,
-    bricklink: !!(c.env.BRICKLINK_CONSUMER_KEY && c.env.BRICKLINK_TOKEN),
-    brickeconomy: !!c.env.BRICKECONOMY_API_KEY,
-    brickset: !!c.env.BRICKSET_API_KEY,
-    rebrickable: !!c.env.REBRICKABLE_API_KEY,
-    firecrawl: !!c.env.FIRECRAWL_API_KEY,
-    turnstile: !!c.env.TURNSTILE_SITE_KEY,
-    amazon: amazonReadiness(c.env).web_links_ready,
-    // Stripe is parked as legacy/internal — Patreon is the public supporter flow,
-    // so Stripe is intentionally omitted from public readiness. Re-add this line
-    // to surface it again if Stripe checkout is brought back.
-  };
+  const { status, setup } = integrationReadiness(c.env);
   return c.json({
     supabase_url: c.env.SUPABASE_URL,
     supabase_anon_key: c.env.SUPABASE_ANON_KEY,
@@ -221,57 +183,8 @@ app.get('/api/config', (c) => {
     // Supabase (otherwise clicking it would 400 at GoTrue). Required for the iOS
     // build since Apple mandates Sign in with Apple alongside Google (Guideline 4.8).
     apple_signin: c.env.APPLE_SIGNIN_ENABLED === '1',
-    status,
-    setup: {
-      google: {
-        configured: googleMissing.length === 0,
-        missing_secrets: googleMissing,
-        recommended_action: googleMissing.length
-          ? `Add ${googleMissing.join(' and ')} as GitHub Actions secrets; the deploy workflow uploads them to Worker secrets.`
-          : 'Google Sheets OAuth is ready.',
-      },
-      ebay: {
-        configured: ebayMissing.length === 0,
-        missing_secrets: ebayMissing,
-        recommended_action: ebayMissing.length
-          ? `Add ${ebayMissing.join(' and ')} as GitHub Actions secrets; eBay asking prices stay disabled until both are present.`
-          : 'eBay US/USD asking prices are ready.',
-      },
-      gemini: {
-        configured: geminiMissing.length === 0,
-        missing_secrets: geminiMissing,
-        recommended_action: geminiMissing.length
-          ? 'Add GEMINI_API_KEY as a GitHub Actions secret to enable server-side Gemini fallback; user BYOK Gemini keys still work without it.'
-          : 'Server-side Gemini fallback is ready.',
-      },
-      email: {
-        configured: emailMissing.length === 0,
-        missing_secrets: emailMissing,
-        recommended_action: emailMissing.length
-          ? 'Add RESEND_API_KEY as a GitHub Actions secret to enable email wishlist alerts.'
-          : 'Email wishlist alerts are ready.',
-      },
-      push: {
-        configured: pushMissing.length === 0,
-        missing_secrets: pushMissing,
-        recommended_action: pushMissing.length
-          ? `Add ${pushMissing.join(', ')} as GitHub Actions secrets to enable browser push alerts.`
-          : 'Browser push alerts are ready.',
-      },
-      native_push: {
-        configured: nativePushMissing.length === 0,
-        missing_secrets: nativePushMissing,
-        recommended_action: nativePushMissing.length
-          ? 'Add FIREBASE_SERVICE_ACCOUNT_JSON as a Worker secret and include android/app/google-services.json in the Android build to enable native notifications.'
-          : 'Firebase native push delivery is ready.',
-      },
-      amazon: {
-        ...amazonReadiness(c.env),
-        recommended_action: amazonReadiness(c.env).web_links_ready
-          ? 'Amazon Web Special Links are ready. Android and Creators API remain separately policy-gated.'
-          : 'Add AMAZON_PARTNER_TAG_FR_WEB and set AMAZON_WEB_ENABLED=1 to enable link-only Web CTAs.',
-      },
-    },
+    status: publicConfigStatus(status),
+    setup: { google: { configured: setup.google.configured } },
   });
 });
 
