@@ -2853,6 +2853,12 @@
     ]
   },
   {
+    "text": "Every key has spent its credits. Top up or turn the source off; a topped-up key is re-enabled by the daily check.",
+    "files": [
+      "lib/admin-issues.js"
+    ]
+  },
+  {
     "text": "Every set is valued from market prices and updated daily. Open Insights for top movers and retirement risk.",
     "files": [
       "components/onboarding.js"
@@ -5603,6 +5609,12 @@
     ]
   },
   {
+    "text": "Not refreshed in 14 days",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Not released yet — showing the announced retail price",
     "files": [
       "lib/pure.js"
@@ -6010,6 +6022,12 @@
     "text": "Out of Stock at LEGO.com",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Out of credits",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
@@ -9114,6 +9132,12 @@
   },
   {
     "text": "The provider is returning server errors. Jobs retry on their next run.",
+    "files": [
+      "lib/admin-issues.js"
+    ]
+  },
+  {
+    "text": "The provider rejected the server key. AI routing skips it until the key works again.",
     "files": [
       "lib/admin-issues.js"
     ]

@@ -1,6 +1,7 @@
 import type { Env } from '../types';
 import { MODELS } from './llm';
 import { OPENCODEX_SCAN_COMBO, OPENCODEX_SHELF_COMBO, openCodexConfigured } from './opencodex';
+import { blockedIntegrations } from './integration-health';
 
 // ---------------------------------------------------------------------------
 // Admin-tunable LLM routing. One DB-backed row (app_settings['llm_routing'])
@@ -205,7 +206,14 @@ export async function getLlmRoutes(env: Env): Promise<Record<LlmWorkload, RouteS
  */
 export async function resolveRoute(env: Env, workload: LlmWorkload): Promise<RouteStep[]> {
   const routes = await getLlmRoutes(env);
-  return (routes[workload] ?? []).filter((step) => step.enabled && providerConfigured(env, step.provider));
+  const steps = (routes[workload] ?? []).filter((step) => step.enabled && providerConfigured(env, step.provider));
+  // Skip providers whose server key was just rejected (integration-health
+  // pauses them). If that would leave nothing, keep the full route: a paused
+  // provider is still a better answer than none.
+  const blocked = await blockedIntegrations(env);
+  if (!blocked.size) return steps;
+  const live = steps.filter((step) => !blocked.has(step.provider));
+  return live.length ? live : steps;
 }
 
 export function providerConfigured(env: Env, provider: LlmProvider): boolean {

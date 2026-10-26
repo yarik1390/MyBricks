@@ -4,6 +4,8 @@ import { fetchEbayActiveListings } from './ebay';
 import { configuredFirecrawlKeys, isCreditExhaustion } from './firecrawl-keys';
 import { configuredBrightDataTokens, brightDataEnabled } from './brightdata-keys';
 import { recordAiUsage } from './ai-usage';
+import { openCodexClient } from './opencodex';
+import { firebasePushConfigured, probeFirebaseAccess } from './firebase-push';
 
 // ---------------------------------------------------------------------------
 // On-demand per-service health probes for the admin console. Each probe is
@@ -193,9 +195,33 @@ const PROBES: Record<string, Probe> = {
     } catch { return err(`HTTP ${r.status}: ${r.text.slice(0, 100)}`); }
   },
 
-  async openrouter() {
-    const r = await http('GET', 'https://openrouter.ai/api/v1/models', { timeoutMs: 12000 });
-    return r.status === 200 ? ok('models endpoint reachable') : err(`HTTP ${r.status}`);
+  // With a key, /key checks the credential itself (free, no tokens spent);
+  // the public /models list only proved the site was up.
+  async openrouter(env) {
+    const key = (env.OPENROUTER_API_KEY ?? '').trim();
+    if (!key) {
+      const r = await http('GET', 'https://openrouter.ai/api/v1/models', { timeoutMs: 12000 });
+      return r.status === 200 ? ok('models endpoint reachable') : err(`HTTP ${r.status}`);
+    }
+    const r = await http('GET', 'https://openrouter.ai/api/v1/key', { headers: { Authorization: `Bearer ${key}` }, timeoutMs: 12000 });
+    return r.status === 200 ? ok('key valid') : err(`HTTP ${r.status}: ${r.text.slice(0, 120)}`);
+  },
+
+  async opencodex(env) {
+    const client = openCodexClient(env);
+    if (!client) return configured('OPENCODEX_API_KEY / base URL not set');
+    try {
+      const list = await client.models.list();
+      return ok(`gateway reachable, ${list.data?.length ?? 0} model(s) listed`);
+    } catch (e) { return err((e as Error).message); }
+  },
+
+  async firebase(env) {
+    if (!firebasePushConfigured(env)) return configured('FIREBASE_SERVICE_ACCOUNT_JSON not set');
+    try {
+      await probeFirebaseAccess(env);
+      return ok('service account minted an FCM access token');
+    } catch (e) { return err((e as Error).message); }
   },
 
   async gemini(env) {

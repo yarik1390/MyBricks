@@ -75,7 +75,17 @@ describe('classifyHealth', () => {
   });
 
   it('marks a batch with both successes and failures as degraded, not down', () => {
-    expect(classifyHealth(row('2026-10-11 06:01:18', '2026-10-11 06:01:18', 'HTTP 404'))).toBe('degraded');
+    expect(classifyHealth(row('2026-10-11 06:01:18', '2026-10-11 06:01:18', 'HTTP 500'))).toBe('degraded');
+  });
+
+  it('does not call a provider unavailable over one rejected item between successes', () => {
+    // BrickLink answers 400 for some catalog numbers mid-batch.
+    expect(classifyHealth(row('2026-10-26 20:40:10', '2026-10-26 20:45:43', 'bricklink new-sold HTTP 400'))).toBe('ok');
+    expect(classifyHealth(row(null, '2026-10-26 20:45:43', 'bricklink new-sold HTTP 400'))).toBe('down');
+  });
+
+  it('treats an empty credit pool as degraded with its own advice, not down', () => {
+    expect(classifyHealth(row('2026-10-25 10:05:45', '2026-10-26 20:55:12', 'no Firecrawl key has credits left'))).toBe('degraded');
   });
 
   it('still reports a provider-side outage as down', () => {

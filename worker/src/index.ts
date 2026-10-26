@@ -62,6 +62,7 @@ import { runPromotionsRefresh } from './jobs/promotions-refresh';
 import { runLegoStockRefresh } from './jobs/lego-stock-refresh';
 import { runBricksetEnrich } from './jobs/brickset-enrich';
 import { runBlendRecomputeBackfill } from './jobs/recompute-blends';
+import { runHealthProbes } from './jobs/health-probes';
 import { applySourceConfig } from './lib/source-config';
 import { recordCronFinish, summarizeResult, resultFailed } from './lib/cron-runs';
 import { CLIENT_EVENTS, logClientEvent, mirrorClientMetric } from './lib/analytics';
@@ -469,7 +470,12 @@ export default {
       // owned/wishlisted on a 14-day cycle inside the job (trimmed 100->40, it
       // self-tapers). Ongoing value freshness rides on the free APIs
       // (BrickLink/eBay), not Firecrawl.
-      case '0 9 * * *': await run('brickset-enrich', () => runBricksetEnrich(env, { limit: 30 })); break;
+      case '0 9 * * *':
+        await run('brickset-enrich', () => runBricksetEnrich(env, { limit: 30 }));
+        // Free key/reachability probes so Admin > Overview has same-day evidence
+        // for on-demand services and a replaced key clears itself.
+        await run('health-probes', () => runHealthProbes(env));
+        break;
       case '0 10 * * *': await run('lego-stock-refresh', () => runLegoStockRefresh(env, { limit: 200 })); break;
       // Part-out (E1): trickle the shared part_prices cache from BrickLink's NEW
       // price guide, most-shared parts first. Budget-gated (reserveQuota shares

@@ -227,6 +227,24 @@ describe('llm-routing', () => {
     expect(steps.map((s) => s.provider)).toEqual(['gemini']);
   });
 
+  it('resolveRoute skips a provider whose key was just rejected, but never empties the route', async () => {
+    await db.prepare('DROP TABLE IF EXISTS integration_health').run();
+    await db.prepare(`CREATE TABLE integration_health (service TEXT PRIMARY KEY, last_ok_at TEXT, last_fail_at TEXT,
+      last_error TEXT, ok_count INTEGER DEFAULT 0, fail_count INTEGER DEFAULT 0, updated_at TEXT, blocked_until TEXT)`).run();
+    await saveLlmRoutes(env as any, {
+      scan: [
+        { provider: 'gemini', model: 'gemini-2.5-flash', enabled: true },
+        { provider: 'openai', model: 'gpt-4o-mini', enabled: true },
+      ],
+    });
+    const { recordIntegrationAttempt } = await import('./lib/integration-health');
+    await recordIntegrationAttempt(withKeys() as any, 'gemini', false, 'HTTP 401');
+    expect((await resolveRoute(withKeys() as any, 'scan')).map((s) => s.provider)).toEqual(['openai']);
+    // Only the paused provider left: keep it rather than return no route.
+    expect((await resolveRoute(withKeys({ OPENAI_API_KEY: '' }) as any, 'scan')).map((s) => s.provider)).toEqual(['gemini']);
+    await db.prepare('DROP TABLE integration_health').run();
+  });
+
   it('providerConfigured treats a whitespace-only Merge key as absent', () => {
     expect(providerConfigured({ ...(env as any), MERGE_GATEWAY_API_KEY: '   ' }, 'merge')).toBe(false);
     expect(providerConfigured(withKeys(), 'merge')).toBe(true);

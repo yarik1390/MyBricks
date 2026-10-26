@@ -117,6 +117,13 @@ async function getAccessToken(account: FirebaseServiceAccount): Promise<string> 
   return result.access_token;
 }
 
+/** Health probe: proves the service account can mint an FCM token (no push sent). */
+export async function probeFirebaseAccess(env: Env): Promise<void> {
+  const account = parseServiceAccount(env.FIREBASE_SERVICE_ACCOUNT_JSON);
+  if (!account) throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON not set');
+  await getAccessToken(account);
+}
+
 export function decodePayload(payload: string): NativePushPayload | null {
   try {
     const parsed = JSON.parse(payload) as Partial<NativePushPayload>;
