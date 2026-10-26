@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { applyTestTables } from './test-schema';
 import { openSecret, sealSecret } from './lib/token-crypto';
+import { integrationReadiness } from './lib/config-readiness';
 import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { apiErrorHandler, app } from './index';
@@ -570,13 +571,18 @@ describe('BrickVault API Worker Tests', () => {
       const data = await res.json<any>();
       expect(data.supabase_url).toBe('https://supabase.mock.io');
       expect(data.status).toBeDefined();
-      expect(data.status.supabase).toBe(true);
       expect(data.status.d1).toBe(true);
-      expect(data.status.openai).toBe(true);
       expect(data.status.google).toBe(true);
       expect(data.setup.google.configured).toBe(true);
-      expect(data.setup.google.missing_secrets).toEqual([]);
-      expect(data.setup.google.recommended_action).toContain('ready');
+    });
+
+    it('does not expose the integration map or missing-secret names publicly', async () => {
+      const res = await app.fetch(new Request('http://localhost/api/config'), env);
+      const data = await res.json<any>();
+      expect(Object.keys(data.status).sort()).toEqual(['brickeconomy', 'bricklink', 'd1', 'ebay', 'google', 'native_push']);
+      expect(Object.keys(data.setup)).toEqual(['google']);
+      expect(Object.keys(data.setup.google)).toEqual(['configured']);
+      expect(JSON.stringify(data)).not.toMatch(/missing_secrets|recommended_action|openai|firecrawl|gemini/);
     });
 
     it('omits Stripe from public readiness (Patreon is the public supporter flow)', async () => {
@@ -596,12 +602,7 @@ describe('BrickVault API Worker Tests', () => {
     it('explains which Google secrets are missing when Sheets sync is disabled', async () => {
       delete (env as any).GOOGLE_CLIENT_ID;
       delete (env as any).GOOGLE_CLIENT_SECRET;
-      const res = await app.fetch(
-        new Request('http://localhost/api/config'),
-        env
-      );
-      expect(res.status).toBe(200);
-      const data = await res.json<any>();
+      const data = integrationReadiness(env as any);
       expect(data.status.google).toBe(false);
       expect(data.setup.google.configured).toBe(false);
       expect(data.setup.google.missing_secrets).toEqual(['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET']);
@@ -614,18 +615,44 @@ describe('BrickVault API Worker Tests', () => {
       delete (env as any).VAPID_PUBLIC_KEY;
       delete (env as any).VAPID_PRIVATE_KEY;
       delete (env as any).VAPID_SUBJECT;
-      const res = await app.fetch(
-        new Request('http://localhost/api/config'),
-        env
-      );
-      expect(res.status).toBe(200);
-      const data = await res.json<any>();
+      const data = integrationReadiness(env as any);
       expect(data.status.gemini).toBe(false);
       expect(data.status.email).toBe(false);
       expect(data.status.push).toBe(false);
       expect(data.setup.gemini.recommended_action).toContain('GEMINI_API_KEY');
       expect(data.setup.email.recommended_action).toContain('RESEND_API_KEY');
       expect(data.setup.push.missing_secrets).toEqual(['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT']);
+    });
+  });
+
+  describe('Per-IP API rate limit', () => {
+    const limiter = (success: boolean) => ({ limit: vi.fn(async () => ({ success })) });
+
+    it('returns 429 once the signed-out ceiling is hit, keyed by client IP', async () => {
+      const pub = limiter(false);
+      const authed = limiter(true);
+      const res = await app.fetch(
+        new Request('http://localhost/api/config', { headers: { 'CF-Connecting-IP': '203.0.113.9' } }),
+        { ...env, PUBLIC_RATE_LIMITER: pub, API_RATE_LIMITER: authed } as any,
+      );
+      expect(res.status).toBe(429);
+      expect(res.headers.get('Retry-After')).toBe('60');
+      expect(pub.limit).toHaveBeenCalledWith({ key: '203.0.113.9' });
+      expect(authed.limit).not.toHaveBeenCalled();
+    });
+
+    it('uses the signed-in ceiling with Authorization and skips image thumbnails', async () => {
+      const pub = limiter(false);
+      const authed = limiter(true);
+      const e = { ...env, PUBLIC_RATE_LIMITER: pub, API_RATE_LIMITER: authed } as any;
+      const res = await app.fetch(
+        new Request('http://localhost/api/config', { headers: { 'CF-Connecting-IP': '203.0.113.9', Authorization: 'Bearer x' } }),
+        e,
+      );
+      expect(res.status).toBe(200);
+      expect(authed.limit).toHaveBeenCalledTimes(1);
+      await app.fetch(new Request('http://localhost/api/img?u=x', { headers: { 'CF-Connecting-IP': '203.0.113.9' } }), e);
+      expect(pub.limit).not.toHaveBeenCalled();
     });
   });
 

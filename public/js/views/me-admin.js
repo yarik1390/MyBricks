@@ -1059,7 +1059,7 @@ async function loadFeatureFlags() {
 
 function providerRows() {
   const rows = Array.isArray(adminHealth?.integrations) ? [...adminHealth.integrations] : [];
-  const status = state.config?.status || {};
+  const status = adminHealth?.config?.status || state.config?.status || {};
   const addSynthetic = (service, configured, providerStatus, action) => {
     if (!rows.some(r => String(r.service).toLowerCase() === service)) {
       rows.push({ service, configured, status: providerStatus, last_ok_at: null, last_fail_at: null, last_error: '', recommended_action: action });
@@ -1207,7 +1207,7 @@ function serviceRow(service, rows) {
   const key = String(service).toLowerCase();
   const found = rows.find(r => String(r.service).toLowerCase() === key);
   if (found) return found;
-  const status = state.config?.status || {};
+  const status = adminHealth?.config?.status || state.config?.status || {};
   if (key === 'worker' || key === 'pages') return { service: key, configured: true, status: 'ok' };
   const known = key in status ? !!status[key] : null;
   return {

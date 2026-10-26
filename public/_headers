@@ -1,4 +1,11 @@
+# Accepted risk (security review 2026-10-26): style-src keeps 'unsafe-inline'
+# because views render ~470 inline style="" attributes; script-src has no
+# 'unsafe-inline', so injected markup still can't run script. The two AI hosts
+# in connect-src are only used to test a user's OWN key (Profile > Integrations);
+# no server key is ever sent to the browser. Pages adds a wildcard
+# Access-Control-Allow-Origin by default; the "!" line below removes it.
 /*
+  ! Access-Control-Allow-Origin
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Cross-Origin-Opener-Policy: same-origin

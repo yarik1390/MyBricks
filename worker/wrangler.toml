@@ -29,6 +29,19 @@ dataset = "brickvault_events"
 binding = "PHOTO_BUCKET"
 bucket_name = "brickvault-photos"
 
+# Per-IP API ceilings (lib/ip-rate-limit.ts). The API lives on workers.dev,
+# outside the bricksvault.app zone, so zone WAF rules can't rate-limit it.
+# period must be 10 or 60 seconds; namespace_id is any account-unique number.
+[[ratelimits]]
+name = "PUBLIC_RATE_LIMITER"
+namespace_id = "2601"
+simple = { limit = 120, period = 60 }
+
+[[ratelimits]]
+name = "API_RATE_LIMITER"
+namespace_id = "2602"
+simple = { limit = 600, period = 60 }
+
 # Workers VPC: private route to OpenCodex on Core01 (127.0.0.1:10100) through
 # the dedicated "core01-opencodex-vpc" Cloudflare Tunnel. The connector runs on
 # Core01 as the user service bv-opencodex-tunnel.service.
