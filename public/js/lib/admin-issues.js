@@ -1,4 +1,4 @@
-const DEFAULT_MAX_ISSUES = 6;
+const DEFAULT_MAX_ISSUES = 12;
 const DEFAULT_STALE_AFTER_MS = 48 * 60 * 60 * 1000;
 
 const SERVICE_FLAGS = {
@@ -18,7 +18,7 @@ const AI_SERVICES = new Set(['gemini', 'openai', 'openrouter', 'opencodex', 'mer
 // it has been removed from the server config entirely.)
 const OPT_IN_TUNABLE_SERVICES = new Set([]);
 
-const PRIORITY = { access: 0, error: 1, degraded: 2, stale: 3, unknown: 4 };
+const PRIORITY = { access: 0, credits: 1, error: 2, degraded: 3, stale: 4, unknown: 5 };
 
 function observationTimestamp(row, now) {
   const value = row?.last_checked_at;
@@ -57,13 +57,25 @@ function isQuotaRefusal(row) {
   return /HTTP 429|EXCEED_LIMIT|quota|rate limit|daily cap|credit ceiling|too many requests/i.test(message);
 }
 
+// Every key out of paid credits: needs a top-up or the source turned off, so it
+// stays an issue (unlike a 429, which recovers by itself).
+function isCreditExhaustion(row) {
+  const message = typeof row.last_error === 'string' ? row.last_error : '';
+  return /credits left|out of credits|insufficient credits|HTTP 402|payment required/i.test(message);
+}
+
 function isProviderSideFailure(row) {
   const message = typeof row.last_error === 'string' ? row.last_error : '';
   return /HTTP 5\d\d|service unavailable|bad gateway|gateway timeout/i.test(message);
 }
 
 function issueCopy(kind, label, row) {
+  if (kind === 'access' && AI_SERVICES.has(String(row.service).toLowerCase())
+    && row.configured !== false && row.status !== 'unconfigured') {
+    return { title: `${label} needs a new key`, detail: 'The provider rejected the server key. AI routing skips it until the key works again.' };
+  }
   if (kind === 'access') return { title: `${label} needs access`, detail: 'Required configuration is not available.' };
+  if (kind === 'credits') return { title: `${label} is out of credits`, detail: 'Every key has spent its credits. Top up or turn the source off; a topped-up key is re-enabled by the daily check.' };
   if (kind === 'error' && isProviderSideFailure(row)) {
     return { title: `${label} is unavailable`, detail: 'The provider is returning server errors. Jobs retry on their next run.' };
   }
@@ -116,12 +128,19 @@ export function buildAdminIssues({
 
     const observation = observationTimestamp(row, now);
     const evidenceAt = observation?.value || null;
-    const stale = observation ? now - observation.time > staleAfterMs : false;
+    // The server says how long each service's evidence stays valid: on-demand
+    // services (push, fallback AI providers) are legitimately quiet for days.
+    const rowStaleMs = Number(row.stale_after_hours) > 0 ? Number(row.stale_after_hours) * 60 * 60 * 1000 : staleAfterMs;
+    const stale = observation ? now - observation.time > rowStaleMs : false;
     let kind = null;
 
-    if (observation && !stale && isQuotaRefusal(row) && row.status !== 'down' && row.reachable !== false) continue;
-    if (!observation) kind = 'unknown';
+    const fresh = observation && !stale;
+    if (fresh && row.status === 'ok') continue;
+    if (fresh && isCreditExhaustion(row) && row.status !== 'ok') kind = 'credits';
+    else if (fresh && isQuotaRefusal(row) && row.status !== 'down' && row.reachable !== false) continue;
+    else if (!observation) kind = 'unknown';
     else if (stale) kind = 'stale';
+    else if (isAccessFailure(row) && row.status === 'degraded' && row.configured !== false) kind = 'access';
     else if (isAccessFailure(row) && (row.configured === false || row.status === 'unconfigured' || row.reachable === false || row.status === 'down')) kind = 'access';
     else if (row.reachable === false || row.status === 'down') kind = 'error';
     else if (row.degraded === true || row.status === 'degraded') kind = 'degraded';
@@ -133,7 +152,7 @@ export function buildAdminIssues({
       service: row.service,
       label,
       kind,
-      severity: kind === 'access' || kind === 'error' ? 'danger' : kind === 'degraded' || kind === 'stale' ? 'warn' : 'neutral',
+      severity: kind === 'access' || kind === 'error' || kind === 'credits' ? 'danger' : kind === 'degraded' || kind === 'stale' ? 'warn' : 'neutral',
       ...issueCopy(kind, label, row),
       evidenceAt,
       ...remedyFor(row.service),

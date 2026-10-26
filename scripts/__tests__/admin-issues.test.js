@@ -150,4 +150,30 @@ describe('buildAdminIssues', () => {
     assert.equal(issues[3].href, '#/me/admin?hub=ai');
     assert.ok(issues.every((issue) => !JSON.stringify(issue).includes('secret detail')));
   });
+
+  it('keeps on-demand services quiet while their server-side evidence window holds', () => {
+    const issues = buildAdminIssues({
+      diagnostics: [
+        diagnostic('firebase', { last_checked_at: stale, last_ok_at: stale, stale_after_hours: 14 * 24 }),
+        diagnostic('opencodex', { last_checked_at: stale, last_ok_at: stale }),
+      ],
+      now: NOW,
+    });
+    assert.deepEqual(issues.map((issue) => `${issue.kind}:${issue.service}`), ['stale:opencodex']);
+  });
+
+  it('names a rejected AI key and an empty credit pool instead of calling them degraded', () => {
+    const issues = buildAdminIssues({
+      diagnostics: [
+        diagnostic('gemini', { status: 'degraded', degraded: true, reachable: null, last_fail_at: fresh, last_error: 'HTTP 401' }),
+        diagnostic('firecrawl', { status: 'degraded', degraded: true, reachable: null, last_fail_at: fresh, last_error: 'no Firecrawl key has credits left' }),
+        diagnostic('brickinsights', { status: 'degraded', degraded: true, reachable: null, last_fail_at: fresh, last_error: 'BrickInsights HTTP 429' }),
+      ],
+      featureFlags: { firecrawl: true, brickinsights: true },
+      now: NOW,
+    });
+    assert.deepEqual(issues.map((issue) => `${issue.kind}:${issue.service}`), ['access:gemini', 'credits:firecrawl']);
+    assert.equal(issues[0].title, 'gemini needs a new key');
+    assert.equal(issues[1].title, 'firecrawl is out of credits');
+  });
 });

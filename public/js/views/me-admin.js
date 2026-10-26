@@ -979,6 +979,7 @@ function adminIssueKindLabel(kind) {
     error: adminIssuesText('admin.issues.kindError', 'Error'),
     degraded: adminIssuesText('admin.issues.kindDegraded', 'Degraded'),
     stale: adminIssuesText('admin.issues.kindStale', 'Stale evidence'),
+    credits: adminIssuesText('admin.issues.kindCredits', 'Out of credits'),
     unknown: adminIssuesText('admin.issues.kindUnknown', 'Unknown'),
   };
   return labels[kind] || labels.unknown;
@@ -1501,7 +1502,12 @@ function renderCatalogQuality() {
   const barcodeWith = Number(coverage.barcode_retail_with_upc || 0);
   const cards = [
     qualityCard('Catalog sets', total, total ? 100 : 0, 'ok', 'Rows in the live catalog.'),
-    qualityCard('Expired values', Number(coverage.expired_values || 0), percent(coverage.expired_values, total), 'warn', 'Values that need a refresh.'),
+    // Every value is due again within 12h-7d while the refresh rotation covers
+    // ~2,300 sets a day, so "past its refresh date" always read ~85%. What
+    // matters is whether the rotation keeps up: values it hasn't reached in 14 days.
+    coverage.refresh_overdue_values != null
+      ? qualityCard('Not refreshed in 14 days', Number(coverage.refresh_overdue_values || 0), percent(coverage.refresh_overdue_values, total), 'warn', `Values the refresh rotation has not reached in two weeks. ${Number(coverage.expired_values || 0).toLocaleString()} are queued for their next refresh.`)
+      : qualityCard('Expired values', Number(coverage.expired_values || 0), percent(coverage.expired_values, total), 'warn', 'Values that need a refresh.'),
     qualityCard('Missing MSRP', Number(quality.missing_msrp || 0), Number(quality.missing_msrp_pct || percent(quality.missing_msrp, total)), 'warn', 'Rows missing retail price context.'),
     qualityCard('Missing UPC', Math.max(0, barcodeTotal - barcodeWith), 100 - Number(coverage.barcode_coverage_pct || percent(barcodeWith, barcodeTotal)), 'warn', 'Retail sets still missing barcode data.'),
     qualityCard('Old active sets', Number(quality.old_active_sets || 0), Number(quality.old_active_sets_pct || percent(quality.old_active_sets, total)), 'warn', 'Older sets still marked active.'),

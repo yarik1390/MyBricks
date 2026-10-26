@@ -289,3 +289,48 @@ export async function getFirecrawlKeyPoolStatus(env: Env): Promise<FirecrawlKeyP
     entries,
   };
 }
+
+/** Remaining credits on one key from Firecrawl's free credit-usage endpoint, or
+ *  null when the answer is unavailable (network, unexpected shape). */
+export async function fetchFirecrawlRemainingCredits(key: string): Promise<number | null> {
+  try {
+    const r = await fetch('https://api.firecrawl.dev/v2/team/credit-usage', {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!r.ok) return null;
+    const j = await r.json<{ data?: { remainingCredits?: number; remaining_credits?: number } }>();
+    const n = Number(j.data?.remainingCredits ?? j.data?.remaining_credits);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Daily recovery check for latched keys. A 402 latches a key "permanently",
+ * which was right for a spent one-time allotment but meant a TOP-UP of the same
+ * key was never noticed: Firecrawl stayed "out of credits" until someone reset
+ * the table by hand. Asking Firecrawl for the balance un-latches a key that has
+ * credits again and restarts its counter. Fails open.
+ */
+export async function recoverFirecrawlKeys(env: Env): Promise<{ keys: number; withCredits: number; recovered: number }> {
+  const keys = configuredFirecrawlKeys(env);
+  let withCredits = 0;
+  let recovered = 0;
+  for (const key of keys) {
+    const remaining = await fetchFirecrawlRemainingCredits(key);
+    if (remaining == null || remaining <= 0) continue;
+    withCredits++;
+    try {
+      const res = await env.DB.prepare(
+        `UPDATE firecrawl_keys SET exhausted_at = NULL, used = 0, updated_at = datetime('now')
+         WHERE key_hash = ? AND exhausted_at IS NOT NULL`,
+      ).bind(await hashFirecrawlKey(key)).run();
+      recovered += Number(res.meta?.changes || 0);
+    } catch (e) {
+      console.warn('[firecrawl-keys] recover failed open:', (e as Error).message);
+    }
+  }
+  return { keys: keys.length, withCredits, recovered };
+}

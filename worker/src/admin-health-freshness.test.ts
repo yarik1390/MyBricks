@@ -18,9 +18,15 @@ describe('admin health evidence freshness', () => {
     }
   });
   it('marks stale success and failure as unknown, retaining history', async () => {
-    const old = new Date(Date.now() - 72 * 3600000).toISOString();
+    // Merge is on-demand, so its evidence window is 14 days, not 48 hours.
+    const old = new Date(Date.now() - 15 * 24 * 3600000).toISOString();
     const rows = await getIntegrationDiagnostics(fixture(old, old));
     expect(rows.find(r => r.service === 'merge')).toMatchObject({ status: 'unknown', reachable: null, last_fail_at: old });
+  });
+  it('keeps a quiet on-demand service classified for two weeks', async () => {
+    const old = new Date(Date.now() - 72 * 3600000).toISOString();
+    const rows = await getIntegrationDiagnostics(fixture(old));
+    expect(rows.find(r => r.service === 'merge')).toMatchObject({ status: 'ok', stale_after_hours: 14 * 24 });
   });
   it('reports recent success as observed healthy', async () => {
     const rows = await getIntegrationDiagnostics(fixture(new Date().toISOString()));

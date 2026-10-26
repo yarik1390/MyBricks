@@ -64,6 +64,8 @@ export interface IntegrationDiagnostic {
   ok_count: number;
   fail_count: number;
   updated_at: string | null;
+  /** How old the last observation may be before it no longer proves health. */
+  stale_after_hours: number;
 }
 
 type IntegrationDefinition = {
@@ -73,7 +75,15 @@ type IntegrationDefinition = {
   used_by: string[];
   notes: string;
   recommended_action?: string;
+  /** Called only when a user or an alert needs it, so quiet days are normal. */
+  on_demand?: boolean;
 };
+
+const STALE_AFTER_HOURS = 48;
+// On-demand services can sit unused for days (no alert to push, no scan that
+// reaches a fallback provider). Their last result stays valid evidence for two
+// weeks, and the daily health probes (jobs/health-probes.ts) refresh it anyway.
+const ON_DEMAND_STALE_AFTER_HOURS = 14 * 24;
 
 const hasRealGoogleConfig = (env: Env) => !!(
   env.GOOGLE_CLIENT_ID &&
@@ -107,6 +117,7 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     recommended_action: 'Add Supabase URL, anon key, and JWT secret as Worker secrets.',
   },
   google: {
+    on_demand: true,
     label: 'Google Sheets',
     configured: hasRealGoogleConfig,
     required_secrets: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
@@ -158,6 +169,7 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     recommended_action: 'Add BRICKSET_API_KEY and rerun barcode backfill.',
   },
   gemini: {
+    on_demand: true,
     label: 'Gemini',
     configured: (env) => hasConfiguredSecret(env, 'GEMINI_API_KEY'),
     required_secrets: ['GEMINI_API_KEY'],
@@ -166,6 +178,7 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     recommended_action: 'Add GEMINI_API_KEY as a GitHub Actions secret to enable server-side Gemini features.',
   },
   email: {
+    on_demand: true,
     label: 'Email Alerts',
     configured: (env) => hasConfiguredSecret(env, 'RESEND_API_KEY'),
     required_secrets: ['RESEND_API_KEY'],
@@ -174,6 +187,7 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     recommended_action: 'Add RESEND_API_KEY as a GitHub Actions secret to enable email wishlist alerts.',
   },
   push: {
+    on_demand: true,
     label: 'Browser Push',
     configured: (env) => ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT']
       .every(name => hasConfiguredSecret(env, name)),
@@ -183,6 +197,7 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     recommended_action: 'Add VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, and VAPID_SUBJECT as GitHub Actions secrets to enable browser push alerts.',
   },
   firebase: {
+    on_demand: true,
     label: 'Native Push',
     configured: hasFirebaseConfig,
     required_secrets: ['FIREBASE_SERVICE_ACCOUNT_JSON'],
@@ -191,6 +206,7 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     recommended_action: 'Add FIREBASE_SERVICE_ACCOUNT_JSON as a Worker secret and google-services.json to the Android build.',
   },
   openai: {
+    on_demand: true,
     label: 'OpenAI',
     configured: (env) => !!env.OPENAI_API_KEY,
     required_secrets: ['OPENAI_API_KEY'],
@@ -199,6 +215,7 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     recommended_action: 'Add OPENAI_API_KEY for shared scan, advisor, and listing features.',
   },
   openrouter: {
+    on_demand: true,
     label: 'OpenRouter',
     configured: (env) => !!env.OPENROUTER_API_KEY,
     required_secrets: ['OPENROUTER_API_KEY'],
@@ -207,6 +224,7 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     recommended_action: 'Add OPENROUTER_API_KEY (and the AI Gateway) to enable the free-first, low-cost LLM route.',
   },
   opencodex: {
+    on_demand: true,
     label: 'OpenCodex',
     configured: (env) => openCodexConfigured(env),
     required_secrets: ['OPENCODEX_API_KEY'],
@@ -215,6 +233,7 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     recommended_action: 'Configure OPENCODEX_API_KEY as a Worker secret and check OpenCodex status on Core01.',
   },
   merge: {
+    on_demand: true,
     label: 'Merge Gateway',
     configured: (env) => !!(env.MERGE_GATEWAY_API_KEY ?? '').trim(),
     required_secrets: ['MERGE_GATEWAY_API_KEY'],
@@ -309,6 +328,21 @@ function isProviderOutage(error?: string | null): boolean {
   return !!error && /(HTTP 5\d\d|unavailable|bad gateway|service unavailable|gateway timeout|empty\/short body|empty body)/i.test(error);
 }
 
+// Every key is out of paid credits (Firecrawl answers 402 and the pool latches).
+// Not a transient quota: it stays this way until someone tops up or turns the
+// source off, so it gets its own advice instead of "wait for the window".
+export function isCreditExhaustionIssue(error?: string | null): boolean {
+  return !!error && /(credits left|out of credits|insufficient credits|HTTP 402|payment required)/i.test(error);
+}
+
+// A rejection of ONE request (an item number the provider doesn't know, a
+// malformed query), not of the service. BrickLink answers 400 for some catalog
+// numbers; that fired "BrickLink is unavailable" whenever the last call of a
+// batch happened to be one of them, between thousands of good calls.
+function isPerItemIssue(error?: string | null): boolean {
+  return !!error && /(HTTP 400|HTTP 404|API code 40[04]|not found|no such (?:item|product))/i.test(error);
+}
+
 // The provider answered, but a model's reply could not be parsed. That is a
 // model-quality miss on one call, not an outage of the gateway that served it.
 function isModelOutputIssue(error?: string | null): boolean {
@@ -324,8 +358,9 @@ export function classifyHealth(row: IntegrationHealthRow): 'ok' | 'degraded' | '
     // A 429 or spent quota means the provider is up and refusing for budget
     // reasons. It recovers on its own, so it is never "down" (BrickInsights 429s
     // and exhausted daily caps were showing as "unavailable").
-    if (isQuotaIssue(row.last_error)) return 'degraded';
+    if (isQuotaIssue(row.last_error) || isCreditExhaustionIssue(row.last_error)) return 'degraded';
     const recentSuccess = !!okAt && failAt - okAt < 24 * 60 * 60 * 1000;
+    if (isPerItemIssue(row.last_error) && recentSuccess) return 'ok';
     if (isModelOutputIssue(row.last_error)) return recentSuccess ? 'ok' : 'degraded';
     // Transient worker-capacity blips (timeouts, aborts, "too many subrequests")
     // are common for scrapers under load. If the provider ALSO succeeded within a
@@ -372,6 +407,27 @@ export async function recordIntegrationHealth(
     `).bind(service, ok, fail, err).run();
   } catch (e) {
     console.warn('[integration-health] record failed:', (e as Error).message);
+  }
+  // A rejected server key fails every call until a human replaces it. Pause the
+  // provider in LLM routing so scans and the advisor go straight to the next
+  // step instead of spending a timeout on it; the daily probe lifts the pause
+  // as soon as the key works again (and it lapses on its own after 24h).
+  if (fail > 0 && ok === 0 && AI_ROUTED_SERVICES.has(service) && isCredentialOrAccessIssue(err)) {
+    await setIntegrationBlock(env, service, 24);
+  }
+}
+
+const AI_ROUTED_SERVICES = new Set<IntegrationName>(['gemini', 'openai', 'openrouter', 'opencodex', 'merge']);
+
+/** AI providers currently paused by a credential failure (see above). */
+export async function blockedIntegrations(env: Env): Promise<Set<string>> {
+  try {
+    const { results } = await env.DB.prepare(
+      `SELECT service FROM integration_health WHERE blocked_until > datetime('now')`,
+    ).all<{ service: string }>();
+    return new Set((results ?? []).map((r) => r.service));
+  } catch {
+    return new Set();
   }
 }
 
@@ -493,7 +549,8 @@ export async function getIntegrationDiagnostics(env: Env): Promise<IntegrationDi
     const missing = missingSecrets(env, def.required_secrets);
     let status: IntegrationStatus = 'unconfigured';
     const observedAt = row ? Math.max(Date.parse(row.last_ok_at || '') || 0, Date.parse(row.last_fail_at || '') || 0) : 0;
-    const fresh = observedAt > 0 && Date.now() - observedAt <= 48 * 60 * 60 * 1000;
+    const staleAfterHours = def.on_demand ? ON_DEMAND_STALE_AFTER_HOURS : STALE_AFTER_HOURS;
+    const fresh = observedAt > 0 && Date.now() - observedAt <= staleAfterHours * 60 * 60 * 1000;
     if (configured) {
       // Configuration presence is not a connectivity check. Old observations
       // remain visible as history, but cannot certify current health.
@@ -513,6 +570,10 @@ export async function getIntegrationDiagnostics(env: Env): Promise<IntegrationDi
       // Check quota BEFORE the generic "down" advice: telling someone to refresh
       // credentials over a rate limit sends them to rotate a working key and
       // discard whatever balance is left on it.
+      : (configured && row && status !== 'ok' && isCreditExhaustionIssue(row.last_error))
+        ? 'Every key is out of paid credits. Top up the account (the daily health probe re-enables a topped-up key by itself) or turn this source off under Pricing sources. Other sources keep running meanwhile.'
+      : (configured && row && status !== 'ok' && isCredentialOrAccessIssue(row.last_error) && AI_ROUTED_SERVICES.has(service))
+        ? 'The provider rejected the server key. Replace the key (GitHub Actions secret, then redeploy) or remove this provider from LLM routing. Routing skips it until a probe or call succeeds.'
       : (configured && row && isQuotaIssue(row.last_error))
         ? 'Provider is refusing calls on quota or rate limit, not credentials — leave the keys alone. Wait for the window to reset, lower the daily cap, or add capacity.'
       : (configured && row && isProviderOutage(row.last_error))
@@ -544,6 +605,7 @@ export async function getIntegrationDiagnostics(env: Env): Promise<IntegrationDi
       ok_count: row?.ok_count ?? 0,
       fail_count: row?.fail_count ?? 0,
       updated_at: row?.updated_at ?? null,
+      stale_after_hours: staleAfterHours,
     });
   }
 
