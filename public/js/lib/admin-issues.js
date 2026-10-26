@@ -70,7 +70,8 @@ function isProviderSideFailure(row) {
 }
 
 function issueCopy(kind, label, row) {
-  if (kind === 'access' && row.configured !== false && row.status !== 'unconfigured') {
+  if (kind === 'access' && AI_SERVICES.has(String(row.service).toLowerCase())
+    && row.configured !== false && row.status !== 'unconfigured') {
     return { title: `${label} needs a new key`, detail: 'The provider rejected the server key. AI routing skips it until the key works again.' };
   }
   if (kind === 'access') return { title: `${label} needs access`, detail: 'Required configuration is not available.' };
