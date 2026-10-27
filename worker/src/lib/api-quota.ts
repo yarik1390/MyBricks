@@ -35,8 +35,8 @@ export const QUOTA_CAPS: Record<string, number> = {
   // the real meter (brightdata_keys); this bounds a runaway day on top of it.
   // 6 keys × 5k/mo ≈ 1,000/day sustainable, so 300 is conservative headroom.
   brightdata: 300,
-  // Decodo Web Scraping API requests (free plan ~$5/month): ~6k/month.
-  decodo: 200,
+  // Decodo Web Scraping API requests (free plan ~$5/month): ~9k/month.
+  decodo: 300,
   // ZenRows requests (free plan 5,000 credits/month, 1 per plain request).
   zenrows: 150,
   // Amazon Creators API searchItems calls (plus ~1 token mint/hour). The API is

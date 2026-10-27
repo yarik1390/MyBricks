@@ -273,7 +273,7 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
       || !!env.BRIGHTDATA_API_TOKENS?.split(',').some((token) => token.trim()),
     required_secrets: ['BRIGHTDATA_API_TOKENS'],
     used_by: ['Brickset page enrichment', 'lego.com stock/retirement checks', 'store offers', 'coming soon', 'promotions'],
-    notes: 'First lane for LEGO.com stock and Walmart/Target offers (its monthly allowance expires), fallback for Brickset, Coming soon and promotions when Firecrawl cannot serve a page. Every configured token is used: each call goes to the token with the least use this month; D1 stores hashes only and caps each token at 4,900 calls/month. The daily cap under Pricing sources is shared by the whole pool.',
+    notes: 'First lane for LEGO.com stock and Walmart/Target offers (its monthly allowance expires), fallback for Coming soon and promotions, last lane for Brickset (brickset.com answers its unlocker with HTTP 520). Every configured token is used: each call goes to the token with the least use this month; D1 stores hashes only and caps each token at 4,900 calls/month. The daily cap under Pricing sources is shared by the whole pool.',
     recommended_action: 'Configure BRIGHTDATA_API_TOKENS as comma-separated Worker secrets and optionally BRIGHTDATA_ZONE.',
   },
   decodo: {
@@ -281,7 +281,7 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     configured: (env) => !!env.DECODO_AUTH_TOKEN?.trim(),
     required_secrets: ['DECODO_AUTH_TOKEN'],
     used_by: ['lego.com stock/retirement checks', 'store offers', 'Brickset page enrichment', 'coming soon', 'promotions'],
-    notes: 'Raw-HTML lane after Bright Data (free plan, about $5 of requests a month). Reads Brickset pages where Bright Data gets HTTP 520. Same parsers as Bright Data. Daily cap under Pricing sources.',
+    notes: 'Second raw-HTML lane for LEGO.com stock and stores (after Bright Data) and the first paid lane for Brickset after a free direct read; Bright Data gets HTTP 520 there (free plan, about $5 of requests a month, 300/day). Same parsers as Bright Data. Daily cap under Pricing sources.',
     recommended_action: 'Add DECODO_AUTH_TOKEN as a GitHub secret, then run Deploy Brickvault with push_secrets. Check the plan at dashboard.decodo.com if calls fail with 401/402.',
   },
   zenrows: {

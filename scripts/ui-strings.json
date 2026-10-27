@@ -3276,6 +3276,12 @@
     ]
   },
   {
+    "text": "First for LEGO stock and stores (monthly pool expires), fallback for Coming soon and promotions, last for Brickset (it answers HTTP 520); rotating key pool.",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
     "text": "First seen",
     "files": [
       "runtime-exact"
@@ -5244,6 +5250,12 @@
     ]
   },
   {
+    "text": "Next after Decodo on the same pages (free plan, 5,000 credits a month, 150 a day).",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
     "text": "Next image",
     "files": [
       "components/lightbox.js"
@@ -6879,18 +6891,6 @@
     ]
   },
   {
-    "text": "Raw-HTML lane after Bright Data for LEGO stock, stores, Brickset, Coming soon and promotions (free plan, ~$5 a month).",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
-    "text": "Raw-HTML lane after Decodo, same pages (free plan, 5,000 credits a month).",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
     "text": "Reading your shelf...",
     "files": [
       "runtime-exact"
@@ -7979,6 +7979,12 @@
     "text": "Searching...",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Second for LEGO stock and stores (after Bright Data), first paid lane for Brickset after a free direct read (free plan, ~$5 a month, 300 a day).",
+    "files": [
+      "views/me-admin-config.js"
     ]
   },
   {

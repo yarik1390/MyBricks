@@ -29,16 +29,27 @@ describe('runBricksetEnrich', () => {
     await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota']);
   });
 
-  it('skips when Firecrawl is not configured', async () => {
+  it('reads Brickset directly and never asks Firecrawl when that works', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, year, brickset_enriched_at) VALUES ('10305-1','Lion Knights', 2022, NULL)`).run();
+    mockFetch.mockResolvedValue(new Response('<dl><dt>RRP</dt><dd>$399.99</dd></dl>', { status: 200 }));
     const r = await runBricksetEnrich({ ...env, FIRECRAWL_API_KEY: '', FIRECRAWL_API_KEYS: '' } as any);
-    expect(r.skipped).toMatch(/Bright Data and Firecrawl disabled or unconfigured/);
+    expect(r).toMatchObject({ processed: 1, updated: 1 });
     expect(mockScrape).not.toHaveBeenCalled();
   });
 
-  it('skips when the daily Firecrawl credit ceiling is reached', async () => {
+  it('skips only the Firecrawl lane once its daily credit ceiling is reached', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, year, brickset_enriched_at) VALUES ('10305-1','Lion Knights', 2022, NULL)`).run();
     await db.prepare(`INSERT INTO api_quota (service, day, used, cap) VALUES ('firecrawl', ?1, ?2, ?2)`).bind(today, QUOTA_CAPS.firecrawl).run();
     const r = await runBricksetEnrich(withKey);
-    expect(r.skipped).toMatch(/firecrawl daily ceiling/);
+    expect(r).toMatchObject({ processed: 1, updated: 0, failed: 1 });
+    expect(mockScrape).not.toHaveBeenCalled();
+  });
+
+  it('records a set Brickset has no page for as no data, without paid lanes', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, year, brickset_enriched_at) VALUES ('99998-1','Nope', 2020, NULL)`).run();
+    mockFetch.mockResolvedValue(new Response('not found', { status: 404 }));
+    const r = await runBricksetEnrich(withKey);
+    expect(r).toMatchObject({ processed: 1, no_data: 1 });
     expect(mockScrape).not.toHaveBeenCalled();
   });
 
@@ -81,7 +92,7 @@ describe('runBricksetEnrich', () => {
     expect(x.at).toBeNull();
   });
 
-  it('reads the Brickset page directly when the paid scrapers miss', async () => {
+  it('reads the Brickset page directly first', async () => {
     await db.prepare(`INSERT INTO lego_sets (set_num, name, year, brickset_enriched_at) VALUES ('10305-1','Lion Knights', 2022, NULL)`).run();
     mockScrape.mockResolvedValue(null as any);
     mockFetch.mockResolvedValue(new Response('<dl><dt>Theme group</dt><dd>Historical</dd><dt>RRP</dt><dd>$399.99, 349.99€</dd><dt>Rating</dt><dd>4.8 (120 ratings)</dd></dl>', { status: 200 }));
@@ -116,15 +127,12 @@ describe('runBricksetEnrich', () => {
     expect(await db.prepare(`SELECT set_num FROM set_market_ext ORDER BY set_num`).all()).toMatchObject({ results: [{ set_num: 'A-1' }, { set_num: 'B-1' }] });
   });
 
-  it('uses a cheap change-probe on refresh and skips the full extract when unchanged', async () => {
-    // Already-enriched but stale (>90d) → eligible, and takes the change-tracking path.
+  it('refreshes a stale set from the free direct page, not a Firecrawl probe', async () => {
     await db.prepare(`INSERT INTO lego_sets (set_num, name, year, brickset_enriched_at) VALUES ('21318-1','Tree', 2019, datetime('now','-100 days'))`).run();
-    mockScrape.mockResolvedValue({ data: { changeTracking: { changeStatus: 'same' } } } as any);
-
+    mockFetch.mockResolvedValue(new Response('<dl><dt>Rating</dt><dd>4.6 (300 ratings)</dd></dl>', { status: 200 }));
     const r = await runBricksetEnrich(withKey);
-    expect(r).toMatchObject({ processed: 1, updated: 0, unchanged: 1 });
-    expect(mockScrape).toHaveBeenCalledTimes(1); // only the probe, no json re-extract
-    const x = await row('21318-1');
-    expect(x.at).toBeTruthy(); // freshness refreshed
+    expect(r).toMatchObject({ processed: 1, updated: 1 });
+    expect(mockScrape).not.toHaveBeenCalled();
+    expect((await row('21318-1')).rating).toBe(4.6);
   });
 });

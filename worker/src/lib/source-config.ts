@@ -52,7 +52,7 @@ export const DEFAULT_SOURCE_CONFIG: Record<SourceName, SourceTuning> = {
   brightdata:    { enabled: true,  weight: 1.0,  dailyCap: 300,  refreshDays: 7 },
   // Decodo Web Scraping API: raw-HTML lane after Bright Data (free plan,
   // ~$5/month of requests), so the daily cap keeps a month inside it.
-  decodo:        { enabled: true,  weight: 1.0,  dailyCap: 200,  refreshDays: 7 },
+  decodo:        { enabled: true,  weight: 1.0,  dailyCap: 300,  refreshDays: 7 },
   // ZenRows: lane after Decodo; 5,000 credits/month free, 1 per plain request.
   zenrows:       { enabled: true,  weight: 1.0,  dailyCap: 150,  refreshDays: 7 },
   // Amazon Creators API retail offers (ephemeral KV only, never a valuation
