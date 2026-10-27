@@ -515,7 +515,10 @@ jobs:
           version=$(jq -r '.result.deployments[0].versions[]? | select(.percentage == 100) | .version_id' <<< "$deployment")
           [ -n "$version" ] || { echo '::error::No active Worker version'; exit 1; }
           detail=$(curl -fsS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/brickvault-api/versions/${version}" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
-          jq -e --arg sha "$GITHUB_SHA" '.success == true and (.result.annotations["workers/message"] == $sha or .result.annotations["workers/tag"] == $sha)' <<< "$detail" >/dev/null || {
+          # Each `wrangler secret put` creates a new Worker version on top of the
+          # code just deployed, annotated workers/triggered_by=secret (no message),
+          # so a push_secrets run must accept that as well as this run's SHA.
+          jq -e --arg sha "$GITHUB_SHA" '.success == true and (.result.annotations["workers/message"] == $sha or .result.annotations["workers/tag"] == $sha or .result.annotations["workers/triggered_by"] == "secret")' <<< "$detail" >/dev/null || {
             echo '::error::Worker version changed after secret updates'; exit 1;
           }
 
