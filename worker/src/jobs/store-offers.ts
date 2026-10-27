@@ -82,8 +82,10 @@ export async function checkSetStores(
     if (!(await spendQuota(env, 'stores', 1))) { stopped = true; return null; }
     const url = storeSearchUrl(store, setNum);
     let products: ExtractedProduct[] | null = null;
-    // Firecrawl first; Bright Data when Firecrawl can't serve the page.
-    if (useFirecrawl) {
+    // Bright Data first (its monthly allowance expires; Iaroslav, 2026-10-27);
+    // Firecrawl when Bright Data can't read the page.
+    if (useBrightData) products = await storeProductsViaBrightData(env, url, setNum, msrp);
+    if (products == null && useFirecrawl) {
       try {
         const res = await firecrawlScrape<{ products?: ExtractedProduct[] }>({
           url,
@@ -98,7 +100,6 @@ export async function checkSetStores(
         if (err instanceof FirecrawlRateLimitedError && !useBrightData) stopped = true;
       }
     }
-    if (products == null && useBrightData) products = await storeProductsViaBrightData(env, url, setNum, msrp);
     return { store, products };
   }));
   let processed = 0;

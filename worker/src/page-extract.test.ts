@@ -59,7 +59,7 @@ describe('Bright Data fallback', () => {
     await applyTestTables(db, ['lego_sets', 'set_market_ext', 'store_offers', 'user_wishlist', 'user_collection', 'api_quota', 'app_settings', 'brightdata_keys']);
   });
 
-  it('prices store offers through Bright Data when Firecrawl has no credits', async () => {
+  it('prices store offers through Bright Data first, Firecrawl when it misses', async () => {
     await db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired, retail_price)
       VALUES ('10001-1', 'Fresh', CAST(strftime('%Y','now') AS INTEGER), 0, 100)`).run();
     await db.prepare(`INSERT INTO user_wishlist (user_id, set_num) VALUES ('u1', '10001-1')`).run();
@@ -67,7 +67,8 @@ describe('Bright Data fallback', () => {
     unlock.mockImplementation(async (url: string) => (url.includes('walmart') ? walmartPage : null));
     const out = await runStoreOffers(both, { limit: 5 });
     expect(out).toMatchObject({ processed: 2, found: 1 });
-    expect(scrape).toHaveBeenCalledTimes(2); // Firecrawl is still asked first
+    expect(unlock).toHaveBeenCalledTimes(2); // Bright Data is asked first for both stores
+    expect(scrape).toHaveBeenCalledTimes(1); // Firecrawl only for the store Bright Data missed
     const rows = await db.prepare('SELECT store, price, in_stock, url FROM store_offers ORDER BY store').all();
     // Target's page couldn't be read: no row is written, so nothing reads as "not listed".
     expect(rows.results).toEqual([{ store: 'walmart', price: 84.5, in_stock: 1, url: 'https://www.walmart.com/ip/LEGO-Fresh/123' }]);
@@ -88,14 +89,14 @@ describe('Bright Data fallback', () => {
     expect(await fetchUpcomingSets(both)).toEqual([{ set_num: '10399-1', name: 'Future Castle', price_usd: 199.99, availability: 'Coming Soon' }]);
   });
 
-  it('checks LEGO.com stock with Firecrawl first, then Bright Data', async () => {
-    scrape.mockResolvedValue({ data: { in_stock: true, availability: 'in_stock', retail_price_usd: 99.99 } } as any);
-    expect(await checkLegoStock('10001-1', both)).toMatchObject({ in_stock: true, retail_price_usd: 99.99 });
-    expect(unlock).not.toHaveBeenCalled();
-
-    scrape.mockResolvedValue(null);
+  it('checks LEGO.com stock with Bright Data first, then Firecrawl', async () => {
     unlock.mockResolvedValue(`<script type="application/ld+json">${JSON.stringify({ '@type': 'Product', sku: '10001', url: 'https://www.lego.com/en-us/product/fresh-10001', offers: { price: '89.99', priceCurrency: 'USD', availability: 'https://schema.org/OutOfStock' } })}</script>`);
     expect(await checkLegoStock('10001-1', both)).toMatchObject({ in_stock: false, retail_price_usd: 89.99 });
-    expect(unlock).toHaveBeenCalledTimes(1);
+    expect(scrape).not.toHaveBeenCalled();
+
+    unlock.mockResolvedValue(null);
+    scrape.mockResolvedValue({ data: { in_stock: true, availability: 'in_stock', retail_price_usd: 99.99 } } as any);
+    expect(await checkLegoStock('10001-1', both)).toMatchObject({ in_stock: true, retail_price_usd: 99.99 });
+    expect(scrape).toHaveBeenCalledTimes(1);
   });
 });

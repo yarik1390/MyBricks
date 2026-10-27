@@ -133,14 +133,11 @@ export function notRetiringIfUnreleased(stock: LegoStockResult | null): LegoStoc
 }
 
 async function checkLegoStockRaw(setNum: string, env?: Env): Promise<LegoStockResult | null> {
-  // Firecrawl first, Bright Data when Firecrawl can't serve the page, then the
-  // free plain fetch (Iaroslav's order, 2026-10-27). Each lane honors the admin
+  // Bright Data first for LEGO.com (its monthly allowance expires, Firecrawl
+  // credits don't; Iaroslav, 2026-10-27), Firecrawl when Bright Data can't serve
+  // the page, then the free plain fetch. Each lane honors the admin
   // source-tuning kill switches.
   const num = setNum.replace(/-\d+$/, '');
-  if (env && (await sourceEnabled(env, 'firecrawl')) && firecrawlEnabled(env)) {
-    const viaFirecrawl = await checkLegoStockViaFirecrawl(setNum, env);
-    if (viaFirecrawl) return viaFirecrawl;
-  }
   if (env && (await sourceEnabled(env, 'brightdata'))) {
     const html = await brightDataUnlock(`https://www.lego.com/en-us/product/${num}`, env, { timeoutMs: 25_000 });
     if (html) {
@@ -149,6 +146,10 @@ async function checkLegoStockRaw(setNum: string, env?: Env): Promise<LegoStockRe
       const parsed = parseLegoStockHtml(html, num);
       if (parsed) return parsed;
     }
+  }
+  if (env && (await sourceEnabled(env, 'firecrawl')) && firecrawlEnabled(env)) {
+    const viaFirecrawl = await checkLegoStockViaFirecrawl(setNum, env);
+    if (viaFirecrawl) return viaFirecrawl;
   }
   // LEGO.com is Cloudflare-protected so this may also miss, but it costs
   // nothing and occasionally succeeds.

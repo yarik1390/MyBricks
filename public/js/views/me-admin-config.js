@@ -158,7 +158,7 @@ export const SOURCE_META = {
   pricecharting: ['PriceCharting', 'eBay closed-auction sold comps (Marketplace Insights replacement). Verified mappings only — unique UPC or cross-source price agreement; the rest stay quarantined.'],
   amazon: ['Amazon Creators API', 'Live Amazon offers for the buy slot. KV-only (24h) per Associates terms; never a valuation input — weight stays 0.'],
   firecrawl: ['Firecrawl', 'Scraping runtime for structured market enrichment.'],
-  brightdata: ['Bright Data Web Unlocker', 'Raw-HTML fallback when Firecrawl can\'t serve a page (LEGO stock, Brickset, stores, Coming soon, promotions); rotating key pool.'],
+  brightdata: ['Bright Data Web Unlocker', 'First for LEGO stock and stores, fallback when Firecrawl can\'t serve Brickset, Coming soon or promotions; rotating key pool.'],
 };
 
 export const PROVIDER_GROUPS = [

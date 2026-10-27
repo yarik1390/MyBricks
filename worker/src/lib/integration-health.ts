@@ -271,7 +271,7 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
       || !!env.BRIGHTDATA_API_TOKENS?.split(',').some((token) => token.trim()),
     required_secrets: ['BRIGHTDATA_API_TOKENS'],
     used_by: ['Brickset page enrichment', 'lego.com stock/retirement checks', 'store offers', 'coming soon', 'promotions'],
-    notes: 'Fallback raw-HTML lane when Firecrawl cannot serve a page, with deterministic parsers. Every configured token is used: each call goes to the token with the least use this month; D1 stores hashes only and caps each token at 4,900 calls/month. The daily cap under Pricing sources is shared by the whole pool.',
+    notes: 'First lane for LEGO.com stock and Walmart/Target offers (its monthly allowance expires), fallback for Brickset, Coming soon and promotions when Firecrawl cannot serve a page. Every configured token is used: each call goes to the token with the least use this month; D1 stores hashes only and caps each token at 4,900 calls/month. The daily cap under Pricing sources is shared by the whole pool.',
     recommended_action: 'Configure BRIGHTDATA_API_TOKENS as comma-separated Worker secrets and optionally BRIGHTDATA_ZONE.',
   },
   pricecharting: {
