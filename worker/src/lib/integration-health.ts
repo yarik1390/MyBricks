@@ -23,6 +23,8 @@ export type IntegrationName =
   | 'brickinsights'
   | 'firecrawl'
   | 'brightdata'
+  | 'decodo'
+  | 'zenrows'
   | 'pricecharting'
   | 'amazon';
 
@@ -273,6 +275,22 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     used_by: ['Brickset page enrichment', 'lego.com stock/retirement checks', 'store offers', 'coming soon', 'promotions'],
     notes: 'First lane for LEGO.com stock and Walmart/Target offers (its monthly allowance expires), fallback for Brickset, Coming soon and promotions when Firecrawl cannot serve a page. Every configured token is used: each call goes to the token with the least use this month; D1 stores hashes only and caps each token at 4,900 calls/month. The daily cap under Pricing sources is shared by the whole pool.',
     recommended_action: 'Configure BRIGHTDATA_API_TOKENS as comma-separated Worker secrets and optionally BRIGHTDATA_ZONE.',
+  },
+  decodo: {
+    label: 'Decodo Web Scraping API',
+    configured: (env) => !!env.DECODO_AUTH_TOKEN?.trim(),
+    required_secrets: ['DECODO_AUTH_TOKEN'],
+    used_by: ['lego.com stock/retirement checks', 'store offers', 'Brickset page enrichment', 'coming soon', 'promotions'],
+    notes: 'Raw-HTML lane after Bright Data (free plan, about $5 of requests a month). Reads Brickset pages where Bright Data gets HTTP 520. Same parsers as Bright Data. Daily cap under Pricing sources.',
+    recommended_action: 'Add DECODO_AUTH_TOKEN as a GitHub secret, then run Deploy Brickvault with push_secrets. Check the plan at dashboard.decodo.com if calls fail with 401/402.',
+  },
+  zenrows: {
+    label: 'ZenRows Universal Scraper',
+    configured: (env) => !!env.ZENROWS_API_KEY?.trim(),
+    required_secrets: ['ZENROWS_API_KEY'],
+    used_by: ['lego.com stock/retirement checks', 'store offers', 'Brickset page enrichment', 'coming soon', 'promotions'],
+    notes: 'Raw-HTML lane after Decodo (free plan, 5,000 credits a month, 1 per plain request). Same parsers as Bright Data. Daily cap under Pricing sources.',
+    recommended_action: 'Add ZENROWS_API_KEY as a GitHub secret, then run Deploy Brickvault with push_secrets. Check credits at app.zenrows.com if calls fail with 401/402.',
   },
   pricecharting: {
     label: 'PriceCharting',

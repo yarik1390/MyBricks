@@ -2,7 +2,7 @@ import type { Env } from '../types';
 import { firecrawlScrape } from './firecrawl';
 import { firecrawlEnabled } from './pricing-flags';
 import { sourceEnabled } from './source-config';
-import { brightDataAvailable, fetchPageViaBrightData, harvestProducts, llmExtractJson, pageText } from './page-extract';
+import { rawPageAvailable, fetchRawPage, harvestProducts, llmExtractJson, pageText } from './page-extract';
 
 // Upcoming / coming-soon LEGO sets via Firecrawl structured extraction of the
 // public LEGO.com coming-soon listing (G2b), or Bright Data when Firecrawl
@@ -41,7 +41,7 @@ type RawUpcoming = { name?: string; product_number?: string; price_usd?: number 
 
 export async function upcomingScrapersAvailable(env: Env): Promise<boolean> {
   if (firecrawlEnabled(env) && (await sourceEnabled(env, 'firecrawl'))) return true;
-  return brightDataAvailable(env);
+  return rawPageAvailable(env);
 }
 
 async function viaFirecrawl(env: Env): Promise<RawUpcoming[] | null> {
@@ -67,7 +67,7 @@ function legoProductNumber(code: string | null, url: string | null): string | nu
 }
 
 async function viaBrightData(env: Env): Promise<RawUpcoming[] | null> {
-  const html = await fetchPageViaBrightData(env, UPCOMING_URL, 35_000);
+  const html = await fetchRawPage(env, UPCOMING_URL, 35_000);
   if (!html) return null;
   const harvested: RawUpcoming[] = [];
   for (const p of harvestProducts(html, UPCOMING_URL)) {

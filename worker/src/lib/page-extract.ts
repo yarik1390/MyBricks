@@ -1,5 +1,6 @@
 import type { Env } from '../types';
 import { brightDataUnlock } from './brightdata';
+import { backupScrape, backupScrapersAvailable } from './backup-scrapers';
 import { brightDataEnabled } from './brightdata-keys';
 import { sourceEnabled } from './source-config';
 import { resolveRoute } from './llm-routing';
@@ -26,14 +27,19 @@ export interface HarvestedProduct {
   code: string | null;
 }
 
-export async function brightDataAvailable(env: Env): Promise<boolean> {
+async function brightDataOn(env: Env): Promise<boolean> {
   return brightDataEnabled(env) && (await sourceEnabled(env, 'brightdata'));
 }
 
-/** Raw page HTML through Bright Data, or null. */
-export async function fetchPageViaBrightData(env: Env, url: string, timeoutMs = 30_000): Promise<string | null> {
-  if (!(await brightDataAvailable(env))) return null;
-  return brightDataUnlock(url, env, { timeoutMs });
+/** True when a raw-HTML lane (Bright Data, Decodo or ZenRows) can fetch pages. */
+export async function rawPageAvailable(env: Env): Promise<boolean> {
+  return (await brightDataOn(env)) || (await backupScrapersAvailable(env));
+}
+
+/** Raw page HTML through Bright Data, then Decodo, then ZenRows, or null. */
+export async function fetchRawPage(env: Env, url: string, timeoutMs = 30_000): Promise<string | null> {
+  const html = (await brightDataOn(env)) ? await brightDataUnlock(url, env, { timeoutMs }) : null;
+  return html ?? backupScrape(url, env, { timeoutMs });
 }
 
 const decode = (value: string): string => value

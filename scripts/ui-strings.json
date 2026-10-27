@@ -2308,6 +2308,12 @@
     ]
   },
   {
+    "text": "Decodo Web Scraping API",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
     "text": "Degraded",
     "files": [
       "lib/pure.js",
@@ -6873,6 +6879,18 @@
     ]
   },
   {
+    "text": "Raw-HTML lane after Bright Data for LEGO stock, stores, Brickset, Coming soon and promotions (free plan, ~$5 a month).",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
+    "text": "Raw-HTML lane after Decodo, same pages (free plan, 5,000 credits a month).",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
     "text": "Reading your shelf...",
     "files": [
       "runtime-exact"
@@ -10395,6 +10413,12 @@
     "text": "You’re all set",
     "files": [
       "components/onboarding.js"
+    ]
+  },
+  {
+    "text": "ZenRows Universal Scraper",
+    "files": [
+      "views/me-admin-config.js"
     ]
   },
   {

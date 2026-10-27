@@ -55,6 +55,10 @@ export interface Env {
   // Bright Data Web Unlocker token pool. Tokens are Worker secrets; only hashes
   // and monthly call counts are persisted in D1. One unlock request = one credit.
   BRIGHTDATA_API_TOKEN?: string;
+  // Decodo Web Scraping API key (lib/decodo.ts), third raw-HTML lane.
+  DECODO_AUTH_TOKEN?: string;
+  // ZenRows Universal Scraper API key (lib/zenrows.ts), lane after Decodo.
+  ZENROWS_API_KEY?: string;
   BRIGHTDATA_API_TOKENS?: string;
   BRIGHTDATA_ZONE?: string;
   /** Optional lower test/operator cap; production is always clamped to <=4900. */

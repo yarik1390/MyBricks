@@ -7,6 +7,7 @@ import { brightDataUnlock } from '../lib/brightdata';
 import { brightDataEnabled } from '../lib/brightdata-keys';
 import { parseBricksetHtml, type BricksetScrape } from '../lib/brightdata-parsers';
 import { fetchWithRetry } from '../lib/http';
+import { backupScrape, backupScrapersAvailable } from '../lib/backup-scrapers';
 
 const BRICKSET_SCHEMA = {
   type: 'object',
@@ -62,8 +63,9 @@ const plausibleDate = (v: unknown): string | null => {
  */
 export async function runBricksetEnrich(env: Env, options: { limit?: number } = {}) {
   const hasBrightData = (await sourceEnabled(env, 'brightdata')) && brightDataEnabled(env);
+  const hasBackup = await backupScrapersAvailable(env);
   const hasFirecrawl = (await sourceEnabled(env, 'firecrawl')) && firecrawlEnabled(env);
-  if (!hasBrightData && !hasFirecrawl) {
+  if (!hasBrightData && !hasFirecrawl && !hasBackup) {
     return { processed: 0, updated: 0, limit: 0, skipped: 'Bright Data and Firecrawl disabled or unconfigured' };
   }
 
@@ -75,8 +77,8 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
   // Size to remaining daily credits WITHOUT reserving — the per-scrape guard in
   // firecrawlScrape is the sole real-credit meter (worst-case 5cr/json divisor).
   const remaining = await quotaRemaining(env, 'firecrawl');
-  if (!hasBrightData && remaining < 5) return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
-  const effLimit = hasBrightData ? limit : Math.min(limit, Math.floor(remaining / 5));
+  if (!hasBrightData && !hasBackup && remaining < 5) return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
+  const effLimit = hasBrightData || hasBackup ? limit : Math.min(limit, Math.floor(remaining / 5));
 
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num, ls.year, ls.brickset_enriched_at
@@ -185,6 +187,12 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
     // works when both paid lanes miss (free; same parser).
     if (!result && !data) {
       data = await fetchBricksetDirect(url);
+      if (data) rateLimited = false;
+    }
+    // Decodo, then ZenRows, last: they read Brickset where Bright Data gets HTTP 520.
+    if (!result && !data && hasBackup) {
+      const html = await backupScrape(url, env, { timeoutMs: 20_000 });
+      if (html) data = parseBricksetHtml(html);
       if (data) rateLimited = false;
     }
 

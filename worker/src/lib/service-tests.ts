@@ -338,6 +338,28 @@ const PROBES: Record<string, Probe> = {
   },
 };
 
+// Decodo: one real scrape of a Brickset page (the site Bright Data can't read).
+PROBES.decodo = async (env) => {
+  const { decodoConfigured, decodoScrape } = await import('./decodo');
+  if (!decodoConfigured(env)) return configured('DECODO_AUTH_TOKEN not set');
+  const html = await decodoScrape('https://brickset.com/sets/10305-1', env, { timeoutMs: 25_000 });
+  if (html && /<dt\b/i.test(html)) return ok('scrape OK (Brickset page read)');
+  const { getIntegrationHealth } = await import('./integration-health');
+  const last = (await getIntegrationHealth(env)).find((r) => r.service === 'decodo')?.last_error ?? 'no page';
+  return err(`scrape failed: ${String(last).slice(0, 200)}`);
+};
+
+// ZenRows: one real scrape of a Brickset page.
+PROBES.zenrows = async (env) => {
+  const { zenrowsConfigured, zenrowsScrape } = await import('./zenrows');
+  if (!zenrowsConfigured(env)) return configured('ZENROWS_API_KEY not set');
+  const html = await zenrowsScrape('https://brickset.com/sets/10305-1', env, { timeoutMs: 25_000 });
+  if (html && /<dt\b/i.test(html)) return ok('scrape OK (Brickset page read)');
+  const { getIntegrationHealth } = await import('./integration-health');
+  const last = (await getIntegrationHealth(env)).find((r) => r.service === 'zenrows')?.last_error ?? 'no page';
+  return err(`scrape failed: ${String(last).slice(0, 200)}`);
+};
+
 export const TESTABLE_SERVICES = Object.keys(PROBES);
 
 /** Run a single service's probe. Unknown service -> null. Always resolves. */

@@ -8,7 +8,7 @@ const SERVICE_FLAGS = {
 
 const PRICING_SERVICES = new Set([
   'bricklink', 'brickeconomy', 'ebay', 'pricecharting',
-  'brickinsights', 'amazon', 'firecrawl', 'brightdata',
+  'brickinsights', 'amazon', 'firecrawl', 'brightdata', 'decodo', 'zenrows',
 ]);
 const CATALOG_SERVICES = new Set(['rebrickable', 'brickset', 'upc']);
 const AI_SERVICES = new Set(['gemini', 'openai', 'openrouter', 'opencodex', 'merge']);
