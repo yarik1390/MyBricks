@@ -53,32 +53,28 @@ const plausibleDate = (v: unknown): string | null => {
 
 /**
  * Backfill Brickset enrichment data for sets whose brickset_enriched_at is
- * NULL or stale (>90 days). Scrapes brickset.com/sets/{setNum} pages via
- * Firecrawl structured extraction (Bright Data + parser when Firecrawl fails),
- * populating the 19 brickset_* columns
- * without burning the Brickset API quota.
+ * NULL or stale (>90 days). Reads brickset.com/sets/{setNum} pages through
+ * the cheapest lane that works (direct, Decodo, ZenRows, Firecrawl, Bright
+ * Data; see the loop), populating the 19 brickset_* columns without burning
+ * the Brickset API quota.
  *
  * Prioritises: un-enriched sets first, then modern sets (year DESC), then
  * owned/wishlisted sets ahead of the general catalog.
  */
-export async function runBricksetEnrich(env: Env, options: { limit?: number } = {}) {
+export const BRICKSET_TIME_BUDGET_MS = 8 * 60_000;
+
+export async function runBricksetEnrich(env: Env, options: { limit?: number; budgetMs?: number } = {}) {
+  const deadline = Date.now() + (options.budgetMs ?? BRICKSET_TIME_BUDGET_MS);
   const hasBrightData = (await sourceEnabled(env, 'brightdata')) && brightDataEnabled(env);
   const hasBackup = await backupScrapersAvailable(env);
-  const hasFirecrawl = (await sourceEnabled(env, 'firecrawl')) && firecrawlEnabled(env);
-  if (!hasBrightData && !hasFirecrawl && !hasBackup) {
-    return { processed: 0, updated: 0, limit: 0, skipped: 'Bright Data and Firecrawl disabled or unconfigured' };
-  }
+  // The Firecrawl lane is skipped (not the job) once the day's credits are spent.
+  const hasFirecrawl = (await sourceEnabled(env, 'firecrawl')) && firecrawlEnabled(env)
+    && (await quotaRemaining(env, 'firecrawl')) >= 5;
 
   const requestedLimit = Number(options.limit);
-  const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
-    ? Math.min(Math.floor(requestedLimit), 100)
+  const effLimit = Number.isFinite(requestedLimit) && requestedLimit > 0
+    ? Math.min(Math.floor(requestedLimit), 200)
     : 50;
-
-  // Size to remaining daily credits WITHOUT reserving — the per-scrape guard in
-  // firecrawlScrape is the sole real-credit meter (worst-case 5cr/json divisor).
-  const remaining = await quotaRemaining(env, 'firecrawl');
-  if (!hasBrightData && !hasBackup && remaining < 5) return { processed: 0, updated: 0, limit: 0, skipped: 'firecrawl daily ceiling reached' };
-  const effLimit = hasBrightData || hasBackup ? limit : Math.min(limit, Math.floor(remaining / 5));
 
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num, ls.year, ls.brickset_enriched_at
@@ -103,7 +99,6 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
 
   let processed = 0;
   let updated = 0;
-  let unchanged = 0;
   let failed = 0;
   let no_data = 0;
   let deferred = 0;
@@ -114,87 +109,49 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
      brickset_attempted_at=excluded.brickset_attempted_at, brickset_attempt_status=excluded.brickset_attempt_status`,
   ).bind(setNum, status));
 
-  for (const { set_num, brickset_enriched_at } of results) {
+  for (const { set_num } of results) {
     processed++;
     const url = `https://brickset.com/sets/${set_num}`;
 
-    // Refresh of an already-enriched set: a cheap (1-credit) change-tracking
-    // probe first. Brickset metadata is static, so most refreshes are unchanged
-    // → skip the 5-credit json re-extract and just refresh freshness. New sets
-    // extract directly; changed/new/removed/probe-failure all fall through to a
-    // full extract. (Only applied here — LEGO stock and eBay listings change
-    // between scrapes, so a probe there would just add cost.)
-    if (hasFirecrawl && brickset_enriched_at) {
-      const probe = await firecrawlScrape<{ changeTracking?: { changeStatus?: string } }>(
-        { url, formats: ['markdown', 'changeTracking'], timeoutMs: 20_000 },
-        env,
-      );
-      if (probe?.data?.changeTracking?.changeStatus === 'same') {
-        attempt(set_num, 'ok');
-        stmts.push(env.DB.prepare(
-          `UPDATE lego_sets SET brickset_enriched_at=datetime('now') WHERE set_num=?`,
-        ).bind(set_num));
-        unchanged++;
-        continue;
-      }
-    }
-
-    // Firecrawl first, Bright Data when Firecrawl can't serve the page (out of
-    // credits, busy, blocked) — Iaroslav's order, 2026-10-27.
+    // Lane order (2026-10-27, by cost): a direct fetch (free) → Decodo →
+    // ZenRows (free plans, monthly) → Firecrawl json extract (5 credits from a
+    // balance that does not renew) → Bright Data last (brickset.com answers its
+    // unlocker with HTTP 520). The raw-HTML lanes share one parser.
     let data: BricksetScrape | null = null;
     let rateLimited = false;
-    const result = !hasFirecrawl ? null : await firecrawlScrape<{
-      msrp_usd?: number | null;
-      launch_date?: string | null;
-      exit_date?: string | null;
-      theme_group?: string | null;
-      category?: string | null;
-      subtheme?: string | null;
-      age_min?: number | null;
-      age_max?: number | null;
-      packaging_type?: string | null;
-      instructions_count?: number | null;
-      additional_image_count?: number | null;
-      description?: string | null;
-      tags?: string[] | null;
-      rating?: number | null;
-      review_count?: number | null;
-      brickset_set_id?: number | null;
-      dimensions?: string | null;
-    }>(
-      {
-        url,
-        formats: ['json'],
-        jsonOptions: {
-          schema: BRICKSET_SCHEMA,
-          prompt: `Extract LEGO set details from this Brickset page for set ${set_num}. Extract all available fields: price, dates, theme/subtheme, age range, dimensions, packaging, description, ratings, and tags.`,
-        },
-        timeoutMs: 20_000,
-        throwOnRateLimit: true,
-      },
-      env,
-    ).catch((e) => {
-      if (e instanceof FirecrawlRateLimitedError) { rateLimited = true; return null; }
-      throw e;
-    });
+    let result: { data: BricksetScrape } | null = null;
+    if (Date.now() > deadline) { deferred++; continue; }
 
-    if (!result && hasBrightData) {
-      const html = await brightDataUnlock(url, env, { timeoutMs: 20_000 });
-      if (html) data = parseBricksetHtml(html);
-      if (data) rateLimited = false;
-    }
-    // Brickset pages are plain server-rendered HTML, so a direct fetch often
-    // works when both paid lanes miss (free; same parser).
-    if (!result && !data) {
-      data = await fetchBricksetDirect(url);
-      if (data) rateLimited = false;
-    }
-    // Decodo, then ZenRows, last: they read Brickset where Bright Data gets HTTP 520.
-    if (!result && !data && hasBackup) {
+    const direct = await fetchBricksetDirect(url);
+    if (direct === 'missing') { no_data++; attempt(set_num, 'no_data'); continue; }
+    data = direct;
+    if (!data && hasBackup) {
       const html = await backupScrape(url, env, { timeoutMs: 20_000 });
       if (html) data = parseBricksetHtml(html);
-      if (data) rateLimited = false;
     }
+    if (!data && hasFirecrawl) {
+      result = await firecrawlScrape<BricksetScrape>(
+        {
+          url,
+          formats: ['json'],
+          jsonOptions: {
+            schema: BRICKSET_SCHEMA,
+            prompt: `Extract LEGO set details from this Brickset page for set ${set_num}. Extract all available fields: price, dates, theme/subtheme, age range, dimensions, packaging, description, ratings, and tags.`,
+          },
+          timeoutMs: 20_000,
+          throwOnRateLimit: true,
+        },
+        env,
+      ).catch((e) => {
+        if (e instanceof FirecrawlRateLimitedError) { rateLimited = true; return null; }
+        throw e;
+      });
+    }
+    if (!data && !result && hasBrightData) {
+      const html = await brightDataUnlock(url, env, { timeoutMs: 20_000 });
+      if (html) data = parseBricksetHtml(html);
+    }
+    if (data) rateLimited = false;
 
     if (!data && rateLimited) {
       // Firecrawl was only busy. Leave the attempt clock untouched so the set
@@ -268,10 +225,10 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
   // No aggregate health write — firecrawlScrape records each scrape attempt
   // (real ok/fail + error message) inside the wrapper; a batch tally here would
   // double-count and clobber the real error with "unknown error".
-  return { processed, updated, unchanged, failed, no_data, deferred, limit: effLimit };
+  return { processed, updated, failed, no_data, deferred, limit: effLimit };
 }
 
-async function fetchBricksetDirect(url: string): Promise<BricksetScrape | null> {
+async function fetchBricksetDirect(url: string): Promise<BricksetScrape | 'missing' | null> {
   try {
     const resp = await fetchWithRetry(url, {
       headers: {
@@ -280,6 +237,9 @@ async function fetchBricksetDirect(url: string): Promise<BricksetScrape | null> 
       },
       redirect: 'follow',
     }, { retries: 0, timeoutMs: 10_000 });
+    // Brickset has no page for this set number: verified no-data, so the paid
+    // lanes are not asked for it.
+    if (resp.status === 404) return 'missing';
     if (!resp.ok) return null;
     return parseBricksetHtml(await resp.text());
   } catch {

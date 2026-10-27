@@ -469,13 +469,12 @@ export default {
       case '0 5 * * *': await run('valuate-minifigs', () => runValuateMinifigs(env, { limit: 200 })); break;
       case '0 6 * * *': await run('brickinsights-ratings', () => runBrickInsightsBackfill(env, { limit: 80 })); break;
       case '30 5 * * *': await run('build-alts-index', () => indexMissingAlts(env, { limit: 120 })); break;
-      // Phase-2 lean cadence (ongoing Firecrawl ~25k/mo budget): brickset is
-      // mostly-static metadata (trimmed 50->30); LEGO stock is scoped to active
-      // owned/wishlisted on a 14-day cycle inside the job (trimmed 100->40, it
-      // self-tapers). Ongoing value freshness rides on the free APIs
-      // (BrickLink/eBay), not Firecrawl.
+      // Scraping budget (2026-10-27): Brickset reads go direct first (free),
+      // then Decodo/ZenRows (free monthly plans), Firecrawl last, so the ~5,000
+      // never-enriched sets are worked through at 2 x 80 a day (09:00, 16:00).
+      // LEGO stock and stores spend Bright Data's expiring monthly pool first.
       case '0 9 * * *':
-        await run('brickset-enrich', () => runBricksetEnrich(env, { limit: 30 }));
+        await run('brickset-enrich', () => runBricksetEnrich(env, { limit: 80 }));
         // Free key/reachability probes so Admin > Overview has same-day evidence
         // for on-demand services and a replaced key clears itself.
         await run('health-probes', () => runHealthProbes(env));
@@ -513,7 +512,10 @@ export default {
         await run('upcoming-refresh', () => runUpcomingRefresh(env));
         await run('promotions-refresh', () => runPromotionsRefresh(env));
         break;
-      case '0 16 * * *': await run('minifig-verify', () => runMinifigVerify(env)); break;
+      case '0 16 * * *':
+        await run('minifig-verify', () => runMinifigVerify(env));
+        await run('brickset-enrich', () => runBricksetEnrich(env, { limit: 80 }));
+        break;
       // Amazon Creators API offer refresh — KV-only (24h TTL, Associates terms),
       // owned/wishlisted + catalog head. No-ops until AMAZON_CREATORS_ENABLED=1
       // with eligible credentials (>= 10 qualifying sales / 30 days).

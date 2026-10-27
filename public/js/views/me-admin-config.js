@@ -158,9 +158,9 @@ export const SOURCE_META = {
   pricecharting: ['PriceCharting', 'eBay closed-auction sold comps (Marketplace Insights replacement). Verified mappings only — unique UPC or cross-source price agreement; the rest stay quarantined.'],
   amazon: ['Amazon Creators API', 'Live Amazon offers for the buy slot. KV-only (24h) per Associates terms; never a valuation input — weight stays 0.'],
   firecrawl: ['Firecrawl', 'Scraping runtime for structured market enrichment.'],
-  brightdata: ['Bright Data Web Unlocker', 'First for LEGO stock and stores, fallback when Firecrawl can\'t serve Brickset, Coming soon or promotions; rotating key pool.'],
-  decodo: ['Decodo Web Scraping API', 'Raw-HTML lane after Bright Data for LEGO stock, stores, Brickset, Coming soon and promotions (free plan, ~$5 a month).'],
-  zenrows: ['ZenRows Universal Scraper', 'Raw-HTML lane after Decodo, same pages (free plan, 5,000 credits a month).'],
+  brightdata: ['Bright Data Web Unlocker', 'First for LEGO stock and stores (monthly pool expires), fallback for Coming soon and promotions, last for Brickset (it answers HTTP 520); rotating key pool.'],
+  decodo: ['Decodo Web Scraping API', 'Second for LEGO stock and stores (after Bright Data), first paid lane for Brickset after a free direct read (free plan, ~$5 a month, 300 a day).'],
+  zenrows: ['ZenRows Universal Scraper', 'Next after Decodo on the same pages (free plan, 5,000 credits a month, 150 a day).'],
 };
 
 export const PROVIDER_GROUPS = [
