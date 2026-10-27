@@ -433,6 +433,8 @@ jobs:
           BRIGHTDATA_API_TOKEN: ${{ secrets.BRIGHTDATA_API_TOKEN }}
           BRIGHTDATA_API_TOKENS: ${{ secrets.BRIGHTDATA_API_TOKENS }}
           BRIGHTDATA_ZONE: ${{ secrets.BRIGHTDATA_ZONE }}
+          DECODO_AUTH_TOKEN: ${{ secrets.DECODO_AUTH_TOKEN }}
+          ZENROWS_API_KEY: ${{ secrets.ZENROWS_API_KEY }}
           PATREON_URL: ${{ secrets.PATREON_URL }}
           REVENUECAT_WEBHOOK_AUTH: ${{ secrets.REVENUECAT_WEBHOOK_AUTH }}
         run: |
@@ -496,6 +498,10 @@ jobs:
           put_optional BRIGHTDATA_API_TOKENS "${BRIGHTDATA_API_TOKENS}"
           # Web Unlocker zone name. Code defaults to web_unlocker1.
           put_optional BRIGHTDATA_ZONE "${BRIGHTDATA_ZONE}"
+          # Decodo Web Scraping API key: raw-HTML lane after Bright Data.
+          put_optional DECODO_AUTH_TOKEN "${DECODO_AUTH_TOKEN}"
+          # ZenRows Universal Scraper key: raw-HTML lane after Decodo.
+          put_optional ZENROWS_API_KEY "${ZENROWS_API_KEY}"
           # Patreon creator URL — drives the public Support card on the Me tab.
           put_optional PATREON_URL "${PATREON_URL}"
           # RevenueCat webhook shared secret — verifies POST /api/revenuecat/webhook,

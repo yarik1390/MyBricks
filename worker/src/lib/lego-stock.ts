@@ -4,6 +4,7 @@ import { firecrawlScrape } from './firecrawl';
 import { firecrawlEnabled } from './pricing-flags';
 import { sourceEnabled } from './source-config';
 import { brightDataUnlock } from './brightdata';
+import { backupScrape } from './backup-scrapers';
 import { parseLegoStockHtml } from './brightdata-parsers';
 
 export interface LegoStockResult {
@@ -138,14 +139,19 @@ async function checkLegoStockRaw(setNum: string, env?: Env): Promise<LegoStockRe
   // the page, then the free plain fetch. Each lane honors the admin
   // source-tuning kill switches.
   const num = setNum.replace(/-\d+$/, '');
+  // Bright Data, then Decodo/ZenRows (all raw HTML, same parser).
+  const productUrl = `https://www.lego.com/en-us/product/${num}`;
   if (env && (await sourceEnabled(env, 'brightdata'))) {
-    const html = await brightDataUnlock(`https://www.lego.com/en-us/product/${num}`, env, { timeoutMs: 25_000 });
-    if (html) {
-      // Pass the numeric set id so the parser scopes JSON-LD/state to THIS
-      // product — recommendation blocks for other sets must never be persisted.
-      const parsed = parseLegoStockHtml(html, num);
-      if (parsed) return parsed;
-    }
+    const html = await brightDataUnlock(productUrl, env, { timeoutMs: 25_000 });
+    // Pass the numeric set id so the parser scopes JSON-LD/state to THIS
+    // product — recommendation blocks for other sets must never be persisted.
+    const parsed = html ? parseLegoStockHtml(html, num) : null;
+    if (parsed) return parsed;
+  }
+  if (env) {
+    const html = await backupScrape(productUrl, env, { timeoutMs: 25_000 });
+    const parsed = html ? parseLegoStockHtml(html, num) : null;
+    if (parsed) return parsed;
   }
   if (env && (await sourceEnabled(env, 'firecrawl')) && firecrawlEnabled(env)) {
     const viaFirecrawl = await checkLegoStockViaFirecrawl(setNum, env);

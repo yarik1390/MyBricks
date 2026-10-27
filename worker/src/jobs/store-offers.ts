@@ -4,7 +4,7 @@ import { firecrawlEnabled } from '../lib/pricing-flags';
 import { sourceEnabled } from '../lib/source-config';
 import { quotaRemaining, spendQuota } from '../lib/api-quota';
 import { recomputeBlendedValues } from '../lib/market-sources';
-import { brightDataAvailable, fetchPageViaBrightData, harvestProducts, llmExtractJson, pageText } from '../lib/page-extract';
+import { rawPageAvailable, fetchRawPage, harvestProducts, llmExtractJson, pageText } from '../lib/page-extract';
 import {
   STORES, STORE_EXTRACT_SCHEMA, STORE_OFFER_MAX_AGE_DAYS,
   pickOffer, storeExtractPrompt, storeSearchUrl, syncBestStoreOffer,
@@ -77,7 +77,7 @@ export async function checkSetStores(
 ): Promise<{ processed: number; found: number; stopped: boolean }> {
   let stopped = false;
   const useFirecrawl = firecrawlEnabled(env) && (await sourceEnabled(env, 'firecrawl'));
-  const useBrightData = await brightDataAvailable(env);
+  const useBrightData = await rawPageAvailable(env);
   const lookups = await Promise.all(STORES.map(async (store) => {
     if (!(await spendQuota(env, 'stores', 1))) { stopped = true; return null; }
     const url = storeSearchUrl(store, setNum);
@@ -135,7 +135,7 @@ export async function checkSetStores(
 /** True when at least one scraper can read store pages. */
 export async function storeScrapersAvailable(env: Env): Promise<boolean> {
   if (firecrawlEnabled(env) && (await sourceEnabled(env, 'firecrawl'))) return true;
-  return brightDataAvailable(env);
+  return rawPageAvailable(env);
 }
 
 /**
@@ -149,7 +149,7 @@ async function storeProductsViaBrightData(
   setNum: string,
   msrp: number | null,
 ): Promise<ExtractedProduct[] | null> {
-  const html = await fetchPageViaBrightData(env, url);
+  const html = await fetchRawPage(env, url);
   if (!html) return null;
   const harvested: ExtractedProduct[] = harvestProducts(html, url)
     .map((p) => ({ title: p.title, price: p.price, in_stock: p.in_stock, url: p.url }));

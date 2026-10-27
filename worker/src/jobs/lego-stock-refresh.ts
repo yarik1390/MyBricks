@@ -3,6 +3,7 @@ import { checkLegoStock, legoStockUpdate, normalizeLegoStockResult } from '../li
 import { quotaRemaining } from '../lib/api-quota';
 import { firecrawlEnabled } from '../lib/pricing-flags';
 import { sourceEnabled } from '../lib/source-config';
+import { backupScrapersAvailable } from '../lib/backup-scrapers';
 import { brightDataEnabled } from '../lib/brightdata-keys';
 import { FIRECRAWL_MAX_CONCURRENCY } from '../lib/firecrawl';
 
@@ -26,7 +27,7 @@ export const LEGO_STOCK_TIME_BUDGET_MS = 10 * 60_000;
 
 export async function runLegoStockRefresh(env: Env, options: { limit?: number; budgetMs?: number } = {}) {
   const deadline = Date.now() + (options.budgetMs ?? LEGO_STOCK_TIME_BUDGET_MS);
-  const hasBrightData = (await sourceEnabled(env, 'brightdata')) && brightDataEnabled(env);
+  const hasBrightData = ((await sourceEnabled(env, 'brightdata')) && brightDataEnabled(env)) || (await backupScrapersAvailable(env));
   const hasFirecrawl = (await sourceEnabled(env, 'firecrawl')) && firecrawlEnabled(env);
   if (!hasBrightData && !hasFirecrawl) {
     return { processed: 0, updated: 0, failed: 0, no_data: 0, partial: 0, limit: 0, skipped: 'Bright Data and Firecrawl disabled or unconfigured' };

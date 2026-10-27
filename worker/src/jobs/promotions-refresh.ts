@@ -2,7 +2,7 @@ import type { Env } from '../types';
 import { firecrawlScrape } from '../lib/firecrawl';
 import { firecrawlEnabled } from '../lib/pricing-flags';
 import { sourceEnabled } from '../lib/source-config';
-import { brightDataAvailable, fetchPageViaBrightData, llmExtractJson, pageText } from '../lib/page-extract';
+import { rawPageAvailable, fetchRawPage, llmExtractJson, pageText } from '../lib/page-extract';
 import { PROMO_PAGES, PROMO_SCHEMA, normalizePromo, promoKey, promoPrompt } from '../lib/promotions';
 
 /**
@@ -13,7 +13,7 @@ import { PROMO_PAGES, PROMO_SCHEMA, normalizePromo, promoKey, promoPrompt } from
  */
 export async function runPromotionsRefresh(env: Env): Promise<{ pages: number; seen: number; added: number; skipped?: string }> {
   const useFirecrawl = firecrawlEnabled(env) && (await sourceEnabled(env, 'firecrawl'));
-  const useBrightData = await brightDataAvailable(env);
+  const useBrightData = await rawPageAvailable(env);
   if (!useFirecrawl && !useBrightData) {
     return { pages: 0, seen: 0, added: 0, skipped: 'Firecrawl and Bright Data disabled' };
   }
@@ -66,7 +66,7 @@ async function promotionsViaBrightData(
   url: string,
   today: string,
 ): Promise<{ data: { promotions?: Record<string, unknown>[] } } | null> {
-  const html = await fetchPageViaBrightData(env, url);
+  const html = await fetchRawPage(env, url);
   if (!html) return null;
   const text = pageText(html);
   if (text.length < 500) return null; // a bot wall, not an offers page

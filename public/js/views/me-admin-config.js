@@ -159,13 +159,15 @@ export const SOURCE_META = {
   amazon: ['Amazon Creators API', 'Live Amazon offers for the buy slot. KV-only (24h) per Associates terms; never a valuation input — weight stays 0.'],
   firecrawl: ['Firecrawl', 'Scraping runtime for structured market enrichment.'],
   brightdata: ['Bright Data Web Unlocker', 'First for LEGO stock and stores, fallback when Firecrawl can\'t serve Brickset, Coming soon or promotions; rotating key pool.'],
+  decodo: ['Decodo Web Scraping API', 'Raw-HTML lane after Bright Data for LEGO stock, stores, Brickset, Coming soon and promotions (free plan, ~$5 a month).'],
+  zenrows: ['ZenRows Universal Scraper', 'Raw-HTML lane after Decodo, same pages (free plan, 5,000 credits a month).'],
 };
 
 export const PROVIDER_GROUPS = [
   ['Core', ['d1', 'supabase', 'worker', 'pages']],
   ['Catalog', ['rebrickable', 'brickset', 'upc']],
   ['Pricing', ['bricklink', 'brickeconomy', 'ebay', 'pricecharting', 'brickinsights', 'amazon']],
-  ['Scraping', ['firecrawl', 'brightdata']],
+  ['Scraping', ['firecrawl', 'brightdata', 'decodo', 'zenrows']],
   ['AI', ['gemini', 'openai', 'openrouter', 'merge', 'byok']],
   ['Notifications', ['resend', 'push', 'vapid', 'discord']],
   ['Sync', ['google', 'patreon']],
@@ -192,13 +194,13 @@ export const FLAG_LABEL = {
 // to click. A test in pure.test.js now enforces the pairing.
 export const TESTABLE = new Set([
   'd1', 'supabase', 'rebrickable', 'brickset', 'brickinsights', 'bricklink', 'ebay',
-  'firecrawl', 'pricecharting', 'brightdata',
+  'firecrawl', 'pricecharting', 'brightdata', 'decodo', 'zenrows',
   'openrouter', 'gemini', 'openai', 'merge', 'resend', 'turnstile', 'patreon', 'push',
 ]);
 
 // Pricing sources with weight/cap/refresh tuning (worker DEFAULT_SOURCE_CONFIG).
 export const TUNABLE_SOURCES = new Set([
-  'bricklink', 'ebay', 'brickeconomy', 'pricecharting', 'firecrawl', 'brightdata',
+  'bricklink', 'ebay', 'brickeconomy', 'pricecharting', 'firecrawl', 'brightdata', 'decodo', 'zenrows',
 ]);
 
 // Short "what it does" copy for services not already described in SOURCE_META.
