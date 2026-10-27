@@ -6,6 +6,7 @@ import { quotaRemaining } from '../lib/api-quota';
 import { brightDataUnlock } from '../lib/brightdata';
 import { brightDataEnabled } from '../lib/brightdata-keys';
 import { parseBricksetHtml, type BricksetScrape } from '../lib/brightdata-parsers';
+import { fetchWithRetry } from '../lib/http';
 
 const BRICKSET_SCHEMA = {
   type: 'object',
@@ -180,6 +181,12 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
       if (html) data = parseBricksetHtml(html);
       if (data) rateLimited = false;
     }
+    // Brickset pages are plain server-rendered HTML, so a direct fetch often
+    // works when both paid lanes miss (free; same parser).
+    if (!result && !data) {
+      data = await fetchBricksetDirect(url);
+      if (data) rateLimited = false;
+    }
 
     if (!data && rateLimited) {
       // Firecrawl was only busy. Leave the attempt clock untouched so the set
@@ -254,4 +261,20 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
   // (real ok/fail + error message) inside the wrapper; a batch tally here would
   // double-count and clobber the real error with "unknown error".
   return { processed, updated, unchanged, failed, no_data, deferred, limit: effLimit };
+}
+
+async function fetchBricksetDirect(url: string): Promise<BricksetScrape | null> {
+  try {
+    const resp = await fetchWithRetry(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; Brickvault/1.0; +https://bricksvault.app)',
+        Accept: 'text/html',
+      },
+      redirect: 'follow',
+    }, { retries: 0, timeoutMs: 10_000 });
+    if (!resp.ok) return null;
+    return parseBricksetHtml(await resp.text());
+  } catch {
+    return null;
+  }
 }
