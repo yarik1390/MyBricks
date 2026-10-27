@@ -4,12 +4,17 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { applyTestTables } from './test-schema';
 
 vi.mock('./lib/firecrawl', () => ({ firecrawlScrape: vi.fn() }));
+vi.mock('./lib/http', async (importOriginal) => ({
+  ...await importOriginal<typeof import('./lib/http')>(), fetchWithRetry: vi.fn(),
+}));
 import { firecrawlScrape } from './lib/firecrawl';
+import { fetchWithRetry } from './lib/http';
 import { runBricksetEnrich } from './jobs/brickset-enrich';
 import { QUOTA_CAPS } from './lib/api-quota';
 
 const db = (env as any).DB as D1Database;
 const mockScrape = vi.mocked(firecrawlScrape);
+const mockFetch = vi.mocked(fetchWithRetry);
 const today = new Date().toISOString().slice(0, 10);
 const withKey = { ...env, FIRECRAWL_API_KEY: 'fc', FIRECRAWL_DAILY_CREDITS: '' } as any;
 
@@ -19,6 +24,8 @@ const row = (setNum: string) =>
 describe('runBricksetEnrich', () => {
   beforeEach(async () => {
     mockScrape.mockReset();
+    mockFetch.mockReset();
+    mockFetch.mockResolvedValue(new Response('busy', { status: 503 }));
     await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota']);
   });
 
@@ -72,6 +79,18 @@ describe('runBricksetEnrich', () => {
     expect(r).toMatchObject({ processed: 1, updated: 0 });
     const x = await row('00000-1');
     expect(x.at).toBeNull();
+  });
+
+  it('reads the Brickset page directly when the paid scrapers miss', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, year, brickset_enriched_at) VALUES ('10305-1','Lion Knights', 2022, NULL)`).run();
+    mockScrape.mockResolvedValue(null as any);
+    mockFetch.mockResolvedValue(new Response('<dl><dt>Theme group</dt><dd>Historical</dd><dt>RRP</dt><dd>$399.99, 349.99€</dd><dt>Rating</dt><dd>4.8 (120 ratings)</dd></dl>', { status: 200 }));
+    const r = await runBricksetEnrich(withKey);
+    expect(r).toMatchObject({ processed: 1, updated: 1 });
+    expect(mockFetch.mock.calls[0][0]).toBe('https://brickset.com/sets/10305-1');
+    const x = await row('10305-1');
+    expect(x.msrp).toBe(399.99);
+    expect(x.rating).toBe(4.8);
   });
 
   it.each([null, { data: {} }] as const)('rotates rejected candidates without claiming enrichment (%s)', async response => {

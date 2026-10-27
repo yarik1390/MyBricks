@@ -326,10 +326,15 @@ const PROBES: Record<string, Probe> = {
     }
     const { brightDataUnlock } = await import('./brightdata');
     const html = await brightDataUnlock('https://example.com/', env, { timeoutMs: 15_000 });
-    if (html && /example/i.test(html.slice(0, 500))) {
-      return ok(`unlock OK (${configuredBrightDataTokens(env).length} token(s) configured)`);
-    }
-    return err('unlocker returned no usable page');
+    if (!html || !/example/i.test(html.slice(0, 500))) return err('unlocker returned no usable page');
+    // Brickset is the site that has refused the unlocker; check it too so
+    // "Test now" names its reason (spends a second unit).
+    const bs = await brightDataUnlock('https://brickset.com/sets/10305-1', env, { timeoutMs: 20_000 });
+    const tokens = configuredBrightDataTokens(env).length;
+    if (bs && /<dt\b/i.test(bs)) return ok(`unlock OK, Brickset OK (${tokens} token(s) configured)`);
+    const { getIntegrationHealth } = await import('./integration-health');
+    const last = (await getIntegrationHealth(env)).find((r) => r.service === 'brightdata')?.last_error ?? 'no page';
+    return { ok: true, status: 'degraded', detail: `unlock OK; Brickset failed: ${String(last).slice(0, 200)} (${tokens} token(s))` };
   },
 };
 

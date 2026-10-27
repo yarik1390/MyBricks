@@ -96,7 +96,8 @@ export async function brightDataUnlock(
       // Bright Data names why an unlock failed in x-brd-error (e.g. the site
       // refused the page, or the zone may not reach that domain). A 5xx with
       // that reason is one target page failing, not the provider being down.
-      const reason = (response.headers.get('x-brd-error') || response.headers.get('x-luminati-error') || '').trim();
+      const reason = (response.headers.get('x-brd-error') || response.headers.get('x-luminati-error')
+        || (response.ok ? '' : body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')) || '').trim();
       lastError = !exhausted && response.status >= 500 && reason
         ? `target page failed: ${hostOf(url)} HTTP ${response.status} (${reason.slice(0, 160)})`
         : `HTTP ${response.status}${exhausted ? ' (token exhausted)' : ''}${reason ? ` (${reason.slice(0, 160)})` : ''} on ${hostOf(url)}`;
