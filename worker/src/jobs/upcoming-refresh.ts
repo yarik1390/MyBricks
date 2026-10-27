@@ -1,16 +1,15 @@
 import type { Env } from '../types';
-import { fetchUpcomingSets } from '../lib/upcoming';
-import { firecrawlEnabled } from '../lib/pricing-flags';
+import { fetchUpcomingSets, upcomingScrapersAvailable } from '../lib/upcoming';
 
 /**
- * Refresh the upcoming/coming-soon feed (G2b). One Firecrawl scrape of the
+ * Refresh the upcoming/coming-soon feed (G2b). One Firecrawl (or Bright Data) scrape of the
  * LEGO.com coming-soon listing per run (cheap; the page is small and changes
  * slowly). Listing scrapes can be partial: absence is never release evidence.
  */
 export async function runUpcomingRefresh(env: Env) {
   let removed = await pruneReleasedUpcoming(env);
   const cleared = await clearRetiringOnUpcoming(env);
-  if (!firecrawlEnabled(env)) return { upserted: 0, removed, cleared, skipped: 'firecrawl disabled' };
+  if (!(await upcomingScrapersAvailable(env))) return { upserted: 0, removed, cleared, skipped: 'Firecrawl and Bright Data disabled' };
 
   const items = await fetchUpcomingSets(env);
   // Empty or partial scrapes never establish that omitted products released.

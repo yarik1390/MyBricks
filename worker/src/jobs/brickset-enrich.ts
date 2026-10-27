@@ -52,7 +52,8 @@ const plausibleDate = (v: unknown): string | null => {
 /**
  * Backfill Brickset enrichment data for sets whose brickset_enriched_at is
  * NULL or stale (>90 days). Scrapes brickset.com/sets/{setNum} pages via
- * Firecrawl structured extraction, populating the 19 brickset_* columns
+ * Firecrawl structured extraction (Bright Data + parser when Firecrawl fails),
+ * populating the 19 brickset_* columns
  * without burning the Brickset API quota.
  *
  * Prioritises: un-enriched sets first, then modern sets (year DESC), then
@@ -120,7 +121,7 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
     // extract directly; changed/new/removed/probe-failure all fall through to a
     // full extract. (Only applied here — LEGO stock and eBay listings change
     // between scrapes, so a probe there would just add cost.)
-    if (!hasBrightData && hasFirecrawl && brickset_enriched_at) {
+    if (hasFirecrawl && brickset_enriched_at) {
       const probe = await firecrawlScrape<{ changeTracking?: { changeStatus?: string } }>(
         { url, formats: ['markdown', 'changeTracking'], timeoutMs: 20_000 },
         env,
@@ -135,14 +136,11 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
       }
     }
 
+    // Firecrawl first, Bright Data when Firecrawl can't serve the page (out of
+    // credits, busy, blocked) — Iaroslav's order, 2026-10-27.
     let data: BricksetScrape | null = null;
-    if (hasBrightData) {
-      const html = await brightDataUnlock(url, env, { timeoutMs: 20_000 });
-      if (html) data = parseBricksetHtml(html);
-    }
-
     let rateLimited = false;
-    const result = (data || !hasFirecrawl) ? null : await firecrawlScrape<{
+    const result = !hasFirecrawl ? null : await firecrawlScrape<{
       msrp_usd?: number | null;
       launch_date?: string | null;
       exit_date?: string | null;
@@ -176,6 +174,12 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number } = 
       if (e instanceof FirecrawlRateLimitedError) { rateLimited = true; return null; }
       throw e;
     });
+
+    if (!result && hasBrightData) {
+      const html = await brightDataUnlock(url, env, { timeoutMs: 20_000 });
+      if (html) data = parseBricksetHtml(html);
+      if (data) rateLimited = false;
+    }
 
     if (!data && rateLimited) {
       // Firecrawl was only busy. Leave the attempt clock untouched so the set

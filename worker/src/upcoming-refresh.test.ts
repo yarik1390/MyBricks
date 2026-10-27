@@ -3,7 +3,10 @@ import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { applyTestTables } from './test-schema';
 
-vi.mock('./lib/upcoming', () => ({ fetchUpcomingSets: vi.fn() }));
+vi.mock('./lib/upcoming', () => ({
+  fetchUpcomingSets: vi.fn(),
+  upcomingScrapersAvailable: vi.fn(async (e: any) => Boolean(e.FIRECRAWL_API_KEY || e.FIRECRAWL_API_KEYS)),
+}));
 import { fetchUpcomingSets } from './lib/upcoming';
 import { runUpcomingRefresh } from './jobs/upcoming-refresh';
 
@@ -64,7 +67,7 @@ describe('runUpcomingRefresh', () => {
 
   it('skips when Firecrawl is disabled', async () => {
     const r = await runUpcomingRefresh({ ...env, FIRECRAWL_API_KEY: '', FIRECRAWL_API_KEYS: '' } as any);
-    expect(r.skipped).toMatch(/firecrawl disabled/);
+    expect(r.skipped).toMatch(/Firecrawl and Bright Data disabled/);
     expect(mockUpcoming).not.toHaveBeenCalled();
   });
 

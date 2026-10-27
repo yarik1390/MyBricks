@@ -4,6 +4,7 @@ import { firecrawlEnabled } from '../lib/pricing-flags';
 import { sourceEnabled } from '../lib/source-config';
 import { quotaRemaining, spendQuota } from '../lib/api-quota';
 import { recomputeBlendedValues } from '../lib/market-sources';
+import { brightDataAvailable, fetchPageViaBrightData, harvestProducts, llmExtractJson, pageText } from '../lib/page-extract';
 import {
   STORES, STORE_EXTRACT_SCHEMA, STORE_OFFER_MAX_AGE_DAYS,
   pickOffer, storeExtractPrompt, storeSearchUrl, syncBestStoreOffer,
@@ -14,7 +15,8 @@ import {
  * Refresh Walmart and Target prices for the sets people care about: current
  * (not retired) sets that someone wishlisted or owns, oldest check first, then
  * retiring-soon sets. Each store lookup is one Firecrawl structured extraction
- * of the store's search page (5 credits), metered by the 'stores' quota.
+ * of the store's search page (5 credits), or a Bright Data fetch when Firecrawl
+ * can't serve it, metered by the 'stores' quota.
  *
  * Also clears live-offer data older than STORE_OFFER_MAX_AGE_DAYS, so an offer
  * that is no longer re-checked stops driving deal calls and alerts.
@@ -26,8 +28,8 @@ export async function runStoreOffers(
   const stale = await clearStaleOffers(env.DB);
   const cleared = stale.length;
   if (stale.length) await recomputeBlendedValues(env.DB, stale).catch(() => 0);
-  if (!firecrawlEnabled(env) || !(await sourceEnabled(env, 'firecrawl'))) {
-    return { processed: 0, found: 0, cleared, skipped: 'Firecrawl disabled' };
+  if (!(await storeScrapersAvailable(env))) {
+    return { processed: 0, found: 0, cleared, skipped: 'Firecrawl and Bright Data disabled' };
   }
   const remaining = await quotaRemaining(env, 'stores');
   const limit = Math.min(Math.max(1, Math.floor(Number(options.limit) || 20)), Math.floor(remaining / STORES.length));
@@ -74,22 +76,30 @@ export async function checkSetStores(
   msrp: number | null,
 ): Promise<{ processed: number; found: number; stopped: boolean }> {
   let stopped = false;
+  const useFirecrawl = firecrawlEnabled(env) && (await sourceEnabled(env, 'firecrawl'));
+  const useBrightData = await brightDataAvailable(env);
   const lookups = await Promise.all(STORES.map(async (store) => {
     if (!(await spendQuota(env, 'stores', 1))) { stopped = true; return null; }
-    try {
-      const res = await firecrawlScrape<{ products?: ExtractedProduct[] }>({
-        url: storeSearchUrl(store, setNum),
-        formats: ['json'],
-        jsonOptions: { schema: STORE_EXTRACT_SCHEMA, prompt: storeExtractPrompt(setNum) },
-        waitFor: 2000,
-        timeoutMs: 30_000,
-        throwOnRateLimit: true,
-      }, env);
-      return { store, products: res ? (res.data?.products ?? []) : null };
-    } catch (err) {
-      if (err instanceof FirecrawlRateLimitedError) stopped = true;
-      return { store, products: null };
+    const url = storeSearchUrl(store, setNum);
+    let products: ExtractedProduct[] | null = null;
+    // Firecrawl first; Bright Data when Firecrawl can't serve the page.
+    if (useFirecrawl) {
+      try {
+        const res = await firecrawlScrape<{ products?: ExtractedProduct[] }>({
+          url,
+          formats: ['json'],
+          jsonOptions: { schema: STORE_EXTRACT_SCHEMA, prompt: storeExtractPrompt(setNum) },
+          waitFor: 2000,
+          timeoutMs: 30_000,
+          throwOnRateLimit: true,
+        }, env);
+        products = res ? (res.data?.products ?? []) : null;
+      } catch (err) {
+        if (err instanceof FirecrawlRateLimitedError && !useBrightData) stopped = true;
+      }
     }
+    if (products == null && useBrightData) products = await storeProductsViaBrightData(env, url, setNum, msrp);
+    return { store, products };
   }));
   let processed = 0;
   let found = 0;
@@ -119,6 +129,37 @@ export async function checkSetStores(
   }
   if (processed) await syncBestStoreOffer(env.DB, setNum);
   return { processed, found, stopped };
+}
+
+/** True when at least one scraper can read store pages. */
+export async function storeScrapersAvailable(env: Env): Promise<boolean> {
+  if (firecrawlEnabled(env) && (await sourceEnabled(env, 'firecrawl'))) return true;
+  return brightDataAvailable(env);
+}
+
+/**
+ * The store's search results through Bright Data: product data embedded in the
+ * page first, a text model over the page text second. Null (keep the previous
+ * row) when the page can't be read; a bot wall must not read as "not listed".
+ */
+async function storeProductsViaBrightData(
+  env: Env,
+  url: string,
+  setNum: string,
+  msrp: number | null,
+): Promise<ExtractedProduct[] | null> {
+  const html = await fetchPageViaBrightData(env, url);
+  if (!html) return null;
+  const harvested: ExtractedProduct[] = harvestProducts(html, url)
+    .map((p) => ({ title: p.title, price: p.price, in_stock: p.in_stock, url: p.url }));
+  if (pickOffer(harvested, setNum, msrp)) return harvested;
+  const text = pageText(html);
+  if (text.length < 500) return null;
+  const extracted = await llmExtractJson<{ products?: ExtractedProduct[] }>(
+    env, text, storeExtractPrompt(setNum), STORE_EXTRACT_SCHEMA,
+  );
+  if (!extracted) return null;
+  return Array.isArray(extracted.products) ? extracted.products : [];
 }
 
 async function clearStaleOffers(db: D1Database): Promise<string[]> {

@@ -18,7 +18,7 @@ import { FIRECRAWL_MAX_CONCURRENCY } from '../lib/firecrawl';
  * and (when Firecrawl returns a price) retail_price if the fetched value differs.
  */
 // A scheduled Worker is cut off at 15 minutes and a slow LEGO.com page costs up
-// to ~50 s (Bright Data then Firecrawl), so 200 sets at concurrency 2 never
+// to ~50 s (Firecrawl then Bright Data), so 200 sets at concurrency 2 never
 // finished: every run from 2026-10-12 died as "stale" and its stock writes,
 // held until the end, were lost. Stop starting batches after this budget and
 // write each batch as it lands; the attempt stamps rotate the rest to tomorrow.
