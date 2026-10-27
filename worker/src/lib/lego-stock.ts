@@ -114,9 +114,9 @@ async function checkLegoStockFallback(setNum: string): Promise<LegoStockResult |
 /**
  * Fetch LEGO.com product page and extract stock/retirement status + retail price.
  * Uses Firecrawl when available (handles Cloudflare bot-protection); falls back to
- * plain fetch + product-scoped parsing when Firecrawl is unconfigured OR fails at runtime (a block,
- * timeout, or the daily credit ceiling) — so a transient Firecrawl miss doesn't
- * leave the set unchecked.
+ * Bright Data, then plain fetch, with product-scoped parsing when Firecrawl is
+ * unconfigured OR fails at runtime (a block, timeout, no credits) — so a
+ * Firecrawl miss doesn't leave the set unchecked.
  */
 export async function checkLegoStock(setNum: string, env?: Env): Promise<LegoStockResult | null> {
   return notRetiringIfUnreleased(await checkLegoStockRaw(setNum, env));
@@ -133,9 +133,14 @@ export function notRetiringIfUnreleased(stock: LegoStockResult | null): LegoStoc
 }
 
 async function checkLegoStockRaw(setNum: string, env?: Env): Promise<LegoStockResult | null> {
-  // Both lanes honor the admin source-tuning kill switches: disabling a
-  // provider in the console stops its use here (not just in the job selector).
+  // Firecrawl first, Bright Data when Firecrawl can't serve the page, then the
+  // free plain fetch (Iaroslav's order, 2026-10-27). Each lane honors the admin
+  // source-tuning kill switches.
   const num = setNum.replace(/-\d+$/, '');
+  if (env && (await sourceEnabled(env, 'firecrawl')) && firecrawlEnabled(env)) {
+    const viaFirecrawl = await checkLegoStockViaFirecrawl(setNum, env);
+    if (viaFirecrawl) return viaFirecrawl;
+  }
   if (env && (await sourceEnabled(env, 'brightdata'))) {
     const html = await brightDataUnlock(`https://www.lego.com/en-us/product/${num}`, env, { timeoutMs: 25_000 });
     if (html) {
@@ -145,13 +150,7 @@ async function checkLegoStockRaw(setNum: string, env?: Env): Promise<LegoStockRe
       if (parsed) return parsed;
     }
   }
-  if (env && (await sourceEnabled(env, 'firecrawl')) && firecrawlEnabled(env)) {
-    const viaFirecrawl = await checkLegoStockViaFirecrawl(setNum, env);
-    if (viaFirecrawl) return viaFirecrawl;
-    // Firecrawl returned null (runtime failure / credit ceiling) — try the free
-    // plain-fetch path before giving up. LEGO.com is Cloudflare-protected so this
-    // may also miss, but it costs no credits and occasionally succeeds.
-    return checkLegoStockFallback(setNum);
-  }
+  // LEGO.com is Cloudflare-protected so this may also miss, but it costs
+  // nothing and occasionally succeeds.
   return checkLegoStockFallback(setNum);
 }

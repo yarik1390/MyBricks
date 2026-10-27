@@ -1,9 +1,12 @@
 import type { Env } from '../types';
 import { firecrawlScrape } from './firecrawl';
 import { firecrawlEnabled } from './pricing-flags';
+import { sourceEnabled } from './source-config';
+import { brightDataAvailable, fetchPageViaBrightData, harvestProducts, llmExtractJson, pageText } from './page-extract';
 
 // Upcoming / coming-soon LEGO sets via Firecrawl structured extraction of the
-// public LEGO.com coming-soon listing (G2b). LEGO official images/info; the
+// public LEGO.com coming-soon listing (G2b), or Bright Data when Firecrawl
+// can't serve it. LEGO official images/info; the
 // feed powers a release surface so users can wishlist before launch.
 
 const UPCOMING_SCHEMA = {
@@ -31,27 +34,59 @@ export interface UpcomingItem {
   availability: string | null;
 }
 
-export async function fetchUpcomingSets(env: Env): Promise<UpcomingItem[]> {
-  if (!firecrawlEnabled(env)) return [];
+const UPCOMING_URL = 'https://www.lego.com/en-us/categories/coming-soon';
+const UPCOMING_PROMPT = 'Extract every upcoming/coming-soon LEGO product on this page: name, product number (the LEGO set number), US price in USD, and availability (e.g. "Coming Soon", "Pre-order", "Available now").';
 
-  const result = await firecrawlScrape<{ products?: Array<{ name?: string; product_number?: string; price_usd?: number; availability?: string }> }>(
+type RawUpcoming = { name?: string; product_number?: string; price_usd?: number | null; availability?: string | null };
+
+export async function upcomingScrapersAvailable(env: Env): Promise<boolean> {
+  if (firecrawlEnabled(env) && (await sourceEnabled(env, 'firecrawl'))) return true;
+  return brightDataAvailable(env);
+}
+
+async function viaFirecrawl(env: Env): Promise<RawUpcoming[] | null> {
+  if (!firecrawlEnabled(env) || !(await sourceEnabled(env, 'firecrawl'))) return null;
+  const result = await firecrawlScrape<{ products?: RawUpcoming[] }>(
     {
-      url: 'https://www.lego.com/en-us/categories/coming-soon',
+      url: UPCOMING_URL,
       formats: ['json'],
-      jsonOptions: {
-        schema: UPCOMING_SCHEMA,
-        prompt: 'Extract every upcoming/coming-soon LEGO product on this page: name, product number (the LEGO set number), US price in USD, and availability (e.g. "Coming Soon", "Pre-order", "Available now").',
-      },
+      jsonOptions: { schema: UPCOMING_SCHEMA, prompt: UPCOMING_PROMPT },
       waitFor: 2500,
       timeoutMs: 35_000,
     },
     env,
   );
-  if (!result) return [];
+  return result ? (result.data?.products ?? []) : null;
+}
+
+/** Product number from LEGO.com product data or its /product/<slug>-<num> URL. */
+function legoProductNumber(code: string | null, url: string | null): string | null {
+  const c = (code ?? '').trim();
+  if (/^\d{4,7}$/.test(c)) return c;
+  return url?.match(/\/product\/(?:[^/?#]*-)?(\d{4,7})(?:[/?#]|$)/)?.[1] ?? null;
+}
+
+async function viaBrightData(env: Env): Promise<RawUpcoming[] | null> {
+  const html = await fetchPageViaBrightData(env, UPCOMING_URL, 35_000);
+  if (!html) return null;
+  const harvested: RawUpcoming[] = [];
+  for (const p of harvestProducts(html, UPCOMING_URL)) {
+    const productNumber = legoProductNumber(p.code, p.url);
+    if (productNumber) harvested.push({ name: p.title, product_number: productNumber, price_usd: p.price, availability: p.availability });
+  }
+  if (harvested.length) return harvested;
+  const extracted = await llmExtractJson<{ products?: RawUpcoming[] }>(env, pageText(html), UPCOMING_PROMPT, UPCOMING_SCHEMA);
+  return extracted && Array.isArray(extracted.products) ? extracted.products : null;
+}
+
+export async function fetchUpcomingSets(env: Env): Promise<UpcomingItem[]> {
+  // Firecrawl first, Bright Data when Firecrawl can't serve the page.
+  const products = (await viaFirecrawl(env)) ?? (await viaBrightData(env));
+  if (!products) return [];
 
   const out: UpcomingItem[] = [];
   const seen = new Set<string>();
-  for (const p of result.data?.products ?? []) {
+  for (const p of products) {
     const num = String(p.product_number || '').trim();
     const name = String(p.name || '').trim();
     if (!/^\d{4,7}$/.test(num) || !name) continue; // valid LEGO set number + name

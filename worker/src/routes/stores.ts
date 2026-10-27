@@ -3,9 +3,7 @@ import type { Env, Variables } from '../types';
 import { edgeCached } from '../lib/edge-cache';
 import { requireMember } from '../auth';
 import { STORES, STORE_LABEL, STORE_OFFER_MAX_AGE_DAYS, storeSearchUrl } from '../lib/store-offers';
-import { checkSetStores } from '../jobs/store-offers';
-import { firecrawlEnabled } from '../lib/pricing-flags';
-import { sourceEnabled } from '../lib/source-config';
+import { checkSetStores, storeScrapersAvailable } from '../jobs/store-offers';
 import { bricklinkDisplayable } from '../lib/market-sources';
 import { plausibleAskValue } from '../lib/valuation';
 
@@ -131,7 +129,7 @@ app.post('/:setnum/check', requireMember, async (c) => {
   if (!before) return c.json({ error: 'Not found' }, 404);
   const due = before.stores.some((s) => s.status === 'unchecked');
   let checked = false;
-  if (due && firecrawlEnabled(c.env) && (await sourceEnabled(c.env, 'firecrawl'))) {
+  if (due && (await storeScrapersAvailable(c.env))) {
     const r = await checkSetStores(c.env, setNum, before.msrp);
     checked = r.processed > 0;
   }

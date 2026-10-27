@@ -2,29 +2,35 @@ import type { Env } from '../types';
 import { firecrawlScrape } from '../lib/firecrawl';
 import { firecrawlEnabled } from '../lib/pricing-flags';
 import { sourceEnabled } from '../lib/source-config';
+import { brightDataAvailable, fetchPageViaBrightData, llmExtractJson, pageText } from '../lib/page-extract';
 import { PROMO_PAGES, PROMO_SCHEMA, normalizePromo, promoKey, promoPrompt } from '../lib/promotions';
 
 /**
  * Read LEGO.com's offers pages and upsert what they announce into promotions.
- * Two structured extractions a day (5 Firecrawl credits each). A row the admin
+ * Two structured extractions a day (5 Firecrawl credits each; Bright Data plus a
+ * small text model when Firecrawl can't serve a page). A row the admin
  * hid stays hidden; an admin-entered row is never overwritten.
  */
 export async function runPromotionsRefresh(env: Env): Promise<{ pages: number; seen: number; added: number; skipped?: string }> {
-  if (!firecrawlEnabled(env) || !(await sourceEnabled(env, 'firecrawl'))) {
-    return { pages: 0, seen: 0, added: 0, skipped: 'Firecrawl disabled' };
+  const useFirecrawl = firecrawlEnabled(env) && (await sourceEnabled(env, 'firecrawl'));
+  const useBrightData = await brightDataAvailable(env);
+  if (!useFirecrawl && !useBrightData) {
+    return { pages: 0, seen: 0, added: 0, skipped: 'Firecrawl and Bright Data disabled' };
   }
   const today = new Date().toISOString().slice(0, 10);
   let pages = 0;
   let seen = 0;
   let added = 0;
   for (const url of PROMO_PAGES) {
-    const res = await firecrawlScrape<{ promotions?: Record<string, unknown>[] }>({
+    // Firecrawl first; Bright Data when Firecrawl can't serve the page.
+    let res = !useFirecrawl ? null : await firecrawlScrape<{ promotions?: Record<string, unknown>[] }>({
       url,
       formats: ['json'],
       jsonOptions: { schema: PROMO_SCHEMA, prompt: promoPrompt(today) },
       waitFor: 2000,
       timeoutMs: 30_000,
     }, env).catch(() => null);
+    if (!res && useBrightData) res = await promotionsViaBrightData(env, url, today);
     if (!res) continue;
     pages++;
     for (const raw of res.data?.promotions || []) {
@@ -53,4 +59,18 @@ export async function runPromotionsRefresh(env: Env): Promise<{ pages: number; s
     }
   }
   return { pages, seen, added };
+}
+
+async function promotionsViaBrightData(
+  env: Env,
+  url: string,
+  today: string,
+): Promise<{ data: { promotions?: Record<string, unknown>[] } } | null> {
+  const html = await fetchPageViaBrightData(env, url);
+  if (!html) return null;
+  const text = pageText(html);
+  if (text.length < 500) return null; // a bot wall, not an offers page
+  const data = await llmExtractJson<{ promotions?: Record<string, unknown>[] }>(env, text, promoPrompt(today), PROMO_SCHEMA);
+  if (!data) return null;
+  return { data: { promotions: Array.isArray(data.promotions) ? data.promotions : [] } };
 }
