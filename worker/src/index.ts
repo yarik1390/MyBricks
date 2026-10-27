@@ -63,6 +63,7 @@ import { runLegoStockRefresh } from './jobs/lego-stock-refresh';
 import { runBricksetEnrich } from './jobs/brickset-enrich';
 import { runBlendRecomputeBackfill } from './jobs/recompute-blends';
 import { runHealthProbes } from './jobs/health-probes';
+import { loadWithheldValues } from './lib/value-withheld';
 import { applySourceConfig } from './lib/source-config';
 import { recordCronFinish, summarizeResult, resultFailed } from './lib/cron-runs';
 import { CLIENT_EVENTS, logClientEvent, mirrorClientMetric } from './lib/analytics';
@@ -218,6 +219,8 @@ app.use('/api/*', rewriteImageResponses);
 // source that is switched off. Memoized for 60s; fails open to defaults.
 app.use('/api/*', async (c, next) => {
   await applySourceConfig(c.env).catch(() => {});
+  // Sets whose value is withheld ("No market price"); memoized, fails open.
+  await loadWithheldValues(c.env);
   await next();
 });
 
@@ -302,6 +305,7 @@ export default {
     // Apply admin source-tuning (blend weights + daily-cap overrides) for this
     // cron invocation before any job runs. Fail-open to code defaults.
     await applySourceConfig(env).catch(() => {});
+    await loadWithheldValues(env);
     switch (event.cron) {
       // Hourly: BrickLink-primary catalog sweep. scope:'all' so idle capacity
       // (once owned/wishlisted are fresh) steadily converts the formula_bulk

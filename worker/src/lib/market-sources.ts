@@ -9,6 +9,7 @@ import {
 import { recordPricingWrites } from './pricing-budget';
 import { invalidateSetDetailMany } from './edge-cache';
 import { plausibleAskValue } from './valuation';
+import { isValueWithheld } from './value-withheld';
 
 export type MarketConfidence = 'high' | 'medium' | 'low' | 'estimated';
 export type MarketFreshness = 'fresh' | 'stale' | 'expired' | 'missing';
@@ -420,6 +421,8 @@ export function holdingValueForRollout(
   row: HoldingValuationRow,
   percent = pricingV3ReadPercent,
 ): number {
+  // No sales and a swinging estimate: the holding counts as unpriced.
+  if (isValueWithheld(row.set_num)) return 0;
   const legacyNew = num(row.blended_value) || num(row.current_value) || 0;
   const legacyUsed = num(row.ebay_used_value) || num(row.used_value) || legacyNew;
   const isUsed = String(row.condition || '').startsWith('used');
@@ -823,6 +826,35 @@ export function computeDealSignal(
 const PART_OUT_MIN_COVERAGE = 0.9;
 
 export function enrichSetRecord<T extends Record<string, unknown>>(row: T, history?: BlendHistory): T {
+  const enriched = enrichSetRecordInner(row, history);
+  return isValueWithheld(row.set_num) ? withholdSetValue(enriched) : enriched;
+}
+
+/**
+ * Strip every number a surface could show as this set's value, so the app
+ * renders its existing "no market price" state. See lib/value-withheld.ts.
+ */
+function withholdSetValue<T extends Record<string, unknown>>(out: T): T {
+  const o = out as Record<string, unknown>;
+  for (const key of [
+    'current_value', 'blended_value', 'blended_low', 'blended_high',
+    'market_value', 'market_value_low', 'market_value_high', 'market_value_confidence',
+    'forecast_2y', 'forecast_5y', 'deal_signal', 'deal_discount_pct', 'deal_strong',
+  ]) o[key] = null;
+  o.market_value_basis = [];
+  o.market_value_note = 'No market sales found and the estimate is unreliable, so no price is shown.';
+  o.value_withheld = true;
+  const valuation = o.valuation as Record<string, unknown> | undefined;
+  if (valuation && typeof valuation === 'object') {
+    const blank = (state: unknown) => (state && typeof state === 'object'
+      ? { ...(state as Record<string, unknown>), fair_value: null, low: null, high: null }
+      : state);
+    o.valuation = { ...valuation, new: blank(valuation.new), used: blank(valuation.used), forecast: null };
+  }
+  return out;
+}
+
+function enrichSetRecordInner<T extends Record<string, unknown>>(row: T, history?: BlendHistory): T {
   const sources = buildMarketSources(row);
   // Per-source refresh jobs update their own timestamps without necessarily
   // rewriting the legacy valuation_expires_at column. Trust the selected

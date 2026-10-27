@@ -52,7 +52,7 @@ describe('runSnapshotSetValues', () => {
 
 describe('detectValueMovers (day-over-day anomaly detector)', () => {
   beforeEach(async () => {
-    await applyTestTables(db, ['lego_sets', 'user_collection', 'user_wishlist', 'set_value_history', 'minifigs', 'minifig_value_history', 'pricing_anomalies', 'pricing_write_ledger']);
+    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'set_value_history', 'minifigs', 'minifig_value_history', 'pricing_anomalies', 'pricing_write_ledger']);
   });
 
   const seed = (setNum: string, prev: number, curr: number, confidence: string | null = null) => [
@@ -85,6 +85,29 @@ describe('detectValueMovers (day-over-day anomaly detector)', () => {
     ]);
     const r = await detectValueMovers(env as any);
     expect(r.flagged).toBe(0);
+  });
+
+  it('withholds the value of a no-sales set that swings, and gives it back once a sale appears', async () => {
+    await db.batch([
+      ...seed('LIT-1', 60000, 257, 'low'),             // no sales anywhere: withheld
+      ...seed('BL-1', 100, 300, 'low'),                // severe too, but BrickLink has sales
+      db.prepare(`UPDATE lego_sets SET bl_new_value = 290 WHERE set_num = 'BL-1'`),
+    ]);
+    const r = await detectValueMovers(env as any);
+    expect(r.value_withheld).toMatchObject({ marked: 1, resolved: 1 });
+    const flag = (n: string) => db.prepare(`SELECT value_unstable_at FROM set_market_ext WHERE set_num = ?`).bind(n).first<{ value_unstable_at: string | null }>();
+    expect((await flag('LIT-1'))?.value_unstable_at).toBeTruthy();
+    expect(await flag('BL-1')).toBeNull();
+    const status = await db.prepare(`SELECT status FROM pricing_anomalies WHERE anomaly_key='blend:LIT-1:day_move'`).first<{ status: string }>();
+    expect(status!.status).toBe('resolved');
+    const open = await db.prepare(`SELECT status FROM pricing_anomalies WHERE anomaly_key='blend:BL-1:day_move'`).first<{ status: string }>();
+    expect(open!.status).toBe('open');
+
+    // Flagged sets are not re-flagged as movers; a real sale clears the flag.
+    await db.prepare(`UPDATE lego_sets SET bl_new_value = 4000 WHERE set_num = 'LIT-1'`).run();
+    const again = await detectValueMovers(env as any);
+    expect(again.value_withheld).toMatchObject({ cleared: 1 });
+    expect((await flag('LIT-1'))?.value_unstable_at).toBeNull();
   });
 
   it('re-running upserts the same key without duplicating', async () => {
@@ -169,7 +192,7 @@ describe('detectValueMovers (day-over-day anomaly detector)', () => {
     ]);
 
     const r = await detectValueMovers(env as any);
-    expect(r).toEqual({ flagged: 0, resolved: 5 });
+    expect(r).toEqual({ flagged: 0, resolved: 5, value_withheld: { marked: 0, resolved: 0, cleared: 0 } });
 
     const { results } = await db.prepare(`
       SELECT anomaly_key, status, resolved_at

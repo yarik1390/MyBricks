@@ -1,5 +1,6 @@
 import type { Env } from '../types';
 import { pricingWritesAllowed, recordPricingWrites } from '../lib/pricing-budget';
+import { NO_LIVE_SALES_SQL } from '../lib/value-withheld';
 
 // Beyond the user's own collection/wishlist, also snapshot the highest-value
 // catalog sets each day so their detail charts accumulate a real history line
@@ -173,7 +174,9 @@ export async function detectValueMovers(env: Env) {
     JOIN set_value_history y
       ON y.set_num = t.set_num AND y.snapshot_date = DATE('now', '-1 day')
     JOIN lego_sets ls ON ls.set_num = t.set_num
+    LEFT JOIN set_market_ext sme ON sme.set_num = t.set_num
     WHERE t.snapshot_date = DATE('now')
+      AND sme.value_unstable_at IS NULL
       AND y.current_value >= ?1
       AND t.current_value IS NOT NULL
       AND (t.current_value >= ?2 * y.current_value OR t.current_value <= ?3 * y.current_value)
@@ -273,8 +276,49 @@ export async function detectValueMovers(env: Env) {
     )
   `).run();
 
+  const unstable = await markUnstableValues(env);
+
   const resolvedCount = Number(resolved?.meta?.changes || 0)
-    + Number(divergencesResolved?.meta?.changes || 0);
-  await recordPricingWrites(env.DB, 'pricing-movers', movers.length + resolvedCount);
-  return { flagged: movers.length, resolved: resolvedCount };
+    + Number(divergencesResolved?.meta?.changes || 0)
+    + unstable.resolved;
+  await recordPricingWrites(env.DB, 'pricing-movers', movers.length + resolvedCount + unstable.marked + unstable.cleared);
+  return { flagged: movers.length, resolved: resolvedCount, value_withheld: unstable };
+}
+
+// "No market price" (lib/value-withheld.ts). A severe overnight move (>=2.5x up
+// or <=0.4x down) on a set with no live sales anywhere is not a market move to
+// investigate: there is no market, only an estimate that cannot hold still.
+// Withhold its value instead of showing either number, close the anomaly (an
+// admin has nothing to resolve), and give the value back as soon as a real
+// BrickLink, eBay or PriceCharting sale appears. Fails open.
+export async function markUnstableValues(env: Env) {
+  const out = { marked: 0, resolved: 0, cleared: 0 };
+  try {
+    const marked = await env.DB.prepare(`
+      INSERT INTO set_market_ext (set_num, value_unstable_at)
+      SELECT a.set_num, datetime('now')
+      FROM pricing_anomalies a
+      JOIN lego_sets ls ON ls.set_num = a.set_num
+      WHERE a.anomaly_type = 'day_move' AND a.status = 'open' AND a.severity = 'error'
+        AND ${NO_LIVE_SALES_SQL}
+      ON CONFLICT(set_num) DO UPDATE SET
+        value_unstable_at = COALESCE(set_market_ext.value_unstable_at, excluded.value_unstable_at)
+    `).run();
+    out.marked = Number(marked.meta?.changes || 0);
+    const resolved = await env.DB.prepare(`
+      UPDATE pricing_anomalies SET status = 'resolved', resolved_at = datetime('now')
+      WHERE anomaly_type = 'day_move' AND status = 'open'
+        AND set_num IN (SELECT set_num FROM set_market_ext WHERE value_unstable_at IS NOT NULL)
+    `).run();
+    out.resolved = Number(resolved.meta?.changes || 0);
+    const cleared = await env.DB.prepare(`
+      UPDATE set_market_ext SET value_unstable_at = NULL
+      WHERE value_unstable_at IS NOT NULL
+        AND set_num IN (SELECT ls.set_num FROM lego_sets ls WHERE NOT (${NO_LIVE_SALES_SQL}))
+    `).run();
+    out.cleared = Number(cleared.meta?.changes || 0);
+  } catch (e) {
+    console.warn('[snapshot] unstable-value marking failed open:', (e as Error).message);
+  }
+  return out;
 }

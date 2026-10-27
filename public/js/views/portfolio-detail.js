@@ -323,6 +323,7 @@ function valueCardHTML(set, entry) {
   const range = set.coming_soon ? null : valueRange(set, entry);
   const forecast = set.coming_soon ? 0 : realForecast(set);
   const label = set.coming_soon ? t("bvSet.announcedRetail")
+    : set.value_withheld ? t("bvAlerts.noPrice")
     : est ? t("bvSet.estimatedValue")
     : t("bvSet.marketValueCond", { condition: conditionWord(entry?.condition || "sealed") });
   const why = v > 0
