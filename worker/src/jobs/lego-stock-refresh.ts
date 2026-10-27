@@ -62,7 +62,7 @@ export async function runLegoStockRefresh(env: Env, options: { limit?: number; b
       SELECT ls2.set_num, 0 AS prio
       FROM lego_sets ls2
       WHERE ls2.retired = 0
-        AND (ls2.lego_checked_at IS NULL OR ls2.lego_checked_at < datetime('now', '-90 days'))
+        AND (ls2.lego_checked_at IS NULL OR ls2.lego_checked_at < datetime('now', '-30 days'))
         AND ls2.retail_price IS NOT NULL
         AND NOT EXISTS (SELECT 1 FROM user_collection uc2 WHERE uc2.set_num = ls2.set_num AND uc2.deleted_at IS NULL)
         AND NOT EXISTS (SELECT 1 FROM user_wishlist uw2 WHERE uw2.set_num = ls2.set_num)

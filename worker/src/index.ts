@@ -521,10 +521,15 @@ export default {
       // read the refreshed live offers.
       case '30 7 * * *':
         await run('amazon-offers', () => runAmazonOffers(env, { limit: 60 }));
-        await run('store-offers', () => runStoreOffers(env, { limit: 20 }));
+        await run('store-offers', () => runStoreOffers(env, { limit: 40 }));
         break;
       case '30 16 * * *': await run('amazon-offers', () => runAmazonOffers(env, { limit: 60 })); break;
-      case '0 22 * * *': await run('community-comps', () => runCommunityComps(env)); break;
+      case '0 22 * * *':
+        await run('community-comps', () => runCommunityComps(env));
+        // Second LEGO.com stock pass, Bright Data first: uses the monthly
+        // Bright Data allowance that otherwise expires (2026-10-27).
+        await run('lego-stock-refresh', () => runLegoStockRefresh(env, { limit: 150 }));
+        break;
       case '0 4 * * *': {
         await run('db-hygiene', () => runDbHygiene(env));
         await run('daily-catalog-maintenance', () => runDailyCatalogMaintenance(env));
