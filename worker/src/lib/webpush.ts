@@ -69,6 +69,11 @@ async function importVapidPrivateKey(privB64: string, pubB64: string): Promise<C
   return crypto.subtle.importKey('pkcs8', priv, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
 }
 
+/** Daily health probe: the VAPID keypair parses into a signing key. */
+export async function probeVapidKeys(env: { VAPID_PUBLIC_KEY?: string; VAPID_PRIVATE_KEY?: string }): Promise<void> {
+  await importVapidPrivateKey(String(env.VAPID_PRIVATE_KEY ?? ''), String(env.VAPID_PUBLIC_KEY ?? ''));
+}
+
 export async function sendWebPush(
   sub: PushSubscription,
   payload: string,

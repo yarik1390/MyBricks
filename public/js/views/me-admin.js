@@ -1114,6 +1114,26 @@ function firecrawlPoolHTML() {
   return `<details class="admin-job-details" open><summary>Key pool — drains in order: ${escapeHtml(head)}</summary><div class="admin-bd-pool">${rows}</div></details>${warn}`;
 }
 
+// Bright Data token pool. Every configured token is used: each call goes to the
+// token with the least use this month, so the counts stay level. The card's
+// Quota line is the daily cap for the whole pool. Reads adminHealth.brightdata.pool.
+function brightdataPoolHTML() {
+  const pool = adminHealth?.brightdata?.pool;
+  if (!pool || !Array.isArray(pool.entries) || !pool.entries.length) return '';
+  if (pool.ledger_available === false) {
+    return `<p class="admin-service-action"><strong>Key pool:</strong> ${Number(pool.keys_configured || 0)} key(s) configured; usage ledger unavailable.</p>`;
+  }
+  const head = `${pool.keys_live ?? 0}/${pool.keys_configured ?? pool.entries.length} keys live · ${Number(pool.pooled_remaining ?? 0).toLocaleString()} calls left this month`;
+  const rows = pool.entries.map((e) => {
+    const used = Number(e.used || 0);
+    const cap = Number(e.cap || 0);
+    const last = e.last_used_at ? ` · last used ${ago(e.last_used_at)}` : '';
+    const tag = e.exhausted ? ' — spent' : '';
+    return `<div>#${Number(e.index) + 1} …${escapeHtml(String(e.key_hash || '').slice(0, 8))} — ${escapeHtml(`${used.toLocaleString()}/${cap.toLocaleString()} calls${last}${tag}`)}</div>`;
+  }).join('');
+  return `<details class="admin-job-details" open><summary>Key pool — rotates by least use: ${escapeHtml(head)}</summary><div class="admin-bd-pool">${rows}</div></details>`;
+}
+
 // Relative age for an ISO-8601 timestamp (e.g. new Date().toISOString()). The
 // shared ago() helper is for SQLite "YYYY-MM-DD HH:MM:SS" strings — it appends a
 // 'Z', which double-stamps an ISO value and yields "unknown". Parse natively here.
@@ -1334,6 +1354,7 @@ function serviceCardHTML(svc, row, health, cfg, openSet) {
         <div class="admin-service-facts">${facts.map(({ label, value }) => `<span><span>${escapeHtml(label)}</span> ${escapeHtml(value)}</span>`).join('')}</div>
         ${key === 'ebay' ? ebayStateHTML() : ''}
         ${key === 'firecrawl' ? firecrawlPoolHTML() : ''}
+        ${key === 'brightdata' ? brightdataPoolHTML() : ''}
         ${key === 'pricecharting' ? pcBulkStatusHTML() : ''}
         <p class="admin-service-action">${escapeHtml(health.action)}</p>
         ${row.last_error ? `<details class="admin-job-details"><summary>Latest failure</summary><div>${escapeHtml(String(row.last_error).slice(0, 900))}</div></details>` : ''}

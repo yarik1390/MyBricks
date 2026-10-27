@@ -93,7 +93,13 @@ export async function brightDataUnlock(
         await recordIntegrationAttempt(env, 'brightdata', true).catch(() => undefined);
         return body;
       }
-      lastError = `HTTP ${response.status}${exhausted ? ' (token exhausted)' : ''}`;
+      // Bright Data names why an unlock failed in x-brd-error (e.g. the site
+      // refused the page, or the zone may not reach that domain). A 5xx with
+      // that reason is one target page failing, not the provider being down.
+      const reason = (response.headers.get('x-brd-error') || response.headers.get('x-luminati-error') || '').trim();
+      lastError = !exhausted && response.status >= 500 && reason
+        ? `target page failed: ${hostOf(url)} HTTP ${response.status} (${reason.slice(0, 160)})`
+        : `HTTP ${response.status}${exhausted ? ' (token exhausted)' : ''}${reason ? ` (${reason.slice(0, 160)})` : ''} on ${hostOf(url)}`;
       if (!exhausted) break;
     } catch (error) {
       // Network/timeout errors consume the reserved credit but do not prove the
@@ -108,4 +114,8 @@ export async function brightDataUnlock(
   await recordIntegrationAttempt(env, 'brightdata', false, lastError).catch(() => undefined);
   console.warn('[brightdata] unlock failed:', lastError);
   return null;
+}
+
+function hostOf(url: string): string {
+  try { return new URL(url).hostname; } catch { return 'unknown host'; }
 }

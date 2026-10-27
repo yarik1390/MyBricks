@@ -270,8 +270,8 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     configured: (env) => !!env.BRIGHTDATA_API_TOKEN?.trim()
       || !!env.BRIGHTDATA_API_TOKENS?.split(',').some((token) => token.trim()),
     required_secrets: ['BRIGHTDATA_API_TOKENS'],
-    used_by: ['Brickset page enrichment', 'lego.com stock/retirement checks'],
-    notes: 'Primary raw-HTML lane with deterministic parsers. Tokens rotate by least monthly usage; D1 stores hashes only and caps each token at 4,900 calls/month. Firecrawl remains the rich fallback.',
+    used_by: ['Brickset page enrichment', 'lego.com stock/retirement checks', 'store offers', 'coming soon', 'promotions'],
+    notes: 'Fallback raw-HTML lane when Firecrawl cannot serve a page, with deterministic parsers. Every configured token is used: each call goes to the token with the least use this month; D1 stores hashes only and caps each token at 4,900 calls/month. The daily cap under Pricing sources is shared by the whole pool.',
     recommended_action: 'Configure BRIGHTDATA_API_TOKENS as comma-separated Worker secrets and optionally BRIGHTDATA_ZONE.',
   },
   pricecharting: {
@@ -340,7 +340,12 @@ export function isCreditExhaustionIssue(error?: string | null): boolean {
 // numbers; that fired "BrickLink is unavailable" whenever the last call of a
 // batch happened to be one of them, between thousands of good calls.
 function isPerItemIssue(error?: string | null): boolean {
-  return !!error && /(HTTP 400|HTTP 404|API code 40[04]|not found|no such (?:item|product))/i.test(error);
+  return !!error && /(HTTP 400|HTTP 404|API code 40[04]|not found|no such (?:item|product)|target page failed)/i.test(error);
+}
+
+/** Bright Data reached the provider but could not unblock one target page. */
+export function isTargetPageIssue(error?: string | null): boolean {
+  return !!error && /target page failed/i.test(error);
 }
 
 // The provider answered, but a model's reply could not be parsed. That is a
@@ -576,6 +581,10 @@ export async function getIntegrationDiagnostics(env: Env): Promise<IntegrationDi
         ? 'The provider rejected the server key. Replace the key (GitHub Actions secret, then redeploy) or remove this provider from LLM routing. Routing skips it until a probe or call succeeds.'
       : (configured && row && isQuotaIssue(row.last_error))
         ? 'Provider is refusing calls on quota or rate limit, not credentials — leave the keys alone. Wait for the window to reset, lower the daily cap, or add capacity.'
+      : (configured && row && isTargetPageIssue(row.last_error))
+        ? (status === 'ok'
+          ? 'Working: the last failure was one site refusing one page (see Latest failure); other pages load.'
+          : 'Every recent page failed on the target site (see Latest failure for the site and reason). If it is one site, it is blocking the unlocker; Firecrawl covers it.')
       : (configured && row && isProviderOutage(row.last_error))
         ? 'The provider is erroring on its own side (5xx / empty response), so there is nothing to fix here. Jobs retry on their next scheduled run; if it persists for a day, check the provider status page or account standing.'
       : status === 'down'

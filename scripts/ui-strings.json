@@ -4254,6 +4254,12 @@
     ]
   },
   {
+    "text": "Key pool:",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Key rejected — check it and try again",
     "files": [
       "runtime-exact"
@@ -6864,12 +6870,6 @@
     "text": "Rarity ↓",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "Raw-HTML transport used first for Brickset and LEGO stock scrapes; monthly token pool.",
-    "files": [
-      "views/me-admin-config.js"
     ]
   },
   {

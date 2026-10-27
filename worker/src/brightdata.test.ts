@@ -174,6 +174,15 @@ describe('Bright Data Web Unlocker client', () => {
     expect(fetchMock.mock.calls[1][1].headers.Authorization).not.toBe('Bearer token-a');
   });
 
+  it('names a target page failure with the site and Bright Data\'s reason', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', {
+      status: 520, headers: { 'x-brd-error': 'Request failed: target site returned 403' },
+    })));
+    expect(await brightDataUnlock('https://brickset.com/sets/10001-1', pool, { timeoutMs: 1000 })).toBeNull();
+    const row = await db.prepare(`SELECT last_error FROM integration_health WHERE service = 'brightdata'`).first<{ last_error: string }>();
+    expect(row?.last_error).toBe('target page failed: brickset.com HTTP 520 (Request failed: target site returned 403)');
+  });
+
   it('fails closed when the monthly ledger is unavailable (no outbound request)', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);

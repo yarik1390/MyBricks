@@ -21,6 +21,18 @@ import { computePartOutValue, partKey } from './lib/part-out';
 // integration health
 // ---------------------------------------------------------------------------
 describe('classifyHealth', () => {
+  it('reads one Bright Data target page failure next to a success as ok', () => {
+    const row = {
+      service: 'brightdata',
+      last_ok_at: '2026-10-27 09:02:32',
+      last_fail_at: '2026-10-27 09:02:34',
+      last_error: 'target page failed: brickset.com HTTP 520 (Request failed)',
+      ok_count: 10, fail_count: 10, updated_at: '2026-10-27 09:02:34',
+    };
+    expect(classifyHealth(row)).toBe('ok');
+    expect(classifyHealth({ ...row, last_ok_at: null })).toBe('down');
+  });
+
   it('treats a newer successful check as recovered even with old failures', () => {
     expect(classifyHealth({
       service: 'bricklink',
