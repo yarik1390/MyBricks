@@ -292,7 +292,27 @@ const PROBES: Record<string, Probe> = {
     return env.PATREON_URL ? ok(`configured (${String(env.PATREON_URL).slice(0, 60)})`) : configured('PATREON_URL not set');
   },
   async push(env) {
-    return env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY ? ok('VAPID keys configured') : configured('VAPID keys not set');
+    if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return configured('VAPID keys not set');
+    try {
+      const { probeVapidKeys } = await import('./webpush');
+      await probeVapidKeys(env);
+      return ok('VAPID keypair loads as a signing key');
+    } catch (e) { return err(`VAPID keypair does not load: ${(e as Error).message}`); }
+  },
+  // Google OAuth client: a refresh with a dummy token. Google answers
+  // invalid_grant when the client id/secret are valid, invalid_client when not.
+  async google(env) {
+    if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) return configured('Google OAuth client not set');
+    const body = new URLSearchParams({
+      grant_type: 'refresh_token', refresh_token: 'health-probe',
+      client_id: String(env.GOOGLE_CLIENT_ID), client_secret: String(env.GOOGLE_CLIENT_SECRET),
+    }).toString();
+    const r = await http('POST', 'https://oauth2.googleapis.com/token', {
+      headers: { 'content-type': 'application/x-www-form-urlencoded' }, body,
+    });
+    if (/invalid_grant/.test(r.text)) return ok('OAuth client accepted (dummy refresh token rejected as expected)');
+    if (/invalid_client|unauthorized_client/.test(r.text)) return err(`OAuth client rejected (HTTP ${r.status}): check GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET`);
+    return err(`unexpected token reply HTTP ${r.status}: ${r.text.slice(0, 120)}`);
   },
   // Bright Data Web Unlocker: proves at least one live token and a real unlock
   // round-trip on a lightweight target. Spends one token credit.

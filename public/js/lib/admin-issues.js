@@ -126,6 +126,10 @@ export function buildAdminIssues({
     // enabled. Suppress flag-governed sources until the effective state is known.
     if (flag && featureFlags[flag] !== true) continue;
 
+    // Not set up is a setup choice, not a health problem (Amazon waits on its
+    // Associates approval). A service that was called and failed still shows.
+    if ((row.configured === false || row.status === 'unconfigured') && !row.last_error) continue;
+
     const observation = observationTimestamp(row, now);
     const evidenceAt = observation?.value || null;
     // The server says how long each service's evidence stays valid: on-demand

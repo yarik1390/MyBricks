@@ -176,4 +176,16 @@ describe('buildAdminIssues', () => {
     assert.equal(issues[0].title, 'gemini needs a new key');
     assert.equal(issues[1].title, 'firecrawl is out of credits');
   });
+
+  it('does not list services that are not set up, unless setup failed on access', () => {
+    const issues = buildAdminIssues({
+      diagnostics: [
+        diagnostic('amazon', { configured: false, status: 'unconfigured', reachable: null, last_ok_at: null, last_checked_at: null }),
+        diagnostic('d1', { status: 'unknown', reachable: null, last_ok_at: null, last_checked_at: null }),
+        diagnostic('ebay', { configured: false, status: 'unconfigured', reachable: false, last_ok_at: null, last_fail_at: fresh, last_error: 'HTTP 401 invalid_client' }),
+      ],
+      now: NOW,
+    });
+    assert.deepEqual(issues.map((issue) => `${issue.kind}:${issue.service}`), ['access:ebay', 'unknown:d1']);
+  });
 });
