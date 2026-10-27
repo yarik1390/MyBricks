@@ -51,8 +51,11 @@ export function isRepeatedSignup(d) {
 // the formula current_value. Every surface (catalog card, vault row, set
 // detail, add button, CSV math) must use this — a second copy of this chain
 // once let the catalog show a different number than the vault for the same set.
-/** @param {{market_value?: unknown, blended_value?: unknown, current_value?: unknown}} [row] */
+/** @param {{market_value?: unknown, blended_value?: unknown, current_value?: unknown, value_withheld?: unknown}} [row] */
 export function displayValueOf(row = {}) {
+  // No sales and a swinging estimate: the server withholds the value, and every
+  // surface shows its "no price" state instead of $0.
+  if (row.value_withheld) return null;
   return Number(row.market_value) > 0 ? Number(row.market_value)
     : Number(row.blended_value) > 0 ? Number(row.blended_value)
     : (Number(row.current_value) || 0);

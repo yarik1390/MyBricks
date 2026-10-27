@@ -753,3 +753,5 @@ ALTER TABLE set_market_ext ADD COLUMN bs_retail_alt REAL;
 -- Bundle value from contents (bundle-values, daily after the value model).
 ALTER TABLE set_market_ext ADD COLUMN bundle_value REAL;
 ALTER TABLE set_market_ext ADD COLUMN bundle_cached_at TEXT;
+-- No-sales set with a swinging estimate: value withheld (detectValueMovers).
+ALTER TABLE set_market_ext ADD COLUMN value_unstable_at TEXT;

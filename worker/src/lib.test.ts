@@ -1167,3 +1167,25 @@ describe('wishlistAlertEmailHTML', () => {
     expect(html).toContain('href="https://bricksvault.app#/me"');
   });
 });
+
+describe('withheld values ("No market price")', () => {
+  it('strips every shown value and counts the holding as unpriced', async () => {
+    const { setWithheldValuesForTest } = await import('./lib/value-withheld');
+    const { enrichSetRecord, holdingValueForRollout } = await import('./lib/market-sources');
+    setWithheldValuesForTest(['LIT2009-1']);
+    try {
+      const out = enrichSetRecord({ set_num: 'LIT2009-1', current_value: 257, blended_value: 257, valuation_method: 'formula_bulk' }) as Record<string, any>;
+      expect(out.value_withheld).toBe(true);
+      expect(out.current_value).toBeNull();
+      expect(out.blended_value).toBeNull();
+      expect(out.market_value).toBeNull();
+      expect(out.valuation?.new?.fair_value ?? null).toBeNull();
+      expect(holdingValueForRollout({ set_num: 'LIT2009-1', current_value: 257, blended_value: 257 }, 0)).toBe(0);
+      const other = enrichSetRecord({ set_num: '75192-1', current_value: 800, valuation_method: 'formula_bulk' }) as Record<string, any>;
+      expect(other.value_withheld).toBeUndefined();
+      expect(holdingValueForRollout({ set_num: '75192-1', current_value: 800 }, 0)).toBe(800);
+    } finally {
+      setWithheldValuesForTest([]);
+    }
+  });
+});

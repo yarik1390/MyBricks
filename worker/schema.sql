@@ -165,7 +165,10 @@ CREATE TABLE IF NOT EXISTS set_market_ext (
   -- minifigure series or sealed box contains, from Rebrickable's inventory
   -- files. While set, it is the model_value and the value model leaves it alone.
   bundle_value REAL,
-  bundle_cached_at TEXT
+  bundle_cached_at TEXT,
+  -- No-sales set whose estimate swung >2.5x overnight: its value is withheld
+  -- ("No market price") until a real sale appears. See detectValueMovers.
+  value_unstable_at TEXT
 );
 
 -- Pricing Engine v3 keeps identity, normalized observations and condition-aware

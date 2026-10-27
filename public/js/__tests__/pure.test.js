@@ -528,6 +528,9 @@ describe('eBay sold helpers', () => {
 });
 
 describe('displayValueOf', () => {
+  it('returns null for a withheld value so surfaces show no price, not $0', () => {
+    assert.equal(displayValueOf({ value_withheld: true, current_value: 257 }), null);
+  });
   it('prefers market_value, then blended_value, then current_value', () => {
     assert.equal(displayValueOf({ market_value: 900, blended_value: 850, current_value: 800 }), 900);
     assert.equal(displayValueOf({ blended_value: 850, current_value: 800 }), 850);

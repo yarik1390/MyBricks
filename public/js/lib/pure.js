@@ -449,7 +449,7 @@ export function flipEconomics({ marketUsd, rate = 1, feePct = 13.25, paymentPct 
 // read with the same authority as real market values. Coming-soon sets show the
 // announced retail, which is a fact, not an estimate.
 export function isEstimatedValue(set = {}) {
-  if (set.coming_soon) return false;
+  if (set.coming_soon || set.value_withheld) return false;
   if (Number(set.market_value) > 0 || Number(set.blended_value) > 0) return false;
   const m = String(set.valuation_method || "");
   return m === "formula_bulk" || m === "local" || m === "ai" || m === "";
