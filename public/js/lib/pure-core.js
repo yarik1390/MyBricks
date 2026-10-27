@@ -67,7 +67,7 @@ export function displayValueOf(row = {}) {
  * aligned with cards that already render `market_value`/`blended_value`.
  * @template {Record<string, unknown>} T
  * @param {T} row
- * @returns {T & {current_value: number}}
+ * @returns {T & {current_value: number | null}}
  */
 export function withDisplayValue(row) {
   return { ...row, current_value: displayValueOf(row) };
