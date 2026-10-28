@@ -1,6 +1,7 @@
 import type { Env } from '../types';
 import { appLink, appBaseUrl, appHost } from '../lib/app-url';
-import { sendAlertEmail, wishlistAlertEmailHTML } from '../lib/resend';
+import { sendAlertEmail } from '../lib/resend';
+import { alertEmailHTML, type AlertEmailSet } from '../lib/alert-email';
 import { sendDiscordAlert } from '../lib/discord';
 import { sendWebPush } from '../lib/webpush';
 import { sendNativePushToUser } from '../lib/firebase-push';
@@ -78,6 +79,17 @@ const setLink = (setNum: string, tail = '') => `#/set/${encodeURIComponent(setNu
 // up by the next daily run; dedupe/cooldown predicates keep progress monotonic.
 const ALERTS_PER_KIND = 60;
 
+// The set facts every alert email shows (photo, theme/year/pieces, retail).
+function emailSet(row: {
+  set_num: string; set_name: string; image_url: string | null;
+  retail_price: number | null; theme: string | null; year: number | null; pieces: number | null;
+}, value: number): AlertEmailSet {
+  return {
+    setNum: row.set_num, name: row.set_name, imageUrl: row.image_url,
+    theme: row.theme, year: row.year, pieces: row.pieces, retailPrice: row.retail_price, value,
+  };
+}
+
 // Batch-load notification prefs for many users in chunked IN(...) queries (one
 // query per 100 users) instead of one query per user inside the send loops.
 async function loadAlertPrefs(env: Env, userIds: string[]): Promise<Map<string, AlertPrefs>> {
@@ -106,7 +118,7 @@ export async function runWishlistAlerts(env: Env) {
   // or under target is always actionable regardless of valuation confidence.
   const { results: rawResults } = await env.DB.prepare(`
     SELECT w.id, w.user_id, w.set_num, w.target_price, w.alerted_at,
-           s.name as set_name, s.image_url,
+           s.name as set_name, s.image_url, s.retail_price, s.theme, s.year, s.pieces,
            COALESCE(NULLIF(s.blended_value, 0), s.current_value) AS current_value,
            ext.pa_lowest_offer, ext.pa_in_stock, ext.pa_best_merchant
     FROM user_wishlist w
@@ -129,7 +141,7 @@ export async function runWishlistAlerts(env: Env) {
       )
       AND (w.alerted_at IS NULL OR w.alerted_at < datetime('now', '-7 days'))
     LIMIT ?
-  `).bind(ALERTS_PER_KIND).all<{ id: number; user_id: string; set_num: string; target_price: number; set_name: string; current_value: number; image_url: string | null; pa_lowest_offer: number | null; pa_in_stock: number | null; pa_best_merchant: string | null }>();
+  `).bind(ALERTS_PER_KIND).all<{ id: number; user_id: string; set_num: string; target_price: number; set_name: string; current_value: number; image_url: string | null; retail_price: number | null; theme: string | null; year: number | null; pieces: number | null; pa_lowest_offer: number | null; pa_in_stock: number | null; pa_best_merchant: string | null }>();
 
   // The buyable price that triggered the alert: the lower of market value and the
   // live pricesAPI offer (when in stock). When the live offer is the cheaper one,
@@ -184,7 +196,7 @@ export async function runWishlistAlerts(env: Env) {
 
     for (const row of rows) {
       if (prefs.email && env.RESEND_API_KEY) {
-        const html = wishlistAlertEmailHTML(row.set_name, row.set_num, row.target_price, row.current_value, 'drop', appBaseUrl(env));
+        const html = alertEmailHTML('drop', emailSet(row, row.current_value), { targetPrice: row.target_price, merchant: row.buy_merchant }, appBaseUrl(env));
         sendAlertEmail(prefs.email, `${row.set_name} hit your target price`, html, env).catch(() => {});
       }
       const at = row.buy_merchant ? ` at ${row.buy_merchant}` : '';
@@ -227,7 +239,7 @@ async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
   // this job used to fire on.
   const { results } = await env.DB.prepare(`
     SELECT uc.id as collection_id, uc.user_id, uc.set_num, uc.purchase_price,
-           ls.name as set_name, ls.image_url,
+           ls.name as set_name, ls.image_url, ls.retail_price, ls.theme, ls.year, ls.pieces,
            COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) AS current_value
     FROM user_collection uc
     JOIN lego_sets ls ON ls.set_num = uc.set_num
@@ -248,6 +260,7 @@ async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
   `).bind(ALERTS_PER_KIND).all<{
     collection_id: number; user_id: string; set_num: string;
     purchase_price: number; set_name: string; current_value: number; image_url: string | null;
+    retail_price: number | null; theme: string | null; year: number | null; pieces: number | null;
   }>();
 
   if (!results.length) return { fired: 0 };
@@ -280,7 +293,7 @@ async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
     const quiet = inQuietHours(prefs);
     for (const row of rows) {
       if (prefs.email && env.RESEND_API_KEY) {
-        const html = wishlistAlertEmailHTML(row.set_name, row.set_num, row.purchase_price, row.current_value, 'spike', appBaseUrl(env));
+        const html = alertEmailHTML('spike', emailSet(row, row.current_value), { purchasePrice: row.purchase_price }, appBaseUrl(env));
         sendAlertEmail(prefs.email, `${row.set_name} is up +30% — spike alert`, html, env).catch(() => {});
       }
       if (prefs.discord_webhook_url) {
@@ -403,7 +416,8 @@ export async function runSellTargetAlerts(env: Env): Promise<{ fired: number }> 
 // inserted row is the 30-day cooldown), so no per-row cooldown column is needed.
 async function runRetirementAlerts(env: Env): Promise<{ fired: number }> {
   const { results } = await env.DB.prepare(`
-    SELECT u.user_id, ls.set_num, ls.name AS set_name, COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) AS current_value, ls.image_url
+    SELECT u.user_id, ls.set_num, ls.name AS set_name, COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) AS current_value, ls.image_url,
+           ls.retail_price, ls.theme, ls.year, ls.pieces, ls.exit_date
     FROM lego_sets ls
     JOIN (
       SELECT user_id, set_num FROM user_collection WHERE deleted_at IS NULL
@@ -425,7 +439,7 @@ async function runRetirementAlerts(env: Env): Promise<{ fired: number }> {
           AND wa.alert_type = 'retiring' AND wa.triggered_at > datetime('now', '-30 days')
       )
     LIMIT ?
-  `).bind(ALERTS_PER_KIND).all<{ user_id: string; set_num: string; set_name: string; current_value: number | null; image_url: string | null }>();
+  `).bind(ALERTS_PER_KIND).all<{ user_id: string; set_num: string; set_name: string; current_value: number | null; image_url: string | null; retail_price: number | null; theme: string | null; year: number | null; pieces: number | null; exit_date: string | null }>();
 
   if (!results.length) return { fired: 0 };
 
@@ -451,7 +465,7 @@ async function runRetirementAlerts(env: Env): Promise<{ fired: number }> {
     for (const row of rows) {
       const cv = Number(row.current_value) || 0;
       if (prefs.email && env.RESEND_API_KEY) {
-        const html = wishlistAlertEmailHTML(row.set_name, row.set_num, 0, cv, 'retiring', appBaseUrl(env));
+        const html = alertEmailHTML('retiring', emailSet(row, cv), { exitDate: row.exit_date }, appBaseUrl(env));
         sendAlertEmail(prefs.email, `${row.set_name} is retiring soon`, html, env).catch(() => {});
       }
       if (prefs.discord_webhook_url) {
@@ -485,7 +499,7 @@ async function runDealAlerts(env: Env): Promise<{ fired: number }> {
   const { results } = await env.DB.prepare(`
     SELECT w.user_id, ls.set_num, ls.name AS set_name,
            COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) AS market_value,
-           ls.image_url, ls.deal_discount_pct
+           ls.image_url, ls.deal_discount_pct, ls.retail_price, ls.theme, ls.year, ls.pieces
     FROM user_wishlist w
     JOIN lego_sets ls ON ls.set_num = w.set_num
     WHERE ls.deal_signal = 'buy'
@@ -496,7 +510,7 @@ async function runDealAlerts(env: Env): Promise<{ fired: number }> {
           AND wa.alert_type = 'deal' AND wa.triggered_at > datetime('now', '-30 days')
       )
     LIMIT ?
-  `).bind(ALERTS_PER_KIND).all<{ user_id: string; set_num: string; set_name: string; market_value: number | null; image_url: string | null; deal_discount_pct: number | null }>();
+  `).bind(ALERTS_PER_KIND).all<{ user_id: string; set_num: string; set_name: string; market_value: number | null; image_url: string | null; deal_discount_pct: number | null; retail_price: number | null; theme: string | null; year: number | null; pieces: number | null }>();
 
   if (!results.length) return { fired: 0 };
 
@@ -524,7 +538,7 @@ async function runDealAlerts(env: Env): Promise<{ fired: number }> {
       const pct = Number(row.deal_discount_pct);
       const pctStr = Number.isFinite(pct) && pct >= 1 ? `~${Math.round(pct)}% below market` : 'below market';
       if (prefs.email && env.RESEND_API_KEY) {
-        const html = wishlistAlertEmailHTML(row.set_name, row.set_num, 0, mv, 'deal', appBaseUrl(env));
+        const html = alertEmailHTML('deal', emailSet(row, mv), { discountPct: row.deal_discount_pct }, appBaseUrl(env));
         sendAlertEmail(prefs.email, `Buy window: ${row.set_name}`, html, env).catch(() => {});
       }
       if (prefs.discord_webhook_url) {
@@ -556,7 +570,7 @@ async function runDealAlerts(env: Env): Promise<{ fired: number }> {
 // new scraping). Deduped via wishlist_alerts (alert_type='preorder', 30 days).
 async function runPreorderAlerts(env: Env): Promise<{ fired: number }> {
   const { results } = await env.DB.prepare(`
-    SELECT w.user_id, ls.set_num, ls.name AS set_name, COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) AS current_value, ls.image_url, ls.lego_availability
+    SELECT w.user_id, ls.set_num, ls.name AS set_name, COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) AS current_value, ls.image_url, ls.lego_availability, ls.retail_price, ls.theme, ls.year, ls.pieces
     FROM user_wishlist w
     JOIN lego_sets ls ON ls.set_num = w.set_num
     LEFT JOIN user_prefs up ON up.user_id = w.user_id
@@ -569,7 +583,7 @@ async function runPreorderAlerts(env: Env): Promise<{ fired: number }> {
           AND wa.alert_type = 'preorder' AND wa.triggered_at > datetime('now', '-30 days')
       )
     LIMIT ?
-  `).bind(ALERTS_PER_KIND).all<{ user_id: string; set_num: string; set_name: string; current_value: number | null; image_url: string | null; lego_availability: string }>();
+  `).bind(ALERTS_PER_KIND).all<{ user_id: string; set_num: string; set_name: string; current_value: number | null; image_url: string | null; lego_availability: string; retail_price: number | null; theme: string | null; year: number | null; pieces: number | null }>();
 
   if (!results.length) return { fired: 0 };
 
@@ -595,7 +609,7 @@ async function runPreorderAlerts(env: Env): Promise<{ fired: number }> {
     for (const row of rows) {
       const label = row.lego_availability === 'coming_soon' ? 'coming soon' : 'available to pre-order';
       if (prefs.email && env.RESEND_API_KEY) {
-        const html = wishlistAlertEmailHTML(row.set_name, row.set_num, 0, Number(row.current_value) || 0, 'preorder', appBaseUrl(env));
+        const html = alertEmailHTML('preorder', emailSet(row, Number(row.current_value) || 0), { availability: row.lego_availability }, appBaseUrl(env));
         sendAlertEmail(prefs.email, `${row.set_name} is ${label}`, html, env).catch(() => {});
       }
       if (prefs.discord_webhook_url) {
