@@ -21,10 +21,16 @@ import {
  * Also clears live-offer data older than STORE_OFFER_MAX_AGE_DAYS, so an offer
  * that is no longer re-checked stops driving deal calls and alerts.
  */
+// A set can walk Bright Data, Decodo, ZenRows and Firecrawl per store, so a
+// run of 40 can outlast the cron invocation; stop early and leave the rest
+// (oldest-checked first) for tomorrow instead of dying mid-run.
+export const STORE_OFFERS_TIME_BUDGET_MS = 8 * 60_000;
+
 export async function runStoreOffers(
   env: Env,
-  options: { limit?: number } = {},
-): Promise<{ processed: number; found: number; cleared: number; skipped?: string }> {
+  options: { limit?: number; budgetMs?: number } = {},
+): Promise<{ processed: number; found: number; cleared: number; deferred?: number; skipped?: string }> {
+  const deadline = Date.now() + (options.budgetMs ?? STORE_OFFERS_TIME_BUDGET_MS);
   const stale = await clearStaleOffers(env.DB);
   const cleared = stale.length;
   if (stale.length) await recomputeBlendedValues(env.DB, stale).catch(() => 0);
@@ -50,8 +56,10 @@ export async function runStoreOffers(
 
   let processed = 0;
   let found = 0;
+  let deferred = 0;
   const touched: string[] = [];
   for (const set of results || []) {
+    if (Date.now() > deadline) { deferred++; continue; }
     if (set.last_checked && Date.parse(`${set.last_checked.replace(' ', 'T')}Z`) > Date.now() - 20 * 3600_000) continue;
     const r = await checkSetStores(env, set.set_num, set.msrp);
     processed += r.processed;
@@ -61,7 +69,7 @@ export async function runStoreOffers(
   }
   // Refresh the persisted deal call (catalog "deals" filter, deal alerts).
   if (touched.length) await recomputeBlendedValues(env.DB, touched).catch(() => 0);
-  return { processed, found, cleared };
+  return deferred ? { processed, found, cleared, deferred } : { processed, found, cleared };
 }
 
 /**
@@ -92,7 +100,7 @@ export async function checkSetStores(
           formats: ['json'],
           jsonOptions: { schema: STORE_EXTRACT_SCHEMA, prompt: storeExtractPrompt(setNum) },
           waitFor: 2000,
-          timeoutMs: 30_000,
+          timeoutMs: 20_000,
           throwOnRateLimit: true,
         }, env);
         products = res ? (res.data?.products ?? []) : null;
@@ -149,7 +157,7 @@ async function storeProductsViaBrightData(
   setNum: string,
   msrp: number | null,
 ): Promise<ExtractedProduct[] | null> {
-  const html = await fetchRawPage(env, url);
+  const html = await fetchRawPage(env, url, 20_000);
   if (!html) return null;
   const harvested: ExtractedProduct[] = harvestProducts(html, url)
     .map((p) => ({ title: p.title, price: p.price, in_stock: p.in_stock, url: p.url }));

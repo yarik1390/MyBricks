@@ -4,7 +4,7 @@ import { firecrawlScrape } from './firecrawl';
 import { firecrawlEnabled } from './pricing-flags';
 import { sourceEnabled } from './source-config';
 import { brightDataUnlock } from './brightdata';
-import { backupScrape } from './backup-scrapers';
+import { backupFetch } from './backup-scrapers';
 import { parseLegoStockHtml } from './brightdata-parsers';
 
 export interface LegoStockResult {
@@ -149,7 +149,10 @@ async function checkLegoStockRaw(setNum: string, env?: Env): Promise<LegoStockRe
     if (parsed) return parsed;
   }
   if (env) {
-    const html = await backupScrape(productUrl, env, { timeoutMs: 25_000 });
+    const { html, missing } = await backupFetch(productUrl, env, { timeoutMs: 25_000 });
+    // LEGO.com has no page for this set (usually retired): Firecrawl and the
+    // plain fetch would only hit the same 404.
+    if (missing) return null;
     const parsed = html ? parseLegoStockHtml(html, num) : null;
     if (parsed) return parsed;
   }

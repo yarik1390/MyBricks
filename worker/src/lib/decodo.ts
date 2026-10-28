@@ -25,10 +25,19 @@ const hostOf = (url: string): string => {
 
 /** Raw page HTML through Decodo, or null (not configured, daily cap, or failure). */
 export async function decodoScrape(url: string, env: Env, options: { timeoutMs?: number } = {}): Promise<string | null> {
-  if (!(await decodoAvailable(env))) return null;
+  return (await decodoFetch(url, env, options)).html;
+}
+
+/**
+ * Like decodoScrape, but also says when the site itself has no such page
+ * (404/410). Then Decodo did its job, and no other lane will find the page either.
+ */
+export async function decodoFetch(url: string, env: Env, options: { timeoutMs?: number } = {}): Promise<{ html: string | null; missing: boolean }> {
+  const none = { html: null, missing: false };
+  if (!(await decodoAvailable(env))) return none;
   if ((await quotaRemaining(env, 'decodo')) < 1) {
     console.warn('[decodo] daily cap reached');
-    return null;
+    return none;
   }
   await spendQuota(env, 'decodo', 1);
   const controller = new AbortController();
@@ -50,7 +59,11 @@ export async function decodoScrape(url: string, env: Env, options: { timeoutMs?:
       const content = typeof result?.content === 'string' ? result.content : '';
       if (content.trim() && (result?.status_code ?? 200) < 400) {
         await recordIntegrationAttempt(env, 'decodo', true).catch(() => undefined);
-        return content;
+        return { html: content, missing: false };
+      }
+      if (result?.status_code === 404 || result?.status_code === 410) {
+        await recordIntegrationAttempt(env, 'decodo', true).catch(() => undefined);
+        return { html: null, missing: true };
       }
       // Decodo answered but the site did not serve the page: one target failing.
       error = `target page failed: ${hostOf(url)} HTTP ${result?.status_code ?? 'empty'}`;
@@ -64,5 +77,5 @@ export async function decodoScrape(url: string, env: Env, options: { timeoutMs?:
     clearTimeout(timeout);
   }
   await recordIntegrationAttempt(env, 'decodo', false, error).catch(() => undefined);
-  return null;
+  return none;
 }
