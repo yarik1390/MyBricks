@@ -2,7 +2,7 @@
 import { env } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyTestTables } from './test-schema';
-import { backupScrape } from './lib/backup-scrapers';
+import { backupFetch, backupScrape } from './lib/backup-scrapers';
 
 const db = (env as { DB: D1Database }).DB;
 const keys = { ...env, DECODO_AUTH_TOKEN: 'dk', ZENROWS_API_KEY: 'zk' } as any;
@@ -34,6 +34,21 @@ describe('backup scrapers (Decodo, then ZenRows)', () => {
     expect(String(fetchMock.mock.calls[1][0])).toMatch(/^https:\/\/api\.zenrows\.com\/v1\/\?apikey=zk&url=https%3A%2F%2Fwww\.lego\.com/);
     const row = await db.prepare(`SELECT last_error FROM integration_health WHERE service='decodo'`).first<{ last_error: string }>();
     expect(row?.last_error).toBe('target page failed: www.lego.com HTTP 520');
+  });
+
+  it('stops at a page the site does not have, without paying ZenRows for the same 404', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ results: [{ content: '<html>404</html>', status_code: 404 }] })));
+    expect(await backupFetch('https://www.lego.com/en-us/product/7245', keys)).toEqual({ html: null, missing: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const row = await db.prepare(`SELECT ok_count, fail_count FROM integration_health WHERE service='decodo'`).first<{ ok_count: number; fail_count: number }>();
+    expect(row).toMatchObject({ ok_count: 1, fail_count: 0 });
+  });
+
+  it('treats a ZenRows RESP002 as a missing page, not a provider failure', async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response('busy', { status: 503 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ code: 'RESP002', title: 'Page not found' }), { status: 404 }));
+    expect(await backupFetch('https://www.lego.com/en-us/product/7245', keys)).toEqual({ html: null, missing: true });
   });
 
   it('does nothing when neither key is set', async () => {

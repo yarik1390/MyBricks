@@ -23,10 +23,16 @@ const hostOf = (url: string): string => {
 
 /** Raw page HTML through ZenRows, or null (not configured, daily cap, or failure). */
 export async function zenrowsScrape(url: string, env: Env, options: { timeoutMs?: number } = {}): Promise<string | null> {
-  if (!(await zenrowsAvailable(env))) return null;
+  return (await zenrowsFetch(url, env, options)).html;
+}
+
+/** Like zenrowsScrape, but also says when the site itself has no such page (RESP002, 404/410). */
+export async function zenrowsFetch(url: string, env: Env, options: { timeoutMs?: number } = {}): Promise<{ html: string | null; missing: boolean }> {
+  const none = { html: null, missing: false };
+  if (!(await zenrowsAvailable(env))) return none;
   if ((await quotaRemaining(env, 'zenrows')) < 1) {
     console.warn('[zenrows] daily cap reached');
-    return null;
+    return none;
   }
   await spendQuota(env, 'zenrows', 1);
   const controller = new AbortController();
@@ -38,7 +44,7 @@ export async function zenrowsScrape(url: string, env: Env, options: { timeoutMs?
     const text = await response.text();
     if (response.ok && text.trim()) {
       await recordIntegrationAttempt(env, 'zenrows', true).catch(() => undefined);
-      return text;
+      return { html: text, missing: false };
     }
     // ZenRows answers JSON {code, title, detail} on failure; never echo the key.
     let reason = '';
@@ -46,6 +52,10 @@ export async function zenrowsScrape(url: string, env: Env, options: { timeoutMs?
       const body = JSON.parse(text) as { code?: string; title?: string };
       reason = [body.code, body.title].filter(Boolean).join(' ');
     } catch { reason = text.replace(/\s+/g, ' ').slice(0, 120); }
+    if (/RESP002/.test(reason) || response.status === 410) {
+      await recordIntegrationAttempt(env, 'zenrows', true).catch(() => undefined);
+      return { html: null, missing: true };
+    }
     error = response.status === 422 || /RESP001|blocked|target/i.test(reason)
       ? `target page failed: ${hostOf(url)} HTTP ${response.status}${reason ? ` (${reason})` : ''}`
       : `HTTP ${response.status}${reason ? ` (${reason})` : ''} on ${hostOf(url)}`;
@@ -55,5 +65,5 @@ export async function zenrowsScrape(url: string, env: Env, options: { timeoutMs?
     clearTimeout(timeout);
   }
   await recordIntegrationAttempt(env, 'zenrows', false, error).catch(() => undefined);
-  return null;
+  return none;
 }

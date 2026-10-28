@@ -79,6 +79,12 @@ describe('store offers', () => {
     expect(scrape).not.toHaveBeenCalled();
   });
 
+  it('stops at its time budget and leaves the rest for the next run', async () => {
+    const out = await runStoreOffers(withKey, { limit: 5, budgetMs: -1 });
+    expect(out).toMatchObject({ processed: 0, deferred: 1 });
+    expect(scrape).not.toHaveBeenCalled();
+  });
+
   it('GET /api/stores lists priced stores cheapest first and links the rest', async () => {
     await db.prepare(`INSERT INTO store_offers (set_num, store, price, in_stock, url, checked_at) VALUES
       ('10001-1', 'walmart', 89.99, 1, 'https://www.walmart.com/ip/1', datetime('now')),
