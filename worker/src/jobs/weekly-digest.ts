@@ -1,5 +1,7 @@
 import type { Env } from '../types';
 import { sendAlertEmail } from '../lib/resend';
+import { weeklyDigestEmailHTML } from '../lib/alert-email';
+import { appBaseUrl } from '../lib/app-url';
 import { sendPushToUser } from './wishlist-alerts';
 
 // Sunday-morning vault digest (opt-in): "your vault moved +$X this week, top
@@ -38,7 +40,7 @@ export async function runWeeklyDigest(env: Env) {
 
     // Top mover across the user's owned sets, today vs 7 days ago.
     const mover = await env.DB.prepare(`
-      SELECT t.set_num, ls.name, (t.current_value - y.current_value) AS delta
+      SELECT t.set_num, ls.name, ls.image_url, (t.current_value - y.current_value) AS delta
       FROM user_collection uc
       JOIN set_value_history t ON t.set_num = uc.set_num AND t.snapshot_date = (
         SELECT MAX(snapshot_date) FROM set_value_history WHERE set_num = uc.set_num
@@ -51,7 +53,7 @@ export async function runWeeklyDigest(env: Env) {
       WHERE uc.user_id = ? AND uc.deleted_at IS NULL AND t.snapshot_date != y.snapshot_date
       ORDER BY ABS(t.current_value - y.current_value) DESC
       LIMIT 1
-    `).bind(u.user_id).first<{ set_num: string; name: string; delta: number }>().catch(() => null);
+    `).bind(u.user_id).first<{ set_num: string; name: string; image_url: string | null; delta: number }>().catch(() => null);
 
     const drops = await env.DB.prepare(`
       SELECT COUNT(*) AS n FROM wishlist_alerts
@@ -76,11 +78,13 @@ export async function runWeeklyDigest(env: Env) {
       url: '#/',
     })).catch(() => {});
     if (u.email && env.RESEND_API_KEY) {
-      const html = `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;">
-        <h2 style="font-family:Georgia,serif;">Your weekly vault digest</h2>
-        ${lines.map((l) => `<p>${l}</p>`).join('')}
-        <p style="font-size:12px;color:#888;">You asked for this weekly summary — turn it off any time in Settings → Notifications.</p>
-      </div>`;
+      const html = weeklyDigestEmailHTML({
+        nowValue: u.now_value,
+        delta,
+        setCount: u.set_count ?? 0,
+        mover: mover ? { setNum: mover.set_num, name: mover.name, delta: mover.delta, imageUrl: mover.image_url } : null,
+        wishlistDrops: drops?.n ?? 0,
+      }, appBaseUrl(env));
       sendAlertEmail(u.email, 'Your weekly vault digest', html, env).catch(() => {});
     }
     sent++;

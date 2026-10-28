@@ -1170,13 +1170,52 @@ describe('kids-xp pure helpers', () => {
 });
 
 
-describe('wishlistAlertEmailHTML', () => {
+describe('alertEmailHTML', () => {
   it('links the button to the set page share link, not the home screen', async () => {
-    const { wishlistAlertEmailHTML } = await import('./lib/resend');
-    const html = wishlistAlertEmailHTML('Hot Rod Car', '30735-1', 0, 0, 'retiring', 'https://bricksvault.app');
+    const { alertEmailHTML } = await import('./lib/alert-email');
+    const html = alertEmailHTML('retiring', { setNum: '30735-1', name: 'Hot Rod Car', value: 0 }, {}, 'https://bricksvault.app');
     expect(html).toContain('href="https://bricksvault.app/s/30735-1"');
-    expect(html).not.toContain('href="https://bricksvault.app"');
-    expect(html).toContain('href="https://bricksvault.app#/me"');
+    expect(html).toMatch(/href="https:\/\/bricksvault\.app\/s\/30735-1"[^>]*>Open in BricksVault</);
+    expect(html).toContain('href="https://bricksvault.app/#/me"');
+  });
+
+  it('shows the photo, market vs retail and the exit date for a retiring set', async () => {
+    const { alertEmailHTML } = await import('./lib/alert-email');
+    const html = alertEmailHTML('retiring', {
+      setNum: '30736-1', name: 'White Seaplane', theme: 'Creator', year: 2026, pieces: 82,
+      retailPrice: 4.99, value: 3.04,
+      imageUrl: 'https://cdn.rebrickable.com/media/sets/30736-1.jpg',
+    }, { exitDate: '2026-12-31T00:00:00Z' }, 'https://bricksvault.app');
+    expect(html).toContain('src="https://cdn.rebrickable.com/media/sets/30736-1.jpg"');
+    expect(html).toContain('$3.04');
+    expect(html).toContain('$4.99');
+    expect(html).toContain('−39%');
+    expect(html).toContain('December 2026');
+    expect(html).toContain('less than retail');
+    expect(html).toContain('https://bricksvault.app/icon-192.png');
+  });
+
+  it('escapes set names and drops non-https images', async () => {
+    const { alertEmailHTML } = await import('./lib/alert-email');
+    const html = alertEmailHTML('drop', { setNum: '1-1', name: '<b>x</b>', value: 10, imageUrl: 'http://x/y.jpg' },
+      { targetPrice: 12 }, 'https://bricksvault.app');
+    expect(html).not.toContain('<b>x</b>');
+    expect(html).toContain('&lt;b&gt;x&lt;/b&gt;');
+    expect(html).not.toContain('http://x/y.jpg');
+  });
+});
+
+describe('weeklyDigestEmailHTML', () => {
+  it('shows the weekly change, total and top mover', async () => {
+    const { weeklyDigestEmailHTML } = await import('./lib/alert-email');
+    const html = weeklyDigestEmailHTML({
+      nowValue: 1250, delta: 42.5, setCount: 18, wishlistDrops: 2,
+      mover: { setNum: '10305-1', name: 'Lion Knights Castle', delta: 30 },
+    }, 'https://bricksvault.app');
+    expect(html).toContain('+$42.50');
+    expect(html).toContain('$1,250.00');
+    expect(html).toContain('Lion Knights Castle');
+    expect(html).toContain('2 wishlist sets');
   });
 });
 
