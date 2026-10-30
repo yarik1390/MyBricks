@@ -43,5 +43,8 @@ export function publicSetDetail(set: Record<string, unknown>): Record<string, un
     }
     out.valuation = v;
   }
+  // Tells the app the per-source figures were held back on purpose, so it can
+  // say "sign in to see" instead of "no sales" / "pending".
+  out.values_withheld = true;
   return out;
 }

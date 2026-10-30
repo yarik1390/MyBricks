@@ -68,7 +68,19 @@ describe('investment-grade valuation v3', () => {
     ]);
     expect(result.confidence).toBe('medium');
     expect(result.independent_family_count).toBe(1);
-    expect(result.sample_count).toBe(12);
+    // PriceCharting's 12 is yearly product volume, counted as a small guide (5),
+    // so eBay's 7 real sales win the median and supply the family's count.
+    expect(result.fair_value).toBe(100);
+    expect(result.sample_count).toBe(7);
+  });
+
+  it('never reports PriceCharting yearly volume as that many verified sales', () => {
+    const result = valueSignalsV3('new_sealed', [
+      sold('bricklink_new', 'bricklink', 700, 52),
+      sold('pricecharting', 'ebay_market', 720, 1064),
+    ]);
+    expect(result.independent_family_count).toBe(2);
+    expect(result.sample_count).toBe(57);
   });
 
   it('does not promote explicitly unknown completeness to complete', () => {
@@ -266,6 +278,23 @@ describe('stale evidence', () => {
   const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
   const aged = (signal: PricingSignal, days: number): PricingSignal => ({
     ...signal, checked_at: daysAgo(days), source_observed_at: daysAgo(days),
+  });
+
+  it('takes a family count from the signal that set its price, not a stale loser', () => {
+    const result = valueSignalsV3('new_sealed', [
+      aged(sold('ebay_sold_new', 'ebay_market', 200, 100), 100),
+      sold('ebay_sold_new_2', 'ebay_market', 105, 5),
+    ]);
+    expect(result.fair_value).toBe(105);
+    expect(result.sample_count).toBe(5);
+  });
+
+  it('caps two stale families that disagree at low, like one stale family', () => {
+    const result = valueSignalsV3('new_sealed', [
+      aged(sold('bricklink_new', 'bricklink', 100, 10), 40),
+      aged(sold('ebay_sold_new', 'ebay_market', 160, 10), 40),
+    ]);
+    expect(result.confidence).toBe('low');
   });
   const modeled = (value: number, days = 0): PricingSignal => ({
     ...aged(sold('brickeconomy_new', 'brickeconomy', value, 0), days), signal_type: 'modeled',

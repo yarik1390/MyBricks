@@ -1603,6 +1603,7 @@ export const es = {
     estimateUnlocks: 'La estimación de {list} se desbloqueará con más datos de ventas.',
     estimatesUnlock: 'Las estimaciones de {list} se desbloquearán con más datos de ventas.',
     soldEvidenceHeadline: 'Basado en {sales} de {markets}.',
+    soldEvidenceSignedOut: 'Inicia sesión para ver las ventas y precios de cada fuente. El valor de arriba ya los tiene en cuenta.',
     soldEvidenceFallback: 'No hay ventas verificadas recientes; la estimación usa precios anunciados o guías de mercado.',
     soldEvidenceTitle: 'Ventas de referencia',
     soldEvidenceNewSealed: 'Nuevo y sellado',

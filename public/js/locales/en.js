@@ -1707,6 +1707,7 @@ export const en = {
     // Sold-evidence card. {sales} and {markets} carry full pluralised
     // phrases, so the headline itself is count-agnostic.
     soldEvidenceHeadline: 'Based on {sales} from {markets}.',
+    soldEvidenceSignedOut: 'Sign in to see each source\'s sales and prices. The value above already uses them.',
     soldEvidenceFallback: 'No recent verified sales — the estimate relies on asking prices or market guides.',
     soldEvidenceTitle: 'Sold evidence',
     soldEvidenceNewSealed: 'New & sealed',

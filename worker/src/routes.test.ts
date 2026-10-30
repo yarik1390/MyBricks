@@ -415,6 +415,24 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(again.total).toBe(all);
     });
 
+    it('Biggest upside puts merchandise and low-confidence forecasts last', async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, forecast_2y, valuation_method, blended_confidence)
+                    VALUES ('UP-BAG','Ninja Backpack','Gear',2025,0,28,380,'blend','medium')`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, forecast_2y, valuation_method, blended_confidence)
+                    VALUES ('UP-LOW','Rough Ninja Set','UpsideTheme',2025,300,20,200,'blend','low')`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, forecast_2y, valuation_method, blended_confidence)
+                    VALUES ('UP-OK','Solid Ninja Set','UpsideTheme',2025,500,100,180,'blend','medium')`),
+      ]);
+      await db.prepare(`INSERT INTO lego_sets_fts(rowid, set_num, name, theme)
+        SELECT rowid, set_num, name, theme FROM lego_sets WHERE set_num LIKE 'UP-%'`).run();
+      const nums = async (qs: string) => (await (await app.fetch(new Request(`http://localhost/api/sets/search?${qs}`), env)).json<any>())
+        .sets.map((s: any) => s.set_num).filter((n: string) => n.startsWith('UP-'));
+      expect((await nums('sort=upside_desc&limit=100'))[0]).toBe('UP-OK');
+      // Keyword search joins the FTS table, which also has a theme column.
+      expect((await nums('q=ninja&sort=upside_desc&limit=100'))[0]).toBe('UP-OK');
+    });
+
     it('search results omit raw per-source inputs the client never reads', async () => {
       await db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, current_value, be_value_new, brickset_msrp) VALUES ('RAW-1','Raw Fields','RawTheme',2010,50,99,40)`).run();
       const res = await (await app.fetch(new Request('http://localhost/api/sets/search?theme=RawTheme&limit=5'), env)).json<any>();

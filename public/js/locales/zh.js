@@ -1603,6 +1603,7 @@ export const zh = {
     estimateUnlocks: '{list}估算将在获得更多成交数据后解锁。',
     estimatesUnlock: '{list}估算将在获得更多成交数据后解锁。',
     soldEvidenceHeadline: '基于来自 {markets} 的 {sales}。',
+    soldEvidenceSignedOut: '登录后可查看各来源的成交和价格。上方的估值已经包含这些数据。',
     soldEvidenceFallback: '暂无近期已验证成交；估值依据在售价格或市场指南。',
     soldEvidenceTitle: '成交依据',
     soldEvidenceNewSealed: '全新未拆封',

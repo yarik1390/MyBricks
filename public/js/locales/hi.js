@@ -1603,6 +1603,7 @@ export const hi = {
     estimateUnlocks: '{list} का अनुमान अधिक बिक्री डेटा आने पर उपलब्ध होगा।',
     estimatesUnlock: '{list} के अनुमान अधिक बिक्री डेटा आने पर उपलब्ध होंगे।',
     soldEvidenceHeadline: '{markets} से {sales} पर आधारित।',
+    soldEvidenceSignedOut: 'हर स्रोत की बिक्री और कीमतें देखने के लिए साइन इन करें। ऊपर का मूल्य इन्हें पहले से शामिल करता है।',
     soldEvidenceFallback: 'हाल की सत्यापित बिक्री नहीं है — अनुमान मांगी गई कीमतों या बाजार गाइड पर आधारित है।',
     soldEvidenceTitle: 'बिक्री प्रमाण',
     soldEvidenceNewSealed: 'नया और सीलबंद',

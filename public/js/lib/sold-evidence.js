@@ -90,6 +90,14 @@ export function deriveSoldEvidence(set) {
   return { sampleCount, familyCount: familyRows.length, families: familyRows };
 }
 
+function hasWithheldSoldRows(set) {
+  return ['new', 'used'].some((cond) => {
+    const basis = set?.valuation?.[cond]?.basis;
+    return Array.isArray(basis) && basis.some((item) => item?.signal_type === 'sold'
+      && item.identity_verified === true && item.value == null);
+  });
+}
+
 /**
  * Render the sold-evidence card. `fmtMoney` is injected so this module stays
  * free of the currency/rate state that lives in utils.js; the set-detail view
@@ -98,10 +106,14 @@ export function deriveSoldEvidence(set) {
 export function soldEvidenceHTML(set, fmtMoney = (n) => (Number.isFinite(Number(n)) ? `$${Number(n).toFixed(2)}` : '—')) {
   const evidence = deriveSoldEvidence(set);
   if (evidence.familyCount === 0) {
+    // Signed out, the API withholds each source's figures (partner terms), so
+    // verified sold rows arrive without a price. That is "sign in to see", not
+    // "no sales": the headline above is still built from them.
+    const withheld = set?.values_withheld === true && hasWithheldSoldRows(set);
     return `
       <article class="pricing-condition-card">
         <h3 class="pricing-block-title">${t('market.soldEvidenceTitle')}</h3>
-        <p class="sold-evidence-note" style="margin:0;line-height:1.5;">${escapeHtml(t('market.soldEvidenceFallback'))}</p>
+        <p class="sold-evidence-note" style="margin:0;line-height:1.5;">${escapeHtml(t(withheld ? 'market.soldEvidenceSignedOut' : 'market.soldEvidenceFallback'))}</p>
       </article>`;
   }
   const headline = escapeHtml(t('market.soldEvidenceHeadline', {

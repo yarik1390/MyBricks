@@ -1603,6 +1603,7 @@ export const de = {
     estimateUnlocks: 'Schätzung für {list} wird verfügbar, sobald mehr Verkaufsdaten vorliegen.',
     estimatesUnlock: 'Schätzungen für {list} werden verfügbar, sobald mehr Verkaufsdaten vorliegen.',
     soldEvidenceHeadline: 'Basierend auf {sales} von {markets}.',
+    soldEvidenceSignedOut: 'Melde dich an, um Verkäufe und Preise jeder Quelle zu sehen. Der Wert oben berücksichtigt sie bereits.',
     soldEvidenceFallback: 'Keine aktuellen bestätigten Verkäufe — die Schätzung nutzt Angebotspreise oder Marktführer.',
     soldEvidenceTitle: 'Verkaufsnachweise',
     soldEvidenceNewSealed: 'Neu & versiegelt',

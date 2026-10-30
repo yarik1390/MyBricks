@@ -435,7 +435,7 @@ export function marketConfidenceHTML(set) {
     <div style="border-top:1px solid var(--line-soft);padding-top:7px;margin-top:7px;">
       <div style="display:flex;justify-content:space-between;gap:10px;">
         <span style="min-width:0;color:var(--ink-soft);">${escapeHtml(genericSourceLabel(s))}${rel}</span>
-        <span style="font-family:var(--mono);font-weight:700;color:var(--ink);white-space:nowrap;">${s.value ? fmtMoney(s.value) : 'pending'}${sampleLabel(s)}</span>
+        <span style="font-family:var(--mono);font-weight:700;color:var(--ink);white-space:nowrap;">${s.value ? fmtMoney(s.value) : set.values_withheld ? 'sign in to see' : 'pending'}${sampleLabel(s)}</span>
       </div>
       ${sub}
     </div>`;
