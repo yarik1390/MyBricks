@@ -1082,6 +1082,8 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(data.total_value).toBeCloseTo(899.5, 1);
       expect(data.top_themes[0].theme).toBe('Star Wars');
       expect(data.showcase[0].market_value).toBeCloseTo(899.5, 1);
+      expect(data.showcase[0].quantity).toBeUndefined();
+      expect(data.showcase[0].condition).toBeUndefined();
     });
 
     it('hides value when expose_public_value is off', async () => {
@@ -1090,14 +1092,20 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
          VALUES (?, 'shy', 'Shy Collector', 1, 0)`
       ).bind(userId).run();
       await db.prepare(
-        `INSERT INTO user_collection (user_id, set_num, quantity, condition) VALUES (?, '75192', 1, 'new')`
+        `INSERT INTO user_collection (user_id, set_num, quantity, condition) VALUES (?, '75192', 3, 'new')`
       ).bind(userId).run();
+      await db.prepare(`INSERT INTO user_showcase (user_id, set_num) VALUES (?, '75192')`).bind(userId).run();
 
       const res = await app.fetch(new Request('http://localhost/api/users/shy/profile'), env);
       const data = await res.json<any>();
       expect(data.set_count).toBe(1);
       expect(data.total_value).toBeNull();
       expect(data.top_themes[0].value).toBeNull();
+      // The shelf still shows the set, but nothing that rebuilds the value.
+      expect(data.showcase[0].set_num).toBe('75192');
+      for (const key of ['market_value', 'quantity', 'condition', 'current_value', 'blended_value', 'v3_new_fair']) {
+        expect(data.showcase[0][key]).toBeUndefined();
+      }
     });
 
     it('check-handle rejects invalid handles and flags taken ones', async () => {

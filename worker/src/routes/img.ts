@@ -18,6 +18,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 // Catalog images are effectively immutable per set/fig, so cache hard at the
 // browser + Cloudflare edge.
 const IMMUTABLE = 'public, max-age=31536000, immutable';
+const THUMB_WIDTHS = [120, 200, 300, 400, 600, 800, 1024];
 
 // GET /api/img?u=<external image url> — public (images load without auth).
 app.get('/', async (c) => {
@@ -29,8 +30,14 @@ app.get('/', async (c) => {
   if (target.protocol !== 'https:' || !ALLOWED_IMG_HOSTS.has(target.hostname)) {
     return c.json({ error: 'host not allowed' }, 400);
   }
+  // A #fragment never reaches the upstream, so it must not mint a new R2 key
+  // either (outside review 2026-10-30: one image + endless fragments = endless
+  // stored copies). Catalog image URLs carry no query string; one that does is
+  // passed straight to the source instead of being stored.
+  target.hash = '';
   const src = target.toString();
   const redirectToOrigin = () => c.redirect(src, 302);
+  if (target.search) return redirectToOrigin();
 
   // Optional downscale for the catalog grid: ?w=<px> serves a smaller thumbnail
   // (via Cloudflare Image Resizing) so the offline image cache holds far more
@@ -38,8 +45,11 @@ app.get('/', async (c) => {
   // the cf.image directive is ignored and the full image is returned, so this
   // never breaks. Thumbnails are keyed separately from the full image so the two
   // never collide in R2 or the edge cache.
+  // Widths snap up to a few fixed sizes so ?w= can't multiply R2 objects.
   const rawW = Number(c.req.query('w'));
-  const width = Number.isFinite(rawW) && rawW >= 64 && rawW <= 1024 ? Math.round(rawW) : 0;
+  const width = Number.isFinite(rawW) && rawW >= 64 && rawW <= 1024
+    ? THUMB_WIDTHS.find((w) => w >= rawW) ?? 1024
+    : 0;
 
   const cache = (caches as unknown as { default: Cache }).default;
 
