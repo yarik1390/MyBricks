@@ -33,8 +33,11 @@ export const SORTS: Record<string, string> = {
   // snapshot-less sets is gone with the LEFT join that produced them.
   trending:   '((s.current_value - svh30.current_value) / svh30.current_value) DESC',
   // Biggest upside: 2-year forecast over today's shown value. Formula-valued
-  // sets and rows with no forecast or value sink below real ones.
-  upside_desc: "(CASE WHEN valuation_method IN ('formula_bulk', 'local') OR COALESCE(forecast_2y, 0) <= 0 OR COALESCE(NULLIF(blended_value, 0), current_value, 0) <= 0 THEN 1 ELSE 0 END), (forecast_2y / COALESCE(NULLIF(blended_value, 0), current_value)) DESC",
+  // sets and rows with no forecast or value sink below real ones, and so do
+  // merchandise (bags, books, no pieces) and low/estimated-confidence prices:
+  // a +1257% backpack on a rough $18-$368 range is noise, not a top pick
+  // (outside review 2026-10-30).
+  upside_desc: "(CASE WHEN valuation_method IN ('formula_bulk', 'local') OR COALESCE(forecast_2y, 0) <= 0 OR COALESCE(NULLIF(blended_value, 0), current_value, 0) <= 0 OR COALESCE(s.theme, '') IN ('Gear', 'Books', 'Promotional') OR COALESCE(s.pieces, 0) < 1 OR COALESCE(s.blended_confidence, '') NOT IN ('medium', 'high') THEN 1 ELSE 0 END), (forecast_2y / COALESCE(NULLIF(blended_value, 0), current_value)) DESC",
 };
 
 // Non-building merchandise (bag tags, bags, apparel, stationery, books) is

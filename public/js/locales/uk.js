@@ -1709,6 +1709,7 @@ export const uk = {
     estimateUnlocks: 'Оцінка «{list}» з’явиться, коли надійде більше даних про продажі.',
     estimatesUnlock: 'Оцінки «{list}» з’являться, коли надійде більше даних про продажі.',
     soldEvidenceHeadline: 'На основі {sales} з {markets}.',
+    soldEvidenceSignedOut: 'Увійдіть, щоб побачити продажі й ціни кожного джерела. Вартість вище вже їх враховує.',
     soldEvidenceFallback: 'Немає нещодавніх перевірених продажів — оцінка спирається на ціни пропозицій або ринкові довідники.',
     soldEvidenceTitle: 'Дані про продажі',
     soldEvidenceNewSealed: 'Новий і запечатаний',

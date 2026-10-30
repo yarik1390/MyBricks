@@ -207,6 +207,22 @@ describe('sold evidence pricing card', () => {
     assert.match(html, /asking prices or market guides/);
   });
 
+  it('says "sign in to see" when the signed-out API withheld the figures', () => {
+    // Shape of publicSetDetail output: verified sold rows without value/sample_count.
+    const strip = ({ value: _v, sample_count: _n, ...rest }) => rest;
+    const html = soldEvidenceHTML({
+      values_withheld: true,
+      valuation: { new: { sample_count: 57, basis: [strip(basis()), strip(basis({ provider_family: 'bricklink' }))] } },
+    });
+    assert.match(html, /Sign in to see/);
+    assert.doesNotMatch(html, /No recent verified sales/);
+  });
+
+  it('keeps the no-sales fallback for a guest when nothing sold was withheld', () => {
+    const html = soldEvidenceHTML({ values_withheld: true, valuation: { new: { basis: [{ signal_type: 'asking', identity_verified: true }] } } });
+    assert.match(html, /No recent verified sales/);
+  });
+
   it('labels fresh and older evidence', () => {
     const html = soldEvidenceHTML({ valuation: { new: { basis: [
       basis(),

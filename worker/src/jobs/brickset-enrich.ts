@@ -51,6 +51,8 @@ const plausibleDate = (v: unknown): string | null => {
   return y >= 1949 && y <= 2035 ? s : null;
 };
 
+
+const BRICKSET_NOT_FOUND = /^\s*Sorry, we don't have a set with that number/i;
 /**
  * Backfill Brickset enrichment data for sets whose brickset_enriched_at is
  * NULL or stale (>90 days). Reads brickset.com/sets/{setNum} pages through
@@ -169,6 +171,10 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number; bud
     }
 
     const d = data ?? result!.data;
+    // Brickset answers an unknown set number with a normal page whose
+    // description is its own "not in our database" notice (889 Gear rows
+    // carried it as their description). That's verified no-data, not text.
+    if (BRICKSET_NOT_FOUND.test(String(d.description || ''))) { no_data++; attempt(set_num, 'no_data'); continue; }
 
     // Build a sparse SET clause — only write non-null values to preserve any
     // existing data from the Brickset API path.

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { requireMember } from '../auth';
 import type { Env, Variables } from '../types';
+import { isAllowedPushEndpoint } from '../lib/webpush';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -81,13 +82,24 @@ app.post('/subscribe', async (c) => {
     .catch(() => ({} as { endpoint?: string; p256dh?: string; auth?: string }));
   const { endpoint, p256dh, auth } = body;
   if (!endpoint || !p256dh || !auth) return c.json({ error: 'endpoint, p256dh, and auth required' }, 400);
-  if (!/^https:\/\//.test(endpoint)) return c.json({ error: 'invalid endpoint' }, 400);
+  if (endpoint.length > 2048 || !isAllowedPushEndpoint(endpoint)) return c.json({ error: 'invalid endpoint' }, 400);
+  // Browser keys: p256dh is a 65-byte P-256 point (~87 base64url chars), auth 16 bytes (~22).
+  if (!/^[A-Za-z0-9_+/-]{80,100}={0,2}$/.test(p256dh) || !/^[A-Za-z0-9_+/-]{20,30}={0,2}$/.test(auth)) {
+    return c.json({ error: 'invalid keys' }, 400);
+  }
 
   await c.env.DB.prepare(
     `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
      VALUES (?, ?, ?, ?)
      ON CONFLICT (user_id, endpoint) DO UPDATE SET p256dh=excluded.p256dh, auth=excluded.auth`
   ).bind(userId, endpoint, p256dh, auth).run();
+  // Same cap as native tokens: keep the five newest browsers per account.
+  await c.env.DB.prepare(`
+    DELETE FROM push_subscriptions
+    WHERE user_id=? AND id NOT IN (
+      SELECT id FROM push_subscriptions WHERE user_id=? ORDER BY created_at DESC, id DESC LIMIT 5
+    )
+  `).bind(userId, userId).run();
   return c.json({ ok: true });
 });
 

@@ -33,6 +33,18 @@ async function loadShowcase(env: Env, userId: string) {
   }));
 }
 
+// What a public profile shows of a shelf set: catalog identity for the tile,
+// plus its market value only when the owner shows values. Holding details
+// (quantity, condition) and raw price inputs never leave the server, since
+// they'd let anyone rebuild a hidden collection value (outside review 2026-10-30).
+function publicShowcase(rows: Record<string, unknown>[], exposeValue: boolean) {
+  return rows.map((s) => ({
+    set_num: s.set_num, name: s.name, theme: s.theme, year: s.year,
+    pieces: s.pieces, minifigs: s.minifigs, image_url: s.image_url, retired: s.retired,
+    ...(exposeValue ? { market_value: s.market_value } : {}),
+  }));
+}
+
 // GET /api/users/leaderboard — public ranking of opted-in collections by value.
 // Opt-in = a public profile that also exposes its value and has a handle.
 // Supporters wall on the Pro screen: Pro members with a public profile, longest
@@ -198,7 +210,7 @@ app.get('/:handle/profile', optionalMember, async (c) => {
     collecting_since: firstAdded ? Number(firstAdded.slice(0, 4)) || null : null,
     total_value: exposeValue ? totalValue : null,
     top_themes: themes,
-    showcase,
+    showcase: publicShowcase(showcase, exposeValue),
   });
 });
 

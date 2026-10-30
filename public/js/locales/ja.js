@@ -1603,6 +1603,7 @@ export const ja = {
     estimateUnlocks: '{list}の推定値は成約データが増えると表示されます。',
     estimatesUnlock: '{list}の推定値は成約データが増えると表示されます。',
     soldEvidenceHeadline: '{markets} の {sales} に基づきます。',
+    soldEvidenceSignedOut: '各ソースの販売件数と価格を見るにはサインインしてください。上の価格にはすでに反映されています。',
     soldEvidenceFallback: '最近の確認済み成約はありません。推定値は出品価格または市場ガイドに基づきます。',
     soldEvidenceTitle: '成約根拠',
     soldEvidenceNewSealed: '新品・未開封',

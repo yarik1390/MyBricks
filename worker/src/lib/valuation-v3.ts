@@ -137,6 +137,17 @@ function weightedMedian(points: Array<{ value: number; weight: number }>): numbe
   return sorted.at(-1)?.value ?? 0;
 }
 
+// PriceCharting reports one product-wide "units sold per year" figure and the
+// importers store it as the sample for every condition. That's liquidity, not
+// a count of sales behind this condition's price, so it supports a family like
+// a small guide (outside review 2026-10-30), never like 616 verified sales.
+const AGGREGATE_GUIDE_SAMPLES = 5;
+
+function observedSamples(signal: PricingSignal): number {
+  const raw = Number(signal.sample_count || signal.sales_volume || 0);
+  return signal.source === 'pricecharting' ? Math.min(raw, AGGREGATE_GUIDE_SAMPLES) : raw;
+}
+
 function minimumSample(signal: PricingSignal): number {
   if (signal.signal_type !== 'sold') return 0;
   if (signal.source.startsWith('bricklink')) return 5;
@@ -160,7 +171,7 @@ function signalWeight(signal: PricingSignal, now: number): number {
   const type = signal.signal_type === 'sold' ? 1
     : signal.signal_type === 'modeled' ? 0.65
       : signal.signal_type === 'asking' ? 0.35 : 0.2;
-  const sample = Math.max(1, Number(signal.sample_count || signal.sales_volume || 1));
+  const sample = Math.max(1, observedSamples(signal));
   const sampleFactor = signal.signal_type === 'sold' ? 0.65 + Math.min(sample, 20) / 40 : 1;
   const freshness = signalFresh(signal, now) ? 1 : 0.35;
   const trust = Number.isFinite(signal.trust_multiplier) ? Math.max(0, signal.trust_multiplier as number) : 1;
@@ -281,8 +292,11 @@ function collapseFamilies(signals: PricingSignal[], now: number): ValuationBasis
     const selected = familySignals.filter(s => s.signal_type === bestType);
     const value = weightedMedian(selected.map(signal => ({ value: signal.value, weight: signalWeight(signal, now) })));
     // Multiple APIs can expose the same underlying marketplace. Use the largest
-    // sample in a family instead of summing and pretending those sales are unique.
-    const sampleCount = Math.max(0, ...selected.map(s => Number(s.sample_count || s.sales_volume || 0)));
+    // sample in a family instead of summing and pretending those sales are unique,
+    // taken only from the signal(s) that supplied the family value: a stale comp
+    // the median outvoted must not lend its sample to the winner.
+    const winners = selected.filter(s => s.value === value);
+    const sampleCount = Math.max(0, ...(winners.length ? winners : selected).map(observedSamples));
     // Fresh only if the signal that supplied the family value is fresh, so a
     // stale comp cannot borrow freshness from a sibling it outvoted.
     const fresh = selected.some(signal => signal.value === value && signalFresh(signal, now));
@@ -328,7 +342,7 @@ export function valueSignalsV3(
   const acceptedCompleteness = completenessFor(condition, accepted);
   for (const signal of relevant) {
     if (signal.match_status !== 'verified' && signal.match_status !== 'manual') flags.add('identity_unverified');
-    if (signal.signal_type === 'sold' && Number(signal.sample_count || signal.sales_volume || 0) < minimumSample(signal)) {
+    if (signal.signal_type === 'sold' && observedSamples(signal) < minimumSample(signal)) {
       flags.add('insufficient_sample');
     }
     for (const flag of signal.flags || []) flags.add(flag);
@@ -342,7 +356,7 @@ export function valueSignalsV3(
     if (condition === 'new_sealed' && signalCompleteness(signal) !== 'sealed') return false;
     if (condition === 'used_complete' && signalCompleteness(signal) !== 'complete') return false;
     if (signal.signal_type === 'sold') {
-      return Number(signal.sample_count || signal.sales_volume || 0) >= minimumSample(signal);
+      return observedSamples(signal) >= minimumSample(signal);
     }
     return true;
   });
@@ -411,16 +425,19 @@ export function valueSignalsV3(
   const soldDispersion = soldValues.length > 1 ? Math.max(...soldValues) / Math.min(...soldValues) : null;
   const allSoldFresh = sold.length > 0 && sold.every(f => f.fresh && f.identity_verified);
 
+  const staleCorroborated = supporting.some(family => family.signal_type === 'modeled'
+    && family.fresh && family.identity_verified
+    && Math.max(family.value, fairValue) / Math.min(family.value, fairValue) <= STALE_CORROBORATION_RATIO);
   if (sold.length >= 2 && soldSampleCount >= 8 && allSoldFresh && soldDispersion != null && soldDispersion <= 1.4) {
     confidence = 'high';
   } else if (sold.length > 1 && soldDispersion != null && soldDispersion > 1.4) {
     confidence = soldDispersion > 2.2 ? 'low' : 'medium';
     flags.add('source_conflict');
-  } else if (sold.length && !allSoldFresh) {
-    const corroborated = supporting.some(family => family.signal_type === 'modeled'
-      && family.fresh && family.identity_verified
-      && Math.max(family.value, fairValue) / Math.min(family.value, fairValue) <= STALE_CORROBORATION_RATIO);
-    confidence = corroborated ? 'medium' : 'low';
+  }
+  // Staleness is its own cap, not an alternative to the conflict branch: two
+  // old families that also disagree are no better than one old family.
+  if (sold.length && !allSoldFresh && confidence !== 'low') {
+    confidence = staleCorroborated ? 'medium' : 'low';
   }
   // Sold comps that disagree grossly INSIDE one family (eBay sold vs
   // PriceCharting, which collapse together) are invisible to the cross-family
@@ -481,7 +498,7 @@ export function valueSignalsV3(
       && positive(signal.value)
       && (signal.match_status === 'verified' || signal.match_status === 'manual')
       && (signal.signal_type !== 'sold'
-        || Number(signal.sample_count || signal.sales_volume || 0) >= minimumSample(signal)),
+        || observedSamples(signal) >= minimumSample(signal)),
     ), now)
     : [];
   const looseAnchor = looseFamilies.length

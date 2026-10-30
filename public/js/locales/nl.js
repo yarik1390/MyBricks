@@ -1603,6 +1603,7 @@ export const nl = {
     estimateUnlocks: 'De schatting voor {list} komt beschikbaar bij meer verkoopdata.',
     estimatesUnlock: 'De schattingen voor {list} komen beschikbaar bij meer verkoopdata.',
     soldEvidenceHeadline: 'Gebaseerd op {sales} van {markets}.',
+    soldEvidenceSignedOut: 'Log in om de verkopen en prijzen per bron te zien. De waarde hierboven gebruikt ze al.',
     soldEvidenceFallback: 'Geen recente geverifieerde verkopen — de schatting gebruikt vraagprijzen of marktgidsen.',
     soldEvidenceTitle: 'Verkoopbewijs',
     soldEvidenceNewSealed: 'Nieuw en verzegeld',

@@ -45,6 +45,21 @@ async function hkdf(
   return hkdfExpand(prkKey, info, length);
 }
 
+// Browser push services we deliver to. A subscription is created by the
+// browser, so its endpoint always points at one of these; anything else is a
+// hand-crafted record trying to make the Worker POST to an arbitrary server
+// (blind SSRF, outside review 2026-10-30). Checked on save and again on send.
+const PUSH_HOSTS = ['fcm.googleapis.com', 'android.googleapis.com', 'updates.push.services.mozilla.com'];
+const PUSH_HOST_SUFFIXES = ['.push.apple.com', '.notify.windows.com'];
+
+export function isAllowedPushEndpoint(endpoint: string): boolean {
+  let url: URL;
+  try { url = new URL(endpoint); } catch { return false; }
+  if (url.protocol !== 'https:' || url.username || url.password || url.port) return false;
+  const host = url.hostname.toLowerCase();
+  return PUSH_HOSTS.includes(host) || PUSH_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix));
+}
+
 export interface PushSubscription {
   endpoint: string;
   p256dh: string;
@@ -81,6 +96,7 @@ export async function sendWebPush(
   vapidPublicKeyB64: string,
   subject: string,
 ): Promise<boolean> {
+  if (!isAllowedPushEndpoint(sub.endpoint)) return false;
   const enc = new TextEncoder();
   const endpointOrigin = new URL(sub.endpoint).origin;
 
@@ -170,6 +186,7 @@ export async function sendWebPush(
         'Authorization': `vapid t=${jwt},k=${vapidPublicKeyHeader}`,
       },
       body,
+      redirect: 'manual',
       signal: AbortSignal.timeout(8000),
     });
 

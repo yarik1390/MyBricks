@@ -64,6 +64,31 @@ describe('native push subscription routes', () => {
     expect(row).toBeNull();
   });
 
+  it('only stores browser push endpoints from real push services, five per account', async () => {
+    const keys = { p256dh: 'B'.repeat(87), auth: 'a'.repeat(22) };
+    const post = (endpoint: string, extra = {}) => pushRoute.request('/subscribe', {
+      method: 'POST', headers: auth, body: JSON.stringify({ endpoint, ...keys, ...extra }),
+    }, env as any);
+    for (const bad of [
+      'https://attacker.example/sink',
+      'https://fcm.googleapis.com.attacker.example/x',
+      'https://user:pw@fcm.googleapis.com/fcm/send/x',
+      'https://fcm.googleapis.com:8443/fcm/send/x',
+      'http://fcm.googleapis.com/fcm/send/x',
+    ]) expect((await post(bad)).status).toBe(400);
+    expect((await post('https://fcm.googleapis.com/fcm/send/x', { auth: 'short' })).status).toBe(400);
+
+    for (let i = 0; i < 7; i++) {
+      expect((await post(`https://fcm.googleapis.com/fcm/send/device-${i}`)).status).toBe(200);
+    }
+    expect((await post('https://web.push.apple.com/QAbc')).status).toBe(200);
+    expect((await post('https://wns2-par02p.notify.windows.com/w/?token=abc')).status).toBe(200);
+    expect((await post('https://updates.push.services.mozilla.com/wpush/v2/abc')).status).toBe(200);
+    const count = await db.prepare('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id=?')
+      .bind('push-user').first<{ n: number }>();
+    expect(count?.n).toBe(5);
+  });
+
   it('remembers which Android devices draw their own notifications', async () => {
     const register = (body: Record<string, unknown>) => pushRoute.request('/native', {
       method: 'POST', headers: auth, body: JSON.stringify(body),
