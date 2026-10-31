@@ -78,7 +78,7 @@ describe('Bright Data rotating monthly token pool', () => {
   it('rolls a previous-month row into a fresh budget', async () => {
     const hashA = await hashBrightDataToken('token-a');
     await db.prepare(`INSERT INTO brightdata_keys (key_hash, used, cap, period_month, exhausted_at)
-      VALUES (?1, 2, 2, strftime('%Y-%m','now','-1 month'), datetime('now'))`).bind(hashA).run();
+      VALUES (?1, 2, 2, strftime('%Y-%m','now','start of month','-1 month'), datetime('now'))`).bind(hashA).run();
     const picked = await pickBrightDataToken(pool);
     expect(picked?.key).toBe('token-a');
     expect(await reserveBrightDataUnit(pool, picked!)).toBe(true);
