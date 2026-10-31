@@ -58,7 +58,11 @@ async function maybeCelebrateMilestone(hue) {
     // Fire at most ONE popup — value takes precedence over count.
     const fire = crossedMilestone(VALUE_MS, prev.value, curValue) || crossedMilestone(COUNT_MS, prev.count, curCount);
     recordPortfolioMilestone(curCount, curValue);
-    if (fire) setTimeout(() => celebrate(fire, { hue }), 700);
+    if (fire) {
+      setTimeout(() => celebrate(fire, { hue }), 700);
+      // A happy moment: let Play offer its rating card once (10+ sets, app only).
+      if (curCount >= 10) setTimeout(() => { import('../lib/rate-share.js').then(m => m.maybeAskForReview(curCount)).catch(() => {}); }, 4500);
+    }
   } catch {}
 }
 const TAB_LABEL_KEYS = { info: "bvSet.tabOverview", forecast: "bvSet.tabHistory", community: "bvSet.tabCommunity" };
