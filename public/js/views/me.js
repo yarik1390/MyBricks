@@ -18,6 +18,7 @@ import { clearVaultWidget } from '../lib/native-widget.js';
 import { appIconAvailable, getAppIcon, setAppIcon, syncAppIconWithPro } from '../lib/app-icon.js';
 import { openLegalSheet } from '../components/legal-sheet.js';
 import { openFeedbackSheet } from '../components/feedback.js';
+import { canRateApp, rateApp, shareApp } from '../lib/rate-share.js';
 import { topbar, iconBtn, icon, row, group, sheetBody, btn, toggle, seg, banner } from '../ui/kit.js';
 
 // The picker shows each language in its OWN language — "German" is no help to
@@ -122,7 +123,11 @@ function pageHTML(me) {
     guest ? '' : row({ icon: 'kid', title: t('bvAccount.kidsMode'), sub: t(me.has_kids_pin ? 'bvAccount.kidsOn' : 'bvAccount.kidsOff'), id: 'kidsModeRow' }),
     row({ icon: 'walk', title: t('bvAccount.tour'), sub: t('bvAccount.tourSub'), id: 'replayTourRow' }),
   ].join('');
-  const help = guest ? '' : row({ icon: 'chat', title: t('bvAccount.feedbackRow'), sub: t('bvAccount.feedbackRowSub'), id: 'feedbackRow' });
+  const help = [
+    guest ? '' : row({ icon: 'chat', title: t('bvAccount.feedbackRow'), sub: t('bvAccount.feedbackRowSub'), id: 'feedbackRow' }),
+    canRateApp() ? row({ icon: 'star', title: t('bvAccount.rateApp'), sub: t('bvAccount.rateAppSub'), id: 'rateAppRow' }) : '',
+    row({ icon: 'share', title: t('bvAccount.shareApp'), sub: t('bvAccount.shareAppSub'), id: 'shareAppRow' }),
+  ].join('');
   const membership = row({ icon: 'star', title: t('bvAccount.proTitle'), sub: me.is_supporter ? t('bvAccount.proActive') : t('bvAccount.proPitch'), href: '#/pro', id: 'proRow' });
   const account = guest
     ? row({ icon: 'user', title: t('bvAccount.signIn'), sub: t('bvAccount.signInSub'), id: 'signInRow' })
@@ -212,6 +217,16 @@ function wire(me, shelf) {
 
   $("#feedbackRow")?.addEventListener("click", () => { haptic("light"); openFeedbackSheet(location.hash); });
   $("#replayTourRow")?.addEventListener("click", () => { haptic("light"); startOnboarding(); });
+  $("#rateAppRow")?.addEventListener("click", async () => {
+    haptic("light");
+    if (!(await rateApp())) toast(t('bvAccount.rateAppFailed'), "error");
+  });
+  $("#shareAppRow")?.addEventListener("click", async () => {
+    haptic("light");
+    const r = await shareApp();
+    if (r === "copied") toast(t('bvAccount.shareAppCopied'), "success");
+    else if (r === "failed") toast(t('bvAccount.shareAppFailed'), "error");
+  });
   $("#wrappedRow")?.addEventListener("click", () => { haptic("medium"); go("#/wrapped"); });
   $$("[data-legal-sheet]").forEach(link => link.addEventListener("click", () => openLegalSheet(link.dataset.legalSheet)));
   $("#publicProfileRow")?.addEventListener("click", () => {

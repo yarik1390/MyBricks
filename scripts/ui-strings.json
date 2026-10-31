@@ -1209,7 +1209,8 @@
     "text": "Browser",
     "files": [
       "lib/amazon-affiliate.js",
-      "lib/native-auth.js"
+      "lib/native-auth.js",
+      "lib/rate-share.js"
     ]
   },
   {
@@ -11029,6 +11030,12 @@
     ]
   },
   {
+    "text": "bvAccount.hidePassword",
+    "files": [
+      "lib/password-toggle.js"
+    ]
+  },
+  {
     "text": "bvAccount.insDownloaded",
     "files": [
       "views/me-insurance.js"
@@ -11128,6 +11135,12 @@
     "text": "bvAccount.publicOn",
     "files": [
       "views/me.js"
+    ]
+  },
+  {
+    "text": "bvAccount.showPassword",
+    "files": [
+      "lib/password-toggle.js"
     ]
   },
   {

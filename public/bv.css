@@ -347,6 +347,20 @@ a.bv-card, button.bv-card { text-decoration: none; text-align: left; font: inher
 .bv-field__help { font-size: 13px; line-height: 18px; color: var(--bv-mute); }
 .bv-field__error { font-size: 13px; line-height: 18px; color: var(--bv-loss); }
 .bv-field--invalid .bv-field__box { border-color: var(--bv-loss); }
+/* Show/hide password eye (lib/password-toggle.js). 44px tap target. */
+.bv-pw-toggle {
+  flex: 0 0 auto; width: 44px; height: 44px; margin-right: -10px; display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 12px; background: transparent; color: var(--bv-mute, #606458); cursor: pointer; padding: 0;
+}
+.bv-pw-toggle:hover, .bv-pw-toggle[aria-pressed="true"] { color: var(--bv-ink, currentColor); }
+.bv-pw-toggle:focus-visible { outline: 2px solid var(--bv-ink, currentColor); outline-offset: -4px; }
+.bv-pw-toggle > svg { width: 20px; height: 20px; }
+.bv-pw-toggle--flip > svg { animation: bv-pw-flip .18s ease-out; }
+@keyframes bv-pw-flip { from { transform: scaleY(.2); opacity: .4; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .bv-pw-toggle--flip > svg { animation: none; } }
+.bv-pw-wrap { position: relative; display: block; }
+.bv-pw-wrap > input { width: 100%; box-sizing: border-box; padding-right: 48px; }
+.bv-pw-wrap > .bv-pw-toggle { position: absolute; top: 50%; right: 12px; margin: 0; transform: translateY(-50%); }
 .bv-form { display: flex; flex-direction: column; gap: 14px; }
 .bv-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 
