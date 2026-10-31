@@ -74,6 +74,16 @@ android {
                 debugSymbolLevel 'SYMBOL_TABLE'
             }
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // RevenueCat's Amazon store module ships a consumer rule file with
+            // -dontoptimize, which switches R8 optimisation off for the WHOLE
+            // app (Play: "DEX code optimisation 0%"). Ignore that file; its
+            // other two rules (keep/dontwarn com.amazon.**) are restated in
+            // proguard-rules.pro.
+            optimization {
+                keepRules {
+                    ignoreFrom("com.revenuecat.purchases:purchases-store-amazon")
+                }
+            }
             if (System.getenv("ANDROID_KEYSTORE_PASSWORD")) {
                 signingConfig signingConfigs.release
             }
@@ -109,6 +119,9 @@ dependencies {
     implementation 'com.google.android.play:review:2.0.2'
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    // EdgeToEdge.enable (MainActivity) and the WebView version check (EdgeToEdgeInsets).
+    implementation "androidx.activity:activity:$androidxActivityVersion"
+    implementation "androidx.webkit:webkit:$androidxWebkitVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     // AlertMessagingService extends the push plugin's FirebaseMessagingService.
