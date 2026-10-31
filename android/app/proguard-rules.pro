@@ -28,3 +28,7 @@
 -keepattributes JavascriptInterface, *Annotation*
 # RevenueCat models cross the JS bridge as JSON via reflection.
 -keep class com.revenuecat.purchases.** { *; }
+# RevenueCat Amazon store: its consumer rules are ignored in build.gradle
+# because they carry -dontoptimize; these are the rest of that file.
+-dontwarn com.amazon.**
+-keep class com.amazon.** { *; }

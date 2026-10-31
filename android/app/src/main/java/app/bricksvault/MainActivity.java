@@ -2,10 +2,13 @@ package app.bricksvault;
 
 import android.content.Intent;
 import android.content.res.Configuration;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.view.WindowManager;
 
+import androidx.activity.EdgeToEdge;
+import androidx.activity.SystemBarStyle;
 import androidx.core.content.ContextCompat;
 import androidx.core.splashscreen.SplashScreen;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -34,14 +37,21 @@ public class MainActivity extends BridgeActivity {
         boolean isNightMode = (getResources().getConfiguration().uiMode
                 & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         int launchColor = ContextCompat.getColor(this, R.color.brickvault_splash_background);
+        // Edge-to-edge on every Android version (Android 15+ enforces it for
+        // targetSdk 35+). The bars are transparent and the window background
+        // shows through them, so paint that instead of the deprecated
+        // status/navigation bar colors. Insets: Capacitor's SystemBars on
+        // Android 15+, EdgeToEdgeInsets on older versions.
+        EdgeToEdge.enable(this,
+                SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
+                SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT));
         getWindow().getDecorView().setBackgroundColor(launchColor);
-        getWindow().setStatusBarColor(launchColor);
-        getWindow().setNavigationBarColor(launchColor);
         WindowInsetsControllerCompat insetsController = new WindowInsetsControllerCompat(
                 getWindow(), getWindow().getDecorView());
         insetsController.setAppearanceLightStatusBars(!isNightMode);
         insetsController.setAppearanceLightNavigationBars(!isNightMode);
         super.onCreate(savedInstanceState);
+        EdgeToEdgeInsets.install(this);
 
         // Keep the branded launch screen until the bundled WebView is ready,
         // while retaining a hard timeout so a failed load can never trap users.

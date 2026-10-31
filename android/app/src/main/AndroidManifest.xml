@@ -119,6 +119,16 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
+        <!-- Large screens (Play: "remove resizability and orientation
+             restrictions"; Android 16 ignores them anyway). ML Kit's invisible
+             scanner delegate is locked to portrait; drop the lock and handle
+             rotation in place so the pending scan result is never lost to an
+             activity restart. -->
+        <activity
+            android:name="com.google.mlkit.vision.codescanner.internal.GmsBarcodeScanningDelegateActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
+            tools:remove="android:screenOrientation" />
+
         <!-- Pre-download the ML Kit barcode scanner module at install time so
              the first native scan doesn't wait on a Play Services download. -->
         <meta-data
