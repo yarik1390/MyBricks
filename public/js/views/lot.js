@@ -4,7 +4,7 @@
 // Data: POST /api/lot/parse and /api/lot/value (worker/src/routes/lot.ts).
 // Free members check up to 3 sets per lot; Pro has no limit.
 import { $, escapeHtml, fmtMoney, toast, haptic, proxyImg, setBtnLoading, CURRENCY_SYMBOLS, capturedMoneyContext } from '../utils.js';
-import { state } from '../state.js';
+import { state, hasProAccess } from '../state.js';
 import { api } from '../api.js';
 import { t } from '../lib/i18n.js';
 import { topbar, btn, pill, field, card } from '../ui/kit.js';
@@ -77,7 +77,7 @@ function paint() {
   const root = $('#root');
   if (!root || !onScreen()) return;
   const ctx = capturedMoneyContext();
-  const pro = !!state.me?.is_supporter;
+  const pro = hasProAccess();
   const asking = $('#lotAsking')?.value || '';
   root.innerHTML = `<main class="bv-page no-nav bv-lot" id="lotPage">
     ${topbar({ title: 'Lot checker', sub: 'Is that bundle worth the price?', back: '#/me' })}

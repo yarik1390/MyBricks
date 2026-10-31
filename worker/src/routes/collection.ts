@@ -14,6 +14,7 @@ import { awardXpForAdd } from '../lib/kids-xp';
 import { scheduleBuildCacheRecompute } from '../lib/build-matcher';
 import { activeCopies, applyHoldingFieldsToCopies, closeCopies, syncCopiesToQuantity, syncHoldingFromCopies } from '../lib/holding-copies';
 import { recordSale, preserveLegacySale } from '../lib/realized-sales';
+import { hasProAccess } from '../lib/early-access';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -338,7 +339,8 @@ app.post('/', async (c) => {
 // Pro (is_supporter) gates the investor toolkit: CSV export and full portfolio
 // history depth. The flag comes from Play/Apple/Stripe purchase events and is
 // the authoritative entitlement source (same check as scan/revalue limits).
-async function isSupporter(c: { env: { DB: D1Database } }, userId: string): Promise<boolean> {
+async function isSupporter(c: { env: { DB: D1Database; EARLY_ACCESS_PRO?: string } }, userId: string): Promise<boolean> {
+  if (hasProAccess(c.env, false)) return true;
   const pref = await c.env.DB.prepare(
     'SELECT is_supporter FROM user_prefs WHERE user_id=?'
   ).bind(userId).first<{ is_supporter: number }>().catch(() => null);

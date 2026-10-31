@@ -109,6 +109,9 @@ crons = [
 
 [vars]
 # Non-secret vars go here
+# Early-access free launch: "1" gives every account Pro features and limits
+# (lib/early-access.ts). "0" brings the Pro paywall back; no app release needed.
+EARLY_ACCESS_PRO = "1"
 BRICKOGNIZE_ENABLED = "1"
 # Optional Core01 validation backend. Access and origin credentials are Worker
 # secrets; this URL alone does not activate the client.

@@ -3,6 +3,7 @@ import { requireMember } from '../auth';
 import type { Env, Variables } from '../types';
 import { SALES_CTE } from '../lib/realized-sales';
 import { edgeCached } from '../lib/edge-cache';
+import { hasProAccess } from '../lib/early-access';
 
 // Sales & taxes (mounted at /api/sales).
 //
@@ -104,7 +105,9 @@ app.get('/value-check', (c) => edgeCached(c, 3600, async () => {
 app.use('/', requireMember);
 app.use('/:id', requireMember);
 
-async function isSupporter(db: D1Database, userId: string): Promise<boolean> {
+async function isSupporter(env: Env, userId: string): Promise<boolean> {
+  const db = env.DB;
+  if (hasProAccess(env, false)) return true;
   const pref = await db.prepare('SELECT is_supporter FROM user_prefs WHERE user_id = ?')
     .bind(userId).first<{ is_supporter: number }>().catch(() => null);
   return !!pref?.is_supporter;
@@ -131,7 +134,7 @@ app.get('/', async (c) => {
       ORDER BY x.sold_at ASC, x.id ASC`,
   ).bind(userId, userId, `${year}-01-01`, `${year + 1}-01-01`).all<SaleRow>();
   const { rows, summary } = summarizeSales(results || []);
-  const pro = await isSupporter(c.env.DB, userId);
+  const pro = await isSupporter(c.env, userId);
   return c.json({ year, years: years.length ? years : [thisYear], pro, summary, rows: pro ? rows : null });
 });
 

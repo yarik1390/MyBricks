@@ -17,6 +17,7 @@ import { verifyTurnstileToken } from '../lib/turnstile';
 import { matchSetsToCatalog, matchMinifigsToCatalog, type DescribedSet, type DescribedMinifig } from '../lib/scan-match';
 import { CATALOG_COLS, MARKET_EXT_JOIN } from './sets';
 import type { Env, Variables } from '../types';
+import { hasProAccess } from '../lib/early-access';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -75,8 +76,10 @@ function scanQuotaBuckets(shelf: boolean, pro: boolean, now = new Date()): ScanQ
   ];
 }
 
-async function isProMember(db: D1Database, userId: string): Promise<boolean> {
+async function isProMember(env: Env, userId: string): Promise<boolean> {
+  const db = env.DB;
   if (!userId) return false;
+  if (hasProAccess(env, false)) return true;
   const pref = await db.prepare('SELECT is_supporter FROM user_prefs WHERE user_id=?')
     .bind(userId).first<{ is_supporter: number }>().catch(() => null);
   return !!pref?.is_supporter;
@@ -518,7 +521,7 @@ app.get('/backend-health', requireAdmin, async (c) => {
 app.get('/quota', async (c) => {
   const userId = c.get('userId') || '';
   if (!userId) return c.json({ error: 'Sign in to see your scan allowance.' }, 401);
-  const pro = await isProMember(c.env.DB, userId);
+  const pro = await isProMember(c.env, userId);
   return c.json(await scanAllowance(c.env.DB, userId, pro));
 });
 
@@ -793,7 +796,7 @@ app.post('/identify', async (c) => {
     // Single photos use the daily photo bucket (Pro gets 5x). Shelf Snap has its
     // own buckets: a monthly teaser for free accounts, a daily cap for Pro.
     const units = shelfMode ? SHELF_SCAN_UNITS : SINGLE_SCAN_UNITS;
-    sharedPro = await isProMember(c.env.DB, userId);
+    sharedPro = await isProMember(c.env, userId);
     sharedBuckets = scanQuotaBuckets(shelfMode, sharedPro);
     const quota = await consumeSharedScanQuota(c.env.DB, userId, quotaRequestKey, units, sharedBuckets);
     if (!quota.allowed) {

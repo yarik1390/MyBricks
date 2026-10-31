@@ -185,6 +185,9 @@ app.get('/api/config', (c) => {
     // Supabase (otherwise clicking it would 400 at GoTrue). Required for the iOS
     // build since Apple mandates Sign in with Apple alongside Google (Guideline 4.8).
     apple_signin: c.env.APPLE_SIGNIN_ENABLED === '1',
+    // Early-access free launch: the app hides paywalls and upgrade prompts
+    // (lib/early-access.ts). Public so guests skip the Pro pitch too.
+    early_access_pro: c.env.EARLY_ACCESS_PRO === '1',
     status: publicConfigStatus(status),
     setup: { google: { configured: setup.google.configured } },
   });

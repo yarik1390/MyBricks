@@ -6,6 +6,7 @@ import type { Env, Variables } from '../types';
 import { hashPin, verifyPin } from '../lib/kids-xp';
 import { holdingValueForRollout } from '../lib/market-sources';
 import { leaveHousehold } from './family';
+import { hasProAccess } from '../lib/early-access';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -160,6 +161,10 @@ app.get('/', async (c) => {
     brickset_connected: !!(p.brickset_user_hash),
     rebrickable_connected: !!(p.rebrickable_user_token),
     is_supporter: p.is_supporter === 1,
+    // Pro features unlocked (paid, or everyone during early access). The app
+    // gates features on this and keeps is_supporter for paid-only cosmetics.
+    pro_access: hasProAccess(c.env, p.is_supporter === 1),
+    early_access_pro: hasProAccess(c.env, false),
     has_kids_pin: !!(p.kids_pin_hash),
     kids_xp: Number(p.kids_xp ?? 0),
     kids_level: Number(p.kids_level ?? 1),
@@ -467,7 +472,7 @@ app.get('/insurance-report', async (c) => {
   const pref = await c.env.DB.prepare(
     'SELECT is_supporter, display_name, handle FROM user_prefs WHERE user_id=?'
   ).bind(userId).first<{ is_supporter: number; display_name: string | null; handle: string | null }>().catch(() => null);
-  if (!pref?.is_supporter) return c.json({ error: 'The insurance report is a Pro feature' }, 403);
+  if (!hasProAccess(c.env, pref?.is_supporter)) return c.json({ error: 'The insurance report is a Pro feature' }, 403);
 
   const { results } = await c.env.DB.prepare(`
     SELECT uc.set_num, uc.quantity, uc.condition, uc.purchase_price, uc.purchased_at,
@@ -486,7 +491,7 @@ app.get('/insurance-report', async (c) => {
   const totalValue = results.reduce((sum, r) => sum + num(r.value) * Math.max(1, num(r.quantity)), 0);
   const totalPaid = results.reduce((sum, r) => sum + num(r.purchase_price) * Math.max(1, num(r.quantity)), 0);
   const today = new Date().toISOString().slice(0, 10);
-  const owner = escapeHtmlS(pref.display_name || pref.handle || 'BricksVault collector');
+  const owner = escapeHtmlS(pref?.display_name || pref?.handle || 'BricksVault collector');
   const conf = (v: unknown) => ({ high: 'Verified market price', medium: 'Market estimate', low: 'Low-confidence estimate' })[String(v || '')] || 'Estimate';
 
   const rows = results.map((r) => `

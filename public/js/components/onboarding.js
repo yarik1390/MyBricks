@@ -6,7 +6,7 @@ import { haptic, toast, activateFocusTrap, soundEnabled, advisorEnabled, celebra
 import { I } from '../icons.js';
 import { getThemePref, setThemePref, getSkinPref, setSkinPref, getModePref, setModePref } from '../theme.js';
 import { api, isGuestMode } from '../api.js';
-import { state, invalidatePortfolio } from '../state.js';
+import { state, invalidatePortfolio, earlyAccessPro } from '../state.js';
 import { route } from '../router.js';
 import { SUPPORTED, getLocale, setLocale, applyUiDictionary, translateDOM, t } from '../lib/i18n.js';
 import { isNativeBilling, proPurchaseReady, presentProPaywall } from '../lib/revenuecat-native.js';
@@ -351,7 +351,9 @@ export function maybeStartOnboarding() {
 // still offered on the final step. Self-contained; never throws into boot.
 // ---------------------------------------------------------------------------
 const SETUP_FLAG = 'bv_setup_v1';
-const SETUP_STEPS = ['welcome', 'mode', 'appearance', 'extras', 'support', 'done'];
+const ALL_SETUP_STEPS = ['welcome', 'mode', 'appearance', 'extras', 'support', 'done'];
+// The Pro pitch step is left out while Pro is free for everyone (early access).
+let SETUP_STEPS = ALL_SETUP_STEPS;
 // Swatches are mini-cards styled like the REAL skin (surface + border + shadow +
 // radius), not arbitrary colors — Retro is chunky pixel-shadow, Modular is soft &
 // rounded, Vivid is dark. That's what actually differs between them.
@@ -728,6 +730,7 @@ export function showSetup() {
     if (suRoot) return;
     ensureSetupStyles();
     suIdx = 0;
+    SETUP_STEPS = earlyAccessPro() ? ALL_SETUP_STEPS.filter((s) => s !== 'support') : ALL_SETUP_STEPS;
     suRoot = document.createElement('div');
     suRoot.className = 'bv-setup';
     suRoot.setAttribute('role', 'dialog');

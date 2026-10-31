@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { optionalMember, requireMember } from '../auth';
 import type { Env, Variables } from '../types';
+import { hasProAccess } from '../lib/early-access';
 
 type Ctx = Context<{ Bindings: Env; Variables: Variables }>;
 
@@ -21,7 +22,7 @@ async function overLimit(c: Ctx, userId: string): Promise<Response | null> {
   const pref = await c.env.DB.prepare(
     'SELECT is_supporter FROM user_prefs WHERE user_id=?'
   ).bind(userId).first<{ is_supporter: number }>();
-  const limit = pref?.is_supporter ? DAILY_LIMIT * SUPPORTER_MULTIPLIER : DAILY_LIMIT;
+  const limit = hasProAccess(c.env, pref?.is_supporter) ? DAILY_LIMIT * SUPPORTER_MULTIPLIER : DAILY_LIMIT;
   const windowStart = new Date();
   windowStart.setHours(0, 0, 0, 0);
   const rl = await c.env.DB.prepare(`

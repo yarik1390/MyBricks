@@ -5,7 +5,7 @@ import { icon as kitIcon, row as kitRow } from '../ui/kit.js';
 import { confirmSheet } from '../components/sheet.js';
 import { parseCollectionCSV } from '../lib/pure.js';
 import { subpageTopbarHTML, loadMe } from './me-shared.js';
-import { state } from '../state.js';
+import { state, hasProAccess } from '../state.js';
 import { skelPage, skelSettingRows } from '../components/skeleton.js';
 import { exportBlob } from '../lib/native-file-export.js';
 import { t, tPlural, getLocale } from '../lib/i18n.js';
@@ -21,7 +21,7 @@ export async function renderMeData() {
   await loadMe();
   const guest = isGuestMode();
 
-  const pro = !!state.me?.is_supporter;
+  const pro = hasProAccess();
   const fileRow = ({ icon: ic, title, sub, inputId, pickLabel, nameId, importId, importLabel, resultId }) => `
     <div class="bv-datarow">
       <div class="bv-datarow__head">${kitIcon(ic, { size: 22 })}<span class="bv-row__text"><span class="bv-row__title">${title}</span><span class="bv-row__sub">${sub}</span></span></div>

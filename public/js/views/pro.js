@@ -4,13 +4,13 @@
 // Google Play's purchase sheet for it. Members see their status and how to
 // manage it.
 import { $, escapeHtml, haptic, toast, celebrate } from '../utils.js';
-import { state } from '../state.js';
+import { state, earlyAccessPro } from '../state.js';
 import { t } from '../lib/i18n.js';
 import { topbar, icon, btn } from '../ui/kit.js';
 import { go } from '../router.js';
 import { isNativeBilling, proPurchaseReady, purchaseProPlan, restorePurchases, presentCustomerCenter, proPlanPrices } from '../lib/revenuecat-native.js';
 import { loadMe } from './me-shared.js';
-import { api } from '../api.js';
+import { api, getSessionUserId } from '../api.js';
 
 const BENEFITS = [
   ['trend', 'bvAccount.proInsights', 'bvAccount.proInsightsSub'],
@@ -39,8 +39,12 @@ function wallHTML(list) {
     </section>`;
 }
 
-function benefitsHTML() {
-  return `<ul class="bv-probenefits">${BENEFITS.map(([ic, title, sub]) => `<li>${icon(ic, { size: 22 })}<span><span class="bv-probenefits__title">${escapeHtml(t(title))}</span><span class="bv-probenefits__sub">${escapeHtml(t(sub))}</span></span></li>`).join('')}</ul>`;
+// During early access the paid-only perks (gold style, thanks wall) are left
+// out of the list, since everything else is already unlocked.
+const PAID_ONLY = new Set(['bvAccount.proSkin', 'bvAccount.proWall']);
+
+function benefitsHTML(early = false) {
+  return `<ul class="bv-probenefits">${BENEFITS.filter(([, title]) => !early || !PAID_ONLY.has(title)).map(([ic, title, sub]) => `<li>${icon(ic, { size: 22 })}<span><span class="bv-probenefits__title">${escapeHtml(t(title))}</span><span class="bv-probenefits__sub">${escapeHtml(t(sub))}</span></span></li>`).join('')}</ul>`;
 }
 
 // The plan cards are the picker: tapping one selects it, Continue buys it
@@ -75,12 +79,17 @@ export async function renderPro() {
   const me = await loadMe();
   const native = isNativeBilling();
   const active = !!me.is_supporter;
+  // Early access: Pro is free for everyone, so no plans, prices or buttons.
+  const early = !active && earlyAccessPro();
   const patreon = state.config?.patreon_url;
-  const [prices, supporters] = await Promise.all([native && !active ? proPlanPrices() : [], loadSupporters()]);
+  const [prices, supporters] = await Promise.all([native && !active && !early ? proPlanPrices() : [], loadSupporters()]);
   if (location.hash.split('?')[0] !== '#/pro') return;
 
   let actions;
-  if (active) {
+  if (early) {
+    actions = `<div class="bv-proactive" role="status" id="proEarly">${icon('star', { size: 22 })}<span><span class="bv-probenefits__title">${escapeHtml(t('bvAccount.proEarlyTitle'))}</span><span class="bv-probenefits__sub">${escapeHtml(t('bvAccount.proEarlyBody'))}</span></span></div>
+      ${getSessionUserId() ? '' : btn(t('bvAccount.signIn'), { full: true, size: 'lg', href: '#/login', id: 'proEarlySignIn' })}`;
+  } else if (active) {
     actions = `<div class="bv-proactive" role="status">${icon('star', { size: 22 })}<span><span class="bv-probenefits__title">${escapeHtml(t('bvAccount.proYouHave'))}</span><span class="bv-probenefits__sub">${escapeHtml(t('bvAccount.proThanks'))}</span></span></div>
       ${native ? btn(t('bvAccount.proManage'), { kind: 'outline', full: true, id: 'rcManageBtn' }) : patreon ? btn(t('bvAccount.proManagePatreon'), { kind: 'outline', full: true, href: patreon, attrs: { target: '_blank', rel: 'noopener' } }) : ''}`;
   } else if (native) {
@@ -97,7 +106,7 @@ export async function renderPro() {
 
   root.innerHTML = `<main class="bv-page no-nav bv-pro" id="proPage">
       ${topbar({ title: t('bvAccount.proTitle'), sub: t('bvAccount.proSub'), back: '#/me' })}
-      <section class="bv-procard" aria-label="${escapeHtml(t('bvAccount.proWhat'))}">${benefitsHTML()}</section>
+      <section class="bv-procard" aria-label="${escapeHtml(t('bvAccount.proWhat'))}">${benefitsHTML(early)}</section>
       <div class="bv-proactions">${actions}</div>
       ${wallHTML(supporters)}
     </main>`;
