@@ -32,6 +32,8 @@ export interface Env {
   // (Dashboard → Integrations → Webhooks). POST /api/revenuecat/webhook flips
   // is_supporter from Play/Apple purchase events. Authoritative entitlement source.
   REVENUECAT_WEBHOOK_AUTH?: string;
+  /** "1" = early-access free launch: everyone gets Pro features (lib/early-access.ts). */
+  EARLY_ACCESS_PRO?: string;
   ADMIN_USER_ID: string;
   /** Canonical https origin for links the Worker generates (emails, push,
    *  exports). Defaults to the original Cloudflare Pages origin; set this to

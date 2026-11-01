@@ -3,7 +3,7 @@
 // built on the device (lib/insurance-report.js → lib/pdf-writer.js): Save PDF
 // downloads it (Documents on Android), Share hands it to the system sheet.
 import { $, $$, escapeHtml, haptic, toast, fmtMoney, thumbImg, setHue } from '../utils.js';
-import { state } from '../state.js';
+import { state, hasProAccess } from '../state.js';
 import { api } from '../api.js';
 import { t, tPlural, getLocale } from '../lib/i18n.js';
 import { displayValueOf } from '../lib/pure.js';
@@ -114,7 +114,7 @@ function paint(me) {
       </div>
       <p class="bv-foot">${escapeHtml(t('bvAccount.insNote'))}</p>
       <div class="bv-insurance__bar">
-        ${me.is_supporter
+        ${hasProAccess(me)
           ? `${btn(t('bvAccount.insSave'), { kind: 'outline', icon: 'download', id: 'insSave', disabled: empty })}${btn(t('bvAccount.insShare'), { icon: 'share', id: 'insShare', disabled: empty })}`
           // The valuation report has always been a Pro feature; the preview stays open to everyone.
           : btn(t('bvAccount.insUnlock'), { icon: 'star', href: '#/pro', id: 'insUnlock', full: true })}

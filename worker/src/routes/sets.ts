@@ -29,6 +29,7 @@ import {
   buildAmazonSpecialLink,
   getFreshAmazonOffer,
 } from '../lib/amazon';
+import { hasProAccess } from '../lib/early-access';
 
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -1020,7 +1021,7 @@ app.post('/:setnum/revalue', requireMember, async (c) => {
   const pref = await c.env.DB.prepare(
     'SELECT is_supporter FROM user_prefs WHERE user_id=?'
   ).bind(userId).first<{ is_supporter: number }>();
-  const REVALUE_LIMIT = pref?.is_supporter ? 25 : 5;
+  const REVALUE_LIMIT = hasProAccess(c.env, pref?.is_supporter) ? 25 : 5;
 
   const windowStart = new Date();
   windowStart.setMinutes(0, 0, 0);

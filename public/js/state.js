@@ -81,3 +81,16 @@ export function markSetOwned(setNum, owned) {
     if (state.detail && state.detail.cache) delete state.detail.cache[setNum];
   }
 }
+
+// Early-access free launch: the server's EARLY_ACCESS_PRO switch (shown in
+// /api/config for everyone and /api/me for members) unlocks Pro features for
+// all accounts. Paid status (me.is_supporter) still drives paid-only
+// cosmetics (gold style/icon, supporter badge).
+export function earlyAccessPro() {
+  return !!(state.config?.early_access_pro || state.me?.early_access_pro);
+}
+
+/** True when Pro features are unlocked for the signed-in member. */
+export function hasProAccess(me = state.me) {
+  return !!(me?.pro_access || me?.is_supporter || (me && earlyAccessPro()));
+}

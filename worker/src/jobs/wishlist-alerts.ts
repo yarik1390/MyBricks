@@ -6,6 +6,7 @@ import { sendDiscordAlert } from '../lib/discord';
 import { sendWebPush } from '../lib/webpush';
 import { sendNativePushToUser } from '../lib/firebase-push';
 import { holdingValueForRollout } from '../lib/market-sources';
+import { earlyAccessPro } from '../lib/early-access';
 
 export async function sendPushToUser(env: Env, userId: string, payload: string) {
   if (env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY) {
@@ -429,9 +430,9 @@ async function runRetirementAlerts(env: Env): Promise<{ fired: number }> {
       AND COALESCE(ls.lego_availability, '') NOT IN ('coming_soon', 'pre_order')
       AND NOT EXISTS (SELECT 1 FROM upcoming_sets us WHERE us.set_num = ls.set_num)
       AND ${categoryWanted('up', 'notify_retiring')}
-      -- Pro head start: members hear as soon as the flag flips, everyone else
+      -- Pro head start (everyone during early access): members hear as soon as the flag flips, everyone else
       -- a day later. A flag set before lego_retiring_since existed is NULL.
-      AND (COALESCE(up.is_supporter, 0) = 1 OR ls.lego_retiring_since IS NULL
+      AND (? = 1 OR COALESCE(up.is_supporter, 0) = 1 OR ls.lego_retiring_since IS NULL
         OR ls.lego_retiring_since <= datetime('now', '-1 day'))
       AND NOT EXISTS (
         SELECT 1 FROM wishlist_alerts wa
@@ -439,7 +440,7 @@ async function runRetirementAlerts(env: Env): Promise<{ fired: number }> {
           AND wa.alert_type = 'retiring' AND wa.triggered_at > datetime('now', '-30 days')
       )
     LIMIT ?
-  `).bind(ALERTS_PER_KIND).all<{ user_id: string; set_num: string; set_name: string; current_value: number | null; image_url: string | null; retail_price: number | null; theme: string | null; year: number | null; pieces: number | null; exit_date: string | null }>();
+  `).bind(earlyAccessPro(env) ? 1 : 0, ALERTS_PER_KIND).all<{ user_id: string; set_num: string; set_name: string; current_value: number | null; image_url: string | null; retail_price: number | null; theme: string | null; year: number | null; pieces: number | null; exit_date: string | null }>();
 
   if (!results.length) return { fired: 0 };
 

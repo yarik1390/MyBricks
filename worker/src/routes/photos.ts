@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { requireMember } from '../auth';
 import type { Env, Variables } from '../types';
+import { hasProAccess } from '../lib/early-access';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -27,7 +28,7 @@ app.post('/:id/photo', async (c) => {
   {
     const pref = await c.env.DB.prepare('SELECT is_supporter FROM user_prefs WHERE user_id=?')
       .bind(userId).first<{ is_supporter: number }>();
-    const limit = pref?.is_supporter ? PHOTO_DAILY_LIMIT * 5 : PHOTO_DAILY_LIMIT;
+    const limit = hasProAccess(c.env, pref?.is_supporter) ? PHOTO_DAILY_LIMIT * 5 : PHOTO_DAILY_LIMIT;
     const windowStart = new Date();
     windowStart.setUTCHours(0, 0, 0, 0);
     const rl = await c.env.DB.prepare(`
@@ -186,7 +187,7 @@ app.post('/:id/story', async (c) => {
   {
     const pref = await c.env.DB.prepare('SELECT is_supporter FROM user_prefs WHERE user_id=?')
       .bind(userId).first<{ is_supporter: number }>();
-    const limit = pref?.is_supporter ? PHOTO_DAILY_LIMIT * 5 : PHOTO_DAILY_LIMIT;
+    const limit = hasProAccess(c.env, pref?.is_supporter) ? PHOTO_DAILY_LIMIT * 5 : PHOTO_DAILY_LIMIT;
     const windowStart = new Date();
     windowStart.setUTCHours(0, 0, 0, 0);
     const rl = await c.env.DB.prepare(`

@@ -5,7 +5,7 @@
 // retirement-risk list) stays a Pro perk, exactly as it was on the old Vault
 // "Insights" tab.
 import { $, $$, escapeHtml, fmtMoney, fmtShortDate, haptic, snackbar, setHue } from '../utils.js';
-import { state } from '../state.js';
+import { state, earlyAccessPro } from '../state.js';
 import { getSessionUserId } from '../api.js';
 import { t, tPlural } from '../lib/i18n.js';
 import { computeSpreadSignals, distinctHues } from '../lib/pure.js';
@@ -340,6 +340,8 @@ function openProOptions() {
   // get an explicit, dismissible fallback here.
   if (isNativeBilling()) { location.hash = '#/pro'; return; }
   const signedIn = !!getSessionUserId();
+  // Early access: Pro is free, a guest only needs an account.
+  if (earlyAccessPro()) { location.hash = signedIn ? '#/pro' : '#/login'; return; }
   const patreonUrl = state.config?.patreon_url;
   showSheet(sheetBody({
     title: t('bvVault.proTitle'),

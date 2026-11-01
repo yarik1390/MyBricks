@@ -73,6 +73,16 @@ describe('lot checker', () => {
     expect((await call(lotRoute, '/value', { items })).status).toBe(200);
   });
 
+  it('opens big lots to everyone during the early-access free launch', async () => {
+    const items = ['75313-1', '10497-1', '6086-1', '21318-1'].map((set_num) => ({ set_num }));
+    (env as any).EARLY_ACCESS_PRO = '1';
+    try {
+      expect((await call(lotRoute, '/value', { items })).status).toBe(200);
+    } finally {
+      (env as any).EARLY_ACCESS_PRO = '0';
+    }
+  });
+
   it('grades verdict bands', () => {
     expect(lotVerdict(100, 90).verdict).toBe('fair');
     expect(lotVerdict(100, 150).verdict).toBe('overpriced');

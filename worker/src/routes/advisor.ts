@@ -11,6 +11,7 @@ import { openAiCompatibleStep } from '../lib/llm-clients';
 import { isMergeBudgetExhausted, mergeReportedCostUsd } from '../lib/merge-gateway';
 import { recordAiUsage } from '../lib/ai-usage';
 import type { Env, Variables } from '../types';
+import { hasProAccess } from '../lib/early-access';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -128,7 +129,7 @@ app.post('/', async (c) => {
     if (used > ADVISOR_DAILY_LIMIT) {
       const pref = await c.env.DB.prepare('SELECT is_supporter FROM user_prefs WHERE user_id=?')
         .bind(userId).first<{ is_supporter: number }>().catch(() => null);
-      const limit = pref?.is_supporter ? ADVISOR_PRO_DAILY_LIMIT : ADVISOR_DAILY_LIMIT;
+      const limit = hasProAccess(c.env, pref?.is_supporter) ? ADVISOR_PRO_DAILY_LIMIT : ADVISOR_DAILY_LIMIT;
       if (used > limit) {
         return c.json({ error: `Rate limit: ${limit} advisor queries per day. Add your Gemini key in Settings for unlimited access.` }, 429);
       }

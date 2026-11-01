@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { requireMember } from '../auth';
 import type { Env, Variables } from '../types';
 import { holdingValueForRollout } from '../lib/market-sources';
+import { hasProAccess } from '../lib/early-access';
 
 // Lot checker (mounted at /api/lot): is a bundle of sets (a garage-sale box, a
 // marketplace listing) worth its asking price?
@@ -79,7 +80,7 @@ app.post('/value', async (c) => {
   if (items.length > FREE_LOT_ITEMS) {
     const pref = await c.env.DB.prepare('SELECT is_supporter FROM user_prefs WHERE user_id = ?')
       .bind(userId).first<{ is_supporter: number }>().catch(() => null);
-    if (!pref?.is_supporter) return c.json({ error: `Lots over ${FREE_LOT_ITEMS} sets come with Pro.`, code: 'pro_required' }, 402);
+    if (!hasProAccess(c.env, pref?.is_supporter)) return c.json({ error: `Lots over ${FREE_LOT_ITEMS} sets come with Pro.`, code: 'pro_required' }, 402);
   }
 
   const nums = [...new Set(items.map((i) => i.set_num))];

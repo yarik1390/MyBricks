@@ -4,7 +4,7 @@
 // here — the long tail lives in sheets (Appearance, Currency & region, Public
 // profile) so the hub stays one scannable list.
 import { $, $$, haptic, escapeHtml, fmtMoney, fmtMoneyShort, toast, setHue, bvIDB, celebrate, celebrateChime, soundEnabled, advisorEnabled, publicOrigin } from '../utils.js';
-import { state, invalidatePortfolio } from '../state.js';
+import { state, invalidatePortfolio, earlyAccessPro } from '../state.js';
 import { api, sbSignOut, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
 import { promptSheet, showSheet, hideSheet } from '../components/sheet.js';
@@ -128,7 +128,7 @@ function pageHTML(me) {
     canRateApp() ? row({ icon: 'star', title: t('bvAccount.rateApp'), sub: t('bvAccount.rateAppSub'), id: 'rateAppRow' }) : '',
     row({ icon: 'share', title: t('bvAccount.shareApp'), sub: t('bvAccount.shareAppSub'), id: 'shareAppRow' }),
   ].join('');
-  const membership = row({ icon: 'star', title: t('bvAccount.proTitle'), sub: me.is_supporter ? t('bvAccount.proActive') : t('bvAccount.proPitch'), href: '#/pro', id: 'proRow' });
+  const membership = row({ icon: 'star', title: t('bvAccount.proTitle'), sub: me.is_supporter ? t('bvAccount.proActive') : earlyAccessPro() ? t('bvAccount.proEarly') : t('bvAccount.proPitch'), href: '#/pro', id: 'proRow' });
   const account = guest
     ? row({ icon: 'user', title: t('bvAccount.signIn'), sub: t('bvAccount.signInSub'), id: 'signInRow' })
     : row({ icon: 'logout', title: t('bvAccount.signOut'), sub: t('bvAccount.signOutSub'), id: 'signOutRow' })

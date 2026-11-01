@@ -16,6 +16,10 @@ export default defineConfig({
       // The OPENCODEX_VPC (Workers VPC) binding is remote-only. Tests stub it, and
       // a remote proxy session would need live Cloudflare credentials in CI.
       remoteBindings: false,
+      // Keep the Pro paywall on in tests (wrangler.toml turns on the early-access
+      // free launch), so the gated paths stay covered. Early-access tests pass
+      // their own env with EARLY_ACCESS_PRO: '1'.
+      miniflare: { bindings: { EARLY_ACCESS_PRO: '0' } },
     }),
   ],
 });
