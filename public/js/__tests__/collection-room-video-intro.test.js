@@ -18,6 +18,15 @@ test('video intro uses local muted inline media with bounded fallback and comple
   assert.match(source, /document\.removeEventListener\('visibilitychange'/);
 });
 
+test('intro timeouts count only responsive time, so a frozen main thread cannot expire them', () => {
+  assert.match(source, /function responsiveTimeout\(budgetMs, onExpire\)/);
+  assert.match(source, /left -= Math\.min\(now - last, TICK_MS \+ TICK_SLACK_MS\)/);
+  assert.match(source, /startTimer = responsiveTimeout\(START_TIMEOUT_MS, \(\) => fallback\('start-timeout'\)\)/);
+  assert.match(source, /stallTimer = responsiveTimeout\(STALL_TIMEOUT_MS, \(\) => fallback\('stall'\)\)/);
+  assert.match(source, /hardTimer = responsiveTimeout\(delay, \(\) => fallback\('hard-timeout'\)\)/);
+  assert.doesNotMatch(source, /setTimeout\(\(\) => fallback\(/);
+});
+
 test('video eligibility respects reduced motion, save-data and slow networks', () => {
   assert.match(source, /!reduce && !isConnectionConstrained/);
   assert.match(source, /connection\.saveData === true/);

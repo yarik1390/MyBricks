@@ -13,6 +13,9 @@ async function gotoRoom(page) {
 }
 
 test('real room intro video advances and hands off without native replay', async ({ page }) => {
+  // A 5 s movie plus the 1.3 s walk through the door: on a busy runner decoding
+  // and the 3D room share a few cores, so give playback headroom over real time.
+  test.setTimeout(60000);
   await gotoRoom(page);
   const overlay = page.locator('.showroom-video-intro');
   const video = page.locator('.showroom-video-intro-media');
@@ -22,7 +25,7 @@ test('real room intro video advances and hands off without native replay', async
   const first = await video.evaluate(element => element.currentTime);
   await expect.poll(() => video.evaluate(element => element.currentTime), { timeout: 6000 }).toBeGreaterThan(first + 0.2);
   await expect(overlay).toHaveAttribute('data-video-intro-state', 'playing');
-  await expect(overlay).toHaveCount(0, { timeout: 9000 });
+  await expect(overlay).toHaveCount(0, { timeout: 20000 });
   await expect(page.locator('#roomStage')).toHaveAttribute('data-door-state', 'open');
   await expect(page.locator('#roomStage')).toHaveAttribute('data-door-progress', '1.000');
 });
