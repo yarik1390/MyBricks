@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="supported-color-schemes" content="dark">
+<title>BricksVault</title>
+</head>
+<body style="margin:0;padding:0;background:#0F0F14;" bgcolor="#0F0F14">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#0F0F14;font-size:1px;line-height:1px;">Tap to sign in to BricksVault. No password needed.&#8203;&nbsp;&#8203;&nbsp;&#8203;&nbsp;&#8203;&nbsp;&#8203;&nbsp;&#8203;&nbsp;</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#0F0F14" style="background:#0F0F14;">
+<tr><td align="center" style="padding:24px 12px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
+    <tr><td style="padding:0 4px 16px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+        <td valign="middle"><a href="https://bricksvault.app"><img src="https://bricksvault.app/icon-192.png" width="36" height="36" alt="" style="display:block;border:0;border-radius:9px;"></a></td>
+        <td valign="middle" style="padding-left:10px;font-family:Georgia,'Times New Roman',serif;font-size:20px;font-weight:700;color:#F2EDE3;">Bricks<span style="color:#FFD700;">Vault</span></td>
+      </tr></table>
+    </td></tr>
+    <tr><td bgcolor="#1F1F26" style="background:#1F1F26;border-radius:18px;border:1px solid #34343F;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr><td style="padding:24px 28px 0;">
+          <span style="display:inline-block;padding:5px 12px;border-radius:999px;border:1px solid #FFD700;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#FFD700;">Sign in</span>
+        </td></tr>
+        <tr><td style="padding:18px 28px 6px;font-family:Georgia,'Times New Roman',serif;font-size:26px;line-height:1.25;font-weight:700;color:#F2EDE3;">Sign in to BricksVault</td></tr>
+        <tr><td style="padding:8px 28px 6px;">
+          <p style="margin:0 0 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#D9D5C8;">Tap the button to sign in as <strong style="color:#F2EDE3;">{{ .Email }}</strong>. The link works once and expires soon.</p>
+        </td></tr>
+        <tr><td align="center" style="padding:10px 28px 22px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
+            <tr><td bgcolor="#FFD700" style="background:#FFD700;border-radius:10px;">
+              <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:14px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;color:#1C1C1E;text-decoration:none;border-radius:10px;">Sign in</a>
+            </td></tr>
+          </table>
+        </td></tr>
+        <tr><td style="padding:0 28px 24px;">
+          <p style="margin:0 0 14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#9CA3B0;">If you didn't ask for this, you can ignore this email. Nothing changes on your account.</p>
+          <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#9CA3B0;">Button not working? Copy this link into your browser:<br><a href="{{ .ConfirmationURL }}" style="color:#9CA3B0;word-break:break-all;">{{ .ConfirmationURL }}</a></p>
+        </td></tr>
+      </table>
+    </td></tr>
+    <tr><td style="padding:18px 8px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#9CA3B0;text-align:center;">
+      You're receiving this because a sign-in link was requested for your BricksVault account.<br>
+      <a href="https://bricksvault.app" style="color:#9CA3B0;text-decoration:underline;">bricksvault.app</a>
+      &nbsp;·&nbsp;
+      <a href="mailto:support@bricksvault.app" style="color:#9CA3B0;text-decoration:underline;">support@bricksvault.app</a>
+    </td></tr>
+  </table>
+</td></tr>
+</table>
+</body></html>
