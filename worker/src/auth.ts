@@ -69,6 +69,23 @@ async function getCryptoKey(jwk: any, alg: string, importAlgo: any): Promise<Cry
   return key;
 }
 
+const SUPPORTED_ALGS = new Set(['HS256', 'ES256', 'RS256']);
+
+/**
+ * The reason sent to the client on a 401. The detailed reason goes to the log
+ * only, so a probe can't tell which check failed or enumerate key ids. Three
+ * buckets keep the app's session handling (isCredentialAuthFailure in
+ * public/js/lib/pure-core.js) exactly as before: an expired or broken token
+ * refreshes the session, anything else does not sign the user out.
+ */
+export function publicAuthReason(reason: string | undefined): string {
+  if (reason === 'expired token') return 'expired token';
+  if (reason === 'malformed token' || reason === 'undecodable token' || reason === 'not an authenticated role') {
+    return 'invalid token';
+  }
+  return 'token rejected';
+}
+
 // Returns the user id (sub) and email if the token is valid, else { error }.
 async function verifyJWT(token: string, env: Env): Promise<{ sub?: string; email?: string; error?: string }> {
   const parts = token.split('.');
@@ -81,6 +98,10 @@ async function verifyJWT(token: string, env: Env): Promise<{ sub?: string; email
   } catch {
     return { error: 'undecodable token' };
   }
+  // Allowlist the algorithm before anything else reads the header: `none`,
+  // PS256 and friends are rejected here instead of falling through to the JWKS
+  // lookup (security review pass 2, finding 8).
+  if (!SUPPORTED_ALGS.has(header?.alg)) return { error: 'unsupported alg' };
 
   const nowSeconds = Date.now() / 1000;
   if (payload.exp && payload.exp < nowSeconds) return { error: 'expired token' };
@@ -126,6 +147,12 @@ async function verifyJWT(token: string, env: Env): Promise<{ sub?: string; email
     const keys = await getJWKS(env);
     const jwk = keys.find(k => k.kid === header.kid);
     if (!jwk) return { error: `no JWKS key for kid ${header.kid}` };
+    // Bind the key type to the token's alg so an EC key is never used for an
+    // RS256 token (or vice versa), and honour the JWK's own alg when it has one.
+    const wantKty = header.alg === 'ES256' ? 'EC' : 'RSA';
+    if (jwk.kty !== wantKty || (jwk.alg && jwk.alg !== header.alg)) {
+      return { error: `JWKS key ${header.kid} does not match alg ${header.alg}` };
+    }
 
     let importAlgo: any, verifyAlgo: any;
     if (header.alg === 'ES256') {
@@ -150,7 +177,10 @@ export async function requireMember(c: C, next: Next) {
   const token = c.req.header('Authorization')?.replace('Bearer ', '');
   if (!token) return c.json({ error: 'Unauthorized', reason: 'no token' }, 401);
   const { sub, email, error } = await verifyJWT(token, c.env);
-  if (!sub) return c.json({ error: 'Unauthorized', reason: error }, 401);
+  if (!sub) {
+    if (error !== 'expired token') console.warn(`[auth] rejected token: ${error}`);
+    return c.json({ error: 'Unauthorized', reason: publicAuthReason(error) }, 401);
+  }
   c.set('userId', sub);
   if (email) c.set('userEmail', email);
   await next();
@@ -163,7 +193,10 @@ export async function optionalMember(c: C, next: Next) {
     return;
   }
   const { sub, email, error } = await verifyJWT(token, c.env);
-  if (!sub) return c.json({ error: 'Unauthorized', reason: error }, 401);
+  if (!sub) {
+    if (error !== 'expired token') console.warn(`[auth] rejected token: ${error}`);
+    return c.json({ error: 'Unauthorized', reason: publicAuthReason(error) }, 401);
+  }
   c.set('userId', sub);
   if (email) c.set('userEmail', email);
   await next();
@@ -173,7 +206,10 @@ export async function requireAdmin(c: C, next: Next) {
   const token = c.req.header('Authorization')?.replace('Bearer ', '');
   if (!token) return c.json({ error: 'Unauthorized', reason: 'no token' }, 401);
   const { sub, error } = await verifyJWT(token, c.env);
-  if (!sub) return c.json({ error: 'Unauthorized', reason: error }, 401);
+  if (!sub) {
+    if (error !== 'expired token') console.warn(`[auth] rejected token: ${error}`);
+    return c.json({ error: 'Unauthorized', reason: publicAuthReason(error) }, 401);
+  }
   if (sub !== c.env.ADMIN_USER_ID) return c.json({ error: 'Forbidden' }, 403);
   c.set('userId', sub);
   await next();

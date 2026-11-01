@@ -6,7 +6,7 @@ import { t, onLocaleChange } from './i18n.js';
 import { icon } from '../ui/kit.js';
 import { showSheet } from '../components/sheet.js';
 
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // Explore: pages that sit one level down on the phone, one click away here.
 const EXPLORE = [
