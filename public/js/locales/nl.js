@@ -1087,6 +1087,7 @@ export const nl = {
     proEarly: 'Gratis tijdens vroege toegang',
     proEarlyTitle: 'Pro is gratis tijdens vroege toegang',
     proEarlyBody: 'Zolang BricksVault nieuw is, zijn alle Pro-functies voor je ontgrendeld. De gouden stijl en het app-icoon blijven een bedankje voor supporters.',
+    proEarlyWelcome: 'Zolang BricksVault in vroege toegang is, zijn alle functies gratis, ook Pro.',
     proTitle: 'BricksVault Pro',
     tourSub: 'De korte rondleiding opnieuw bekijken',
     tour: 'App-rondleiding',

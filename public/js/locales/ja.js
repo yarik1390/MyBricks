@@ -1087,6 +1087,7 @@ export const ja = {
     proEarly: '早期アクセス中は無料',
     proEarlyTitle: '早期アクセス中は Pro が無料',
     proEarlyBody: 'BricksVault が新しいうちは、Pro のすべての機能をご利用いただけます。ゴールドのスタイルとアプリアイコンはサポーターへのお礼として残ります。',
+    proEarlyWelcome: 'BricksVault の早期アクセス中は、Pro を含むすべての機能が無料です。',
     proTitle: 'BricksVault Pro',
     tourSub: '簡単な案内をもう一度見る',
     tour: 'アプリツアー',

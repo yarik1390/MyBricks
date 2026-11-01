@@ -1087,6 +1087,7 @@ export const hi = {
     proEarly: 'अर्ली एक्सेस के दौरान मुफ़्त',
     proEarlyTitle: 'अर्ली एक्सेस के दौरान Pro मुफ़्त है',
     proEarlyBody: 'जब तक BricksVault नया है, Pro की सभी सुविधाएँ आपके लिए खुली हैं। गोल्ड स्टाइल और ऐप आइकन समर्थकों के लिए धन्यवाद के रूप में रहते हैं।',
+    proEarlyWelcome: 'जब तक BricksVault अर्ली एक्सेस में है, Pro सहित सभी सुविधाएँ मुफ़्त हैं।',
     proTitle: 'BricksVault Pro',
     tourSub: 'छोटा परिचय फिर से देखें',
     tour: 'ऐप टूर',

@@ -8,7 +8,7 @@
 // price alerts. Finishing anywhere marks the first run done (bv_setup_v1), the
 // same flag the old setup wizard used, so returning users never see it again.
 import { $, $$, escapeHtml, haptic, toast, CURRENCY_SYMBOLS, bvIDB } from '../utils.js';
-import { state, invalidatePortfolio } from '../state.js';
+import { state, invalidatePortfolio, earlyAccessPro } from '../state.js';
 import { api, isGuestMode } from '../api.js';
 import { go } from '../router.js';
 import { t, tPlural, SUPPORTED, getLocale, setLocale, applyUiDictionary, translateDOM, intlLocale } from '../lib/i18n.js';
@@ -121,6 +121,7 @@ function prefsHTML() {
       <span class="bv-wel__mark">${vaultMark(56)}</span>
       <h1 class="bv-wel__title" id="welTitle">${escapeHtml(name ? t('bvFirst.welcomeName', { name }) : t('bvFirst.welcome'))}</h1>
       <p class="bv-wel__lead">${escapeHtml(t('bvFirst.welcomeLead'))}</p>
+      ${earlyAccessPro() ? `<p class="bv-wel__note bv-note" id="welEarly">⭐ <strong>${escapeHtml(t('bvAccount.proEarlyWelcome'))}</strong></p>` : ''}
       ${guest ? `<p class="bv-wel__note bv-note">${escapeHtml(t('setup.privacy'))} <a href="#/login">${escapeHtml(t('bvFirst.signIn'))}</a></p>` : ''}
       <div class="bv-group__box bv-wel__prefs">${rows}</div>
     </div>

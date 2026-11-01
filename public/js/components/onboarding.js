@@ -351,9 +351,9 @@ export function maybeStartOnboarding() {
 // still offered on the final step. Self-contained; never throws into boot.
 // ---------------------------------------------------------------------------
 const SETUP_FLAG = 'bv_setup_v1';
-const ALL_SETUP_STEPS = ['welcome', 'mode', 'appearance', 'extras', 'support', 'done'];
-// The Pro pitch step is left out while Pro is free for everyone (early access).
-let SETUP_STEPS = ALL_SETUP_STEPS;
+// During early access the 'support' step tells new users that every feature
+// is free instead of pitching Pro (see earlyAccessPro in state.js).
+const SETUP_STEPS = ['welcome', 'mode', 'appearance', 'extras', 'support', 'done'];
 // Swatches are mini-cards styled like the REAL skin (surface + border + shadow +
 // radius), not arbitrary colors — Retro is chunky pixel-shadow, Modular is soft &
 // rounded, Vivid is dark. That's what actually differs between them.
@@ -551,9 +551,14 @@ function stepBodyHTML(key) {
       </div>`;
   }
   if (key === 'support') {
-    return `${heroHTML('sparkles', 45)}
-      <h3 id="bv-setup-title">BricksVault Pro ⭐</h3>
-      <p class="sub">Tracking your vault is free, forever. Pro unlocks the investor toolkit — and keeps BricksVault independent and ad-free.</p>
+    // Early access: every feature is free, so this step says so instead of
+    // pitching Pro.
+    const early = earlyAccessPro();
+    const title = early ? `${escapeHtml(t('bvAccount.proEarlyTitle'))} ⭐` : 'BricksVault Pro ⭐';
+    const body = early
+      ? `<p class="sub">${escapeHtml(t('bvAccount.proEarlyBody'))}</p>
+      <ul class="bv-perks">${['proInsights', 'proHistory', 'proShelf', 'proScans', 'proExports', 'proLots'].map((k) => `<li>${escapeHtml(t(`bvAccount.${k}`))}</li>`).join('')}</ul>`
+      : `<p class="sub">Tracking your vault is free, forever. Pro unlocks the investor toolkit — and keeps BricksVault independent and ad-free.</p>
       <ul class="bv-perks">
         <li>Investor insights: sell/buy signals, top movers, retirement radar</li>
         <li>Full 1-year portfolio history &amp; ROI export</li>
@@ -562,6 +567,9 @@ function stepBodyHTML(key) {
         <li>Shelf scans: a whole shelf from one photo</li>
       </ul>
       <div class="bv-note">No pressure — everything you need stays free. You can go Pro anytime from Settings.</div>`;
+    return `${heroHTML('sparkles', 45)}
+      <h3 id="bv-setup-title">${title}</h3>
+      ${body}`;
   }
   // done
   return `${heroHTML('sparkles', 36)}
@@ -585,7 +593,7 @@ function stepFootHTML(key) {
         ${suIdx > 0 ? '<button class="bv-setup-btn" data-act="back">Back</button>' : ''}
         <button class="bv-setup-btn primary" data-act="next">${key === 'welcome' ? escapeHtml(t('setup.letsGo')) : 'Continue'}</button>
       </div>
-      ${key === 'support' ? `${isNativeBilling() ? '<button class="bv-setup-ghost" data-act="support">See Pro options →</button>' : ''}<p class="bv-setup-note" data-su-note role="status" aria-live="polite"></p>` : ''}`;
+      ${key === 'support' ? `${isNativeBilling() && !earlyAccessPro() ? '<button class="bv-setup-ghost" data-act="support">See Pro options →</button>' : ''}<p class="bv-setup-note" data-su-note role="status" aria-live="polite"></p>` : ''}`;
   }
   return `<div class="bv-setup-dots" role="progressbar" aria-label="Setup progress" aria-valuemin="1" aria-valuemax="${SETUP_STEPS.length}" aria-valuenow="${suIdx + 1}">${dots}</div>${nav}`;
 }
@@ -730,7 +738,6 @@ export function showSetup() {
     if (suRoot) return;
     ensureSetupStyles();
     suIdx = 0;
-    SETUP_STEPS = earlyAccessPro() ? ALL_SETUP_STEPS.filter((s) => s !== 'support') : ALL_SETUP_STEPS;
     suRoot = document.createElement('div');
     suRoot.className = 'bv-setup';
     suRoot.setAttribute('role', 'dialog');

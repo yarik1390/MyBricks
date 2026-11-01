@@ -1087,6 +1087,7 @@ export const fr = {
     proEarly: 'Gratuit pendant l’accès anticipé',
     proEarlyTitle: 'Pro est gratuit pendant l’accès anticipé',
     proEarlyBody: 'Tant que BricksVault est nouveau, toutes les fonctions Pro sont débloquées pour vous. Le style doré et l’icône de l’app restent un merci pour les soutiens.',
+    proEarlyWelcome: 'Tant que BricksVault est en accès anticipé, toutes les fonctions, Pro compris, sont gratuites.',
     proTitle: 'BricksVault Pro',
     tourSub: 'Revoir la présentation rapide',
     tour: 'Visite de l’appli',
