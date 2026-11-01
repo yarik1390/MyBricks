@@ -10,6 +10,33 @@ export const VIDEO_ENTRY_MS = 1300;
 // The open vault aperture in the movie's last frame, as fractions of the frame.
 const APERTURE = { x: 0.35, y: 0.53, r: 0.19 };
 
+// A timeout that only counts time the page could actually run. Building the 3D
+// room behind the intro can freeze the main thread for seconds on a slow phone
+// (or CI runner); a plain setTimeout counts that frozen stretch and fires the
+// instant the thread frees up, before the video has had a single chance to load,
+// so the intro gives up on a movie that would have played fine. Ticking in short
+// slices and crediting each at most one slice (plus slack) keeps the budget
+// bounded in responsive time while ignoring stalls we caused ourselves.
+const TICK_MS = 250;
+const TICK_SLACK_MS = 100;
+function responsiveTimeout(budgetMs, onExpire) {
+  let left = budgetMs;
+  let timer = 0;
+  let last = performance.now();
+  const tick = () => {
+    const now = performance.now();
+    left -= Math.min(now - last, TICK_MS + TICK_SLACK_MS);
+    last = now;
+    if (left <= 0) { timer = 0; onExpire(); return; }
+    timer = window.setTimeout(tick, Math.min(TICK_MS, left));
+  };
+  timer = window.setTimeout(tick, Math.min(TICK_MS, left));
+  return {
+    clear() { if (timer) clearTimeout(timer); timer = 0; },
+    remaining() { return Math.max(0, left - Math.min(performance.now() - last, TICK_MS + TICK_SLACK_MS)); },
+  };
+}
+
 function isConnectionConstrained(connection = navigator.connection || navigator.webkitConnection) {
   if (!connection) return false;
   return Boolean(
@@ -44,11 +71,12 @@ export function startRoomVideoIntro(stage, options = {}) {
   let stallTimer = 0;
   let hardTimer = 0;
   let fadeTimer = 0;
-  let hardDeadline = 0;
   let entryFrame = 0;
+  let hardLeft = HARD_TIMEOUT_MS;
 
   const clearTimers = () => {
-    for (const timer of [startTimer, stallTimer, hardTimer, fadeTimer]) if (timer) clearTimeout(timer);
+    for (const timer of [startTimer, stallTimer, hardTimer]) if (timer) timer.clear();
+    if (fadeTimer) clearTimeout(fadeTimer);
     if (entryFrame) cancelAnimationFrame(entryFrame);
     startTimer = stallTimer = hardTimer = fadeTimer = entryFrame = 0;
   };
@@ -129,16 +157,15 @@ export function startRoomVideoIntro(stage, options = {}) {
     if (isCurrent()) onFallback(reason);
   };
   const armHardTimeout = (delay = HARD_TIMEOUT_MS) => {
-    if (hardTimer) clearTimeout(hardTimer);
-    hardDeadline = performance.now() + delay;
-    hardTimer = window.setTimeout(() => fallback('hard-timeout'), delay);
+    if (hardTimer) hardTimer.clear();
+    hardTimer = responsiveTimeout(delay, () => fallback('hard-timeout'));
   };
   function handlePlaying() {
     started = true;
     overlay.dataset.videoIntroState = 'playing';
-    if (startTimer) clearTimeout(startTimer);
+    if (startTimer) startTimer.clear();
     startTimer = 0;
-    if (stallTimer) clearTimeout(stallTimer);
+    if (stallTimer) stallTimer.clear();
     stallTimer = 0;
   }
   function handleTimeUpdate() {
@@ -146,25 +173,24 @@ export function startRoomVideoIntro(stage, options = {}) {
   }
   function handleWaiting() {
     if (!started || settled) return;
-    if (stallTimer) clearTimeout(stallTimer);
-    stallTimer = window.setTimeout(() => fallback('stall'), STALL_TIMEOUT_MS);
+    if (stallTimer) stallTimer.clear();
+    stallTimer = responsiveTimeout(STALL_TIMEOUT_MS, () => fallback('stall'));
   }
   function handleEnded() { finish('ended'); }
   function handleError() { fallback('error'); }
   function handleSkip() { finish('skipped'); }
   function handleVisibility() {
     if (document.hidden) {
-      if (startTimer) clearTimeout(startTimer);
-      if (stallTimer) clearTimeout(stallTimer);
-      if (hardTimer) clearTimeout(hardTimer);
+      hardLeft = hardTimer ? hardTimer.remaining() : hardLeft;
+      for (const timer of [startTimer, stallTimer, hardTimer]) if (timer) timer.clear();
       startTimer = stallTimer = hardTimer = 0;
       video.pause();
       return;
     }
     if (settled || destroyed || !isCurrent()) return;
-    if (!started) startTimer = window.setTimeout(() => fallback('start-timeout'), START_TIMEOUT_MS);
-    const remaining = Math.max(250, hardDeadline - performance.now());
-    armHardTimeout(remaining);
+    if (startTimer) startTimer.clear();
+    startTimer = started ? 0 : responsiveTimeout(START_TIMEOUT_MS, () => fallback('start-timeout'));
+    armHardTimeout(Math.max(250, hardLeft));
     Promise.resolve(video.play()).catch(() => fallback('play-rejected'));
   }
 
@@ -177,7 +203,7 @@ export function startRoomVideoIntro(stage, options = {}) {
   skip.addEventListener('click', handleSkip);
   document.addEventListener('visibilitychange', handleVisibility);
   video.src = VIDEO_SRC;
-  startTimer = window.setTimeout(() => fallback('start-timeout'), START_TIMEOUT_MS);
+  startTimer = responsiveTimeout(START_TIMEOUT_MS, () => fallback('start-timeout'));
   armHardTimeout();
   Promise.resolve(video.play()).catch(() => fallback('play-rejected'));
 
