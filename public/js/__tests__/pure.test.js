@@ -392,6 +392,10 @@ describe('escapeHtml', () => {
     assert.equal(escapeHtml('"quoted"'), '&quot;quoted&quot;');
   });
 
+  it("escapes single quotes so a single-quoted attribute stays safe", () => {
+    assert.equal(escapeHtml("it's"), 'it&#39;s');
+  });
+
   it('handles null / undefined gracefully', () => {
     assert.equal(escapeHtml(null), '');
     assert.equal(escapeHtml(undefined), '');

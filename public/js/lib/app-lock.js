@@ -11,7 +11,7 @@ import { t } from './i18n.js';
 const ENABLED_KEY = APP_LOCK_ENABLED_KEY;
 const RELOCK_AFTER_MS = 15_000; // re-lock only after a real backgrounding, not a quick app-switch
 
-const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 let _wired = false;
 let _verifying = false;   // guards the appStateChange loop while the OS prompt is up

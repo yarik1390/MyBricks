@@ -53,9 +53,15 @@ app.get('/', async (c) => {
 
   const cache = (caches as unknown as { default: Cache }).default;
 
-  // 1) Cloudflare edge cache — fastest, shared across users. The request URL
-  //    includes ?w=, so thumbnails and full images cache under distinct keys.
-  const hit = await cache.match(c.req.raw).catch(() => undefined);
+  // 1) Cloudflare edge cache — fastest, shared across users. The key is built
+  //    from the normalised source URL and snapped width only, so extra query
+  //    noise (&x=1, &utm=…) or ?w=500 vs ?w=600 all land on one entry instead
+  //    of minting new ones (security review pass 2, finding 9).
+  const reqUrl = new URL(c.req.url);
+  const cacheKey = new Request(
+    `${reqUrl.origin}${reqUrl.pathname}?u=${encodeURIComponent(src)}${width ? `&w=${width}` : ''}`,
+  );
+  const hit = await cache.match(cacheKey).catch(() => undefined);
   if (hit) {
     // Responses served from the Cache API arrive with the edge's
     // no-store override; re-assert cacheability so the browser/SW
@@ -80,7 +86,7 @@ app.get('/', async (c) => {
       // floating-cutout and framed-plate presentation).
       headers.set('Access-Control-Allow-Origin', '*');
       const resp = new Response(obj.body, { headers });
-      c.executionCtx.waitUntil(cache.put(c.req.raw, resp.clone()).catch(() => {}));
+      c.executionCtx.waitUntil(cache.put(cacheKey, resp.clone()).catch(() => {}));
       return resp;
     }
   }
@@ -130,7 +136,7 @@ app.get('/', async (c) => {
       if (c.env.PHOTO_BUCKET) {
         await c.env.PHOTO_BUCKET.put(key, buf, { httpMetadata: { contentType } }).catch(() => {});
       }
-      await cache.put(c.req.raw, new Response(buf, { headers })).catch(() => {});
+      await cache.put(cacheKey, new Response(buf, { headers })).catch(() => {});
     } catch { /* best-effort persist — the client already got the bytes */ }
   })());
   return new Response(clientStream, { headers });

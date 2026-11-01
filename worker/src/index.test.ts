@@ -656,6 +656,37 @@ describe('BrickVault API Worker Tests', () => {
     });
   });
 
+  describe('JWT algorithm and 401 reasons', () => {
+    const b64url = (json: any) => btoa(JSON.stringify(json)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const meWith = (bearer: string) => app.fetch(
+      new Request('http://localhost/api/me', { headers: { Authorization: `Bearer ${bearer}` } }), env,
+    );
+    const claims = { sub: 'attacker', role: 'authenticated', exp: Math.floor(Date.now() / 1000) + 3600 };
+
+    it('rejects alg=none and other unlisted algs with one generic reason', async () => {
+      for (const alg of ['none', 'PS256', 'HS512']) {
+        const forged = `${b64url({ alg, typ: 'JWT' })}.${b64url(claims)}.`;
+        const res = await meWith(forged);
+        expect(res.status).toBe(401);
+        const body = await res.json<{ reason: string }>();
+        expect(body.reason).toBe('token rejected');
+      }
+    });
+
+    it('does not reveal which check failed for a wrong signature', async () => {
+      const wrong = await createMockJWT('attacker', 'a-completely-different-secret-value-xyz');
+      const res = await meWith(wrong);
+      expect(res.status).toBe(401);
+      expect((await res.json<{ reason: string }>()).reason).toBe('token rejected');
+    });
+
+    it('keeps the expired and malformed reasons the app uses to refresh the session', async () => {
+      const expired = `${b64url({ alg: 'HS256', typ: 'JWT' })}.${b64url({ ...claims, exp: 1 })}.x`;
+      expect((await (await meWith(expired)).json<{ reason: string }>()).reason).toBe('expired token');
+      expect((await (await meWith('not-a-jwt')).json<{ reason: string }>()).reason).toBe('invalid token');
+    });
+  });
+
   describe('Google OAuth Flow Security', () => {
     it('generates secure auth-init sessions and verifies state nonces', async () => {
       // 1. Initialize auth session
