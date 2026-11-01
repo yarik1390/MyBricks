@@ -1096,6 +1096,7 @@ export const en = {
     proEarly: 'Free during early access',
     proEarlyTitle: 'Pro is free during early access',
     proEarlyBody: 'Every Pro feature is unlocked for you while BricksVault is new. The gold style and app icon stay a thank-you for supporters.',
+    proEarlyWelcome: 'Every feature, Pro included, is free while BricksVault is in early access.',
     proTitle: 'BricksVault Pro',
     tourSub: 'Replay the quick walkthrough',
     tour: 'App tour',

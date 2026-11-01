@@ -1087,6 +1087,7 @@ export const zh = {
     proEarly: '抢先体验期间免费',
     proEarlyTitle: '抢先体验期间 Pro 免费',
     proEarlyBody: '在 BricksVault 刚推出期间，所有 Pro 功能都为你开放。金色风格和应用图标仍作为对支持者的感谢。',
+    proEarlyWelcome: 'BricksVault 抢先体验期间，包括 Pro 在内的所有功能均免费。',
     proTitle: 'BricksVault Pro',
     tourSub: '重新观看快速介绍',
     tour: '应用导览',

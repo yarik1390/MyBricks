@@ -12,7 +12,8 @@ describe('current first-run onboarding', () => {
     assert.match(onboarding, /t\('setup.investor'\)/);
     assert.match(onboarding, /Full investor view — market value, ROI and 2-year projections\./);
     assert.doesNotMatch(onboarding, /opt\('pro', '📈', 'Pro'/);
-    assert.match(onboarding, /<h3 id="bv-setup-title">BricksVault Pro ⭐<\/h3>/);
+    assert.match(onboarding, /early \? `\$\{escapeHtml\(t\('bvAccount\.proEarlyTitle'\)\)\} ⭐` : 'BricksVault Pro ⭐'/);
+    assert.match(onboarding, /<h3 id="bv-setup-title">\$\{title\}<\/h3>/);
   });
 
   it('keeps onboarding copy within the translated exact-match catalog', () => {
@@ -53,7 +54,7 @@ describe('current first-run onboarding', () => {
   });
 
   it('keeps optional billing contextual instead of presenting a dead web action', () => {
-    assert.match(onboarding, /isNativeBilling\(\) \? '<button class="bv-setup-ghost" data-act="support">See Pro options →<\/button>' : ''/);
+    assert.match(onboarding, /isNativeBilling\(\) && !earlyAccessPro\(\) \? '<button class="bv-setup-ghost" data-act="support">See Pro options →<\/button>' : ''/);
     assert.match(onboarding, /if \(!isNativeBilling\(\)\) \{/);
   });
 
