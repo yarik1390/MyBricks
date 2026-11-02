@@ -19,3 +19,11 @@ export function versionCodeFromGit({ cwd = new URL('..', import.meta.url), floor
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) console.log(versionCodeFromGit());
+
+// versionName follows the web build: public/sw.js `const VERSION = "v625"`
+// -> "1.0.625". Mirrors derivedVersionName in android/app/build.gradle.
+export function versionNameFromSw(swSource) {
+  const m = String(swSource).match(/const\s+VERSION\s*=\s*["']v(\d+)["']/);
+  if (!m) throw new Error('public/sw.js has no VERSION = "vNNN"');
+  return `1.0.${m[1]}`;
+}

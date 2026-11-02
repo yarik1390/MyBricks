@@ -23,16 +23,39 @@ def derivedVersionCode = { ->
     }
 }()
 
+// versionName follows the web build (public/sw.js VERSION "v625" -> "1.0.625")
+// so every Play release shows a new, readable version that matches the
+// version the web app reports. CI may override with ANDROID_VERSION_NAME.
+def derivedVersionName = { ->
+    def provided = System.getenv('ANDROID_VERSION_NAME')
+    if (provided) return provided.trim()
+    def sw = new File(rootDir.parentFile, 'public/sw.js')
+    if (sw.exists()) {
+        def m = (sw.text =~ /const\s+VERSION\s*=\s*["']v(\d+)["']/)
+        if (m.find()) return "1.0.${m.group(1)}"
+    }
+    throw new GradleException('Could not derive versionName from public/sw.js VERSION')
+}()
+
 android {
     namespace = "app.bricksvault"
     compileSdk = rootProject.ext.compileSdkVersion
+    // Native debug symbols (Play: "App Bundle contains native code, and you've
+    // not uploaded debug symbols"). AGP needs an NDK to extract the symbol
+    // tables of the bundled .so files (ML Kit, CameraX, AndroidX); without one
+    // it silently packages nothing. GitHub runners export ANDROID_NDK_HOME.
+    def ndkHome = System.getenv('ANDROID_NDK_HOME') ?: System.getenv('ANDROID_NDK_LATEST_HOME')
+    if (ndkHome && new File(ndkHome).isDirectory()) {
+        ndkPath = ndkHome
+    }
     defaultConfig {
         applicationId "app.bricksvault"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // See derivedVersionCode above — do not reintroduce a hand-bumped literal.
         versionCode derivedVersionCode
-        versionName "1.0.55"
+        // See derivedVersionName above — do not reintroduce a hand-bumped literal.
+        versionName derivedVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
