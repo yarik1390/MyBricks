@@ -23,7 +23,7 @@ const GO_LABEL = { v: 'nav.vault', d: 'collector.discover', w: 'bvAdd.tabWishlis
 
 function sidebarHTML() {
   return {
-    head: `<a class="bv-side__brand" href="#/" aria-label="${esc(t('nav.vault'))}"><img src="/icon-192.png" alt="" width="32" height="32"><span>BricksVault</span></a>`
+    head: `<a class="bv-side__brand" href="#/" aria-label="${esc(t('nav.vault'))}"><img src="/icon-192.png" alt="" width="32" height="32" loading="lazy" decoding="async"><span>BricksVault</span></a>`
       + `<button type="button" class="bv-side__search" data-bv-side-search><span class="bv-side__search-ico">${icon('search', { size: 18 })}</span><span class="bv-side__search-text">${esc(t('desktop.search'))}</span><kbd>/</kbd></button>`,
     explore: `<span class="bv-side__label">${esc(t('desktop.explore'))}</span>`
       + EXPLORE.map((x) => `<a class="bv-side__link" href="${x.href}" data-bv-side="${x.href}">${icon(x.icon, { size: 20 })}<span>${esc(t(x.key))}</span></a>`).join('')

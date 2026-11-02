@@ -2615,3 +2615,14 @@ body.collector-ui.offline #app { padding-top: 56px; }
 .bv-anniv__text { flex: 1 1 180px; display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 13px; line-height: 18px; overflow-wrap: anywhere; }
 .bv-anniv__text strong { font: 600 15px/20px var(--bv-sans); }
 .bv-anniv .bv-btn { margin: 0; background: rgba(255, 255, 255, .55); color: #252820; }
+
+/* Desktop-only pieces stay out of the phone layout (desktop.css shows them
+   at >= 1024 px; it is media-gated in index.html, so this rule lives here). */
+.bv-side, .bv-setrow__col, .vault-list-head { display: none; }
+
+/* First-visit boot screen (index.html): the welcome screen's mark and a
+   wordmark, shown only while theme-init.js has the shell in full-screen
+   first-run mode; the regular skeleton shows otherwise. */
+#root > .boot-wel { display: none; }
+body.bv-fullscreen #root > .boot-wel { display: flex; }
+body.bv-fullscreen #root > .boot-wel ~ .page { display: none; }
