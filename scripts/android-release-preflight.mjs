@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { versionNameFromSw } from './android-version.mjs';
 
 const errors = [];
 const warnings = [];
@@ -18,8 +19,13 @@ if (!process.env.ANDROID_KEYSTORE_PATH && !existsSync('android/upload.jks')) {
 }
 if (!process.env.RC_PLAY_BILLING_KEY) warnings.push('RC_PLAY_BILLING_KEY is unset; Play billing will be unavailable in this bundle.');
 
-const versionName = gradle.match(/versionName\s+"([^"]+)"/)?.[1];
-if (!versionName) errors.push('Could not read Android versionName.');
+// versionName follows the web version: public/sw.js "v625" -> "1.0.625".
+let versionName = process.env.ANDROID_VERSION_NAME || null;
+try { versionName ||= versionNameFromSw(readFileSync('public/sw.js', 'utf8')); } catch { /* reported below */ }
+if (!versionName) errors.push('Could not read Android versionName (public/sw.js VERSION).');
+if (!/versionName\s+derivedVersionName/.test(gradle)) {
+  errors.push('versionName must use derivedVersionName (from public/sw.js), not a hand-bumped literal.');
+}
 // CI supplies a repository-monotonic run-number code; local builds fall back
 // to max(git commit count, the persisted Play floor).
 const versionFloor = Number(gradle.match(/def floor = (\d+)/)?.[1]);

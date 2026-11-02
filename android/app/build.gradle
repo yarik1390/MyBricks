@@ -23,6 +23,20 @@ def derivedVersionCode = { ->
     }
 }()
 
+// versionName follows the web build (public/sw.js VERSION "v625" -> "1.0.625")
+// so every Play release shows a new, readable version that matches the
+// version the web app reports. CI may override with ANDROID_VERSION_NAME.
+def derivedVersionName = { ->
+    def provided = System.getenv('ANDROID_VERSION_NAME')
+    if (provided) return provided.trim()
+    def sw = new File(rootDir.parentFile, 'public/sw.js')
+    if (sw.exists()) {
+        def m = (sw.text =~ /const\s+VERSION\s*=\s*["']v(\d+)["']/)
+        if (m.find()) return "1.0.${m.group(1)}"
+    }
+    throw new GradleException('Could not derive versionName from public/sw.js VERSION')
+}()
+
 android {
     namespace = "app.bricksvault"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -32,7 +46,8 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         // See derivedVersionCode above — do not reintroduce a hand-bumped literal.
         versionCode derivedVersionCode
-        versionName "1.0.55"
+        // See derivedVersionName above — do not reintroduce a hand-bumped literal.
+        versionName derivedVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -70,6 +85,12 @@ android {
             // deobfuscated crash reports.
             minifyEnabled true
             shrinkResources true
+            // Play warns "contains native code, and you've not uploaded debug
+            // symbols" on every bundle. All our .so files are prebuilt and
+            // already stripped by their vendors (ML Kit barcode/OCR, CameraX,
+            // AndroidX); even with an NDK, AGP finds no symbols to extract
+            // (checked in PR #146). The warning is advisory and safe to ignore.
+            // This stays so any future own/unstripped native code ships symbols.
             ndk {
                 debugSymbolLevel 'SYMBOL_TABLE'
             }

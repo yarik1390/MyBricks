@@ -76,6 +76,15 @@ jobs:
         # Shell arithmetic is supported here; GitHub expressions do not support +.
         run: echo "ANDROID_VERSION_CODE=$((100000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
 
+      - name: Set Android version name from the web version
+        # public/sw.js VERSION "v625" -> versionName "1.0.625" (same rule as
+        # derivedVersionName in android/app/build.gradle).
+        run: |
+          WEB=$(grep -oE 'const VERSION = "v[0-9]+"' public/sw.js | grep -oE '[0-9]+')
+          [ -n "$WEB" ] || { echo "::error::Could not read VERSION from public/sw.js"; exit 1; }
+          echo "ANDROID_VERSION_NAME=1.0.${WEB}" >> "$GITHUB_ENV"
+          echo "versionName 1.0.${WEB}"
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -214,7 +223,7 @@ jobs:
       - name: Report version
         run: |
           echo "effective versionCode: $ANDROID_VERSION_CODE"
-          grep -E 'versionName' android/app/build.gradle | sed 's/^ *//'
+          echo "effective versionName: $ANDROID_VERSION_NAME"
 
       - name: Verify signature (signed bundles only)
         if: steps.keystore.outputs.signed == 'true' && (inputs.build_type || 'bundle') != 'apk-debug'
@@ -235,7 +244,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           AAB=$(ls android/app/build/outputs/bundle/release/*.aab | head -1)
-          VER=$(grep versionName android/app/build.gradle | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          VER="$ANDROID_VERSION_NAME"
           WORK=$(mktemp -d)
           cp "$AAB" "$WORK/BricksVault-${VER}-release.aab"
           if [ -f android/app/build/outputs/mapping/release/mapping.txt ]; then
