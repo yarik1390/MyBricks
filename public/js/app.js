@@ -504,6 +504,38 @@ document.addEventListener("DOMContentLoaded", async () => {
     skipLink?.setAttribute('aria-hidden', 'true');
     skipLink?.setAttribute('tabindex', '-1');
   }
+  // Fetch /api/config with a few retries. If it never comes back, the most
+  // common cause (the app runs on *.workers.dev) is an ad-blocker / privacy
+  // extension or a network blocking the API — surface that honestly instead
+  // of letting login fail later with a misleading "Auth not configured" or an
+  // "Unexpected end of JSON input" from an empty response.
+  // The request starts HERE, before the language and App Lock awaits below,
+  // so on a first visit (no cached config) it runs in parallel with them
+  // instead of adding a network round trip after them.
+  const configUrl = (window.WORKER_BASE || '') + "/api/config";
+  const CONFIG_CACHE_KEY = "bv_config_cache";
+  const applyCfg = (c) => {
+    state.config = c;
+    setSupabaseConfig(c.supabase_url || "", c.supabase_anon_key || "");
+  };
+  const fetchConfig = async (attempts) => {
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      if (attempt) await new Promise(r => setTimeout(r, 400 * attempt));
+      try {
+        const res = await fetch(configUrl, { cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return await res.json();
+      } catch (e) {
+        console.warn("[config] attempt " + (attempt + 1) + " failed:", (e && e.message) || e);
+      }
+    }
+    return null;
+  };
+  const saveCfg = (c) => { try { localStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify(c)); } catch {} };
+  let cachedCfg = null;
+  try { cachedCfg = JSON.parse(localStorage.getItem(CONFIG_CACHE_KEY) || "null"); } catch {}
+  const configFetch = fetchConfig(cachedCfg && cachedCfg.supabase_url ? 1 : 3);
+
   // Await native App Lock before session restoration or initial routing. The
   // head script has already hidden the body when the lock is enabled.
   const appLockReady = import('./lib/app-lock.js')
@@ -541,50 +573,22 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Load session and Supabase config before any routing.
   let session = loadSession();
-  // Fetch /api/config with a few retries. If it never comes back, the most
-  // common cause (the app runs on *.workers.dev) is an ad-blocker / privacy
-  // extension or a network blocking the API — surface that honestly instead
-  // of letting login fail later with a misleading "Auth not configured" or an
-  // "Unexpected end of JSON input" from an empty response.
+  // The /api/config request already started above (configFetch).
   state.configError = false;
-  {
-    const configUrl = (window.WORKER_BASE || '') + "/api/config";
-    const CONFIG_CACHE_KEY = "bv_config_cache";
-    const applyCfg = (c) => {
-      state.config = c;
-      setSupabaseConfig(c.supabase_url || "", c.supabase_anon_key || "");
-    };
-    const fetchConfig = async (attempts) => {
-      for (let attempt = 0; attempt < attempts; attempt++) {
-        if (attempt) await new Promise(r => setTimeout(r, 400 * attempt));
-        try {
-          const res = await fetch(configUrl, { cache: "no-store" });
-          if (!res.ok) throw new Error("HTTP " + res.status);
-          return await res.json();
-        } catch (e) {
-          console.warn("[config] attempt " + (attempt + 1) + " failed:", (e && e.message) || e);
-        }
-      }
-      return null;
-    };
-    const saveCfg = (c) => { try { localStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify(c)); } catch {} };
-    let cachedCfg = null;
-    try { cachedCfg = JSON.parse(localStorage.getItem(CONFIG_CACHE_KEY) || "null"); } catch {}
-    if (cachedCfg && cachedCfg.supabase_url) {
-      // Stale-while-revalidate: boot instantly on the cached copy (config
-      // rarely changes) and refresh in the background for the NEXT launch.
-      // This removes a full network round trip from every cold start.
-      applyCfg(cachedCfg);
-      fetchConfig(1).then((fresh) => { if (fresh) { saveCfg(fresh); applyCfg(fresh); } });
+  if (cachedCfg && cachedCfg.supabase_url) {
+    // Stale-while-revalidate: boot instantly on the cached copy (config
+    // rarely changes) and refresh in the background for the NEXT launch.
+    // This removes a full network round trip from every cold start.
+    applyCfg(cachedCfg);
+    configFetch.then((fresh) => { if (fresh) { saveCfg(fresh); applyCfg(fresh); } });
+  } else {
+    const cfg = await configFetch;
+    if (cfg) {
+      saveCfg(cfg);
+      applyCfg(cfg);
     } else {
-      const cfg = await fetchConfig(3);
-      if (cfg) {
-        saveCfg(cfg);
-        applyCfg(cfg);
-      } else {
-        state.configError = true;
-        toast("Can't reach the server — an ad-blocker or privacy extension may be blocking it. Disable it for this site, or try another browser.", "error");
-      }
+      state.configError = true;
+      toast("Can't reach the server — an ad-blocker or privacy extension may be blocking it. Disable it for this site, or try another browser.", "error");
     }
   }
 
@@ -771,13 +775,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Currency rates: a cached copy (even a stale one) is good enough for the
   // first paint; refresh in the background and repaint only if they changed.
-  // Only a first-ever launch with no cached rates waits for the network.
+  // Only a signed-in first launch with no cached rates waits for the network.
   if (hasCachedExchangeRates()) {
     fetchExchangeRates({ background: true }).then(changed => {
       // Repaint with the fresh rates unless the user is mid-task in an overlay.
       const busy = ['sheet-open', 'scan-active', 'advisor-open', 'selection-mode'].some(c => document.body.classList.contains(c));
       if (changed && !busy) route();
     }).catch(() => {});
+  } else if (!session) {
+    // A first visit with no account (guest) waits for nothing: a new guest
+    // vault is empty, so there is no money on screen to convert yet, and the
+    // first screen is usually the welcome flow. No repaint, so the welcome
+    // screen is never redrawn under the user's finger.
+    fetchExchangeRates().catch(() => {});
   } else {
     await fetchExchangeRates();
   }

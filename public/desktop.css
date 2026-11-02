@@ -8,8 +8,10 @@
  * states, and keyboard shortcuts live in js/lib/desktop.js.
  */
 
-/* Desktop-only pieces stay out of the phone layout. */
-.bv-side, .bv-setrow__col, .vault-list-head { display: none; }
+/* The phone-side "hide the desktop-only pieces" rule (.bv-side etc.) lives in
+ * bv.css: index.html loads this file with media="(min-width: 1024px)" so it
+ * never blocks the first paint on phones, which means every rule here must sit
+ * inside a min-width media query. */
 
 @media (min-width: 1024px) {
   :root { --bv-side-w: 248px; }

@@ -37,16 +37,42 @@
 <link rel="preload" href="/js/app.js" as="script" crossorigin>
 <!-- The boot graph is discovered one module at a time (app.js → utils.js →
      api.js → …), a request waterfall on cold loads. modulepreload the whole
-     boot set so they fetch in parallel with app.js itself. -->
+     boot set so they fetch in parallel with app.js itself. This list must
+     cover app.js's whole static import graph plus the App Lock module boot
+     awaits (scripts/__tests__/boot-preload.test.js keeps it in sync); the
+     first view's module is preloaded by theme-init.js. -->
 <link rel="modulepreload" href="/js/utils.js">
-<link rel="modulepreload" href="/js/state.js">
-<link rel="modulepreload" href="/js/api.js">
-<link rel="modulepreload" href="/js/router.js">
 <link rel="modulepreload" href="/js/icons.js">
-<link rel="modulepreload" href="/js/theme.js">
-<link rel="modulepreload" href="/js/lib/pure-core.js">
+<link rel="modulepreload" href="/js/state.js">
 <link rel="modulepreload" href="/js/lib/morphdom.js">
+<link rel="modulepreload" href="/js/lib/pure-core.js">
+<link rel="modulepreload" href="/js/lib/pure.js">
+<link rel="modulepreload" href="/js/lib/i18n.js">
+<link rel="modulepreload" href="/js/locales/en.js">
+<link rel="modulepreload" href="/js/lib/money-input.js">
+<link rel="modulepreload" href="/js/api.js">
+<link rel="modulepreload" href="/js/lib/provider-credentials.js">
+<link rel="modulepreload" href="/js/lib/minifig-holding.js">
 <link rel="modulepreload" href="/js/ui/kit.js">
+<link rel="modulepreload" href="/js/components/collector-shell.js">
+<link rel="modulepreload" href="/js/lib/nav-history.js">
+<link rel="modulepreload" href="/js/theme.js">
+<link rel="modulepreload" href="/js/lib/native-auth.js">
+<link rel="modulepreload" href="/js/lib/collector-preferences.js">
+<link rel="modulepreload" href="/js/components/sheet.js">
+<link rel="modulepreload" href="/js/components/advisor-lazy.js">
+<link rel="modulepreload" href="/js/components/scanner-lazy.js">
+<link rel="modulepreload" href="/js/router.js">
+<link rel="modulepreload" href="/js/route-meta.js">
+<link rel="modulepreload" href="/js/components/skeleton.js">
+<link rel="modulepreload" href="/js/lib/list-detail.js">
+<link rel="modulepreload" href="/js/components/methodology.js">
+<link rel="modulepreload" href="/js/lib/deep-links.js">
+<link rel="modulepreload" href="/js/lib/desktop.js">
+<link rel="modulepreload" href="/js/lib/password-toggle.js">
+<link rel="modulepreload" href="/js/lib/app-lock.js">
+<link rel="modulepreload" href="/js/lib/app-lock-boot.js">
+<link rel="modulepreload" href="/js/lib/native-biometric.js">
 <link rel="stylesheet" href="/app.css">
 <!-- Only the ACTIVE skin is loaded — theme-init sets this href — instead of five
      render-blocking skin sheets. Placed AFTER app.css so its rules win the cascade. -->
@@ -55,8 +81,9 @@
 <!-- 2026 design system: tokens, components and the app shell. Loaded last. -->
 <link rel="stylesheet" href="/bv.css">
 <!-- Computer-sized windows: sidebar, wide layouts, dialogs. Inert on phones. -->
-<link rel="stylesheet" href="/desktop.css">
-<!-- Sets the saved theme + active skin pre-paint AND loads Google Fonts
+<link rel="stylesheet" href="/desktop.css" media="(min-width: 1024px)">
+<!-- Sets the saved theme + active skin pre-paint, settles the app shell
+     (body class, first-run welcome route, first view preload) AND loads Google Fonts
      non-render-blocking. Runs after app.css so it can target #bvSkin; still
      synchronous in <head>, so the theme is applied before first paint (no flash).
      External file because the page CSP is script-src 'self'. -->
@@ -73,6 +100,16 @@
 <div id="app">
   <main id="main-content" tabindex="-1">
     <div id="root">
+      <!-- First visit (theme-init.js routes it to the welcome screen): the top
+           of that screen, painted straight from the HTML so the first paint
+           does not wait for the app's JavaScript. Hidden otherwise. -->
+      <div class="bv-wel boot-wel" aria-hidden="true">
+        <div class="bv-wel__top"></div>
+        <div class="bv-wel__body">
+          <span class="bv-wel__mark"><svg class="bv-vault-mark" viewBox="0 0 100 100" width="56" height="56" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="31" fill="#21241c"/><g stroke="#ffd23a" stroke-width="2.4" stroke-linecap="round"><line x1="50.0" y1="27.0" x2="50.0" y2="23.0"/><line x1="66.3" y1="33.7" x2="69.1" y2="30.9"/><line x1="73.0" y1="50.0" x2="77.0" y2="50.0"/><line x1="66.3" y1="66.3" x2="69.1" y2="69.1"/><line x1="50.0" y1="73.0" x2="50.0" y2="77.0"/><line x1="33.7" y1="66.3" x2="30.9" y2="69.1"/><line x1="27.0" y1="50.0" x2="23.0" y2="50.0"/><line x1="33.7" y1="33.7" x2="30.9" y2="30.9"/></g><circle cx="50" cy="50" r="19" fill="none" stroke="#ffd23a" stroke-width="1.2" stroke-opacity=".35"/><circle cx="50" cy="50" r="12" fill="#ffd23a"/><ellipse cx="47" cy="46" rx="3.5" ry="2" fill="#fff" opacity=".35"/></svg></span>
+          <p class="bv-wel__title">BricksVault</p>
+        </div>
+      </div>
       <div class="page">
         <div class="skel card mb-12" style="height:180px"></div>
         <div class="skel line" style="width:120px;margin-bottom:16px"></div>
