@@ -135,3 +135,19 @@ export async function closeNativeAuthBrowser(win) {
   if (!Browser?.close) return;
   await Browser.close();
 }
+
+// Native Google sign-in (Android, GoogleIdSignInPlugin). Returns a Google ID
+// token, or null when the plugin is missing (web, iOS, an older app build).
+// Throws an Error whose .code is 'canceled' when the user closed the sheet.
+export async function nativeGoogleIdToken({ serverClientId, nonce }, win) {
+  const plugin = getCapacitorPlugin('GoogleIdSignIn', win);
+  if (!plugin?.signIn || !serverClientId) return null;
+  const res = await plugin.signIn({ serverClientId, nonce });
+  return res?.idToken || null;
+}
+
+export async function sha256Hex(text) {
+  const bytes = new TextEncoder().encode(String(text));
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+}

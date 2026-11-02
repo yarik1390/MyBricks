@@ -46,6 +46,8 @@ export interface Env {
   EBAY_APP_ID?: string;
   EBAY_CLIENT_SECRET?: string;
   GOOGLE_CLIENT_ID?: string;
+  /** Web OAuth client id used by Supabase's Google provider (wrangler [vars], public). */
+  GOOGLE_WEB_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
   /** Optional key for at-rest encryption of stored OAuth refresh tokens (lib/token-crypto.ts). Falls back to GOOGLE_CLIENT_SECRET. */
   TOKEN_ENCRYPTION_KEY?: string;

@@ -1,10 +1,10 @@
 import { vaultMark } from '../icons.js';
 import { toast, setBtnLoading, escapeHtml } from '../utils.js';
-import { _sbUrl, sbSignIn, sbSignUp, sbRecover, sbSetPassword, saveSession, snapshotGuestVault, migrateGuestVault, readRecoveryGrant, clearRecoveryGrant, installRecoverySession } from '../api.js';
+import { _sbUrl, sbSignInWithIdToken, sbSignIn, sbSignUp, sbRecover, sbSetPassword, saveSession, snapshotGuestVault, migrateGuestVault, readRecoveryGrant, clearRecoveryGrant, installRecoverySession } from '../api.js';
 import { state } from '../state.js';
 import { go } from '../router.js';
 import { promptSheet, showSheet, hideSheet } from '../components/sheet.js';
-import { authRedirectUrlForPlatform, buildSupabaseProviderAuthUrl, createPkceVerifier, isNativeCapacitor, openNativeAuthUrl, pkceChallenge } from '../lib/native-auth.js';
+import { authRedirectUrlForPlatform, buildSupabaseProviderAuthUrl, createPkceVerifier, isNativeCapacitor, nativeGoogleIdToken, openNativeAuthUrl, pkceChallenge, sha256Hex } from '../lib/native-auth.js';
 import { t, tPlural } from '../lib/i18n.js';
 
 // First sign-in (or first guest start) continues into the Welcome flow; after
@@ -229,6 +229,23 @@ export function renderLogin() {
       }
     });
 
+    // Install a fresh session, carry the guest vault over, and leave the login
+    // screen. Shared by email sign-in and native Google sign-in.
+    async function finishSignIn(session, guestSnapshot) {
+      saveSession(session, { preserveGuestFigs: true });
+      const migrated = await migrateGuestVault(guestSnapshot);
+      if (migrated.migrated) toast(tPlural('common.localItemsSynced', migrated.migrated), "success");
+      if (migrated.errors?.length) {
+        // Keep the snapshot so the user can retry from You → Data instead of
+        // silently losing whichever local items didn't make it across.
+        try { localStorage.setItem("bv_failed_guest_migration", JSON.stringify(guestSnapshot)); } catch {}
+        toast("Some local items couldn't sync — retry from You → Data", "error");
+      }
+      if (nav) nav.style.display = "";
+      document.body.classList.remove("nav-hidden");
+      go(afterAuthHash());
+    }
+
     async function startProviderSignIn(provider) {
       if (!_sbUrl) { toast(authUnavailableMsg(), "error"); return; }
       const guestSnapshot = snapshotGuestVault();
@@ -262,7 +279,43 @@ export function renderLogin() {
       }
       location.href = authUrl;
     }
-    document.getElementById("googleSignIn")?.addEventListener("click", () => { startProviderSignIn("google"); });
+    // Android: Google's own account sheet ("Sign in to BricksVault"), no browser
+    // tab. Falls back to the browser flow when the app build has no plugin, the
+    // client id isn't configured, or Google refuses (e.g. no Android OAuth client
+    // for this signing key yet). Closing the sheet just leaves the login screen.
+    let nativeGoogleBusy = false;
+    async function startNativeGoogleSignIn() {
+      const serverClientId = state.config && state.config.google_web_client_id;
+      if (!_sbUrl || !serverClientId || !isNativeCapacitor()) return false;
+      const guestSnapshot = snapshotGuestVault();
+      let rawNonce, idToken;
+      try {
+        rawNonce = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
+        idToken = await nativeGoogleIdToken({ serverClientId, nonce: await sha256Hex(rawNonce) });
+      } catch (e) {
+        if (e?.code === 'canceled') return true;
+        console.warn('[auth] native Google sign-in unavailable, using browser', e?.message || e);
+        return false;
+      }
+      if (!idToken) return false;
+      try {
+        const session = await sbSignInWithIdToken('google', idToken, rawNonce);
+        await finishSignIn(session, guestSnapshot);
+      } catch (e) {
+        toast(e?.message || "Sign in failed", "error");
+      }
+      return true;
+    }
+    document.getElementById("googleSignIn")?.addEventListener("click", async () => {
+      if (nativeGoogleBusy) return;
+      nativeGoogleBusy = true;
+      try {
+        if (await startNativeGoogleSignIn()) return;
+      } finally {
+        nativeGoogleBusy = false;
+      }
+      startProviderSignIn("google");
+    });
     document.getElementById("appleSignIn")?.addEventListener("click", () => { startProviderSignIn("apple"); });
     document.getElementById("authGuest")?.addEventListener("click", () => {
       saveSession(null, { preserveGuestFigs: true });
@@ -313,18 +366,7 @@ export function renderLogin() {
             return;
           }
         }
-        saveSession(session, { preserveGuestFigs: true });
-        const migrated = await migrateGuestVault(guestSnapshot);
-        if (migrated.migrated) toast(tPlural('common.localItemsSynced', migrated.migrated), "success");
-        if (migrated.errors?.length) {
-          // Keep the snapshot so the user can retry from You → Data instead of
-          // silently losing whichever local items didn't make it across.
-          try { localStorage.setItem("bv_failed_guest_migration", JSON.stringify(guestSnapshot)); } catch {}
-          toast("Some local items couldn't sync — retry from You → Data", "error");
-        }
-        if (nav) nav.style.display = "";
-        document.body.classList.remove("nav-hidden");
-        go(afterAuthHash());
+        await finishSignIn(session, guestSnapshot);
       } catch (e) {
         if (errEl) errEl.textContent = e.message;
         setBtnLoading(btn, false);

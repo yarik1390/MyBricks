@@ -32,3 +32,8 @@
 # because they carry -dontoptimize; these are the rest of that file.
 -dontwarn com.amazon.**
 -keep class com.amazon.** { *; }
+
+# Credential Manager (GoogleIdSignInPlugin): keep the Play Services provider
+# it loads by reflection.
+-if class androidx.credentials.CredentialManager
+-keep class androidx.credentials.playservices.** { *; }
