@@ -40,21 +40,6 @@ def derivedVersionName = { ->
 android {
     namespace = "app.bricksvault"
     compileSdk = rootProject.ext.compileSdkVersion
-    // Native debug symbols (Play: "App Bundle contains native code, and you've
-    // not uploaded debug symbols"). AGP needs an NDK to extract the symbol
-    // tables of the bundled .so files (ML Kit, CameraX, AndroidX); without one
-    // it silently packages nothing. GitHub runners export ANDROID_NDK_HOME.
-    def ndkHome = System.getenv('ANDROID_NDK_HOME') ?: System.getenv('ANDROID_NDK_LATEST_HOME')
-    if (ndkHome && new File(ndkHome).isDirectory()) {
-        ndkPath = ndkHome
-        // ndkVersion must match the NDK at ndkPath, or AGP refuses it (CXX1100)
-        // and again packages no symbols.
-        def props = new File(ndkHome, 'source.properties')
-        // (No `matcher && matcher.find()`: Groovy truth on a Matcher already
-        // calls find(), so the second call misses.)
-        def rev = props.exists() ? props.readLines().find { it.startsWith('Pkg.Revision') } : null
-        if (rev) ndkVersion = rev.split('=', 2)[1].trim()
-    }
     defaultConfig {
         applicationId "app.bricksvault"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -100,6 +85,12 @@ android {
             // deobfuscated crash reports.
             minifyEnabled true
             shrinkResources true
+            // Play warns "contains native code, and you've not uploaded debug
+            // symbols" on every bundle. All our .so files are prebuilt and
+            // already stripped by their vendors (ML Kit barcode/OCR, CameraX,
+            // AndroidX); even with an NDK, AGP finds no symbols to extract
+            // (checked in PR #146). The warning is advisory and safe to ignore.
+            // This stays so any future own/unstripped native code ships symbols.
             ndk {
                 debugSymbolLevel 'SYMBOL_TABLE'
             }

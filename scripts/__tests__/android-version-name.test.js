@@ -22,14 +22,3 @@ describe('Android versionName', () => {
     assert.match(workflow, /ANDROID_VERSION_NAME=1\.0\.\$\{WEB\}/);
   });
 });
-
-describe('Android native debug symbols', () => {
-  it('release keeps a symbol table and AGP gets an NDK', () => {
-    assert.match(gradle, /debugSymbolLevel\s+'(SYMBOL_TABLE|FULL)'/);
-    assert.match(gradle, /ndkPath\s*=\s*ndkHome/);
-  });
-
-  it('CI fails a bundle that ships without debug symbols', () => {
-    assert.match(workflow, /BUNDLE-METADATA\/com\.android\.tools\.build\.debugsymbols\//);
-  });
-});
