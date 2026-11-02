@@ -47,6 +47,11 @@ android {
     def ndkHome = System.getenv('ANDROID_NDK_HOME') ?: System.getenv('ANDROID_NDK_LATEST_HOME')
     if (ndkHome && new File(ndkHome).isDirectory()) {
         ndkPath = ndkHome
+        // ndkVersion must match the NDK at ndkPath, or AGP refuses it (CXX1100)
+        // and again packages no symbols.
+        def props = new File(ndkHome, 'source.properties')
+        def rev = props.exists() ? (props.text =~ /Pkg\.Revision\s*=\s*([0-9.]+)/) : null
+        if (rev && rev.find()) ndkVersion = rev.group(1)
     }
     defaultConfig {
         applicationId "app.bricksvault"
