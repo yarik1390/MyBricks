@@ -50,8 +50,10 @@ android {
         // ndkVersion must match the NDK at ndkPath, or AGP refuses it (CXX1100)
         // and again packages no symbols.
         def props = new File(ndkHome, 'source.properties')
-        def rev = props.exists() ? (props.text =~ /Pkg\.Revision\s*=\s*([0-9.]+)/) : null
-        if (rev && rev.find()) ndkVersion = rev.group(1)
+        // (No `matcher && matcher.find()`: Groovy truth on a Matcher already
+        // calls find(), so the second call misses.)
+        def rev = props.exists() ? props.readLines().find { it.startsWith('Pkg.Revision') } : null
+        if (rev) ndkVersion = rev.split('=', 2)[1].trim()
     }
     defaultConfig {
         applicationId "app.bricksvault"
