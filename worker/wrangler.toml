@@ -115,7 +115,7 @@ EARLY_ACCESS_PRO = "1"
 # Web OAuth client id of the Google provider in Supabase Auth (public). When set,
 # the Android app signs in with Google's native account sheet instead of a
 # browser tab. Empty = browser sign-in everywhere.
-GOOGLE_WEB_CLIENT_ID = ""
+GOOGLE_WEB_CLIENT_ID = "782551268429-2p3ak7eotnk84h2ncg5p2moskrqangld.apps.googleusercontent.com"
 BRICKOGNIZE_ENABLED = "1"
 # Optional Core01 validation backend. Access and origin credentials are Worker
 # secrets; this URL alone does not activate the client.
