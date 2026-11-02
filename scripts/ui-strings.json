@@ -8413,7 +8413,8 @@
   {
     "text": "Sign in failed",
     "files": [
-      "api.js"
+      "api.js",
+      "views/login.js"
     ]
   },
   {

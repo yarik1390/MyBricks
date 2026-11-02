@@ -234,6 +234,27 @@ export async function sbExchangeCode(authCode, codeVerifier) {
   return d;
 }
 
+// Native Google sign-in: trade a Google ID token (from the Android account
+// sheet) for a session. `nonce` is the raw value whose SHA-256 went to Google.
+export async function sbSignInWithIdToken(provider, idToken, nonce) {
+  const body = { provider, id_token: idToken };
+  if (nonce) body.nonce = nonce;
+  const r = await fetch(`${_sbUrl}/auth/v1/token?grant_type=id_token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: _sbAnonKey },
+    body: JSON.stringify(body),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || !d.access_token) {
+    throw new Error(d.msg || d.error_description || (typeof d.error === 'string' ? d.error : '') || d.message || "Sign in failed");
+  }
+  return {
+    access_token: d.access_token,
+    refresh_token: d.refresh_token,
+    expires_at: Number(d.expires_at) || Date.now() / 1000 + Number(d.expires_in || 3600),
+  };
+}
+
 export async function sbSignIn(email, password, captchaToken) {
   const body = { email, password };
   // GoTrue CAPTCHA token — included only when supplied. Supabase ignores it

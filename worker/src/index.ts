@@ -185,6 +185,10 @@ app.get('/api/config', (c) => {
     // Supabase (otherwise clicking it would 400 at GoTrue). Required for the iOS
     // build since Apple mandates Sign in with Apple alongside Google (Guideline 4.8).
     apple_signin: c.env.APPLE_SIGNIN_ENABLED === '1',
+    // Web OAuth client id of Supabase's Google provider (public, it is in every
+    // Google sign-in URL). The Android app passes it to the native account sheet;
+    // null keeps the browser sign-in.
+    google_web_client_id: c.env.GOOGLE_WEB_CLIENT_ID || null,
     // Early-access free launch: the app hides paywalls and upgrade prompts
     // (lib/early-access.ts). Public so guests skip the Pro pitch too.
     early_access_pro: c.env.EARLY_ACCESS_PRO === '1',
