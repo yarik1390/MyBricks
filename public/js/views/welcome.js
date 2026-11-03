@@ -18,24 +18,13 @@ import { showSheet, hideSheet } from '../components/sheet.js';
 import { setThumb, money0 } from '../ui/set-ui.js';
 import { displayValueOf } from '../lib/pure.js';
 import { vaultMark } from '../icons.js';
+import { MARKETS, detectRegion } from '../lib/region-detect.js';
 
 const SETUP_FLAG = 'bv_setup_v1';
 const DETECT_FLAG = 'bv_first_detected';
 const CURRENCIES = ['USD', 'GBP', 'EUR', 'CAD', 'AUD'];
-const MARKETS = ['FR', 'US', 'GB', 'DE', 'CA', 'AU', 'NL'];
-const EURO = new Set(['AT', 'BE', 'CY', 'DE', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PT', 'SI', 'SK']);
 const onWelcome = () => location.hash.split('?')[0].startsWith('#/welcome');
 
-
-/** Currency and retail market for a BCP-47 tag (pure: exported for tests). */
-export function detectRegionDefaults(tag) {
-  let region = '';
-  try { region = new Intl.Locale(tag || 'en-US').maximize().region || ''; } catch { region = String(tag || '').split('-')[1] || ''; }
-  region = region.toUpperCase();
-  const currency = region === 'GB' ? 'GBP' : region === 'CA' ? 'CAD' : region === 'AU' ? 'AUD' : EURO.has(region) ? 'EUR' : region === 'US' ? 'USD' : null;
-  const market = MARKETS.includes(region) ? region : null;
-  return { region, currency, market };
-}
 
 function marketName(code) {
   try { return new Intl.DisplayNames([getLocale()], { type: 'region' }).of(code) || code; } catch { return code; }
@@ -64,9 +53,23 @@ async function savePrefs(body) {
 }
 
 // Once per device: a new vault (guest, or an account with no sets yet) takes
-// its currency and retail market from the phone's region unless the collector
-// already chose them. A returning collector's synced choices are theirs —
+// its currency and retail market from where the phone is (SIM country in the
+// Android app, the visitor's country on the web, then the phone's region; see
+// lib/region-detect.js) unless the collector already chose them. A returning collector's synced choices are theirs —
 // signing in on a phone set to another region never rewrites them.
+// The country Cloudflare saw this request come from ('' when unknown). Short
+// timeout: the welcome screen never waits long on it.
+async function visitorCountry() {
+  try {
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = setTimeout(() => ctrl?.abort(), 2500);
+    const res = await fetch((window.WORKER_BASE || '') + '/api/geo', { cache: 'no-store', signal: ctrl?.signal });
+    clearTimeout(timer);
+    if (!res.ok) return '';
+    return String((await res.json())?.country || '');
+  } catch { return ''; }
+}
+
 async function applyDetectedDefaults() {
   try { if (localStorage.getItem(DETECT_FLAG)) return; } catch { return; }
   const me = state.me || await api('/api/me').catch(() => null);
@@ -74,7 +77,7 @@ async function applyDetectedDefaults() {
   try { localStorage.setItem(DETECT_FLAG, '1'); } catch { return; }
   const guest = isGuestMode() || me.is_guest;
   if (!guest && Number(me.portfolio_stats?.set_count) > 0) return;
-  const d = detectRegionDefaults(navigator.language);
+  const d = await detectRegion({ ipCountry: visitorCountry });
   const chose = (() => { try { return !!localStorage.getItem('bv_currency'); } catch { return false; } })();
   const body = {};
   if (d.currency && !chose && (me.currency || 'USD') === 'USD' && d.currency !== 'USD') body.currency = d.currency;

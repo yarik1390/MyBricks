@@ -168,6 +168,19 @@ app.post('/api/telemetry', async (c) => {
 // Public config for the frontend (Supabase URL + anon key are client-safe).
 // Readiness detail (missing secrets, every provider) is admin-only — see
 // lib/config-readiness.ts.
+function visitorCountry(req: Request): string | null {
+  const cf = (req as Request & { cf?: { country?: unknown } }).cf;
+  const raw = String(cf?.country || req.headers.get('CF-IPCountry') || '').toUpperCase();
+  return /^[A-Z]{2}$/.test(raw) && raw !== 'XX' && raw !== 'T1' ? raw : null;
+}
+
+// The visitor's country as Cloudflare sees it (two letters, or null). The
+// first run asks once to start a new vault on the right shop and currency
+// without a location permission. Public, never stored, and no-store (unlike
+// /api/config, which shared caches may keep) so one visitor's country is never
+// served to another.
+app.get('/api/geo', (c) => c.json({ country: visitorCountry(c.req.raw) }));
+
 app.get('/api/config', (c) => {
   const { status, setup } = integrationReadiness(c.env);
   return c.json({
