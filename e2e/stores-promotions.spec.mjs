@@ -4,7 +4,7 @@ test.use({ viewport: { width: 390, height: 844 } });
 
 test('set overview compares store prices, cheapest in stock first, and links the rest', async ({ page }) => {
   await page.route(`**/api/sets/${SET.set_num}`, route => route.fulfill({ json: { set: SET, entry: null } }));
-  await page.route(`**/api/stores/${SET.set_num}`, route => route.fulfill({ json: {
+  await page.route(`**/api/stores/${SET.set_num}?*`, route => route.fulfill({ json: {
     set_num: SET.set_num, msrp: 100, value: 120,
     offers: [
       { store: 'walmart', label: 'Walmart', price: 84.5, in_stock: true, url: 'https://www.walmart.com/ip/1', checked_at: '2026-10-12 07:30:00' },
@@ -28,11 +28,11 @@ test('a set nobody checked yet is checked at Walmart and Target on the spot', as
     offers: [{ store: 'lego', label: 'LEGO.com', price: 99.99, in_stock: true, url: 'https://www.lego.com/en-us/product/1', checked_at: '2026-10-12 10:00:00' }],
     links: [{ store: 'ebay', label: 'eBay', url: 'https://www.ebay.com/sch/i.html?_nkw=LEGO' }],
   };
-  await page.route(`**/api/stores/${SET.set_num}`, route => route.fulfill({ json: { ...base, stores: [
+  await page.route(`**/api/stores/${SET.set_num}?*`, route => route.fulfill({ json: { ...base, stores: [
     { store: 'walmart', label: 'Walmart', status: 'unchecked', checked_at: null, url: 'https://www.walmart.com/search?q=LEGO' },
     { store: 'target', label: 'Target', status: 'unchecked', checked_at: null, url: 'https://www.target.com/s?searchTerm=LEGO' },
   ] } }));
-  await page.route(`**/api/stores/${SET.set_num}/check`, route => route.fulfill({ json: { ...base, checked: true,
+  await page.route(`**/api/stores/${SET.set_num}/check?*`, route => route.fulfill({ json: { ...base, checked: true,
     offers: [{ store: 'walmart', label: 'Walmart', price: 89.99, in_stock: true, url: 'https://www.walmart.com/ip/1', checked_at: '2026-10-12 15:00:00' }, ...base.offers],
     stores: [
       { store: 'walmart', label: 'Walmart', status: 'priced', checked_at: '2026-10-12 15:00:00', url: 'https://www.walmart.com/ip/1' },
@@ -48,7 +48,7 @@ test('a set nobody checked yet is checked at Walmart and Target on the spot', as
 
 test('eBay and BrickLink show the prices we hold instead of a bare link', async ({ page }) => {
   await page.route(`**/api/sets/${SET.set_num}`, route => route.fulfill({ json: { set: SET, entry: null } }));
-  await page.route(`**/api/stores/${SET.set_num}`, route => route.fulfill({ json: {
+  await page.route(`**/api/stores/${SET.set_num}?*`, route => route.fulfill({ json: {
     set_num: SET.set_num, msrp: 100, value: 120, stores: [],
     offers: [{ store: 'lego', label: 'LEGO.com', price: 99.99, in_stock: true, url: 'https://www.lego.com/en-us/product/1', checked_at: '2026-10-12 10:00:00' }],
     market: [
@@ -73,7 +73,7 @@ test('Amazon shows as a tagged link with the Associates disclosure when enabled'
     url: 'https://www.amazon.fr/s?k=LEGO&tag=bricksvault-21', price: null, checked_at: null,
     disclosure: 'As an Amazon Associate, Brickvault earns from qualifying purchases.', price_disclaimer: null,
   } }));
-  await page.route(`**/api/stores/${SET.set_num}`, route => route.fulfill({ json: {
+  await page.route(`**/api/stores/${SET.set_num}?*`, route => route.fulfill({ json: {
     set_num: SET.set_num, msrp: 100, value: 120, retired: true, offers: [], stores: [], market: [],
     links: [{ store: 'bricklink', label: 'BrickLink', url: 'https://www.bricklink.com/v2/catalog/catalogitem.page?S=1' }],
   } }));
@@ -83,6 +83,24 @@ test('Amazon shows as a tagged link with the Associates disclosure when enabled'
   await expect(amazon).toHaveAttribute('href', /tag=bricksvault-21/);
   await expect(amazon).toHaveAttribute('rel', /sponsored/);
   await expect(card).toContainText('As an Amazon Associate, Brickvault earns from qualifying purchases.');
+});
+
+test('outside the US, LEGO.com shows its own local price and links the local store', async ({ page }) => {
+  await page.route('**/api/me', route => route.fulfill({ json: { display_name: 'Test Collector', handle: 'tester', currency: 'EUR', retail_market: 'FR', is_guest: false, notify_price_drops: true, portfolio_stats: {} } }));
+  await page.route(`**/api/sets/${SET.set_num}`, route => route.fulfill({ json: { set: SET, entry: null } }));
+  let asked = '';
+  await page.route(`**/api/stores/${SET.set_num}?*`, route => { asked = route.request().url(); return route.fulfill({ json: {
+    set_num: SET.set_num, msrp: 100, value: 120, local_market: 'FR', lego_local_due: false,
+    offers: [{ store: 'lego', label: 'LEGO.com', price: 749.99, currency: 'EUR', in_stock: true, url: 'https://www.lego.com/fr-fr/product/1', checked_at: '2026-11-03 21:00:00' }],
+    stores: [], market: [], links: [{ store: 'ebay', label: 'eBay', url: 'https://www.ebay.com/sch/i.html?_nkw=LEGO' }],
+  } }); });
+  await page.goto(`/#/set/${SET.set_num}`);
+  const row = page.locator('.bv-stores .bv-stores__row').first();
+  await expect(row).toContainText('LEGO.com');
+  await expect(row).toContainText('€749.99');
+  await expect(row.locator('a')).toHaveAttribute('href', 'https://www.lego.com/fr-fr/product/1');
+  await expect(page.locator('.bv-stores').getByRole('link', { name: /eBay/ })).toHaveAttribute('href', /ebay\.fr/);
+  expect(asked).toContain('market=FR');
 });
 
 test('promotions page splits offers into on now and coming up', async ({ page }) => {
