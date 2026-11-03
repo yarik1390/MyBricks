@@ -5,7 +5,7 @@ import { icon as kitIcon, iconBtn as kitIconBtn, row as kitRow, seg as kitSeg, f
 import { localMoneyToUsd, usdMoneyInputValue } from '../lib/money-input.js';
 import { derivePartOutDecision } from '../lib/part-out-decision.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML, investmentPricingHTML, investmentPricingDetailHTML, soldEvidenceHTML } from './portfolio-detail-market.js';
-import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, openedCopyValue, estMark, displayValueOf, flipEconomics, cleanTagLabel, priceMovementSummary, valuationConfidencePresentation } from '../lib/pure.js';
+import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, openedCopyValue, estMark, displayValueOf, flipEconomics, cleanTagLabel, priceMovementSummary, valuationConfidencePresentation, localizeStoreUrl } from '../lib/pure.js';
 import { t, tPlural, getLocale, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 import { pricechartingAttributionHTML } from '../lib/partner-attribution.js';
 import { figAvatarSVG } from '../lib/fig-avatar.js';
@@ -1245,7 +1245,7 @@ function infoTabHTML(set, entry) {
   const externalLinks = `
     <div class="bv-setlinks">
       <a class="bl-buy-link bv-btn bv-btn--text" href="${bricklinkBuyURL(set.set_num)}" target="_blank" rel="noopener">${t('market.viewOnBrickLink')}${kitIcon("ext", { size: 18 })}</a>
-      <a class="bl-buy-link bv-btn bv-btn--text" href="https://www.lego.com/service/building-instructions/${encodeURIComponent(String(set.set_num).replace(/-\d+$/, ""))}" target="_blank" rel="noopener">${escapeHtml(t("bvSet.buildingInstructions"))}${kitIcon("ext", { size: 18 })}</a>
+      <a class="bl-buy-link bv-btn bv-btn--text" href="${escapeHtml(localizeStoreUrl(`https://www.lego.com/service/building-instructions/${encodeURIComponent(String(set.set_num).replace(/-\d+$/, ""))}`, state.me?.retail_market || "FR"))}" target="_blank" rel="noopener">${escapeHtml(t("bvSet.buildingInstructions"))}${kitIcon("ext", { size: 18 })}</a>
     </div>`;
 
   return `

@@ -2438,3 +2438,23 @@ describe('isRepeatedSignup', () => {
     assert.equal(isRepeatedSignup(null), false);
   });
 });
+
+describe('localizeStoreUrl', () => {
+  it('moves a LEGO.com link to the chosen country', async () => {
+    const { localizeStoreUrl } = await import('../lib/pure.js');
+    assert.equal(localizeStoreUrl('https://www.lego.com/en-us/product/10305', 'FR'), 'https://www.lego.com/fr-fr/product/10305');
+    assert.equal(localizeStoreUrl('https://www.lego.com/en-us/product/10305', 'gb'), 'https://www.lego.com/en-gb/product/10305');
+    assert.equal(localizeStoreUrl('https://www.lego.com/service/building-instructions/10305', 'DE'), 'https://www.lego.com/de-de/service/building-instructions/10305');
+  });
+  it('moves eBay to the local site and keeps the search', async () => {
+    const { localizeStoreUrl } = await import('../lib/pure.js');
+    assert.equal(localizeStoreUrl('https://www.ebay.com/sch/i.html?_nkw=LEGO%2010305&LH_ItemCondition=1000', 'FR'), 'https://www.ebay.fr/sch/i.html?_nkw=LEGO%2010305&LH_ItemCondition=1000');
+    assert.equal(localizeStoreUrl('https://www.ebay.com/sch/i.html?_nkw=x', 'AU'), 'https://www.ebay.com.au/sch/i.html?_nkw=x');
+  });
+  it('leaves US-only, global and unknown-market links alone', async () => {
+    const { localizeStoreUrl } = await import('../lib/pure.js');
+    assert.equal(localizeStoreUrl('https://www.walmart.com/search?q=LEGO%2010305', 'FR'), 'https://www.walmart.com/search?q=LEGO%2010305');
+    assert.equal(localizeStoreUrl('https://www.lego.com/en-us/product/10305', 'JP'), 'https://www.lego.com/en-us/product/10305');
+    assert.equal(localizeStoreUrl('not a url', 'FR'), 'not a url');
+  });
+});
