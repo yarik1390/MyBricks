@@ -46,6 +46,11 @@ jobs:
       DISCORD_OPS_WEBHOOK: ${{ secrets.DISCORD_OPS_WEBHOOK }}
       WRITE_THRESHOLD: ${{ inputs.write_threshold || '1500000' }}
       READ_THRESHOLD: ${{ inputs.read_threshold || '500000000' }}
+      # The monthly restore drill (restore-drill.yml) imports a full dump into a
+      # scratch DB and deletes it: ~4.5M rows written once a month, which is
+      # within the 50M/month plan but always over the daily threshold. A
+      # database that no longer exists gets this higher ceiling instead.
+      DRILL_WRITE_THRESHOLD: "8000000"
     steps:
       # Informational: the 15 statements that read the most rows yesterday, so
       # an index pass can target the real offenders. Never fails the job.
@@ -133,9 +138,23 @@ jobs:
           echo "Per-database usage for ${DATE}:"
           jq -r '.[] | "\(.dimensions.databaseId): written=\(.sum.rowsWritten) read=\(.sum.rowsRead) (queries: \(.sum.writeQueries)w/\(.sum.readQueries)r)"' <<<"$USAGE_ROWS"
 
-          ALERTS="$(jq -r --argjson wt "$WRITE_THRESHOLD" --argjson rt "$READ_THRESHOLD" '
-            [ .[] | select((.sum.rowsWritten > $wt) or (.sum.rowsRead > $rt)) |
-              "db \(.dimensions.databaseId): \(.sum.rowsWritten) rows written, \(.sum.rowsRead) rows read" ]
+          # Live databases right now; one that no longer exists is a
+          # restore-drill scratch DB. If listing fails, every DB keeps the
+          # daily threshold, so this can never hide a real write loop.
+          if ! LIVE_IDS="$(curl -fsS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/d1/database?per_page=100" \
+                -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" | jq -ce 'if .success then [.result[].uuid] else error("api") end')"; then
+            echo "::warning::Could not list D1 databases; checking every DB against the daily threshold"
+            LIVE_IDS='null'
+          fi
+          jq -r --argjson live "$LIVE_IDS" '.[] | select($live != null and (.dimensions.databaseId as $id | $live | index($id) | not)) |
+            "ℹ️ \(.dimensions.databaseId) no longer exists (restore-drill scratch DB): \(.sum.rowsWritten) rows written"' <<<"$USAGE_ROWS"
+
+          ALERTS="$(jq -r --argjson wt "$WRITE_THRESHOLD" --argjson dwt "$DRILL_WRITE_THRESHOLD" \
+            --argjson rt "$READ_THRESHOLD" --argjson live "$LIVE_IDS" '
+            [ .[] | (.dimensions.databaseId) as $id
+              | (if $live != null and ($live | index($id) | not) then $dwt else $wt end) as $limit
+              | select((.sum.rowsWritten > $limit) or (.sum.rowsRead > $rt)) |
+              "db \($id): \(.sum.rowsWritten) rows written (limit \($limit)), \(.sum.rowsRead) rows read" ]
             | join("\n")' <<<"$USAGE_ROWS")"
 
           if [ -z "$ALERTS" ]; then
