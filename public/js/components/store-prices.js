@@ -5,19 +5,30 @@
 // the spot for signed-in members. Data: GET /api/stores/:setnum and
 // POST /api/stores/:setnum/check (worker/src/routes/stores.ts).
 // Store prices are US prices in USD; fmtMoney shows them in the user's currency.
-import { escapeHtml, fmtMoney } from '../utils.js';
+import { escapeHtml, fmtMoney, getExchangeRate } from '../utils.js';
 import { api, isGuestMode } from '../api.js';
 import { state } from '../state.js';
 import { icon, pill } from '../ui/kit.js';
 import { t, tPlural } from '../lib/i18n.js';
 import { amazonOfferIsFresh } from '../lib/amazon-affiliate.js';
-import { localizeStoreUrl } from '../lib/pure.js';
+import { localizeStoreUrl, localStoreOffers } from '../lib/pure.js';
 
 // Store links follow the country chosen in Settings (LEGO.com fr-fr, ebay.fr, ...).
 const storeUrl = (url) => localizeStoreUrl(url, state.me?.retail_market || 'FR');
 
+// A local LEGO.com price (lego.com/fr-fr in euros) shows exactly as the store
+// charges it when it is in the user's own currency (or no rate is loaded),
+// else converted from its USD equivalent.
+function offerPriceText(o) {
+  const userCurrency = state.me?.currency || 'USD';
+  if (o.local_price > 0 && (o.currency === userCurrency || !(o.price > 0))) {
+    try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: o.currency }).format(o.local_price); } catch { /* fall through */ }
+  }
+  return o.price > 0 ? fmtMoney(o.price) : '—';
+}
+
 function offerRowHTML(o, best, value) {
-  const below = value > 0 && o.in_stock ? Math.round((1 - o.price / value) * 100) : null;
+  const below = value > 0 && o.in_stock && o.price > 0 ? Math.round((1 - o.price / value) * 100) : null;
   const note = !o.in_stock ? t('stores.outOfStock')
     : below != null && below >= 5 ? t('stores.belowValue', { pct: below })
     : below != null && below <= -5 ? t('stores.aboveValue', { pct: -below })
@@ -26,7 +37,7 @@ function offerRowHTML(o, best, value) {
     <a class="bv-stores__link" href="${escapeHtml(storeUrl(o.url))}" target="_blank" rel="noopener sponsored">
       <span class="bv-stores__name">${escapeHtml(o.label)}${best ? ` ${pill(t('stores.best'), 'acc')}` : ''}</span>
       ${note ? `<span class="bv-stores__note">${escapeHtml(note)}</span>` : ''}
-      <span class="bv-num bv-stores__price">${escapeHtml(fmtMoney(o.price))}</span>
+      <span class="bv-num bv-stores__price">${escapeHtml(offerPriceText(o))}</span>
       ${icon('ext', { size: 16 })}
     </a>
   </li>`;
@@ -78,7 +89,7 @@ function amazonRowHTML(a) {
 }
 
 export function storePricesHTML(data, { checking = false, amazon = null } = {}) {
-  const offers = data?.offers || [];
+  const offers = localStoreOffers(data?.offers || [], (cur) => getExchangeRate(cur));
   const stores = data?.stores || [];
   const priced = new Set(offers.map((o) => o.store));
   const statusRows = stores.filter((s) => !priced.has(s.store));
@@ -119,15 +130,15 @@ export async function mountStorePrices(el, setNum) {
   try {
     const market = encodeURIComponent(state.me?.retail_market || 'FR');
     const [data, amazon] = await Promise.all([
-      api(`/api/stores/${encodeURIComponent(setNum)}`),
+      api(`/api/stores/${encodeURIComponent(setNum)}?market=${market}`),
       api(`/api/sets/${encodeURIComponent(setNum)}/amazon?market=${market}`, { retry: false }).catch(() => null),
     ]);
     if (!el.isConnected) return;
-    const due = (data?.stores || []).some((s) => s.status === 'unchecked');
+    const due = (data?.stores || []).some((s) => s.status === 'unchecked') || !!data?.lego_local_due;
     const canCheck = due && !isGuestMode();
     el.innerHTML = storePricesHTML(data, { checking: canCheck, amazon });
     if (!canCheck) return;
-    const fresh = await api(`/api/stores/${encodeURIComponent(setNum)}/check`, { method: 'POST', retry: false }).catch(() => null);
+    const fresh = await api(`/api/stores/${encodeURIComponent(setNum)}/check?market=${market}`, { method: 'POST', retry: false }).catch(() => null);
     if (!el.isConnected) return;
     el.innerHTML = storePricesHTML(fresh || data, { amazon });
   } catch { el.innerHTML = ''; }

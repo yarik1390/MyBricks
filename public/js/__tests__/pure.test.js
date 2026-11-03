@@ -2458,3 +2458,23 @@ describe('localizeStoreUrl', () => {
     assert.equal(localizeStoreUrl('not a url', 'FR'), 'not a url');
   });
 });
+
+describe('localStoreOffers', () => {
+  it('keeps the local LEGO.com price and sorts on its USD equivalent', async () => {
+    const { localStoreOffers } = await import('../lib/pure.js');
+    const rows = localStoreOffers([
+      { store: 'lego', price: 749.99, currency: 'EUR', in_stock: true },
+      { store: 'walmart', price: 700, in_stock: true },
+      { store: 'target', price: 650, in_stock: false },
+    ], (cur) => (cur === 'EUR' ? 0.9 : 1));
+    assert.deepEqual(rows.map((r) => r.store), ['walmart', 'lego', 'target']);
+    assert.equal(rows[1].local_price, 749.99);
+    assert.equal(rows[1].price, 833.32);
+  });
+  it('leaves the USD price unknown when no rate is loaded', async () => {
+    const { localStoreOffers } = await import('../lib/pure.js');
+    const [row] = localStoreOffers([{ store: 'lego', price: 749.99, currency: 'EUR', in_stock: true }], () => 1);
+    assert.equal(row.price, null);
+    assert.equal(row.local_price, 749.99);
+  });
+});

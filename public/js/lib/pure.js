@@ -228,6 +228,23 @@ export function localizeStoreUrl(url, market) {
   return url;
 }
 
+/**
+ * Compare stores rows with a local-currency LEGO.com price (lego.com/fr-fr in
+ * EUR) given a USD price for comparison and sorting: `local_price` keeps the
+ * store's own amount, `price` becomes USD via `rateOf(currency)` (USD -> that
+ * currency). In stock first, then cheapest, like the server's order.
+ */
+export function localStoreOffers(offers = [], rateOf = () => 1) {
+  const rows = offers.map((o) => {
+    if (!o?.currency || o.currency === 'USD') return o;
+    const rate = Number(rateOf(o.currency));
+    const usd = rate > 0 && rate !== 1 ? Math.round((o.price / rate) * 100) / 100 : null;
+    return { ...o, local_price: o.price, price: usd };
+  });
+  return rows.sort((a, b) => Number(b.in_stock) - Number(a.in_stock)
+    || (a.price ?? Infinity) - (b.price ?? Infinity));
+}
+
 export function bricklinkBuyURL(setNum) {
   const base = setNum.includes("-") ? setNum : setNum + "-1";
   return `https://www.bricklink.com/v2/catalog/catalogitem.page?S=${base}`;
