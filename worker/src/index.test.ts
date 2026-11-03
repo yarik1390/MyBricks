@@ -585,6 +585,15 @@ describe('BrickVault API Worker Tests', () => {
       expect(JSON.stringify(data)).not.toMatch(/missing_secrets|recommended_action|openai|firecrawl|gemini/);
     });
 
+    it('/api/geo returns the visitor country without caching it', async () => {
+      const res = await app.fetch(new Request('http://localhost/api/geo', { headers: { 'CF-IPCountry': 'fr' } }), env);
+      expect(res.status).toBe(200);
+      expect(await res.json<any>()).toEqual({ country: 'FR' });
+      expect(res.headers.get('Cache-Control')).toContain('no-store');
+      const unknown = await app.fetch(new Request('http://localhost/api/geo', { headers: { 'CF-IPCountry': 'XX' } }), env);
+      expect(await unknown.json<any>()).toEqual({ country: null });
+    });
+
     it('omits Stripe from public readiness (Patreon is the public supporter flow)', async () => {
       const res = await app.fetch(new Request('http://localhost/api/config'), env);
       const data = await res.json<any>();
