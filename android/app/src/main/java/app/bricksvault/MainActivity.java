@@ -29,6 +29,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(AppIconPlugin.class);
         registerPlugin(AppReviewPlugin.class);
         registerPlugin(GoogleIdSignInPlugin.class);
+        registerPlugin(RegionPlugin.class);
         boolean appLockEnabled = getSharedPreferences(
                 SystemBarsPlugin.PRIVACY_PREFS, MODE_PRIVATE)
                 .getBoolean(SystemBarsPlugin.KEY_APP_LOCK, false);

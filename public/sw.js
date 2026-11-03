@@ -136,6 +136,7 @@ const STATIC_ASSETS = [
   '/js/lib/native-share.js',
   '/js/lib/password-toggle.js',
   '/js/lib/rate-share.js',
+  '/js/lib/region-detect.js',
   '/js/lib/native-file-export.js',
   '/js/lib/native-widget.js',
   '/js/lib/app-icon.js',
