@@ -11,6 +11,10 @@ import { state } from '../state.js';
 import { icon, pill } from '../ui/kit.js';
 import { t, tPlural } from '../lib/i18n.js';
 import { amazonOfferIsFresh } from '../lib/amazon-affiliate.js';
+import { localizeStoreUrl } from '../lib/pure.js';
+
+// Store links follow the country chosen in Settings (LEGO.com fr-fr, ebay.fr, ...).
+const storeUrl = (url) => localizeStoreUrl(url, state.me?.retail_market || 'FR');
 
 function offerRowHTML(o, best, value) {
   const below = value > 0 && o.in_stock ? Math.round((1 - o.price / value) * 100) : null;
@@ -19,7 +23,7 @@ function offerRowHTML(o, best, value) {
     : below != null && below <= -5 ? t('stores.aboveValue', { pct: -below })
     : '';
   return `<li class="bv-stores__row${o.in_stock ? '' : ' is-out'}">
-    <a class="bv-stores__link" href="${escapeHtml(o.url)}" target="_blank" rel="noopener sponsored">
+    <a class="bv-stores__link" href="${escapeHtml(storeUrl(o.url))}" target="_blank" rel="noopener sponsored">
       <span class="bv-stores__name">${escapeHtml(o.label)}${best ? ` ${pill(t('stores.best'), 'acc')}` : ''}</span>
       ${note ? `<span class="bv-stores__note">${escapeHtml(note)}</span>` : ''}
       <span class="bv-num bv-stores__price">${escapeHtml(fmtMoney(o.price))}</span>
@@ -36,7 +40,7 @@ function marketRowHTML(m) {
     ? (m.count ? tPlural('stores.blSold', m.count) : t('stores.blSoldPlain'))
     : (m.count ? tPlural('stores.ebayAsk', m.count) : t('stores.ebayAskPlain'));
   return `<li class="bv-stores__row">
-    <a class="bv-stores__link" href="${escapeHtml(m.url)}" target="_blank" rel="noopener">
+    <a class="bv-stores__link" href="${escapeHtml(storeUrl(m.url))}" target="_blank" rel="noopener">
       <span class="bv-stores__name">${escapeHtml(m.label)}</span>
       <span class="bv-stores__note">${escapeHtml(note)}</span>
       <span class="bv-num bv-stores__price">${escapeHtml(fmtMoney(m.price, { cents: 0 }))}</span>
@@ -49,7 +53,7 @@ function marketRowHTML(m) {
 function statusRowHTML(s, checking) {
   const note = t(checking ? 'stores.checking' : s.status === 'not_listed' ? 'stores.notListed' : 'stores.unchecked');
   return `<li class="bv-stores__row is-out"${checking ? ' aria-busy="true"' : ''}>
-    <a class="bv-stores__link" href="${escapeHtml(s.url)}" target="_blank" rel="noopener">
+    <a class="bv-stores__link" href="${escapeHtml(storeUrl(s.url))}" target="_blank" rel="noopener">
       <span class="bv-stores__name">${escapeHtml(s.label)}</span>
       <span class="bv-stores__note">${escapeHtml(note)}</span>
       <span class="bv-stores__price">—</span>
@@ -94,7 +98,7 @@ export function storePricesHTML(data, { checking = false, amazon = null } = {}) 
       ? `<ul class="bv-stores__list">${offers.map((o, i) => offerRowHTML(o, i === bestIndex, value)).join('')}${azPriced ? amazonRowHTML(az) : ''}${statusRows.map((s) => statusRowHTML(s, checking && s.status === 'unchecked')).join('')}${market.map(marketRowHTML).join('')}</ul>`
       : '<p class="bv-stores__empty">No store has a price for this set today.</p>'}
     ${links.length ? `<div class="bv-stores__more"><span class="bv-label">Check the price at</span>
-      <div class="bv-stores__chips">${links.map((l) => `<a class="bv-chip" href="${escapeHtml(l.url)}" target="_blank" rel="${l.sponsored ? 'sponsored nofollow noopener' : 'noopener'}">${escapeHtml(l.label)}${icon('ext', { size: 14 })}</a>`).join('')}</div></div>` : ''}
+      <div class="bv-stores__chips">${links.map((l) => `<a class="bv-chip" href="${escapeHtml(storeUrl(l.url))}" target="_blank" rel="${l.sponsored ? 'sponsored nofollow noopener' : 'noopener'}">${escapeHtml(l.label)}${icon('ext', { size: 14 })}</a>`).join('')}</div></div>` : ''}
     ${usStores
       ? `<p class="bv-stores__foot">${usd
         ? 'Walmart and Target are US stores. Prices are checked daily, before tax and shipping.'

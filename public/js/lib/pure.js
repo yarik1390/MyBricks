@@ -198,6 +198,36 @@ export function distinctHues(hues, gap = 45) {
   });
 }
 
+// LEGO.com locale path and eBay site for each retail market (Settings >
+// Currency & region). Markets outside the list keep the link as it is.
+const LEGO_LOCALE = { FR: 'fr-fr', US: 'en-us', GB: 'en-gb', DE: 'de-de', CA: 'en-ca', AU: 'en-au', NL: 'nl-nl' };
+const EBAY_HOST = { FR: 'www.ebay.fr', US: 'www.ebay.com', GB: 'www.ebay.co.uk', DE: 'www.ebay.de', CA: 'www.ebay.ca', AU: 'www.ebay.com.au', NL: 'www.ebay.nl' };
+
+/**
+ * Point a store link at the user's own country: lego.com/en-us/... becomes
+ * lego.com/fr-fr/... for France, ebay.com becomes ebay.fr. US-only stores
+ * (Walmart, Target) and global ones (BrickLink, Brick Owl) are left alone.
+ */
+export function localizeStoreUrl(url, market) {
+  const m = String(market || '').toUpperCase();
+  let u;
+  try { u = new URL(String(url || '')); } catch { return url; }
+  const host = u.hostname.toLowerCase();
+  if ((host === 'www.lego.com' || host === 'lego.com') && LEGO_LOCALE[m]) {
+    const parts = u.pathname.split('/').filter(Boolean);
+    if (parts.length && /^[a-z]{2}-[a-z]{2}$/i.test(parts[0])) parts[0] = LEGO_LOCALE[m];
+    else parts.unshift(LEGO_LOCALE[m]);
+    u.hostname = 'www.lego.com';
+    u.pathname = '/' + parts.join('/');
+    return u.toString();
+  }
+  if (/^(www\.)?ebay\.(com|fr|de|nl|ca|co\.uk|com\.au)$/.test(host) && EBAY_HOST[m]) {
+    u.hostname = EBAY_HOST[m];
+    return u.toString();
+  }
+  return url;
+}
+
 export function bricklinkBuyURL(setNum) {
   const base = setNum.includes("-") ? setNum : setNum + "-1";
   return `https://www.bricklink.com/v2/catalog/catalogitem.page?S=${base}`;
