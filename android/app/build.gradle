@@ -23,7 +23,7 @@ def derivedVersionCode = { ->
     }
 }()
 
-// versionName follows the web build (public/sw.js VERSION "v627" -> "1.0.627")
+// versionName follows the web build (public/sw.js VERSION "v628" -> "1.0.628")
 // so every Play release shows a new, readable version that matches the
 // version the web app reports. CI may override with ANDROID_VERSION_NAME.
 def derivedVersionName = { ->
