@@ -249,6 +249,7 @@ jobs:
             "SELECT id, user_id, set_num, condition, purchase_price, purchased_at, storage_location, box_grade, box_notes, sold_price, sold_at, sold_fees, deleted_at FROM holding_copies LIMIT 0"
             "SELECT id, user_id, set_num, quantity, cost_basis, sold_price, sold_fees, sold_at, value_at_sale, source, source_ref, deleted_at FROM realized_sales LIMIT 0"
             "SELECT set_num, store, price, in_stock, url, title, checked_at FROM store_offers LIMIT 0"
+            "SELECT set_num, market, currency, price, in_stock, availability, checked_at FROM lego_local_prices LIMIT 0"
             "SELECT id, owner_id, name, invite_code FROM households LIMIT 0"
             "SELECT household_id, user_id, role, joined_at FROM household_members LIMIT 0"
             "SELECT id, from_user, to_user, give_sets, get_sets, message, reply, status, updated_at FROM swap_requests LIMIT 0"

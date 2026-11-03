@@ -6,6 +6,7 @@ import { STORES, STORE_LABEL, STORE_OFFER_MAX_AGE_DAYS, storeSearchUrl } from '.
 import { checkSetStores, storeScrapersAvailable } from '../jobs/store-offers';
 import { bricklinkDisplayable } from '../lib/market-sources';
 import { plausibleAskValue } from '../lib/valuation';
+import { legoLocalMarket, legoLocalStale, legoLocalUrl, readLegoLocalPrice, refreshLegoLocalPrice } from '../lib/lego-local-price';
 
 // Compare stores (mounted at /api/stores). Public and identical for every
 // caller, so it is edge-cached.
@@ -20,11 +21,15 @@ import { plausibleAskValue } from '../lib/valuation';
 //                                 (only inside its 24h display window).
 // POST /api/stores/:setnum/check  members: check Walmart and Target now when the
 //                                 set has no recent check (shares the daily
-//                                 'stores' cap with the 07:30 job), then return
-//                                 the same body as the GET.
+//                                 'stores' cap with the 07:30 job), and the
+//                                 local LEGO.com page for ?market= (FR, GB, ...)
+//                                 when its price is over a day old ('lego_local'
+//                                 cap), then return the same body as the GET.
+// ?market=FR on both: LEGO.com's row uses lego.com/fr-fr's own euro price.
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-export interface StoreRow { store: string; label: string; price: number; in_stock: boolean; url: string; checked_at: string }
+// `currency` is set only on a local LEGO.com row (price in that currency, not USD).
+export interface StoreRow { store: string; label: string; price: number; in_stock: boolean; url: string; checked_at: string; currency?: string }
 
 export interface MarketRow { store: 'ebay' | 'bricklink'; label: string; kind: 'ask' | 'sold'; price: number; count: number | null; checked_at: string; url: string }
 
@@ -57,7 +62,8 @@ export function marketRows(row: Record<string, unknown>, setNum: string, now = D
 
 export interface StoreStatus { store: string; label: string; status: 'priced' | 'not_listed' | 'unchecked'; checked_at: string | null; url: string }
 
-async function storesBody(env: Env, setNum: string) {
+async function storesBody(env: Env, setNum: string, marketRaw?: string | null) {
+  const localMarket = legoLocalMarket(marketRaw);
   const set = await env.DB.prepare(
     `SELECT s.set_num, s.retired, s.retail_price, s.brickset_msrp, s.lego_in_stock, s.lego_checked_at,
             COALESCE(NULLIF(s.blended_value, 0), s.current_value) AS value,
@@ -70,7 +76,15 @@ async function storesBody(env: Env, setNum: string) {
   if (!set) return null;
 
   const offers: StoreRow[] = [];
-  if (Number(set.lego_in_stock) === 1 && Number(set.retail_price) > 0) {
+  // Outside the US, LEGO.com's own local price (lego.com/fr-fr ...) when we
+  // hold one; the US price converted is only the fallback.
+  const local = localMarket && !set.retired ? await readLegoLocalPrice(env, setNum, localMarket) : null;
+  const localPriced = !!local && Number(local.price) > 0;
+  const notSoldLocally = !!local && local.availability === 'not_sold';
+  if (localPriced && local) {
+    offers.push({ store: 'lego', label: STORE_LABEL.lego, price: Number(local.price), currency: local.currency,
+      in_stock: Number(local.in_stock) === 1, url: legoLocalUrl(setNum, localMarket!), checked_at: local.checked_at });
+  } else if (!notSoldLocally && Number(set.lego_in_stock) === 1 && Number(set.retail_price) > 0) {
     offers.push({ store: 'lego', label: STORE_LABEL.lego, price: Number(set.retail_price), in_stock: true,
       url: storeSearchUrl('lego', setNum), checked_at: set.lego_checked_at || '' });
   }
@@ -85,6 +99,7 @@ async function storesBody(env: Env, setNum: string) {
     offers.push({ store: r.store, label: STORE_LABEL[r.store] || r.store, price: r.price, in_stock: Number(r.in_stock) === 1,
       url: r.url || storeSearchUrl(r.store, setNum), checked_at: r.checked_at });
   }
+  // A local-currency row sorts on the client, which holds exchange rates.
   offers.sort((a, b) => Number(b.in_stock) - Number(a.in_stock) || a.price - b.price);
 
   const market = marketRows(set, setNum);
@@ -108,6 +123,9 @@ async function storesBody(env: Env, setNum: string) {
 
   return {
     set_num: setNum,
+    local_market: localMarket,
+    // Members' set pages check the local LEGO.com page when this is true.
+    lego_local_due: !!localMarket && !set.retired && legoLocalStale(local),
     retired: !!Number(set.retired),
     msrp: Number(set.retail_price) > 0 ? Number(set.retail_price) : Number(set.brickset_msrp) > 0 ? Number(set.brickset_msrp) : null,
     value: Number(set.value) > 0 ? Number(set.value) : null,
@@ -119,25 +137,33 @@ async function storesBody(env: Env, setNum: string) {
 }
 
 app.get('/:setnum', (c) => edgeCached(c, EDGE_TTL_SECONDS, async () => {
-  const body = await storesBody(c.env, c.req.param('setnum') || '');
+  const body = await storesBody(c.env, c.req.param('setnum') || '', c.req.query('market'));
   return body ? c.json(body) : c.json({ error: 'Not found' }, 404);
 }));
 
 app.post('/:setnum/check', requireMember, async (c) => {
   const setNum = c.req.param('setnum') || '';
-  const before = await storesBody(c.env, setNum);
+  const market = c.req.query('market');
+  const before = await storesBody(c.env, setNum, market);
   if (!before) return c.json({ error: 'Not found' }, 404);
   const due = before.stores.some((s) => s.status === 'unchecked');
   let checked = false;
-  if (due && (await storeScrapersAvailable(c.env))) {
+  const scrapers = (due || before.lego_local_due) && (await storeScrapersAvailable(c.env));
+  if (scrapers && due) {
     const r = await checkSetStores(c.env, setNum, before.msrp);
     checked = r.processed > 0;
   }
+  if (scrapers && before.lego_local_due && before.local_market) {
+    if (await refreshLegoLocalPrice(c.env, setNum, before.local_market).catch(() => false)) checked = true;
+  }
   if (!checked) return c.json({ ...before, checked: false });
-  // Drop this colo's cached GET so the next page load shows the fresh check.
+  // Drop this colo's cached GETs so the next page load shows the fresh check.
   const cache = (globalThis as { caches?: { default?: Cache } }).caches?.default;
-  await cache?.delete(new Request(new URL(`/api/stores/${encodeURIComponent(setNum)}`, c.req.url).toString(), { method: 'GET' })).catch(() => false);
-  return c.json({ ...(await storesBody(c.env, setNum)), checked: true });
+  const base = new URL(`/api/stores/${encodeURIComponent(setNum)}`, c.req.url);
+  const keys = [base.toString()];
+  if (market) keys.push(`${base.toString()}?market=${encodeURIComponent(market)}`);
+  await Promise.all(keys.map((k) => cache?.delete(new Request(k, { method: 'GET' })).catch(() => false)));
+  return c.json({ ...(await storesBody(c.env, setNum, market)), checked: true });
 });
 
 export { app as storesRoute };

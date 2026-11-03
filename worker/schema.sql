@@ -441,6 +441,20 @@ CREATE TABLE IF NOT EXISTS store_offers (
 );
 CREATE INDEX IF NOT EXISTS idx_store_offers_checked ON store_offers(checked_at);
 
+-- LEGO.com's own price in a non-US market (lib/lego-local-price.ts), read on
+-- demand from lego.com/<locale>/product/<num>. price NULL with availability
+-- 'not_sold' = no page there; 'unknown' = page unreadable (US price is shown).
+CREATE TABLE IF NOT EXISTS lego_local_prices (
+  set_num TEXT NOT NULL,
+  market TEXT NOT NULL,
+  currency TEXT NOT NULL,
+  price REAL,
+  in_stock INTEGER,
+  availability TEXT,
+  checked_at DATETIME NOT NULL,
+  PRIMARY KEY (set_num, market)
+);
+
 -- LEGO promotions calendar (jobs/promotions-refresh.ts + admin edits).
 CREATE TABLE IF NOT EXISTS promotions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

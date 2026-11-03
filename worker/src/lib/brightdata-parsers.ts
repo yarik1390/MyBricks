@@ -118,7 +118,13 @@ function normalizeAvailability(raw: string): LegoStockResult {
   return result(null, null, null);
 }
 
-export function parseLegoStockHtml(html: string, hint?: string): LegoStockResult | null {
+/**
+ * `currency` is the page's own currency: USD for the en-us page (the default),
+ * EUR/GBP/... for a local LEGO.com page (lib/lego-local-price.ts). The price
+ * still lands in `retail_price_usd`; callers of a local page read it as an
+ * amount in that currency.
+ */
+export function parseLegoStockHtml(html: string, hint?: string, currency = 'USD'): LegoStockResult | null {
   if (!html?.trim()) return null;
   const target = hint?.replace(/-\d+$/, '');
 
@@ -131,7 +137,7 @@ export function parseLegoStockHtml(html: string, hint?: string): LegoStockResult
   const chosen = pickProductBlock(html, target);
   if (chosen) {
     const status = normalizeAvailability(availabilityOf(chosen));
-    const price = priceOf(chosen);
+    const price = priceOf(chosen, currency);
     const result: LegoStockResult = {
       ...status,
       retiring_soon: status.retiring_soon,
@@ -148,7 +154,7 @@ export function parseLegoStockHtml(html: string, hint?: string): LegoStockResult
 
   // A requested product needs positive identity evidence; global state/navigation
   // cannot establish that recommendation data belongs to it.
-  if (target) return parseScopedLegoState(html, target);
+  if (target) return parseScopedLegoState(html, target, currency);
 
   // 2) No (unambiguous) JSON-LD product data — fall back to the inline state
   //    JSON. LEGO pages still embed `"availabilityStatus"` and
@@ -168,10 +174,11 @@ export function parseLegoStockHtml(html: string, hint?: string): LegoStockResult
   }
   const result = normalizeAvailability(raw ?? '');
 
-  const cents = [...html.matchAll(/"centAmount"\s*:\s*(\d+)[\s\S]{0,80}?"currencyCode"\s*:\s*"USD"/gi)]
+  const cur = escapeRe(currency);
+  const cents = [...html.matchAll(new RegExp(`"centAmount"\\s*:\\s*(\\d+)[\\s\\S]{0,80}?"currencyCode"\\s*:\\s*"${cur}"`, 'gi'))]
     .map((m) => Number(m[1]) / 100)
     .filter((value) => Number.isFinite(value) && value > 0);
-  const reverseUsd = [...html.matchAll(/"currencyCode"\s*:\s*"USD"[\s\S]{0,80}?"centAmount"\s*:\s*(\d+)/gi)]
+  const reverseUsd = [...html.matchAll(new RegExp(`"currencyCode"\\s*:\\s*"${cur}"[\\s\\S]{0,80}?"centAmount"\\s*:\\s*(\\d+)`, 'gi'))]
     .map((m) => Number(m[1]) / 100)
     .filter((value) => Number.isFinite(value) && value > 0);
   const usdPrices = [...new Set([...cents, ...reverseUsd])];
@@ -183,7 +190,7 @@ export function parseLegoStockHtml(html: string, hint?: string): LegoStockResult
     ? result : null;
 }
 
-function parseScopedLegoState(html: string, target: string): LegoStockResult | null {
+function parseScopedLegoState(html: string, target: string, currency = 'USD'): LegoStockResult | null {
   const candidates: LegoStockResult[] = [];
   const visit = (value: unknown) => {
     if (!value || typeof value !== 'object') return;
@@ -199,11 +206,11 @@ function parseScopedLegoState(html: string, target: string): LegoStockResult | n
       const result = normalizeAvailability(typeof raw === 'string' ? raw.replace(/^https?:\/\/schema\.org\//i, '') : '');
       if (typeof node.retiringSoon === 'boolean') result.retiring_soon = node.retiringSoon;
       const price = node.price ?? offer;
-      if (price && typeof price === 'object' && price.currencyCode === 'USD') {
+      if (price && typeof price === 'object' && String(price.currencyCode).toUpperCase() === currency) {
         const amount = finite(price.centAmount);
         result.retail_price_usd = amount != null && amount > 0 ? amount / 100 : null;
       } else if (offer) {
-        result.retail_price_usd = priceOf({ price: offer.price, currency: offer.priceCurrency });
+        result.retail_price_usd = priceOf({ price: offer.price, currency: offer.priceCurrency }, currency);
       }
       if (Object.values(result).some((field) => field != null)) candidates.push(result);
     }
@@ -271,9 +278,11 @@ function availabilityOf(product: LdProduct): string {
   return urlMatch?.[1] ?? raw;
 }
 
-function priceOf(product: LdProduct): number | null {
-  if (product.currency && !/USD/i.test(product.currency)) return null;
-  const parsed = product.price == null ? null : Number(String(product.price).replace(/[$£€,\s]/g, ''));
+function priceOf(product: LdProduct, currency = 'USD'): number | null {
+  if (product.currency && String(product.currency).toUpperCase() !== currency) return null;
+  // "749,99" on European pages is a decimal comma, not a thousands separator.
+  const text = String(product.price ?? '').trim().replace(/^(\d+),(\d{2})$/, '$1.$2');
+  const parsed = product.price == null ? null : Number(text.replace(/[$£€,\s]/g, ''));
   return Number.isFinite(parsed ?? NaN) && (parsed ?? 0) > 0 ? parsed : null;
 }
 

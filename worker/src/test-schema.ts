@@ -627,6 +627,16 @@ export const TABLE_DDL: Record<string, string> = {
   checked_at DATETIME NOT NULL,
   PRIMARY KEY (set_num, store)
 )`,
+  lego_local_prices: `CREATE TABLE IF NOT EXISTS lego_local_prices (
+  set_num TEXT NOT NULL,
+  market TEXT NOT NULL,
+  currency TEXT NOT NULL,
+  price REAL,
+  in_stock INTEGER,
+  availability TEXT,
+  checked_at DATETIME NOT NULL,
+  PRIMARY KEY (set_num, market)
+)`,
   households: `CREATE TABLE IF NOT EXISTS households (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   owner_id TEXT NOT NULL,
