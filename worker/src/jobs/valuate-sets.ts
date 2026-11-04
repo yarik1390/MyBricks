@@ -6,6 +6,7 @@ import { recomputeBlendedValues } from '../lib/market-sources';
 import { beDetailsFromRow } from '../lib/brickeconomy-stored';
 import { valuationExpiryModifier, isPlausibleMarketValue, independentRetailAnchor, formulaValuation, plausibleAskValue } from '../lib/valuation';
 import { computeRetirementRisk } from '../lib/retirement-risk';
+import { loadNewsSignals } from '../lib/set-news';
 import { runValuateMinifigs } from './valuate-minifigs';
 import { sourceEnabled } from '../lib/source-config';
 import { discoveryWantsUsed, selectDueSets, blBackedOffAt, type ValuationQuotaGrants } from './valuate-select';
@@ -456,12 +457,15 @@ async function updateRetirementRiskBatch(env: Env): Promise<void> {
 
   if (!results.length) return;
 
-  const stmts = results.map(s =>
-    env.DB.prepare(`
+  // Retiring reports from LEGO news sites (Exa news scan) raise the score too.
+  const news = await loadNewsSignals(env, results.map((s) => s.set_num));
+  const stmts = results.map(s => {
+    const n = news.get(s.set_num);
+    return env.DB.prepare(`
       UPDATE lego_sets SET retirement_risk_score=?, retirement_risk_updated_at=datetime('now')
       WHERE set_num=?
-    `).bind(computeRetirementRisk(s), s.set_num)
-  );
+    `).bind(computeRetirementRisk({ ...s, news_retiring_sources: n?.sources ?? 0, news_exit_date: n?.exitDate ?? null }), s.set_num);
+  });
 
   // Process in modest batches to leave headroom in the invocation query budget.
   for (let i = 0; i < stmts.length; i += 100) {

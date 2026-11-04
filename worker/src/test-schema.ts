@@ -708,6 +708,26 @@ export const TABLE_DDL: Record<string, string> = {
   scraped_at TEXT
 )`,
 
+  set_news: `CREATE TABLE IF NOT EXISTS set_news (
+  set_num TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  url TEXT NOT NULL,
+  domain TEXT NOT NULL,
+  title TEXT,
+  name TEXT,
+  published_at TEXT,
+  expected_date TEXT,
+  price_usd REAL,
+  seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (set_num, kind, url)
+)`,
+
+  exa_lookups: `CREATE TABLE IF NOT EXISTS exa_lookups (
+  set_num TEXT PRIMARY KEY,
+  attempted_at TEXT,
+  status TEXT
+)`,
+
   oauth_sessions: `CREATE TABLE IF NOT EXISTS oauth_sessions (
   code TEXT PRIMARY KEY,
   user_id TEXT NOT NULL,

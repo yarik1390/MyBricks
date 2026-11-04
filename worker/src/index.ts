@@ -24,6 +24,7 @@ import { rewriteImages } from './lib/img-proxy';
 import { runImagePrewarm } from './jobs/image-prewarm';
 import { indexMissingAlts } from './lib/build-alts';
 import { runUpcomingRefresh } from './jobs/upcoming-refresh';
+import { runExaNewsScan, runExaRetirementLookups } from './jobs/exa-news';
 import { upcomingRoute } from './routes/upcoming';
 import type { ErrorHandler, MiddlewareHandler } from 'hono';
 import { pushRoute } from './routes/push';
@@ -531,6 +532,8 @@ export default {
       case '0 15 * * *':
         await run('upcoming-refresh', () => runUpcomingRefresh(env));
         await run('promotions-refresh', () => runPromotionsRefresh(env));
+        // Exa LEGO news scan, after the LEGO.com listing so its rows win.
+        await run('exa-news-scan', () => runExaNewsScan(env));
         break;
       case '0 16 * * *':
         await run('minifig-verify', () => runMinifigVerify(env));
@@ -547,6 +550,8 @@ export default {
         break;
       case '30 16 * * *': await run('amazon-offers', () => runAmazonOffers(env, { limit: 60 })); break;
       case '0 22 * * *':
+        // Exa: expected retirement dates for active sets that have none.
+        await run('exa-retirement-lookups', () => runExaRetirementLookups(env, { limit: 20 }));
         await run('community-comps', () => runCommunityComps(env));
         // Second LEGO.com stock pass, Bright Data first: uses the monthly
         // Bright Data allowance that otherwise expires (2026-10-27).

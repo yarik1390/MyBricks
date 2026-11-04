@@ -25,6 +25,7 @@ export type IntegrationName =
   | 'brightdata'
   | 'decodo'
   | 'zenrows'
+  | 'exa'
   | 'pricecharting'
   | 'amazon';
 
@@ -283,6 +284,14 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     used_by: ['lego.com stock/retirement checks', 'store offers', 'Brickset page enrichment', 'coming soon', 'promotions'],
     notes: 'Second raw-HTML lane for LEGO.com stock and stores (after Bright Data) and the first paid lane for Brickset after a free direct read; Bright Data gets HTTP 520 there (free plan, about $5 of requests a month, 300/day). Same parsers as Bright Data. Daily cap under Pricing sources.',
     recommended_action: 'Add DECODO_AUTH_TOKEN as a GitHub secret, then run Deploy Brickvault with push_secrets. Check the plan at dashboard.decodo.com if calls fail with 401/402.',
+  },
+  exa: {
+    label: 'Exa search',
+    configured: (env) => !!env.EXA_API_KEY?.trim(),
+    required_secrets: ['EXA_API_KEY'],
+    used_by: ['retiring soon (news reports)', 'coming soon (announced sets)'],
+    notes: 'Daily LEGO news scan for retiring and newly revealed sets, plus a per-set lookup of the expected retirement date (free plan, $10 of credits a month; 30 calls/day keeps a month at about $8). Never used for live prices or stock.',
+    recommended_action: 'Add EXA_API_KEY (dashboard.exa.ai/api-keys) as a GitHub secret, then run Deploy Brickvault with push_secrets.',
   },
   zenrows: {
     label: 'ZenRows Universal Scraper',
