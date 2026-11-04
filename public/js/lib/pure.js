@@ -241,7 +241,7 @@ export function localStoreOffers(offers = [], rateOf = () => 1) {
     const usd = rate > 0 && rate !== 1 ? Math.round((o.price / rate) * 100) / 100 : null;
     return { ...o, local_price: o.price, price: usd };
   });
-  return rows.sort((a, b) => Number(b.in_stock) - Number(a.in_stock)
+  return rows.sort((a, b) => Number(b.in_stock === true) - Number(a.in_stock === true)
     || (a.price ?? Infinity) - (b.price ?? Infinity));
 }
 

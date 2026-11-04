@@ -28,12 +28,14 @@ function offerPriceText(o) {
 }
 
 function offerRowHTML(o, best, value) {
+  // in_stock null = stock not read yet (LEGO.com list price): no note, not greyed.
+  const out = o.in_stock === false;
   const below = value > 0 && o.in_stock && o.price > 0 ? Math.round((1 - o.price / value) * 100) : null;
-  const note = !o.in_stock ? t('stores.outOfStock')
+  const note = out ? t('stores.outOfStock')
     : below != null && below >= 5 ? t('stores.belowValue', { pct: below })
     : below != null && below <= -5 ? t('stores.aboveValue', { pct: -below })
     : '';
-  return `<li class="bv-stores__row${o.in_stock ? '' : ' is-out'}">
+  return `<li class="bv-stores__row${out ? ' is-out' : ''}">
     <a class="bv-stores__link" href="${escapeHtml(storeUrl(o.url))}" target="_blank" rel="noopener sponsored">
       <span class="bv-stores__name">${escapeHtml(o.label)}${best ? ` ${pill(t('stores.best'), 'acc')}` : ''}</span>
       ${note ? `<span class="bv-stores__note">${escapeHtml(note)}</span>` : ''}
@@ -138,7 +140,9 @@ export async function mountStorePrices(el, setNum) {
     const canCheck = due && !isGuestMode();
     el.innerHTML = storePricesHTML(data, { checking: canCheck, amazon });
     if (!canCheck) return;
-    const fresh = await api(`/api/stores/${encodeURIComponent(setNum)}/check?market=${market}`, { method: 'POST', retry: false }).catch(() => null);
+    // The check reads several store pages (up to ~45s); the default 15s
+    // timeout dropped its answer and left "Not checked yet" on screen.
+    const fresh = await api(`/api/stores/${encodeURIComponent(setNum)}/check?market=${market}`, { method: 'POST', retry: false, offlineQueue: false, timeoutMs: 60000 }).catch(() => null);
     if (!el.isConnected) return;
     el.innerHTML = storePricesHTML(fresh || data, { amazon });
   } catch { el.innerHTML = ''; }
