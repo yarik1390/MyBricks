@@ -2477,4 +2477,12 @@ describe('localStoreOffers', () => {
     assert.equal(row.price, null);
     assert.equal(row.local_price, 749.99);
   });
+  it('puts a LEGO.com list price with unknown stock after in-stock offers', async () => {
+    const { localStoreOffers } = await import('../lib/pure.js');
+    const rows = localStoreOffers([
+      { store: 'lego', price: 50, in_stock: null },
+      { store: 'walmart', price: 70, in_stock: true },
+    ]);
+    assert.deepEqual(rows.map((r) => r.store), ['walmart', 'lego']);
+  });
 });

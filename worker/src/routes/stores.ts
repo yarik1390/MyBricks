@@ -29,7 +29,9 @@ import { legoLocalMarket, legoLocalStale, legoLocalUrl, readLegoLocalPrice, refr
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // `currency` is set only on a local LEGO.com row (price in that currency, not USD).
-export interface StoreRow { store: string; label: string; price: number; in_stock: boolean; url: string; checked_at: string; currency?: string }
+// `in_stock` is null when nobody has read LEGO.com's stock for the set yet: the
+// card then shows LEGO's list price without an "out of stock" note.
+export interface StoreRow { store: string; label: string; price: number; in_stock: boolean | null; url: string; checked_at: string; currency?: string }
 
 export interface MarketRow { store: 'ebay' | 'bricklink'; label: string; kind: 'ask' | 'sold'; price: number; count: number | null; checked_at: string; url: string }
 
@@ -84,8 +86,12 @@ async function storesBody(env: Env, setNum: string, marketRaw?: string | null) {
   if (localPriced && local) {
     offers.push({ store: 'lego', label: STORE_LABEL.lego, price: Number(local.price), currency: local.currency,
       in_stock: Number(local.in_stock) === 1, url: legoLocalUrl(setNum, localMarket!), checked_at: local.checked_at });
-  } else if (!notSoldLocally && Number(set.lego_in_stock) === 1 && Number(set.retail_price) > 0) {
-    offers.push({ store: 'lego', label: STORE_LABEL.lego, price: Number(set.retail_price), in_stock: true,
+  } else if (!notSoldLocally && !set.retired && Number(set.retail_price) > 0) {
+    // LEGO.com's US list price, in stock or not: a sold-out or never-checked
+    // set still has a LEGO.com price, and a bare "Check the price at" link
+    // hid it (21061 Notre-Dame, 2026-11-04).
+    offers.push({ store: 'lego', label: STORE_LABEL.lego, price: Number(set.retail_price),
+      in_stock: set.lego_in_stock == null ? null : Number(set.lego_in_stock) === 1,
       url: storeSearchUrl('lego', setNum), checked_at: set.lego_checked_at || '' });
   }
   const { results } = await env.DB.prepare(
@@ -100,7 +106,7 @@ async function storesBody(env: Env, setNum: string, marketRaw?: string | null) {
       url: r.url || storeSearchUrl(r.store, setNum), checked_at: r.checked_at });
   }
   // A local-currency row sorts on the client, which holds exchange rates.
-  offers.sort((a, b) => Number(b.in_stock) - Number(a.in_stock) || a.price - b.price);
+  offers.sort((a, b) => Number(b.in_stock === true) - Number(a.in_stock === true) || a.price - b.price);
 
   const market = marketRows(set, setNum);
   const priced = new Set([...offers.map((o) => o.store), ...market.map((m) => m.store)]);
@@ -147,15 +153,19 @@ app.post('/:setnum/check', requireMember, async (c) => {
   const before = await storesBody(c.env, setNum, market);
   if (!before) return c.json({ error: 'Not found' }, 404);
   const due = before.stores.some((s) => s.status === 'unchecked');
-  let checked = false;
   const scrapers = (due || before.lego_local_due) && (await storeScrapersAvailable(c.env));
-  if (scrapers && due) {
-    const r = await checkSetStores(c.env, setNum, before.msrp);
-    checked = r.processed > 0;
-  }
-  if (scrapers && before.lego_local_due && before.local_market) {
-    if (await refreshLegoLocalPrice(c.env, setNum, before.local_market).catch(() => false)) checked = true;
-  }
+  // Walmart/Target and the local LEGO.com page are read side by side: one
+  // after the other took longer than the app waits, so the card never
+  // showed what the check found.
+  const [storesChecked, localChecked] = await Promise.all([
+    scrapers && due
+      ? checkSetStores(c.env, setNum, before.msrp).then((r) => r.processed > 0).catch(() => false)
+      : Promise.resolve(false),
+    scrapers && before.lego_local_due && before.local_market
+      ? refreshLegoLocalPrice(c.env, setNum, before.local_market).catch(() => false)
+      : Promise.resolve(false),
+  ]);
+  const checked = storesChecked || localChecked;
   if (!checked) return c.json({ ...before, checked: false });
   // Drop this colo's cached GETs so the next page load shows the fresh check.
   const cache = (globalThis as { caches?: { default?: Cache } }).caches?.default;

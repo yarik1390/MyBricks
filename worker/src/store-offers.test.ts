@@ -109,7 +109,15 @@ describe('store offers', () => {
       bl_new_value = 290, bl_new_qty = 3, bl_cached_at = datetime('now', '-30 hours') WHERE set_num = '10002-1'`).run();
     const fresh = await (await app.fetch(new Request('https://example.test/api/stores/10003-1'), env as any, ctx)).json() as any;
     expect(fresh.market.map((m: any) => [m.store, m.kind, m.price, m.count])).toEqual([['ebay', 'ask', 118, 23], ['bricklink', 'sold', 125.5, 9]]);
-    expect(fresh.links.map((l: any) => l.store)).toEqual(['lego', 'brickowl']);
+    // Out of stock at LEGO.com: its list price still shows, not a bare link.
+    expect(fresh.offers.map((o: any) => [o.store, o.price, o.in_stock])).toEqual([['lego', 100, false]]);
+    expect(fresh.links.map((l: any) => l.store)).toEqual(['brickowl']);
+    // Never stock-checked: the list price shows with unknown stock.
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired, retail_price, lego_in_stock, current_value)
+      VALUES ('10004-1', 'Unchecked', CAST(strftime('%Y','now') AS INTEGER), 0, 59.99, NULL, 60)`).run();
+    const unchecked = await (await app.fetch(new Request('https://example.test/api/stores/10004-1'), env as any, ctx)).json() as any;
+    expect(unchecked.offers.map((o: any) => [o.store, o.price, o.in_stock])).toEqual([['lego', 59.99, null]]);
+    expect(unchecked.links.some((l: any) => l.store === 'lego')).toBe(false);
     const old = await (await app.fetch(new Request('https://example.test/api/stores/10002-1'), env as any, ctx)).json() as any;
     expect(old.market).toEqual([]);
     expect(old.links.map((l: any) => l.store)).toEqual(['ebay', 'bricklink', 'brickowl']);
