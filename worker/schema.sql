@@ -886,6 +886,34 @@ CREATE TABLE IF NOT EXISTS upcoming_sets (
   scraped_at TEXT
 );
 
+-- LEGO news reports found by the Exa news scan (jobs/exa-news.ts): one row per
+-- set, kind ('retiring' | 'upcoming') and article. Retiring reports feed the
+-- retirement risk score (2+ sites = strong signal, expected_date = exit date
+-- when Brickset has none); 'upcoming' reports from 2+ sites (or lego.com) add
+-- not-yet-released sets to Coming soon.
+CREATE TABLE IF NOT EXISTS set_news (
+  set_num TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  url TEXT NOT NULL,
+  domain TEXT NOT NULL,
+  title TEXT,
+  name TEXT,
+  published_at TEXT,
+  expected_date TEXT,
+  price_usd REAL,
+  seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (set_num, kind, url)
+);
+CREATE INDEX IF NOT EXISTS idx_set_news_kind ON set_news(kind, set_num);
+
+-- Per-set Exa retirement-date lookups (jobs/exa-news.ts), so a set is asked
+-- about once per 60 days.
+CREATE TABLE IF NOT EXISTS exa_lookups (
+  set_num TEXT PRIMARY KEY,
+  attempted_at TEXT,
+  status TEXT
+);
+
 CREATE TABLE IF NOT EXISTS user_missing_parts (
   user_id TEXT NOT NULL,
   set_num TEXT NOT NULL,

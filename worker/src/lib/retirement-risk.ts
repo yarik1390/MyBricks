@@ -21,6 +21,11 @@ export function computeRetirementRisk(set: {
   // Store-offer live-retail corroboration: when the set is still in stock across
   // retailers, a LEGO.com "sold out" is only a local stockout, not a retirement.
   pa_in_stock?: number | boolean | null;
+  // LEGO news reports (Exa news scan, set_news): how many different sites
+  // reported the set as retiring, and the retirement date they gave. Weaker
+  // than LEGO's own flag on a single report; two sites count as much as it.
+  news_retiring_sources?: number | null;
+  news_exit_date?: string | null;
 }): number {
   if (set.retired) return 0;
   // Not released yet: nothing to retire, whatever a scrape flagged.
@@ -47,11 +52,16 @@ export function computeRetirementRisk(set: {
   if (set.lego_retiring_soon) availabilityFactor = 40;            // LEGO explicitly flags it retiring
   else if (avail === 'retiring') availabilityFactor = 35;
   else if (avail === 'sold_out' || avail === 'out_of_stock') availabilityFactor = set.pa_in_stock ? 5 : 20; // gone from LEGO.com — but if still in stock at other retailers, a much weaker signal
+  const newsSources = Number(set.news_retiring_sources) || 0;
+  const newsFactor = newsSources >= 2 ? 40 : newsSources === 1 ? 20 : 0;
+  availabilityFactor = Math.max(availabilityFactor, newsFactor);
 
   // A known retirement (exit) date sharply raises the odds as it approaches or
   // once it has passed (the retired flag often lags the real exit date).
   let exitFactor = 0;
-  const exitMs = set.exit_date ? Date.parse(set.exit_date) : NaN;
+  // Brickset's exit date wins; a date from news reports fills in when it has none.
+  const exitDate = set.exit_date || set.news_exit_date || null;
+  const exitMs = exitDate ? Date.parse(exitDate) : NaN;
   if (Number.isFinite(exitMs)) {
     const daysToExit = (exitMs - Date.now()) / 86_400_000;
     if (daysToExit <= 0) exitFactor = 35;          // exit date passed but not yet flagged retired

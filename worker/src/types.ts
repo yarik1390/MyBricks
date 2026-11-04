@@ -61,6 +61,8 @@ export interface Env {
   BRIGHTDATA_API_TOKEN?: string;
   // Decodo Web Scraping API key (lib/decodo.ts), third raw-HTML lane.
   DECODO_AUTH_TOKEN?: string;
+  // Exa search API key (lib/exa.ts): LEGO news scan + retirement-date lookups.
+  EXA_API_KEY?: string;
   // ZenRows Universal Scraper API key (lib/zenrows.ts), lane after Decodo.
   ZENROWS_API_KEY?: string;
   BRIGHTDATA_API_TOKENS?: string;
