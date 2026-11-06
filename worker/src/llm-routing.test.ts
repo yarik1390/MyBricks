@@ -40,21 +40,42 @@ describe('llm-routing', () => {
     for (const w of LLM_WORKLOADS) expect(routes[w].length).toBeGreaterThan(0);
   });
 
-  it('defaults scan to the dedicated OpenCodex scan-vision combo, then independent Merge fallbacks', () => {
-    expect(DEFAULT_LLM_ROUTES.scan.slice(0, 3)).toEqual([
+  it('defaults scan to the dedicated OpenCodex scan-vision combo, then the free pool, no Merge', () => {
+    expect(DEFAULT_LLM_ROUTES.scan.slice(0, 2)).toEqual([
       { provider: 'opencodex', model: 'brickvault-scan-vision', enabled: true },
-      { provider: 'merge', model: 'google/gemini-3.5-flash-lite', enabled: true },
-      { provider: 'merge', model: 'openai/gpt-4o', enabled: true },
+      { provider: 'openrouter', model: '', enabled: true },
     ]);
   });
 
-  it('keeps the metered OpenAI backstop last', async () => {
-    const scan = DEFAULT_LLM_ROUTES.scan.map((s) => s.provider);
-    const firstMerge = scan.indexOf('merge');
-    expect(scan[0]).toBe('opencodex');
-    expect(firstMerge).toBeGreaterThanOrEqual(0);
-    expect(firstMerge).toBeLessThan(scan.indexOf('openai'));
-    expect(scan[scan.length - 1]).toBe('openai');
+  it('keeps Merge out of scan and shelf, with the metered OpenAI backstop last', async () => {
+    for (const w of ['scan', 'shelf'] as const) {
+      const steps = DEFAULT_LLM_ROUTES[w].map((s) => s.provider);
+      expect(steps[0]).toBe('opencodex');
+      expect(steps).not.toContain('merge');
+      expect(steps[steps.length - 1]).toBe('openai');
+    }
+  });
+
+  it('strips stored Merge steps from scan and shelf but keeps them elsewhere', async () => {
+    await db.prepare(`INSERT INTO app_settings (key, value) VALUES ('llm_routing', ?)`)
+      .bind(JSON.stringify({
+        scan: [
+          { provider: 'merge', model: 'google/gemini-3.5-flash-lite', enabled: true },
+          { provider: 'openrouter', model: '', enabled: true },
+          { provider: 'merge', model: 'openai/gpt-4o', enabled: false },
+        ],
+        shelf: [
+          { provider: 'merge', model: 'openai/gpt-4o', enabled: true },
+        ],
+        advisor: [
+          { provider: 'merge', model: 'openai/gpt-4o-mini', enabled: true },
+        ],
+      })).run();
+
+    const routes = await getLlmRoutes(env as any);
+    expect(routes.scan).toEqual([{ provider: 'openrouter', model: '', enabled: true }]);
+    expect(routes.shelf).toEqual(DEFAULT_LLM_ROUTES.shelf);
+    expect(routes.advisor).toEqual([{ provider: 'merge', model: 'openai/gpt-4o-mini', enabled: true }]);
   });
 
   it('gives the advisor a free Gemini step ahead of any paid provider', async () => {
@@ -127,7 +148,6 @@ describe('llm-routing', () => {
     expect(routes.scan).toEqual([
       { provider: 'openai', model: 'gpt-4o-mini', enabled: false },
       { provider: 'openrouter', model: '', enabled: true },
-      { provider: 'merge', model: 'openai/gpt-4o-mini', enabled: true },
     ]);
   });
 
@@ -143,7 +163,6 @@ describe('llm-routing', () => {
 
     const routes = await getLlmRoutes(env as any);
     expect(routes.scan).toEqual([
-      { provider: 'merge', model: 'google/gemini-3.5-flash-lite', enabled: true },
       { provider: 'openai', model: 'gpt-4o-mini', enabled: true },
     ]);
   });
