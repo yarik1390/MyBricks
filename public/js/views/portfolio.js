@@ -2,7 +2,7 @@ import { markValuesFresh, setSyncState, syncSlotHTML, reachErrorHTML } from '../
 import { vaultNavigation, setNavBadge, resetPageFab, syncCollectorChrome } from '../components/collector-shell.js';
 import { routeMetaFor } from '../route-meta.js';
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, daysAgo, prefersReducedMotion, themeHue, getExchangeRate, CURRENCY_SYMBOLS, ratesUnavailable, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone, publicOrigin, celebrate, fmtPct, advisorEnabled, fmtDateUpdated, parseUTCDate } from '../utils.js';
-import { displayValueOf, nextRetiring } from '../lib/pure.js';
+import { displayValueOf, nextRetiring, formatMoneyIn } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { api, getSessionUserId, isGuestMode, getSessionOwnerSnapshot } from '../api.js';
 import { shareContent } from '../lib/native-share.js';
@@ -10,7 +10,7 @@ import { I } from '../icons.js';
 import { confirmSheet, promptSheet } from '../components/sheet.js';
 import { openLegalSheet } from '../components/legal-sheet.js';
 import { getModePref } from '../theme.js';
-import { t, tPlural, getLocale } from '../lib/i18n.js';
+import { t, tPlural, getLocale, intlLocale } from '../lib/i18n.js';
 import { pricechartingSourceLinkLabel } from '../lib/partner-attribution.js';
 import { readCollectorPreferences, writeCollectorPreferences } from '../lib/collector-preferences.js';
 import { vaultTotals, changesWindowDays, changeSinceFromSnapshots, changeItems, clipHistory } from '../lib/vault-insights.js';
@@ -730,10 +730,7 @@ function heroValueHTML(n) {
   if (n == null || isNaN(n)) return `—`;
   const userCurrency = state.me?.currency || "USD";
   const rate = getExchangeRate(userCurrency);
-  const symbol = CURRENCY_SYMBOLS[userCurrency] || "$";
-  const converted = n * rate;
-  const whole = Math.round(Math.abs(converted)).toLocaleString("en-US");
-  return `${converted < 0 ? "-" : ""}${symbol}${whole}`;
+  return formatMoneyIn(n * rate, { currency: userCurrency, symbol: CURRENCY_SYMBOLS[userCurrency] || "$", locale: intlLocale(), digits: 0 });
 }
 
 let _lastHeroValue = 0;

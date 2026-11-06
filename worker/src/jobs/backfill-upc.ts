@@ -1,5 +1,6 @@
 import type { Env } from '../types';
 import { fetchBarcodesPage, BARCODE_PAGE_SIZE, getLastBarcodeFetchDiag } from '../lib/brickset';
+import { saveBarcodeStatements } from '../lib/barcodes';
 
 export interface BackfillResult {
   processed: number;
@@ -173,8 +174,17 @@ async function tryBulkBackfill(
     anyPageSucceeded = true;
     const stmts: D1PreparedStatement[] = [];
     const enrichStmts: D1PreparedStatement[] = [];
-    for (const { setNum, upc, enrichment } of result.sets) {
+    const barcodeStmts: D1PreparedStatement[] = [];
+    for (const { setNum, upc, codes, enrichment } of result.sets) {
       if (!setNum) continue;
+      // Keep EVERY code (US UPC and EU/UK EAN) in set_barcodes; lego_sets.upc
+      // only holds one, which is why European boxes used to miss. Lookups join
+      // lego_sets, so codes for sets we don't list are simply never matched.
+      if (codes && (codes.upc || codes.ean)) {
+        for (const st of saveBarcodeStatements(env, setNum, [codes.upc, codes.ean], 'brickset')) {
+          barcodeStmts.push(st);
+        }
+      }
       if (upc) {
         stmts.push(
           env.DB.prepare("UPDATE lego_sets SET upc=? WHERE set_num=? AND NULLIF(TRIM(COALESCE(upc, '')), '') IS NULL").bind(upc, setNum),
@@ -230,6 +240,10 @@ async function tryBulkBackfill(
     for (let i = 0; i < stmts.length; i += 100) {
       const res = await env.DB.batch(stmts.slice(i, i + 100));
       filled += res.reduce((sum, r) => sum + (r.meta.changes ?? 0), 0);
+    }
+    for (let i = 0; i < barcodeStmts.length; i += 100) {
+      // Best-effort: an old DB without set_barcodes must not stop the backfill.
+      try { await env.DB.batch(barcodeStmts.slice(i, i + 100)); } catch { break; }
     }
     for (let i = 0; i < enrichStmts.length; i += 100) {
       const res = await env.DB.batch(enrichStmts.slice(i, i + 100));

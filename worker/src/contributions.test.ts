@@ -58,6 +58,8 @@ describe('User contributions: submit / read / moderate', () => {
       'DROP TABLE IF EXISTS set_photos',
       'DROP TABLE IF EXISTS set_contributions',
       'DROP TABLE IF EXISTS admin_audit_log',
+      'DROP TABLE IF EXISTS set_barcodes',
+      `CREATE TABLE set_barcodes (code TEXT PRIMARY KEY, set_num TEXT NOT NULL, kind TEXT, source TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
       `CREATE TABLE lego_sets (set_num TEXT PRIMARY KEY, name TEXT NOT NULL, upc TEXT)`,
       `CREATE TABLE user_prefs (user_id TEXT PRIMARY KEY, is_supporter INTEGER DEFAULT 0, is_public INTEGER DEFAULT 0, display_name TEXT)`,
       `CREATE TABLE rate_limits (user_id TEXT NOT NULL, endpoint TEXT NOT NULL, window_start DATETIME NOT NULL, hit_count INTEGER DEFAULT 0, PRIMARY KEY (user_id, endpoint, window_start))`,
@@ -141,6 +143,37 @@ describe('User contributions: submit / read / moderate', () => {
     expect(res.status).toBe(200);
     const set = await db.prepare("SELECT upc FROM lego_sets WHERE set_num='111-1'").first<any>();
     expect(set.upc).toBe('0123456789012');
+  });
+
+  it('approving a barcode also indexes it in set_barcodes when the set already has a code', async () => {
+    await db.prepare(`UPDATE lego_sets SET upc='673419375092' WHERE set_num='111-1'`).run();
+    await app.fetch(new Request('https://x/api/contributions/data', {
+      method: 'POST', headers: auth(), body: JSON.stringify({ set_num: '111-1', kind: 'barcode', payload: { upc: '5702017416328' } }),
+    }), env);
+    const sub = await db.prepare("SELECT id FROM set_contributions WHERE set_num='111-1'").first<any>();
+    const res = await app.fetch(new Request(`https://x/api/admin/contributions/data/${sub.id}`, {
+      method: 'PATCH', headers: auth(adminToken), body: JSON.stringify({ action: 'approve' }),
+    }), env);
+    expect(res.status).toBe(200);
+    expect((await db.prepare("SELECT upc FROM lego_sets WHERE set_num='111-1'").first<any>()).upc).toBe('673419375092');
+    expect(await db.prepare("SELECT set_num, source FROM set_barcodes WHERE code='5702017416328'").first<any>())
+      .toEqual({ set_num: '111-1', source: 'admin' });
+  });
+
+  it('a barcode taught by two different people goes live for everyone', async () => {
+    const first = await app.fetch(new Request('https://x/api/contributions/data', {
+      method: 'POST', headers: auth(), body: JSON.stringify({ set_num: '111-1', kind: 'barcode', payload: { upc: '5702017416328' } }),
+    }), env);
+    expect(await first.json<any>()).toMatchObject({ active_for_you: true, confirmed: false });
+    expect(await db.prepare("SELECT 1 FROM set_barcodes WHERE code='5702017416328'").first()).toBeNull();
+
+    const otherToken = await createMockJWT('contrib-user-2', JWT_SECRET);
+    const second = await app.fetch(new Request('https://x/api/contributions/data', {
+      method: 'POST', headers: auth(otherToken), body: JSON.stringify({ set_num: '111-1', kind: 'barcode', payload: { upc: '5702017416328' } }),
+    }), env);
+    expect(await second.json<any>()).toMatchObject({ confirmed: true });
+    expect(await db.prepare("SELECT set_num, source FROM set_barcodes WHERE code='5702017416328'").first<any>())
+      .toEqual({ set_num: '111-1', source: 'community' });
   });
 
   it('refuses to reverse a completed moderation decision', async () => {

@@ -16,6 +16,7 @@ import { callRecognitionValidation } from '../lib/recognition-client';
 import { verifyTurnstileToken } from '../lib/turnstile';
 import { matchSetsToCatalog, matchMinifigsToCatalog, type DescribedSet, type DescribedMinifig } from '../lib/scan-match';
 import { CATALOG_COLS, MARKET_EXT_JOIN } from './sets';
+import { findSetByBarcodeLocal, findSetByBarcodeRemote } from '../lib/barcodes';
 import type { Env, Variables } from '../types';
 import { hasProAccess } from '../lib/early-access';
 
@@ -538,20 +539,19 @@ app.post('/identify', async (c) => {
 
   if (mode === 'barcode') {
     if (!barcode) return c.json({ error: 'barcode required' }, 400);
-    // Try the scanned value; also try EAN↔UPC conversion (EAN-13 starting with 0 == UPC-A without the leading 0).
-    const candidates = [barcode];
-    if (barcode.length === 13 && barcode.startsWith('0')) candidates.push(barcode.slice(1));
-    else if (barcode.length === 12) candidates.push('0' + barcode);
-    let r = null;
-    for (const bc of candidates) {
-      // Explicit catalog-card projection (shared with /api/sets/search) instead
-      // of SELECT * — covers everything enrichSetRecord + the scan-result card need.
-      r = await c.env.DB.prepare(`SELECT ${CATALOG_COLS} FROM lego_sets s ${MARKET_EXT_JOIN} WHERE s.upc=?`).bind(bc).first();
-      if (r) break;
-    }
+    // Local first (catalog upc, every stored UPC/EAN, codes this user taught),
+    // then live lookups (Brickset search, UPCitemdb) that save what they find.
+    const match = (await findSetByBarcodeLocal(c.env, String(barcode), userId))
+      ?? (await findSetByBarcodeRemote(c.env, String(barcode)));
+    const r = match
+      ? await c.env.DB.prepare(`SELECT ${CATALOG_COLS} FROM lego_sets s ${MARKET_EXT_JOIN} WHERE s.set_num=?`).bind(match.setNum).first()
+      : null;
     if (!r) return c.json({ identified: false, reasoning: 'Barcode not in catalog. Try a photo scan instead.' });
     logEvent(c.env, 'scan_used', userId, { setNum: String((r as Record<string, unknown>).set_num || '') });
-    return c.json({ identified: true, set: enrichSetRecord({ ...(r as Record<string, unknown>), retired: !!(r as Record<string, unknown>).retired }), confidence: 'high', reasoning: 'Barcode matched in catalog.' });
+    const reasoning = match!.source === 'taught_by_you'
+      ? 'Matched the barcode you taught us.'
+      : 'Barcode matched in catalog.';
+    return c.json({ identified: true, set: enrichSetRecord({ ...(r as Record<string, unknown>), retired: !!(r as Record<string, unknown>).retired }), confidence: 'high', reasoning, barcode_source: match!.source });
   }
 
   if (mode !== 'image' && mode !== 'shelf') return c.json({ error: 'mode must be image, shelf or barcode' }, 400);
