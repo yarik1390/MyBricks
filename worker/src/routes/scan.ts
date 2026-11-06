@@ -227,7 +227,9 @@ function openAIIdentificationMessage(error: unknown): string {
 const SCAN_BUDGET_MS = 16_000;
 const STEP_TIMEOUT_MS = 8_000;
 const SHELF_SCAN_BUDGET_MS = 35_000;
-const SHELF_STEP_TIMEOUT_MS = 25_000;
+// 16s per shelf step so a slow first provider (OpenCodex) still leaves the free
+// Workers AI step a real attempt inside the 35s budget (25s left it ~10s).
+const SHELF_STEP_TIMEOUT_MS = 16_000;
 // Do not start another model unless there is realistically time to finish it.
 const MIN_STEP_MS = 3_000;
 const NOT_LEGO_REASON = "Plot twist: that doesn't look like a LEGO set. Try pointing me at some bricks!";
