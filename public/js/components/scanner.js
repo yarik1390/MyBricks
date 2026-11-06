@@ -1202,6 +1202,11 @@ async function cloudScanIdentify(payload, signal, idempotencyKey) {
     body: payload,
     signal,
     headers: extraHeaders,
+    // api() aborts any request after 15s by default, which cut shelf scans (35s
+    // server budget) and slow photo scans off mid-cascade with a raw
+    // "signal is aborted without reason". The caller's own controller owns the
+    // real deadline (30s photo / 45s shelf), so give the fetch a little more.
+    timeoutMs: (payload.mode === 'shelf' ? 45_000 : 30_000) + 5_000,
     // Do not replay a paid/quota-consuming operation after an ambiguous network
     // failure. The idempotency key makes explicit user retries safe server-side.
     retry: false,
@@ -1356,6 +1361,9 @@ async function sendScanToAPI(payload) {
     await revealScanResult(res, stale);
   } catch (e) {
     if (generation !== _scanGeneration || (controller.signal.aborted && !timedOut)) return;
+    // A lower-level fetch abort (not the user cancelling) is a timeout too:
+    // show the friendly "took too long" copy, never the browser's abort text.
+    if (!timedOut && (e?.name === 'AbortError' || e?.name === 'TimeoutError' || /abort/i.test(String(e?.message || '')))) timedOut = true;
     // A 503 "no provider could identify it" still carries a readable reason:
     // show that, not the raw status text and reason code.
     const miss = e?.body;

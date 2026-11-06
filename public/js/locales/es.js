@@ -1876,7 +1876,7 @@ es.lot = {"unpriced": "Sets sin precio todavía: {missing}. El total no los incl
 
 // Family vault and swaps (views/family.js, views/swaps.js).
 es.family = {"memberStat": "Sets: {sets} · {value}", "removeMember": "Quitar a {name}", "shareText": "Únete a nuestra colección familiar en BricksVault con el código {code}", "shareTitle": "Colección familiar de BricksVault"};
-es.swaps = {"stopOffering": "Dejar de ofrecer {name}", "from": "De {name}", "to": "Para {name}", "proposeTo": "Intercambio con {name}"};
+es.swaps = {"stopOffering": "Dejar de ofrecer {name}", "from": "De {name}", "to": "Para {name}", "proposeTo": "Intercambio con {name}", "hideMatch": "Ocultar a {name} de las coincidencias", "chatWith": "Chat con {name}", "reportName": "Denunciar a {name}", "blockName": "Bloquear a {name}", "swapWith": "Intercambio con {name}", "swapsDoneOne": "{n} intercambio hecho", "swapsDoneOther": "{n} intercambios hechos", "swapsDoneMany": "{n} intercambios hechos", "chatUnreadOther": "Chat ({n})", "hiddenCountOther": "Coleccionistas ocultos y bloqueados ({n})", "chatUnreadOne": "Chat ({n})", "hiddenCountOne": "Coleccionistas ocultos y bloqueados ({n})"};
 
 // Price It! refresh (views/game.js, components/price-it-card.js).
 es.priceIt = {"you": "Tú", "market": "Mercado", "marketValue": "Valor de mercado", "tierTop": "Genio del mercado", "tierMid": "Buen ojo", "tierLow": "Vas mejorando", "tierZero": "Mercado difícil hoy", "statStreak": "Racha", "statBest": "Mejor", "statAvgOff": "Desvío medio", "nextIn": "Nuevos sets en {time}", "cardTodo": "5 sets nuevos para tasar hoy", "play": "Jugar", "seeScore": "Ver resultado", "slider": "Desliza para ajustar tu precio", "timeHM": "{h} h {m} min"};

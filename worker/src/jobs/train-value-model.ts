@@ -58,6 +58,16 @@ const TARGET_RETAIL = `COALESCE(${RETAIL}, CASE WHEN ls.retail_price BETWEEN 1 A
     OR (COALESCE(ls.pieces, 0) <= ${NO_PIECE_COUNT_MAX} AND COALESCE(ls.theme, '') NOT IN ${NOT_SETS}))
   THEN ls.retail_price END)`;
 
+// A set released in the last 6 months and still sold (launch date, else this
+// year's sets) is estimated at no less than its retail price: discounts and
+// resale below retail come later, and right after launch "worth less than the
+// shop asks" misleads (21065 Sagrada Família, launched 2026-11-01, sold out in
+// the US, was valued $710 on $799.99; Iaroslav, 2026-11-06). The model only
+// heads the blend when there are no sales, so real sales still win.
+export const NEW_RELEASE_MONTHS = 6;
+const NEW_RELEASE = `CASE WHEN COALESCE(ls.retired, 0) = 0 AND (
+    (ls.launch_date IS NOT NULL AND substr(ls.launch_date, 1, 10) >= date('now', '-${NEW_RELEASE_MONTHS} months') AND substr(ls.launch_date, 1, 10) <= date('now'))
+    OR (ls.launch_date IS NULL AND ls.year = CAST(strftime('%Y','now') AS INTEGER))) THEN 1 ELSE 0 END`;
 // Shared feature projection. `ac` is the coarse age class the deviations are
 // fitted within (0-3, 4-10, 11+ years since release).
 // Sets estimated with no real piece count (0-5) score in the unknown piece
@@ -73,7 +83,8 @@ const features = (retail: string, minPieces = 0) => `
   COALESCE(ls.theme, '?') || '/' || COALESCE(ls.subtheme, '') AS st,
   CASE WHEN ls.pieces > ${minPieces} THEN MIN(CAST(ln(ls.pieces) * 2 AS INTEGER), 18) ELSE -1 END AS pb,
   ${retail} AS rp,
-  CASE WHEN ls.bl_used_qty > 0 AND ls.used_value > 0 THEN ls.used_value END AS u`;
+  CASE WHEN ls.bl_used_qty > 0 AND ls.used_value > 0 THEN ls.used_value END AS u,
+  ${NEW_RELEASE} AS nr`;
 
 export const TRAIN_VALUE_MODEL_SQL = `
 WITH
@@ -101,7 +112,7 @@ WITH
     FROM lego_sets ls LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
     WHERE ls.year > 0 AND ${TARGET_RETAIL} > 0),
   scored AS (
-    SELECT t.set_num, t.rp,
+    SELECT t.set_num, t.rp, t.nr,
       ln(t.rp) + COALESCE(bar.m, ba.m, (SELECT m FROM base_all))
         + COALESCE(d_th.d, 0) + COALESCE(d_st.d, 0) + COALESCE(d_pb.d, 0) AS lr,
       CASE WHEN t.u > 0 AND ur.m IS NOT NULL THEN ln(t.u) + ur.m END AS lu
@@ -116,7 +127,7 @@ WITH
     SELECT set_num,
       -- Clamp to a sane band around retail so one odd group can't run away.
       MIN(MAX(exp(CASE WHEN lu IS NOT NULL THEN ${1 - USED_WEIGHT} * lr + ${USED_WEIGHT} * lu ELSE lr END),
-              rp * 0.2), rp * 20) AS v
+              CASE WHEN nr = 1 THEN rp ELSE rp * 0.2 END), rp * 20) AS v
     FROM scored)
 INSERT INTO set_market_ext (set_num, model_value, model_cached_at)
 SELECT set_num, CASE WHEN v >= 20 THEN ROUND(v, 0) ELSE ROUND(v, 1) END, datetime('now')

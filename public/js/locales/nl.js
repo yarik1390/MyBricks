@@ -1876,7 +1876,7 @@ nl.lot = {"unpriced": "Sets nog zonder prijs: {missing}. Het totaal laat ze weg.
 
 // Family vault and swaps (views/family.js, views/swaps.js).
 nl.family = {"memberStat": "Sets: {sets} · {value}", "removeMember": "{name} verwijderen", "shareText": "Doe mee met onze familiekluis in BricksVault met de uitnodigingscode {code}", "shareTitle": "BricksVault familiekluis"};
-nl.swaps = {"stopOffering": "{name} niet meer aanbieden", "from": "Van {name}", "to": "Aan {name}", "proposeTo": "Ruilen met {name}"};
+nl.swaps = {"stopOffering": "{name} niet meer aanbieden", "from": "Van {name}", "to": "Aan {name}", "proposeTo": "Ruilen met {name}", "hideMatch": "{name} verbergen uit matches", "chatWith": "Chat met {name}", "reportName": "{name} melden", "blockName": "{name} blokkeren", "swapWith": "Ruil met {name}", "swapsDoneOne": "{n} ruil gedaan", "swapsDoneOther": "{n} ruilen gedaan", "chatUnreadOther": "Chat ({n})", "hiddenCountOther": "Verborgen en geblokkeerde verzamelaars ({n})", "chatUnreadOne": "Chat ({n})", "hiddenCountOne": "Verborgen en geblokkeerde verzamelaars ({n})"};
 
 // Price It! refresh (views/game.js, components/price-it-card.js).
 nl.priceIt = {"you": "Jij", "market": "Markt", "marketValue": "Marktwaarde", "tierTop": "Marktgenie", "tierMid": "Scherp oog", "tierLow": "Bijna", "tierZero": "Lastige markt vandaag", "statStreak": "Reeks", "statBest": "Record", "statAvgOff": "Gem. afwijking", "nextIn": "Nieuwe sets over {time}", "cardTodo": "Vandaag 5 nieuwe sets om te prijzen", "play": "Spelen", "seeScore": "Bekijk score", "slider": "Schuif om te raden", "timeHM": "{h} u {m} min"};

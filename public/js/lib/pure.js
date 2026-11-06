@@ -1402,3 +1402,24 @@ export function nextRetiring(rows, today = new Date()) {
   }
   return best || flagged;
 }
+
+// Contact details in a swap note or chat message (views/swaps.js). Mirrors
+// worker/src/lib/contact-details.ts, which enforces the same rule server-side;
+// this copy only lets the screen warn before the request goes out.
+const CONTACT_EMAIL = /[\w.+-]+\s*(?:@|\(at\)|\[at\])\s*[\w-]+(?:\s*(?:\.|\(dot\)|\[dot\])\s*[\w-]+)*\s*(?:\.|\(dot\)|\[dot\])\s*[a-z]{2,}/i;
+const CONTACT_PHONE = /(?:\+\s*)?\d(?:[\s().-]{0,2}\d){7,}/;
+const CONTACT_SET_NUM = /\b\d{3,7}-\d{1,2}\b/g;
+const CONTACT_LINK = /\bhttps?:\/\/|\bwww\.[a-z0-9-]+\.|\b[a-z0-9-]+\.(?:com|net|org|io|me|gg|ru|ua|de|fr|uk|co)\b(?:\/|\s|$)/i;
+const CONTACT_MESSENGER = /(?<![\p{L}\d])(?:t\.me|wa\.me|telegram|whats\s?app|viber|signal\s+(?:me|app)|discord|instagram|insta|facebook|snapchat|wechat|skype|телеграм\p{L}*|телеґрам\p{L}*|вайбер\p{L}*|ватсап\p{L}*|вотсап\p{L}*|вацап\p{L}*)(?![\p{L}\d])/iu;
+
+/** Kinds of contact details ('email' | 'phone' | 'link' | 'messenger') found in text. */
+export function findContactDetails(text) {
+  const s = String(text || '');
+  if (!s.trim()) return [];
+  const found = [];
+  if (CONTACT_EMAIL.test(s)) found.push('email');
+  if (CONTACT_PHONE.test(s.replace(CONTACT_SET_NUM, ' '))) found.push('phone');
+  if (CONTACT_LINK.test(s.replace(new RegExp(CONTACT_EMAIL.source, 'gi'), ' '))) found.push('link');
+  if (CONTACT_MESSENGER.test(s)) found.push('messenger');
+  return found;
+}

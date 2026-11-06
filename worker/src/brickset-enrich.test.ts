@@ -92,6 +92,23 @@ describe('runBricksetEnrich', () => {
     expect(x.at).toBeNull();
   });
 
+  it('fills a missing piece count on a recent set weekly, never replacing a known one', async () => {
+    const yr = new Date().getUTCFullYear();
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, year, pieces, brickset_enriched_at) VALUES
+      ('21065-1','Sagrada', ?1, 0, datetime('now','-10 days')),
+      ('21066-1','Known', ?1, 500, datetime('now','-10 days')),
+      ('21067-1','Fresh', ?1, 0, datetime('now','-2 days'))`).bind(yr).run();
+    mockScrape.mockResolvedValue(null as any);
+    mockFetch.mockResolvedValue(new Response('<dl><dt>Pieces</dt><dd><a href="/inv">12,060</a></dd><dt>RRP</dt><dd>$799.99</dd></dl>', { status: 200 }));
+    const r = await runBricksetEnrich(withKey);
+    expect(r).toMatchObject({ processed: 1, updated: 1 });
+    expect(mockFetch.mock.calls[0][0]).toBe('https://brickset.com/sets/21065-1');
+    const pieces = async (n: string) => (await db.prepare('SELECT pieces FROM lego_sets WHERE set_num=?').bind(n).first<any>()).pieces;
+    expect(await pieces('21065-1')).toBe(12060);
+    expect(await pieces('21066-1')).toBe(500);
+    expect(await pieces('21067-1')).toBe(0);
+  });
+
   it('reads the Brickset page directly first', async () => {
     await db.prepare(`INSERT INTO lego_sets (set_num, name, year, brickset_enriched_at) VALUES ('10305-1','Lion Knights', 2022, NULL)`).run();
     mockScrape.mockResolvedValue(null as any);

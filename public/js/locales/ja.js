@@ -1881,7 +1881,7 @@ ja.lot = {"unpriced": "まだ価格のないセット: {missing}。合計には�
 
 // Family vault and swaps (views/family.js, views/swaps.js).
 ja.family = {"memberStat": "セット: {sets} · {value}", "removeMember": "{name} を外す", "shareText": "招待コード {code} でBricksVaultの家族コレクションに参加してください", "shareTitle": "BricksVault 家族コレクション"};
-ja.swaps = {"stopOffering": "{name} の出品をやめる", "from": "{name} から", "to": "{name} へ", "proposeTo": "{name} と交換"};
+ja.swaps = {"stopOffering": "{name} の出品をやめる", "from": "{name} から", "to": "{name} へ", "proposeTo": "{name} と交換", "hideMatch": "{name} をマッチから非表示", "chatWith": "{name} とのチャット", "reportName": "{name} を報告", "blockName": "{name} をブロック", "swapWith": "{name} との交換", "swapsDoneOther": "交換完了 {n} 件", "chatUnreadOther": "チャット ({n})", "hiddenCountOther": "非表示・ブロック中のコレクター ({n})", "swapsDoneOne": "交換完了 {n} 件", "chatUnreadOne": "チャット ({n})", "hiddenCountOne": "非表示・ブロック中のコレクター ({n})"};
 
 // Price It! refresh (views/game.js, components/price-it-card.js).
 ja.priceIt = {"you": "あなた", "market": "相場", "marketValue": "相場価格", "tierTop": "相場の天才", "tierMid": "鋭い目", "tierLow": "あと少し", "tierZero": "今日は難しい相場", "statStreak": "連続", "statBest": "最高", "statAvgOff": "平均誤差", "nextIn": "次のセットまで {time}", "cardTodo": "今日の5セットを査定", "play": "プレイ", "seeScore": "結果を見る", "slider": "スライドして予想", "timeHM": "{h}時間{m}分"};

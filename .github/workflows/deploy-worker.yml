@@ -166,64 +166,56 @@ jobs:
         working-directory: worker
         run: npx wrangler deploy --dry-run
 
+      # Remote D1 steps share worker/scripts/d1-remote.sh: every call retries
+      # D1's transient "overloaded [7429]" / internal / network errors with
+      # backoff, and column checks read the whole schema in ONE query instead
+      # of ~400 sequential wrangler calls (which is what overloaded D1 and
+      # failed single merges on 2026-11-06: #158, #159, #164, #166).
       - name: Apply database schema
         working-directory: worker
-        run: npx wrangler d1 execute brickvault --remote --file=schema.sql 2>&1
+        shell: bash
+        run: |
+          set -euo pipefail
+          source scripts/d1-remote.sh
+          d1_exec --file=schema.sql
 
       - name: Apply column migrations (additive columns from schema_migrate.sql)
         working-directory: worker
         shell: bash
         run: |
           # Single source of truth: every single-line "ALTER TABLE ... ADD COLUMN"
-          # in schema_migrate.sql, applied INDEPENDENTLY so a duplicate-column error
-          # on an existing DB can't stop later columns (D1 aborts a multi-statement
-          # file on the first error). Adding a column is now a one-line edit to
-          # schema_migrate.sql — no workflow change needed.
+          # in schema_migrate.sql. Adding a column is a one-line edit there — no
+          # workflow change needed. Existing columns are read in one query and
+          # skipped, so a normal deploy runs zero ALTERs; only a genuinely new
+          # column is applied (independently, so one can't block the rest).
           set -euo pipefail
-          # schema.sql bootstraps tables/indexes. Only tolerate the known
-          # SQLite duplicate-column error; authentication/SQL/network errors
-          # must stop the deploy. Never re-run the whole migration file.
-          mapfile -t migrations < <(grep -E '^[[:space:]]*ALTER TABLE .+ ADD COLUMN' schema_migrate.sql)
+          source scripts/d1-remote.sh
+          mapfile -t migrations < <(migration_lines)
           [ "${#migrations[@]}" -gt 0 ] || { echo '::error::No column migrations found'; exit 1; }
-          # D1 occasionally answers a single statement with a transient
-          # "internal error" (or a dropped request); retry those up to 3 times
-          # so one blip in ~150 statements can't fail the whole deploy.
-          d1() {
-            local out attempt
-            for attempt in 1 2 3; do
-              if out=$(npx wrangler d1 execute brickvault --remote --command "$1" 2>&1); then
-                printf '%s' "$out"; return 0
-              fi
-              grep -qiE 'internal error|timed out|fetch failed|ECONNRESET|socket hang up' <<< "$out" || break
-              echo "Transient D1 error (attempt $attempt): ${1%%;*}" >&2
-              sleep $((attempt * 3))
-            done
-            printf '%s' "$out"; return 1
-          }
+          d1_columns > "$RUNNER_TEMP/d1-columns.txt"
+          [ -s "$RUNNER_TEMP/d1-columns.txt" ] || { echo '::error::Could not read the D1 column list'; exit 1; }
+          present=0 applied=0
           for sql in "${migrations[@]}"; do
-            if output=$(d1 "$sql"); then
-              continue
-            elif grep -qiE 'duplicate column name: [a-zA-Z_][a-zA-Z_0-9]*' <<< "$output" && ! grep -qiE 'error 10[0-9][0-9]|authentication|unauthorized|timed out|network|fetch failed' <<< "$output"; then
+            parse_migration "$sql"
+            if grep -qxF "${MIG_TABLE}.${MIG_COLUMN}" "$RUNNER_TEMP/d1-columns.txt"; then
+              present=$((present + 1)); continue
+            fi
+            echo "Applying: ${sql%%;*}"
+            if output=$(d1_exec --command "$sql"); then
+              applied=$((applied + 1))
+            elif grep -qiE 'duplicate column name' <<< "$output"; then
               echo "Already present: ${sql%%;*}"
             elif grep -qi 'too many columns' <<< "$output"; then
-              # D1 caps a table at 100 columns. A table at the cap answers
-              # "too many columns" even for a column it already has, so check
-              # whether the column exists before failing the deploy.
-              table=$(sed -E 's/^[[:space:]]*ALTER TABLE[[:space:]]+([A-Za-z_0-9]+).*/\1/' <<< "$sql")
-              col=$(sed -E 's/.*ADD COLUMN[[:space:]]+([A-Za-z_0-9]+).*/\1/' <<< "$sql")
-              if d1 "SELECT $col FROM $table LIMIT 0" >/dev/null 2>&1; then
-                echo "Already present: ${sql%%;*}"
-              else
-                echo "::error::D1 table $table is at the 100-column limit; cannot add $col" >&2
-                printf '%s\n' "$output" >&2
-                exit 1
-              fi
+              echo "::error::D1 table ${MIG_TABLE} is at the 100-column limit; cannot add ${MIG_COLUMN} (use a side table)" >&2
+              printf '%s\n' "$output" >&2
+              exit 1
             else
               echo "::error::D1 migration failed: $sql" >&2
               printf '%s\n' "$output" >&2
               exit 1
             fi
           done
+          echo "Column migrations: ${present} already present, ${applied} applied (of ${#migrations[@]})"
       # NOTE: the FTS search index is bootstrapped idempotently by schema.sql
       # above (CREATE … IF NOT EXISTS + backfill-only-when-empty) and kept live by
       # triggers — so there is deliberately NO per-deploy rebuild step here. The
@@ -232,15 +224,14 @@ jobs:
       # To force a clean rebuild manually, run schema_search_index.sql or POST
       # /api/admin/repair-search-index.
 
-      # Migrations above run with error suppression, so a silently failed
-      # migration can ship a broken DB (this caused a production outage where
-      # every collection read 500'd on a missing column). Probe the columns
-      # the Worker actually queries and fail the deploy before it ships.
+      # Probe the columns the Worker actually queries and fail the deploy before
+      # it ships (a missing column once 500'd every collection read).
       - name: Validate schema before deploy
         working-directory: worker
         shell: bash
         run: |
           set -euo pipefail
+          source scripts/d1-remote.sh
           probes=(
             "SELECT valuation_method, valuation_expires_at, bl_new_value, bl_new_qty, bl_used_qty, ebay_new_value, ebay_used_value, retirement_risk_score, upc, bl_cached_at, be_cached_at, ebay_ask_value, ebay_ask_qty, ebay_ask_cached_at, subtheme, age_min, age_max, brickset_rating, brickset_review_count, retired_year, be_growth_12m, bl_new_min, bl_new_max, bl_used_min, bl_used_max, lego_in_stock, lego_retiring_soon, lego_retiring_since, lego_checked_at, blended_value, theme_group, category, brickset_tags, brickset_msrp, launch_date, exit_date, brickset_enriched_at, brickset_dimensions, packaging_type, instructions_count, additional_image_count, brickset_description, brickset_set_id, brickset_image_urls, brickset_images_cached_at, brickinsights_rating, brickinsights_review_count, brickinsights_url, brickinsights_cached_at FROM lego_sets LIMIT 0"
             "SELECT set_num, fig_num, quantity FROM set_minifigs LIMIT 0"
@@ -252,7 +243,9 @@ jobs:
             "SELECT set_num, market, currency, price, in_stock, availability, checked_at FROM lego_local_prices LIMIT 0"
             "SELECT id, owner_id, name, invite_code FROM households LIMIT 0"
             "SELECT household_id, user_id, role, joined_at FROM household_members LIMIT 0"
-            "SELECT id, from_user, to_user, give_sets, get_sets, message, reply, status, updated_at FROM swap_requests LIMIT 0"
+            "SELECT id, from_user, to_user, give_sets, get_sets, message, reply, status, updated_at, from_hidden, to_hidden, from_done, to_done, from_read_id, to_read_id, last_message_at FROM swap_requests LIMIT 0"
+            "SELECT id, swap_id, from_user, body, created_at FROM swap_messages LIMIT 0"
+            "SELECT user_id, other_user, kind, created_at FROM swap_blocks LIMIT 0"
             "SELECT id, dedupe_key, kind, title, details, starts_on, ends_on, min_spend, gift_set_num, url, market, currency, source, hidden, last_seen_at FROM promotions LIMIT 0"
             "SELECT set_num, rb_url, rb_status, checked_at, fallback_url, fallback_source, fallback_checked_at, attempts FROM set_image_checks LIMIT 0"
             "SELECT user_id, id, name, set_nums, revision, updated_at FROM user_subcollections LIMIT 0"
@@ -302,44 +295,46 @@ jobs:
             "SELECT id, user_id, set_num, collection_id, kind, body, r2_key, created_at FROM collection_stories LIMIT 0"
             "SELECT id, user_id, day, set_num, guessed_value, actual_value FROM price_guesses LIMIT 0"
           )
-          # Fast path: run ALL probes as one --file execution (1 remote
-          # round-trip instead of ~33 sequential ones — this step used to take
-          # ~45s). D1 aborts a multi-statement file on the first error, which
-          # is exactly the fail-fast we want; only on failure do we fall back
-          # to per-probe execution to name the culprit.
-          printf '%s;\n' "${probes[@]}" > /tmp/schema_probes.sql
-          if npx wrangler d1 execute brickvault --remote --file /tmp/schema_probes.sql >/dev/null 2>&1; then
+          # All probes as one --file execution (one round-trip). D1 aborts a
+          # multi-statement file on the first error; only then fall back to
+          # per-probe execution to name the culprit.
+          printf '%s;\n' "${probes[@]}" > "$RUNNER_TEMP/schema_probes.sql"
+          if d1_exec --file "$RUNNER_TEMP/schema_probes.sql" >/dev/null; then
             echo "Schema validation passed (${#probes[@]} probes, single round-trip)"
           else
             echo "Combined probe run failed — identifying the failing probe…"
             for sql in "${probes[@]}"; do
-              if ! npx wrangler d1 execute brickvault --remote --command "$sql" >/dev/null 2>&1; then
-                echo "::error::Schema validation failed — missing column or table for: $sql"
+              if ! output=$(d1_exec --command "$sql"); then
+                echo "::error::Schema validation failed for: $sql"
+                printf '%s\n' "$output"
                 exit 1
               fi
             done
-            echo "::error::Combined probe file failed but every individual probe passed — check wrangler output"
+            echo "::error::Combined probe file failed but every individual probe passed"
             exit 1
           fi
           # Every additive migration column must actually be present, not just
-          # the hand-selected route probes above. Validate identifiers before
-          # inserting them into PRAGMA SQL.
+          # the hand-selected route probes above. One query for the whole schema.
+          d1_columns > "$RUNNER_TEMP/d1-columns.txt"
+          missing=0
           while IFS= read -r sql; do
-            if [[ ! "$sql" =~ ^ALTER[[:space:]]+TABLE[[:space:]]+([a-zA-Z_][a-zA-Z_0-9]*)[[:space:]]+ADD[[:space:]]+COLUMN[[:space:]]+([a-zA-Z_][a-zA-Z_0-9]*)[[:space:]] ]]; then
-              echo "::error::Unexpected migration syntax: $sql"; exit 1
+            parse_migration "$sql"
+            if ! grep -qxF "${MIG_TABLE}.${MIG_COLUMN}" "$RUNNER_TEMP/d1-columns.txt"; then
+              echo "::error::Migration column missing: ${MIG_TABLE}.${MIG_COLUMN}"; missing=1
             fi
-            table="${BASH_REMATCH[1]}" column="${BASH_REMATCH[2]}"
-            info=$(npx wrangler d1 execute brickvault --remote --json --command "PRAGMA table_info(${table})")
-            if ! jq -e --arg column "$column" '(if type == "array" then .[0] else . end).results | any(.name == $column)' <<< "$info" >/dev/null; then
-              echo "::error::Migration column missing: ${table}.${column}"; exit 1
-            fi
-          done < <(grep -E '^[[:space:]]*ALTER TABLE .+ ADD COLUMN' schema_migrate.sql)
+          done < <(migration_lines)
+          [ "$missing" -eq 0 ] || exit 1
+          echo "All $(migration_lines | wc -l) migration columns present"
           # Historical migration-only DDL absent from schema.sql. Apply only
           # after the additive columns, because idx_lego_deal_signal needs one.
-          npx wrangler d1 execute brickvault --remote --command 'CREATE TABLE IF NOT EXISTS bricklink_minifigs (bl_id TEXT PRIMARY KEY, name TEXT, norm_name TEXT, category TEXT, year INTEGER)'
-          npx wrangler d1 execute brickvault --remote --command 'CREATE INDEX IF NOT EXISTS idx_bl_mf_norm ON bricklink_minifigs(norm_name)'
-          npx wrangler d1 execute brickvault --remote --command 'CREATE INDEX IF NOT EXISTS idx_mvh_fig ON minifig_value_history(fig_num, snapshot_date)'
-          npx wrangler d1 execute brickvault --remote --command 'CREATE INDEX IF NOT EXISTS idx_lego_deal_signal ON lego_sets(deal_signal)'
+          cat > "$RUNNER_TEMP/legacy_ddl.sql" <<'SQL'
+          CREATE TABLE IF NOT EXISTS bricklink_minifigs (bl_id TEXT PRIMARY KEY, name TEXT, norm_name TEXT, category TEXT, year INTEGER);
+          CREATE INDEX IF NOT EXISTS idx_bl_mf_norm ON bricklink_minifigs(norm_name);
+          CREATE INDEX IF NOT EXISTS idx_mvh_fig ON minifig_value_history(fig_num, snapshot_date);
+          CREATE INDEX IF NOT EXISTS idx_lego_deal_signal ON lego_sets(deal_signal);
+          SQL
+          d1_exec --file "$RUNNER_TEMP/legacy_ddl.sql" >/dev/null
+          echo "Legacy DDL applied"
 
       # Deploy BEFORE uploading secrets: `wrangler secret put` refuses to run
       # while the Worker's latest version isn't deployed (e.g. after a
@@ -352,11 +347,29 @@ jobs:
           set -euo pipefail
           # Never accept a nonzero deploy, even if its output mentions triggers.
           # A schedule-only failure must be fixed with token Schedules: Edit.
-          npx wrangler deploy --message "${GITHUB_SHA}" --tag "${GITHUB_SHA}" \
-            > "$RUNNER_TEMP/wrangler-deploy.log" 2>&1 || {
-              echo '::error::wrangler deploy failed; check runner deploy log (not echoed because it may contain credentials).'
-              exit 1
-            }
+          # Up to 3 attempts on transient Cloudflare API errors. On a real
+          # failure, print wrangler's ERROR block (e.g. a missing token
+          # permission for a new binding) so the cause is visible in the run.
+          # GitHub masks secret values in logs; the log never echoes the token.
+          deployed=0
+          for attempt in 1 2 3; do
+            if npx wrangler deploy --message "${GITHUB_SHA}" --tag "${GITHUB_SHA}" \
+                > "$RUNNER_TEMP/wrangler-deploy.log" 2>&1; then
+              deployed=1; break
+            fi
+            if [ "$attempt" -lt 3 ] && grep -qiE 'internal error|timed out|fetch failed|ECONNRESET|socket hang up|bad gateway|service unavailable|too many requests|code: (429|50[234])' "$RUNNER_TEMP/wrangler-deploy.log"; then
+              echo "Transient wrangler deploy error (attempt ${attempt}/3), retrying in $((attempt * 10))s"
+              sleep $((attempt * 10)); continue
+            fi
+            break
+          done
+          if [ "$deployed" -ne 1 ]; then
+            echo '::error::wrangler deploy failed:'
+            grep -vE '^[[:space:]]*$' "$RUNNER_TEMP/wrangler-deploy.log" \
+              | sed -E 's/(Bearer|token[=:])[[:space:]]*[A-Za-z0-9._-]+/\1 [redacted]/gI' \
+              | tail -n 40
+            exit 1
+          fi
           WORKER_URL=$(grep -oE 'https://[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev' "$RUNNER_TEMP/wrangler-deploy.log" | head -1 || true)
           if [ -z "$WORKER_URL" ]; then
             # fallback: query the subdomain API

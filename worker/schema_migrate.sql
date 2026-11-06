@@ -781,3 +781,11 @@ ALTER TABLE set_market_ext ADD COLUMN value_unstable_at TEXT;
 -- Promotions per LEGO.com country store, in that store's own currency.
 ALTER TABLE promotions ADD COLUMN market TEXT NOT NULL DEFAULT 'US';
 ALTER TABLE promotions ADD COLUMN currency TEXT;
+-- Swap chat, delete, done marks (routes/swaps.ts).
+ALTER TABLE swap_requests ADD COLUMN from_hidden INTEGER DEFAULT 0;
+ALTER TABLE swap_requests ADD COLUMN to_hidden INTEGER DEFAULT 0;
+ALTER TABLE swap_requests ADD COLUMN from_done INTEGER DEFAULT 0;
+ALTER TABLE swap_requests ADD COLUMN to_done INTEGER DEFAULT 0;
+ALTER TABLE swap_requests ADD COLUMN from_read_id INTEGER DEFAULT 0;
+ALTER TABLE swap_requests ADD COLUMN to_read_id INTEGER DEFAULT 0;
+ALTER TABLE swap_requests ADD COLUMN last_message_at DATETIME;

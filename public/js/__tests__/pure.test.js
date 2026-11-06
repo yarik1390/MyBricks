@@ -2525,3 +2525,17 @@ describe('seedFilterSort tiebreak', () => {
     assert.deepEqual(seedFilterSort(rows, { sort: 'year_desc' }).map(s => s.set_num), ['30682-1', '412501-1', '42163-1', '42164-1']);
   });
 });
+
+describe('findContactDetails', async () => {
+  const { findContactDetails } = await import('../lib/pure.js');
+  it('flags emails, phones, links and messengers', () => {
+    assert.deepEqual(findContactDetails('Send me a message to my email: someone@gmail.com'), ['email']);
+    assert.deepEqual(findContactDetails('+380 67 123 45 67'), ['phone']);
+    assert.deepEqual(findContactDetails('напиши у телеграмі'), ['messenger']);
+    assert.ok(findContactDetails('www.example.com').includes('link'));
+  });
+  it('ignores set numbers and plain notes', () => {
+    assert.deepEqual(findContactDetails('75258-1 10497-1 21318-1'), []);
+    assert.deepEqual(findContactDetails('Box slightly dented'), []);
+  });
+});

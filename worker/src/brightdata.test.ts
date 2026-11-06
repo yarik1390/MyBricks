@@ -218,7 +218,7 @@ describe('deterministic Bright Data HTML parsers', () => {
       <dt>Tags</dt><dd><div id="tags31235"><a class="name">AT-AT Driver</a><a>18 Plus</a></div></dd>
       <dt>RRP</dt><dd>£734.99, $849.99, €849.99</dd><dt>Age range</dt><dd>18+</dd>
       <dt>Packaging</dt><dd>Box</dd><dt>Dimensions</dt><dd>58.2 x 48 x 43.1 cm</dd>
-      <dt>Rating</dt><dd><span>4.4</span> from 386 ratings</dd></dl>`;
+      <dt>Rating</dt><dd><span>4.4</span> from 386 ratings</dd><dt>Pieces</dt><dd><a href="/inventories/75313-1">6,785</a></dd></dl>`;
     expect(parseBricksetHtml(html)).toMatchObject({
       msrp_usd: 849.99,
       launch_date: '2021-11-26',
@@ -233,6 +233,7 @@ describe('deterministic Bright Data HTML parsers', () => {
       rating: 4.4,
       review_count: 386,
       brickset_set_id: 31235,
+      pieces: 6785,
     });
   });
 

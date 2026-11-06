@@ -397,8 +397,9 @@ vitest failures when full logs require admin rights).
    version-controlled SQL files: (a) the `CREATE TABLE` in `schema.sql` (fresh
    DBs) and (b) ONE single-line `ALTER TABLE … ADD COLUMN …;` in
    `schema_migrate.sql` (existing DBs). The deploy step "Apply column migrations"
-   greps every `ALTER … ADD COLUMN` line out of `schema_migrate.sql` and runs each
-   independently (tolerating only duplicate-column errors), so `schema_migrate.sql`
+   greps every `ALTER … ADD COLUMN` line out of `schema_migrate.sql`, reads the
+   live column list in one query and runs only the missing ALTERs, each
+   independently (helpers + D1 retry in `worker/scripts/d1-remote.sh`), so `schema_migrate.sql`
    is the **single source of truth** — the old inline ALTER array in the workflow
    is gone. Both files are pushable by the GitHub app (no `.github/workflows/`
    change). Keep each ALTER on its own line so the grep picks it up. ⚠️ If the
