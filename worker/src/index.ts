@@ -22,6 +22,7 @@ import { contributionsRoute } from './routes/contributions';
 import { imgRoute } from './routes/img';
 import { rewriteImages } from './lib/img-proxy';
 import { runImagePrewarm } from './jobs/image-prewarm';
+import { runSetImageBackfill } from './jobs/set-image-backfill';
 import { indexMissingAlts } from './lib/build-alts';
 import { runUpcomingRefresh } from './jobs/upcoming-refresh';
 import { runExaNewsScan, runExaRetirementLookups } from './jobs/exa-news';
@@ -550,6 +551,10 @@ export default {
         await run('store-offers', () => runStoreOffers(env, { limit: 40 }));
         break;
       case '30 16 * * *': await run('amazon-offers', () => runAmazonOffers(env, { limit: 60 })); break;
+      // Set photos Rebrickable doesn't have (new 2026 sets, promos): probe,
+      // then Brickset / LEGO.com fallbacks. Own slot so its HEAD probes and
+      // scrapes don't share the :15 image-prewarm invocation's subrequests.
+      case '20 * * * *': await run('set-image-backfill', () => runSetImageBackfill(env, { probeLimit: 150, resolveLimit: 40, scrapeLimit: 12 })); break;
       case '0 22 * * *':
         // Exa: expected retirement dates for active sets that have none.
         await run('exa-retirement-lookups', () => runExaRetirementLookups(env, { limit: 20 }));
