@@ -44,9 +44,12 @@ export interface RouteStep {
  * Default scan ordering is based on live image benchmarks, not paper pricing.
  * The free-first cascade was unreliable in production: Gemini could consume 7s
  * with an empty response and OpenRouter free models then 429, starving every
- * useful fallback. Merge Flash-Lite identified all three benchmark sets in
- * 0.86–1.40s at about $0.00045/call; Merge gpt-4o is the accuracy fallback.
- * Volatile free pools remain after those bounded, measured providers.
+ * useful fallback. Volatile free pools remain after the bounded, measured
+ * OpenCodex step.
+ *
+ * Merge was removed from both scan workloads on 2026-11-06: its free monthly
+ * allowance is gone, so every Merge step was a paid or failing call. Scans now
+ * go OpenCodex -> OpenRouter free pool -> OpenAI gpt-4o-mini backstop.
  *
  * gpt-5.6-luna remains retired for scanning: repeated calls returned no usable
  * structured identification. Re-benchmark before changing these ids or order.
@@ -55,16 +58,12 @@ export const DEFAULT_LLM_ROUTES: Record<LlmWorkload, RouteStep[]> = {
   // Vision. Fast measured primary -> accurate measured fallback -> best effort.
   scan: [
     { provider: 'opencodex', model: OPENCODEX_SCAN_COMBO, enabled: true },
-    { provider: 'merge', model: 'google/gemini-3.5-flash-lite', enabled: true },
-    { provider: 'merge', model: 'openai/gpt-4o', enabled: true },
     { provider: 'openrouter', model: '', enabled: true },
     { provider: 'openai', model: MODELS.openaiFallback, enabled: true },
   ],
   // Shelf Snap. Thorough multi-set vision -> accurate fallback -> best effort.
   shelf: [
     { provider: 'opencodex', model: OPENCODEX_SHELF_COMBO, enabled: true },
-    { provider: 'merge', model: 'openai/gpt-4o', enabled: true },
-    { provider: 'merge', model: 'google/gemini-3.5-flash-lite', enabled: true },
     { provider: 'openrouter', model: '', enabled: true },
     { provider: 'openai', model: MODELS.openaiFallback, enabled: true },
   ],
@@ -131,6 +130,22 @@ const RETIRED_SCAN_MODELS = new Set([
   'omniroute:brickvault-scan-vision',
 ]);
 
+/**
+ * Providers never allowed in the scan / shelf cascades, whatever the stored
+ * admin routing says. Merge's free allowance ran out (2026-11-06); stored
+ * routing outlives code defaults, so the provider is stripped at read time.
+ */
+const SCAN_EXCLUDED_PROVIDERS = new Set<string>(['merge']);
+
+function stripExcludedScanProviders(stored: unknown): unknown {
+  if (!Array.isArray(stored)) return stored;
+  return stored.filter((raw) => {
+    if (!raw || typeof raw !== 'object') return true;
+    const { provider } = raw as Record<string, unknown>;
+    return !(typeof provider === 'string' && SCAN_EXCLUDED_PROVIDERS.has(provider));
+  });
+}
+
 function staleProductionScanGeneration(stored: unknown): number {
   if (!Array.isArray(stored)) return 0;
   const normalized = mergeSteps('scan', stored);
@@ -178,7 +193,7 @@ function mergeAll(stored: Record<string, unknown> | null): Record<LlmWorkload, R
   const out = {} as Record<LlmWorkload, RouteStep[]>;
   for (const name of LLM_WORKLOADS) {
     const saved = (name === 'scan' || name === 'shelf')
-      ? removeActiveRetiredScanModels(stored?.[name])
+      ? stripExcludedScanProviders(removeActiveRetiredScanModels(stored?.[name]))
       : stored?.[name];
     out[name] = mergeSteps(name, saved);
   }
