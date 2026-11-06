@@ -2256,7 +2256,7 @@ body.bv-nav-off .advisor-fab { bottom: calc(var(--safe-bottom, 0px) + 20px); }
 /* Kids play layer: tappable tiles, daily game, kid set page. */
 .bv-kids__tile { position: relative; cursor: pointer; }
 .bv-kids__tile:active { transform: translateY(2px); box-shadow: 0 2px 0 #e0d9c2; }
-.bv-kids__flags { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; }
+.bv-kids__flags { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; gap: 4px; }
 .bv-kids__flag { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; }
 .bv-kids__flag--fav { background: #e5484d; }
 .bv-kids__flag--built { background: #2f9e44; }
