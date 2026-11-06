@@ -3,6 +3,7 @@ import type { Env } from '../types';
 import { getOpenRouterPools, openAIServerBaseURL, openRouterBaseURL } from './llm';
 import { mergeBaseURL } from './merge-gateway';
 import { openCodexClient } from './opencodex';
+import { isFreeWorkersAiModel, workersAiClient } from './workers-ai';
 import type { RouteStep } from './llm-routing';
 
 /**
@@ -65,6 +66,11 @@ export async function openAiCompatibleStep(
         client: new OpenAI({ apiKey, baseURL: openAIServerBaseURL(env), defaultHeaders: headers, maxRetries: RETRIES }),
         models: [step.model],
       };
+    }
+    case 'workersai': {
+      const client = workersAiClient(env);
+      if (!client || !step.model || !isFreeWorkersAiModel(step.model)) return { client: null, models: [] };
+      return { client, models: [step.model] };
     }
     default:
       return { client: null, models: [] };

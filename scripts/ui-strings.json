@@ -10140,6 +10140,12 @@
     ]
   },
   {
+    "text": "Workers AI",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Working",
     "files": [
       "views/me-admin.js"

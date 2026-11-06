@@ -18,6 +18,7 @@ export type IntegrationName =
   | 'openai'
   | 'openrouter'
   | 'opencodex'
+  | 'workersai'
   | 'merge'
   | 'rebrickable'
   | 'brickinsights'
@@ -235,6 +236,15 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     notes: 'Subscription-backed OpenAI-compatible gateway on Core01. High-speed vision scanning via dedicated combos with Cloudflare Access protection.',
     recommended_action: 'Configure OPENCODEX_API_KEY as a Worker secret and check OpenCodex status on Core01.',
   },
+  workersai: {
+    on_demand: true,
+    label: 'Workers AI',
+    configured: (env) => !!env.AI,
+    required_secrets: [],
+    used_by: ['scan'],
+    notes: 'Cloudflare Workers AI (Gemma 4 vision) as a free scan step. Daily-capped (api_quota workersai) inside the free 10,000 Neurons/day.',
+    recommended_action: 'Check the [ai] binding in wrangler.toml and the Workers AI dashboard for errors or capacity limits.',
+  },
   merge: {
     on_demand: true,
     label: 'Merge Gateway',
@@ -449,7 +459,7 @@ export async function recordIntegrationHealth(
   }
 }
 
-const AI_ROUTED_SERVICES = new Set<IntegrationName>(['gemini', 'openai', 'openrouter', 'opencodex', 'merge']);
+const AI_ROUTED_SERVICES = new Set<IntegrationName>(['gemini', 'openai', 'openrouter', 'opencodex', 'merge', 'workersai']);
 
 /** AI providers currently paused by a credential failure (see above). */
 export async function blockedIntegrations(env: Env): Promise<Set<string>> {

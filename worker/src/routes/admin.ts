@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { WORKERS_AI_SCAN_MODEL } from '../lib/workers-ai';
 import { requireAdmin } from '../auth';
 import { importSets, importFigs } from '../jobs/import-catalog';
 import { nextBackfillPage, runBackfillUpc } from '../jobs/backfill-upc';
@@ -631,6 +632,7 @@ app.get('/llm-routing', async (c) => {
     })),
     models: {
       opencodex: await openCodexModels(c.env),
+      workersai: [WORKERS_AI_SCAN_MODEL],
       // Merge serves no usable /v1/models on this plan, so the picker is the
       // union of: whatever a catalog refresh did manage to cache, the curated
       // known-good ids, and OpenRouter's live catalog (Merge shares its

@@ -2,6 +2,7 @@ import type { Env } from '../types';
 import { MODELS } from './llm';
 import { OPENCODEX_SCAN_COMBO, OPENCODEX_SHELF_COMBO, openCodexConfigured } from './opencodex';
 import { blockedIntegrations } from './integration-health';
+import { WORKERS_AI_SCAN_MODEL, workersAiConfigured } from './workers-ai';
 
 // ---------------------------------------------------------------------------
 // Admin-tunable LLM routing. One DB-backed row (app_settings['llm_routing'])
@@ -20,8 +21,8 @@ import { blockedIntegrations } from './integration-health';
 // ---------------------------------------------------------------------------
 
 /** Providers a route step can name. */
-export type LlmProvider = 'gemini' | 'opencodex' | 'merge' | 'openrouter' | 'openai';
-export const LLM_PROVIDERS: LlmProvider[] = ['gemini', 'opencodex', 'merge', 'openrouter', 'openai'];
+export type LlmProvider = 'gemini' | 'opencodex' | 'merge' | 'openrouter' | 'openai' | 'workersai';
+export const LLM_PROVIDERS: LlmProvider[] = ['gemini', 'opencodex', 'merge', 'openrouter', 'openai', 'workersai'];
 
 /** Workloads that resolve their cascade through this config. */
 export type LlmWorkload = 'scan' | 'shelf' | 'advisor' | 'valuation' | 'listing';
@@ -48,8 +49,13 @@ export interface RouteStep {
  * OpenCodex step.
  *
  * Merge was removed from both scan workloads on 2026-11-06: its free monthly
- * allowance is gone, so every Merge step was a paid or failing call. Scans now
- * go OpenCodex -> OpenRouter free pool -> OpenAI gpt-4o-mini backstop.
+ * allowance is gone, so every Merge step was a paid or failing call.
+ *
+ * Scanning is FREE during early launch (2026-11-06): the paid OpenAI
+ * gpt-4o-mini backstop is gone too. Scans go OpenCodex (Core01) -> Workers AI
+ * Gemma 4 (daily-capped inside Cloudflare's free Neuron allocation) ->
+ * OpenRouter free pool. When every free step comes back empty the app offers
+ * barcode / search instead of spending money.
  *
  * gpt-5.6-luna remains retired for scanning: repeated calls returned no usable
  * structured identification. Re-benchmark before changing these ids or order.
@@ -58,14 +64,14 @@ export const DEFAULT_LLM_ROUTES: Record<LlmWorkload, RouteStep[]> = {
   // Vision. Fast measured primary -> accurate measured fallback -> best effort.
   scan: [
     { provider: 'opencodex', model: OPENCODEX_SCAN_COMBO, enabled: true },
+    { provider: 'workersai', model: WORKERS_AI_SCAN_MODEL, enabled: true },
     { provider: 'openrouter', model: '', enabled: true },
-    { provider: 'openai', model: MODELS.openaiFallback, enabled: true },
   ],
   // Shelf Snap. Thorough multi-set vision -> accurate fallback -> best effort.
   shelf: [
     { provider: 'opencodex', model: OPENCODEX_SHELF_COMBO, enabled: true },
+    { provider: 'workersai', model: WORKERS_AI_SCAN_MODEL, enabled: true },
     { provider: 'openrouter', model: '', enabled: true },
-    { provider: 'openai', model: MODELS.openaiFallback, enabled: true },
   ],
   advisor: [
     { provider: 'gemini', model: MODELS.advisor, enabled: true },
@@ -132,17 +138,22 @@ const RETIRED_SCAN_MODELS = new Set([
 
 /**
  * Providers never allowed in the scan / shelf cascades, whatever the stored
- * admin routing says. Merge's free allowance ran out (2026-11-06); stored
- * routing outlives code defaults, so the provider is stripped at read time.
+ * admin routing says. Merge's free allowance ran out (2026-11-06) and OpenAI is
+ * paid per photo; scanning stays free during early launch. Stored routing
+ * outlives code defaults, so these providers are stripped at read time.
  */
-const SCAN_EXCLUDED_PROVIDERS = new Set<string>(['merge']);
+const SCAN_EXCLUDED_PROVIDERS = new Set<string>(['merge', 'openai']);
 
 function stripExcludedScanProviders(stored: unknown): unknown {
   if (!Array.isArray(stored)) return stored;
   return stored.filter((raw) => {
     if (!raw || typeof raw !== 'object') return true;
-    const { provider } = raw as Record<string, unknown>;
-    return !(typeof provider === 'string' && SCAN_EXCLUDED_PROVIDERS.has(provider));
+    const { provider, model } = raw as Record<string, unknown>;
+    if (typeof provider === 'string' && SCAN_EXCLUDED_PROVIDERS.has(provider)) return false;
+    // A pinned OpenRouter model is only allowed when it is a free variant; the
+    // empty-model pool step expands to the free pool and always stays.
+    if (provider === 'openrouter' && typeof model === 'string' && model.trim() && !model.trim().endsWith(':free')) return false;
+    return true;
   });
 }
 
@@ -238,6 +249,7 @@ export function providerConfigured(env: Env, provider: LlmProvider): boolean {
     case 'merge': return !!(env.MERGE_GATEWAY_API_KEY ?? '').trim();
     case 'openrouter': return !!env.OPENROUTER_API_KEY;
     case 'openai': return !!env.OPENAI_API_KEY;
+    case 'workersai': return workersAiConfigured(env);
   }
 }
 

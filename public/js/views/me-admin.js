@@ -1581,7 +1581,7 @@ function recommendedQualityAction(cards) {
 let llmData = null;
 let llmDirty = false;
 const LLM_PROVIDER_LABEL = {
-  gemini: 'Gemini', opencodex: 'OpenCodex', merge: 'Merge', openrouter: 'OpenRouter', openai: 'OpenAI',
+  gemini: 'Gemini', opencodex: 'OpenCodex', merge: 'Merge', openrouter: 'OpenRouter', openai: 'OpenAI', workersai: 'Workers AI',
 };
 const LLM_CUSTOM = '__custom__';
 
@@ -1617,7 +1617,8 @@ function llmModelGroups(provider) {
     : provider === 'opencodex' ? (m.opencodex || [])
     : provider === 'openrouter' ? [...(m.openrouter_vision || []), ...(m.openrouter_text || [])]
     : provider === 'gemini' ? (m.gemini || [])
-    : provider === 'openai' ? (m.openai || []) : [];
+    : provider === 'openai' ? (m.openai || [])
+    : provider === 'workersai' ? (m.workersai || []) : [];
   const groups = new Map();
   for (const id of [...new Set(flat)]) {
     const vendor = id.includes('/') ? id.slice(0, id.indexOf('/')) : t('admin.llmModelsOther');
