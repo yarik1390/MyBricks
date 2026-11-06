@@ -2904,8 +2904,8 @@ describe('Account deletion (DELETE /api/me)', () => {
       await db.prepare(`INSERT INTO ${t} (user_id, r2_key) VALUES (?, ?)`).bind(userId, `${userId}/1234-1.jpg`).run();
       await db.prepare(`INSERT INTO ${t} (user_id, r2_key) VALUES (?, ?)`).bind(otherUserId, `${otherUserId}/9999-1.jpg`).run();
     }
-    for (const t of ['households', 'household_members', 'swap_requests']) await db.prepare(`DROP TABLE IF EXISTS ${t}`).run();
-    await applyTestTables(db, ['households', 'household_members', 'swap_requests']);
+    for (const t of ['households', 'household_members', 'swap_requests', 'swap_messages', 'swap_blocks']) await db.prepare(`DROP TABLE IF EXISTS ${t}`).run();
+    await applyTestTables(db, ['households', 'household_members', 'swap_requests', 'swap_messages', 'swap_blocks']);
   });
 
   async function countRows(uid: string): Promise<number> {

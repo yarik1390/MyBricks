@@ -386,12 +386,6 @@
     ]
   },
   {
-    "text": "Add a note with how to reach you.",
-    "files": [
-      "views/swaps.js"
-    ]
-  },
-  {
     "text": "Add a photo",
     "files": [
       "components/contribute.js"
@@ -547,6 +541,12 @@
     "text": "Advisor",
     "files": [
       "route-meta.js"
+    ]
+  },
+  {
+    "text": "After you accept, agree on shipping or a meetup in the chat.",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -994,9 +994,16 @@
     ]
   },
   {
+    "text": "Block",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Blocked",
     "files": [
-      "views/me-integrations.js"
+      "views/me-integrations.js",
+      "views/swaps.js"
     ]
   },
   {
@@ -1140,12 +1147,6 @@
     ]
   },
   {
-    "text": "BricksVault introduces you; you arrange shipping or a meetup yourselves. Only swap with people you trust.",
-    "files": [
-      "views/swaps.js"
-    ]
-  },
-  {
     "text": "BricksVault value model",
     "files": [
       "methodology.html"
@@ -1276,6 +1277,24 @@
     ]
   },
   {
+    "text": "Call off",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Call off this swap",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Call off this swap?",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Camera is unavailable. Use Gallery or type a barcode.",
     "files": [
       "components/scanner.js"
@@ -1402,6 +1421,18 @@
     ]
   },
   {
+    "text": "Chat",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Chat could not load.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Check Supabase URL, anon key, and JWT secret.",
     "files": [
       "views/me-admin.js"
@@ -1441,6 +1472,12 @@
     "text": "Check the price at",
     "files": [
       "components/store-prices.js"
+    ]
+  },
+  {
+    "text": "Check their completed swaps, and report anyone who asks for money or personal details.",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -1898,6 +1935,12 @@
     ]
   },
   {
+    "text": "Could not delete.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Could not grade this photo.",
     "files": [
       "components/copies.js"
@@ -2324,7 +2367,8 @@
   {
     "text": "Delete",
     "files": [
-      "views/me-integrations.js"
+      "views/me-integrations.js",
+      "views/swaps.js"
     ]
   },
   {
@@ -2334,9 +2378,21 @@
     ]
   },
   {
+    "text": "Delete from my list",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Delete memory",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Delete this swap?",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -2369,6 +2425,12 @@
       "views/me-admin.js",
       "views/portfolio-detail.js",
       "views/promotions.js"
+    ]
+  },
+  {
+    "text": "Did not send their sets",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -2431,6 +2493,12 @@
     "files": [
       "components/onboarding.js",
       "index.html"
+    ]
+  },
+  {
+    "text": "Do this once you have their sets. When you both mark it done, it counts as a completed swap on both profiles.",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -3774,13 +3842,21 @@
   {
     "text": "Hidden",
     "files": [
-      "views/promotions.js"
+      "views/promotions.js",
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Hidden from your matches",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
     "text": "Hide",
     "files": [
-      "views/promotions.js"
+      "views/promotions.js",
+      "views/swaps.js"
     ]
   },
   {
@@ -4195,6 +4271,12 @@
     ]
   },
   {
+    "text": "It disappears from your list. Once both of you delete it, the chat is gone for good.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Its price, date and notes will be deleted.",
     "files": [
       "components/copies.js"
@@ -4231,9 +4313,21 @@
     ]
   },
   {
+    "text": "Keep contact details out until the swap is accepted. Use the chat to agree on the swap first.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Keep monitoring; retry a smaller batch if needed.",
     "files": [
       "lib/pure.js"
+    ]
+  },
+  {
+    "text": "Keep the conversation in the chat here until you trust them. You never need to post your email or phone number.",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -4761,6 +4855,18 @@
     ]
   },
   {
+    "text": "Mark this swap as done?",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Marked as done",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Market",
     "files": [
       "views/portfolio-detail-market.js",
@@ -4891,6 +4997,12 @@
     ]
   },
   {
+    "text": "Meet in a public place, or both ship with tracking on the same day.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Members",
     "files": [
       "views/family.js"
@@ -4912,6 +5024,12 @@
     "text": "Merge Gateway — second multi-provider LLM gateway, billed against a fixed monthly allowance and reporting real per-call cost.",
     "files": [
       "views/me-admin-config.js"
+    ]
+  },
+  {
+    "text": "Message",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -5033,6 +5151,12 @@
     "text": "Modular",
     "files": [
       "components/onboarding.js"
+    ]
+  },
+  {
+    "text": "More actions",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -5164,6 +5288,12 @@
     ]
   },
   {
+    "text": "Never pay a stranger in advance. A swap is sets for sets.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "New / sealed",
     "files": [
       "components/contribute.js"
@@ -5228,6 +5358,12 @@
     "text": "New sold comps are",
     "files": [
       "runtime-exact"
+    ]
+  },
+  {
+    "text": "New to swaps",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -5330,6 +5466,12 @@
     ]
   },
   {
+    "text": "No email or phone number needed. You can chat here once the request is sent.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "No evidence timestamp",
     "files": [
       "views/me-admin.js"
@@ -5373,6 +5515,12 @@
   },
   {
     "text": "No matches yet. Add sets you would swap away and keep your wishlist up to date. We match you as more collectors join.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "No messages yet. Say hi and agree on the swap here.",
     "files": [
       "views/swaps.js"
     ]
@@ -5664,7 +5812,7 @@
     ]
   },
   {
-    "text": "Note: how to reach you",
+    "text": "Note (optional)",
     "files": [
       "views/swaps.js"
     ]
@@ -5897,6 +6045,18 @@
     "text": "Only one weak market signal is available.",
     "files": [
       "lib/pure.js"
+    ]
+  },
+  {
+    "text": "Only the two of you see this chat. Contact details unlock once the swap is accepted.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Only the two of you see this chat. Share contact details only if you trust them.",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -7267,6 +7427,12 @@
     ]
   },
   {
+    "text": "Report and block",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Report ready",
     "files": [
       "views/me-sales.js"
@@ -7652,6 +7818,12 @@
     ]
   },
   {
+    "text": "Rude or harassing",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Rummaging the parts bin…",
     "files": [
       "components/scanner.js"
@@ -7843,6 +8015,12 @@
     "text": "Saving…",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Scam or asked for money first",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -8048,6 +8226,18 @@
     "text": "Sells slowly",
     "files": [
       "lib/pure.js"
+    ]
+  },
+  {
+    "text": "Send",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Send anyway",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -8293,6 +8483,12 @@
     ]
   },
   {
+    "text": "Share contact details?",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Share one vault with the people you collect with. Everyone keeps their own sets; the family vault shows them together, with who owns what.",
     "files": [
       "views/family.js"
@@ -8340,6 +8536,12 @@
     "text": "Show",
     "files": [
       "views/promotions.js"
+    ]
+  },
+  {
+    "text": "Show again",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -8621,6 +8823,12 @@
     ]
   },
   {
+    "text": "Something else",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Something went wrong.",
     "files": [
       "views/family.js",
@@ -8679,6 +8887,12 @@
     "text": "Sources, roles and freshness",
     "files": [
       "methodology.html"
+    ]
+  },
+  {
+    "text": "Spam",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -8888,7 +9102,31 @@
     ]
   },
   {
+    "text": "Swap complete",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Swap deleted",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Swap done",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Swap request sent",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Swap safely",
     "files": [
       "views/swaps.js"
     ]
@@ -9085,6 +9323,12 @@
     ]
   },
   {
+    "text": "Thanks. We will look into it.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "That does not look like a LEGO box. Try again with the whole box in view.",
     "files": [
       "components/copies.js"
@@ -9193,6 +9437,12 @@
     ]
   },
   {
+    "text": "The swap stays in your list as withdrawn. They get a notification.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Their note",
     "files": [
       "views/swaps.js"
@@ -9248,7 +9498,25 @@
     ]
   },
   {
-    "text": "They will see your note, so share how to reach you.",
+    "text": "They marked this swap as done. Tap Swap done once you have your sets.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "They will not show up in your matches and cannot send you requests or messages. Open swaps with them are called off.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "This calls off the swap for both of you and removes it from your list. They get a notification.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "This declines the request and removes it from your list.",
     "files": [
       "views/swaps.js"
     ]
@@ -9263,6 +9531,12 @@
     "text": "This is the only copy. Remove the set instead.",
     "files": [
       "components/copies.js"
+    ]
+  },
+  {
+    "text": "This looks like an email, phone number or messenger. Anyone you give it to can reach you outside BricksVault. You can keep everything in this chat instead.",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -9296,9 +9570,21 @@
     ]
   },
   {
+    "text": "This swap is closed, so the chat is read-only.",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "This will remove the multi-GB model weights from your local browser storage.",
     "files": [
       "views/me-integrations.js"
+    ]
+  },
+  {
+    "text": "This withdraws the request and removes it from your list.",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -9535,6 +9821,12 @@
     "text": "US offers from LEGO.com. Check the details before you buy: stock and terms can change.",
     "files": [
       "views/promotions.js"
+    ]
+  },
+  {
+    "text": "Unblock",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -9952,6 +10244,12 @@
     ]
   },
   {
+    "text": "Waiting for them",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Walmart and Target are US stores, so their dollar prices are converted to your currency. Checked daily, before tax, shipping and import costs.",
     "files": [
       "components/store-prices.js"
@@ -10003,6 +10301,12 @@
     "text": "We keep only the access key Rebrickable gives us, never your password.",
     "files": [
       "components/rebrickable-card.js"
+    ]
+  },
+  {
+    "text": "We review every report. Reporting also blocks them, so they cannot see or message you.",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -10069,6 +10373,12 @@
     "text": "What drives this",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "What happened? (optional)",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -10170,6 +10480,12 @@
     ]
   },
   {
+    "text": "Write a message",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Write a review",
     "files": [
       "components/contribute.js"
@@ -10203,6 +10519,12 @@
     "text": "You can change this anytime in Settings.",
     "files": [
       "components/onboarding.js"
+    ]
+  },
+  {
+    "text": "You can no longer message this collector.",
+    "files": [
+      "views/swaps.js"
     ]
   },
   {
@@ -10341,6 +10663,12 @@
   },
   {
     "text": "Your note",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Your note (optional)",
     "files": [
       "views/swaps.js"
     ]
@@ -11824,7 +12152,13 @@
     ]
   },
   {
-    "text": "e.g. email, Discord or city for a meetup",
+    "text": "e.g. box condition, or other sets you would add",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "e.g. when you could ship or meet",
     "files": [
       "views/swaps.js"
     ]

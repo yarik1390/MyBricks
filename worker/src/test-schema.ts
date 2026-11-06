@@ -660,8 +660,29 @@ export const TABLE_DDL: Record<string, string> = {
   message TEXT,
   reply TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','declined','cancelled')),
+  from_hidden INTEGER DEFAULT 0,
+  to_hidden INTEGER DEFAULT 0,
+  from_done INTEGER DEFAULT 0,
+  to_done INTEGER DEFAULT 0,
+  from_read_id INTEGER DEFAULT 0,
+  to_read_id INTEGER DEFAULT 0,
+  last_message_at DATETIME,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)`,
+  swap_messages: `CREATE TABLE IF NOT EXISTS swap_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  swap_id INTEGER NOT NULL,
+  from_user TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)`,
+  swap_blocks: `CREATE TABLE IF NOT EXISTS swap_blocks (
+  user_id TEXT NOT NULL,
+  other_user TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'hide' CHECK(kind IN ('hide','block')),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, other_user)
 )`,
   promotions: `CREATE TABLE IF NOT EXISTS promotions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

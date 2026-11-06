@@ -358,7 +358,11 @@ app.delete('/', async (c) => {
   // and drop swap requests the user sent or received. Neither table is keyed
   // by user_id alone, so they are not in USER_SCOPED_TABLES.
   await leaveHousehold(db, userId);
-  await db.prepare('DELETE FROM swap_requests WHERE from_user=? OR to_user=?').bind(userId, userId).run();
+  await db.batch([
+    db.prepare('DELETE FROM swap_messages WHERE swap_id IN (SELECT id FROM swap_requests WHERE from_user=? OR to_user=?)').bind(userId, userId),
+    db.prepare('DELETE FROM swap_requests WHERE from_user=? OR to_user=?').bind(userId, userId),
+    db.prepare('DELETE FROM swap_blocks WHERE user_id=? OR other_user=?').bind(userId, userId),
+  ]);
 
   // 2) Purge every user-scoped table in a single atomic batch.
   await db.batch(
