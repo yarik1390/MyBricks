@@ -181,6 +181,8 @@ async function _routeImpl(gen) {
       await (await import('./views/kids.js')).renderKidsHome();
     } else if (hash === "/kids/badges") {
       await (await import('./views/kids.js')).renderKidsBadges();
+    } else if (hash.startsWith("/kids/set/")) {
+      await (await import('./views/kids.js')).renderKidsSet(decodeURIComponent(hash.split("/")[3] || ""));
     } else {
       const root = $("#root");
       if (root) root.innerHTML = notFoundHTML();

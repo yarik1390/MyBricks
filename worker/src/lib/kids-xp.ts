@@ -72,3 +72,27 @@ export async function awardXpForAdd(db: D1Database, userId: string) {
     new_badges: slugs,
   };
 }
+
+// Kids Mode play layer (routes/kids.ts): XP for "I built it!" and the daily
+// game. Mirrors public/js/lib/kids-play.js.
+export const XP_BUILT = 5;
+export const XP_GAME_WIN = 5;
+export const XP_GAME_TRY = 2;
+
+// Add XP to a kid's total (creates the prefs row if needed). Unlike set adds,
+// these actions only exist inside Kids Mode, so no PIN is required.
+export async function awardKidsXp(db: D1Database, userId: string, amount: number) {
+  const prev = await db
+    .prepare('SELECT kids_xp, kids_level FROM user_prefs WHERE user_id=?')
+    .bind(userId)
+    .first<{ kids_xp: number | null; kids_level: number | null }>();
+  const oldXp = Number(prev?.kids_xp ?? 0);
+  const oldLevel = Number(prev?.kids_level ?? levelForXp(oldXp));
+  const xp = oldXp + Math.max(0, Math.floor(amount));
+  const level = levelForXp(xp);
+  await db.prepare(
+    `INSERT INTO user_prefs (user_id, kids_xp, kids_level, updated_at) VALUES (?, ?, ?, datetime('now'))
+     ON CONFLICT(user_id) DO UPDATE SET kids_xp=excluded.kids_xp, kids_level=excluded.kids_level, updated_at=excluded.updated_at`
+  ).bind(userId, xp, level).run();
+  return { xp_gained: xp - oldXp, xp, level, new_level: level > oldLevel ? level : null };
+}

@@ -44,6 +44,7 @@ const ROUTES = [
   { match: (hash) => hash === "/login", key: "login", nav: null, title: "Sign in", fullscreen: true, fab: false },
   { match: (hash) => hash === "/kids", key: "kids", nav: "/", title: "Kids Vault", fab: false },
   { match: (hash) => hash === "/kids/badges", key: "kids-badges", nav: "/kids/badges", title: "Badges", fab: false },
+  { match: (hash) => hash.startsWith("/kids/set/"), key: "kids-set", nav: "/", title: "My set", fab: false },
 ];
 
 // In Kids Mode the app is locked to a price-free sandbox. Only these routes are
@@ -53,7 +54,9 @@ const ROUTES = [
 const KIDS_ALLOWED = new Set(["/kids", "/kids/badges", "/add", "/pile", "/login"]);
 
 export function allowedInKidsMode(hash) {
-  return KIDS_ALLOWED.has(normalizeRouteHash(hash));
+  const h = normalizeRouteHash(hash);
+  // The kid set page (#/kids/set/<num>) is price-free, unlike #/set/<num>.
+  return KIDS_ALLOWED.has(h) || /^\/kids\/set\/[^/]+$/.test(h);
 }
 
 export function normalizeRouteHash(hash = "/") {

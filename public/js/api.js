@@ -1199,6 +1199,12 @@ async function guestApi(path, opts = {}, streamMode = false) {
     }
   }
 
+  // Kids Mode play layer (built/favourite marks, daily game, badges) lives in
+  // localStorage for guests; lib/kids-guest.js mirrors routes/kids.ts.
+  if (pathname.startsWith('/api/kids/')) {
+    const { guestKids } = await import('./lib/kids-guest.js');
+    return { handled: true, value: guestKids(pathname, method, body, readGuestCollection()) };
+  }
   if (pathname === '/api/google/status' && method === 'GET') {
     return { handled: true, value: { connected: false, spreadsheet_id: null } };
   }

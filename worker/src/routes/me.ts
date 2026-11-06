@@ -281,6 +281,8 @@ export const USER_SCOPED_TABLES = [
   'user_build_cache',
   'user_showcase',
   'kids_badges',
+  'kids_set_marks',
+  'kids_game_plays',
   'portfolio_snapshots',
   'push_subscriptions',
   'native_push_tokens',
