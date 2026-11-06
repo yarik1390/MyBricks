@@ -1197,7 +1197,39 @@ export function seedFilterSort(rows, params = {}) {
     za: (a, b) => String(b.name || "").localeCompare(String(a.name || "")),
     trending: (a, b) => (Number(b.retirement_risk_score) || 0) - (Number(a.retirement_risk_score) || 0) || val(b) - val(a),
   }[params.sort] || cmpValueDescFallback;
-  return out.sort(cmp);
+  // Same final tiebreak as the API (ORDER BY ..., s.set_num): without it equal
+  // keys (every 2024 set under "Newest") come back in arbitrary order, so two
+  // offline pages can overlap.
+  const bySetNum = (a, b) => (String(a.set_num) < String(b.set_num) ? -1 : String(a.set_num) > String(b.set_num) ? 1 : 0);
+  return out.sort((a, b) => cmp(a, b) || bySetNum(a, b));
+}
+
+/**
+ * Append a freshly loaded catalog page to the rows already shown, one card per
+ * set number. Values move between page loads (hourly valuations re-rank value
+ * sorts), so the same set can come back on a later page: instead of a second
+ * card with a different price, the existing row is refreshed in place.
+ * Returns the merged list, the rows that are new, and the refreshed ones.
+ */
+export function mergeCatalogPage(items = [], fresh = []) {
+  const merged = items.slice();
+  const index = new Map();
+  merged.forEach((s, i) => { if (s?.set_num) index.set(s.set_num, i); });
+  const added = [];
+  const updated = [];
+  for (const s of fresh || []) {
+    if (!s?.set_num) continue;
+    const at = index.get(s.set_num);
+    if (at != null) {
+      merged[at] = s;
+      if (!updated.includes(s)) updated.push(s);
+      continue;
+    }
+    index.set(s.set_num, merged.length);
+    merged.push(s);
+    added.push(s);
+  }
+  return { items: merged, added, updated };
 }
 function cmpValueDescFallback(a, b) {
   return (Number(b.market_value) || 0) - (Number(a.market_value) || 0);
