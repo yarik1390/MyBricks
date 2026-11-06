@@ -77,7 +77,7 @@ export async function exaSearch(env: Env, options: ExaSearchOptions): Promise<Ex
   if (options.summary) body.contents = { summary: { query: options.summary.query, schema: options.summary.schema } };
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 30_000);
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 45_000);
   try {
     const response = await fetch(EXA_ENDPOINT, {
       method: 'POST',
