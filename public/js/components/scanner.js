@@ -1622,7 +1622,9 @@ function showTeachBarcode(el, code) {
     try {
       await api("/api/contributions/data", { method: "POST", body: { set_num: target.value, kind: "barcode", payload: { upc: String(code).replace(/\D/g, "") } } });
       toast(t("bvAdd.teachThanks"), "success");
-      clearScanResult({ restartCamera: true });
+      // The code now resolves for this user, so show the set straight away
+      // (add it to the vault in one tap) instead of dropping back to the camera.
+      sendScanToAPI({ mode: "barcode", barcode: String(code).replace(/\D/g, "") });
     } catch (err) {
       setBtnLoading(btn, false);
       toast(t("common.errorWithDetails", { error: err.message || err }), "error");

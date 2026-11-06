@@ -534,7 +534,7 @@ export const nl = {
     themeGroup: 'Themagroep',
     theme: 'Thema',
     teachTitle: 'Leer ons deze barcode',
-    teachThanks: 'Bedankt — we controleren en voegen hem toe.',
+    teachThanks: 'Bedankt! Hij werkt meteen voor jou, en voor iedereen zodra we hem gecontroleerd hebben.',
     teachSubmit: 'Ter controle sturen',
     teachSignIn: 'Log in om ons nieuwe barcodes te leren.',
     teachLabel: 'Welke set is het?',

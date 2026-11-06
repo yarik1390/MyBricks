@@ -1299,6 +1299,22 @@ CREATE TABLE IF NOT EXISTS set_contributions (
 CREATE INDEX IF NOT EXISTS idx_set_contributions_status ON set_contributions(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_set_contributions_user ON set_contributions(user_id);
 
+-- Every barcode a set is sold under. lego_sets.upc holds only ONE code (and is
+-- at D1's 100-column cap), so a set's US UPC used to crowd out its EU/UK EAN
+-- and European boxes never scanned. Rows come from Brickset (both codes per
+-- set), live lookups of unknown codes, and community "Teach us this barcode"
+-- submissions that were approved or confirmed by two people. set_num='' is a
+-- short-lived "looked it up, nobody knows it" marker so misses don't hammer
+-- the remote sources.
+CREATE TABLE IF NOT EXISTS set_barcodes (
+  code TEXT PRIMARY KEY,
+  set_num TEXT NOT NULL,
+  kind TEXT,
+  source TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_set_barcodes_set ON set_barcodes(set_num);
+
 -- Translated set descriptions. Descriptions are CATALOG DATA, not UI copy: a
 -- unique ~1,400-character paragraph per set, 9,681 sets, 13.3M characters. Bulk
 -- pre-translation into eight languages would be ~106M characters of model

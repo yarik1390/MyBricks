@@ -139,8 +139,40 @@ export async function fetchBarcodes(setNum: string, env: Env): Promise<BricksetB
   }
 }
 
+// Reverse lookup: which set carries this barcode? Brickset's search matches
+// barcodes (brickset.com/sets?query=5702017416328 finds 60372). Only a set
+// whose returned UPC/EAN equals one of the candidate codes is accepted, so a
+// fuzzy text hit can never be mistaken for a barcode match.
+export async function searchBricksetByBarcode(codes: string[], env: Env): Promise<{ setNum: string; codes: BricksetBarcodes } | null> {
+  if (!env.BRICKSET_API_KEY || !codes.length) return null;
+  const wanted = new Set(codes.map(c => c.replace(/^0+/, '')));
+  try {
+    const params = new URLSearchParams({
+      apiKey: env.BRICKSET_API_KEY,
+      userHash: '',
+      params: JSON.stringify({ query: codes[0], pageSize: '20', extendedData: '1' }),
+    });
+    const resp = await fetchTracked(env, 'brickset', `https://brickset.com/api/v3.asmx/getSets?${params}`, {
+      headers: { Accept: 'application/json' },
+    }, { timeoutMs: 6000, retries: 0 });
+    if (!resp.ok) return null;
+    const data = await resp.json() as { sets?: Array<Record<string, unknown>> };
+    for (const s of data.sets ?? []) {
+      if (!s.number) continue;
+      const bc = readBarcodes(s);
+      const hit = [bc.upc, bc.ean].some(c => c && wanted.has(c.replace(/^0+/, '')));
+      if (hit) return { setNum: `${s.number}-${s.numberVariant ?? 1}`, codes: bc };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export interface BricksetPageResult {
-  sets: Array<{ setNum: string; upc: string | null; enrichment: BricksetEnrichment }>;
+  // upc = the single code kept on lego_sets.upc (UPC preferred, EAN fallback);
+  // codes = every barcode Brickset lists for the set (US UPC and EU/UK EAN).
+  sets: Array<{ setNum: string; upc: string | null; codes: BricksetBarcodes; enrichment: BricksetEnrichment }>;
   total: number;
 }
 
@@ -219,6 +251,7 @@ export async function fetchBarcodesPage(page: number, env: Env): Promise<Brickse
         return {
           setNum: `${s.number}-${s.numberVariant ?? 1}`,
           upc: barcode.upc || barcode.ean,
+          codes: barcode,
           enrichment: parseEnrichment(rec),
         };
       });

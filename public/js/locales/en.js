@@ -543,7 +543,7 @@ export const en = {
     themeGroup: 'Theme group',
     theme: 'Theme',
     teachTitle: 'Teach us this barcode',
-    teachThanks: 'Thanks — we\'ll check and add it.',
+    teachThanks: 'Thanks! It works for you right away, and for everyone once we check it.',
     teachSubmit: 'Send for review',
     teachSignIn: 'Sign in to teach us new barcodes.',
     teachLabel: 'Which set is it?',

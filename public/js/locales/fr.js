@@ -534,7 +534,7 @@ export const fr = {
     themeGroup: 'Groupe de thèmes',
     theme: 'Thème',
     teachTitle: 'Apprenez-nous ce code-barres',
-    teachThanks: 'Merci — nous allons le vérifier et l’ajouter.',
+    teachThanks: 'Merci ! Il fonctionne déjà pour vous, et pour tout le monde après vérification.',
     teachSubmit: 'Envoyer pour vérification',
     teachSignIn: 'Connectez-vous pour nous apprendre de nouveaux codes-barres.',
     teachLabel: 'De quel set s’agit-il ?',
