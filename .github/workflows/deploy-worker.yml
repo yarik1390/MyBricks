@@ -255,7 +255,7 @@ jobs:
             "SELECT id, from_user, to_user, give_sets, get_sets, message, reply, status, updated_at, from_hidden, to_hidden, from_done, to_done, from_read_id, to_read_id, last_message_at FROM swap_requests LIMIT 0"
             "SELECT id, swap_id, from_user, body, created_at FROM swap_messages LIMIT 0"
             "SELECT user_id, other_user, kind, created_at FROM swap_blocks LIMIT 0"
-            "SELECT id, dedupe_key, kind, title, details, starts_on, ends_on, min_spend, gift_set_num, url, source, hidden, last_seen_at FROM promotions LIMIT 0"
+            "SELECT id, dedupe_key, kind, title, details, starts_on, ends_on, min_spend, gift_set_num, url, market, currency, source, hidden, last_seen_at FROM promotions LIMIT 0"
             "SELECT set_num, rb_url, rb_status, checked_at, fallback_url, fallback_source, fallback_checked_at, attempts FROM set_image_checks LIMIT 0"
             "SELECT user_id, id, name, set_nums, revision, updated_at FROM user_subcollections LIMIT 0"
             "SELECT deleted_at, last_modified, storage_location, acquisition_source, is_complete, missing_pieces, spike_alerted_at, custom_image_url, sold_price, sold_at, sell_target, sell_target_alerted_at, sold_fees, for_trade FROM user_collection LIMIT 0"

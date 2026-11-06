@@ -467,6 +467,8 @@ CREATE TABLE IF NOT EXISTS promotions (
   min_spend REAL,
   gift_set_num TEXT,
   url TEXT,
+  market TEXT NOT NULL DEFAULT 'US',
+  currency TEXT,
   source TEXT NOT NULL DEFAULT 'lego.com',
   hidden INTEGER NOT NULL DEFAULT 0,
   last_seen_at DATETIME,

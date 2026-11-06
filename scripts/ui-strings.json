@@ -4410,6 +4410,12 @@
     ]
   },
   {
+    "text": "LEGO.com store",
+    "files": [
+      "views/promotions.js"
+    ]
+  },
+  {
     "text": "LIMIT REACHED",
     "files": [
       "runtime-exact"
@@ -5087,7 +5093,7 @@
     ]
   },
   {
-    "text": "Minimum spend (USD)",
+    "text": "Minimum spend (in that store's currency)",
     "files": [
       "views/promotions.js"
     ]
@@ -9818,7 +9824,7 @@
     ]
   },
   {
-    "text": "US offers from LEGO.com. Check the details before you buy: stock and terms can change.",
+    "text": "US",
     "files": [
       "views/promotions.js"
     ]
@@ -11200,6 +11206,12 @@
     "text": "bv-pill bv-sethero__photos",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "bv-promos__note bv-foot",
+    "files": [
+      "views/promotions.js"
     ]
   },
   {
