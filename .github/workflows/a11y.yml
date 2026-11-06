@@ -38,6 +38,8 @@ jobs:
         run: npx --yes @lhci/cli@0.15.1 autorun --config=a11y/lighthouserc.json
       - name: Upload axe report
         if: always()
+        # Report-only: a full Actions artifact quota must not fail the check.
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: axe-report
