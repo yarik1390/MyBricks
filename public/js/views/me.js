@@ -4,7 +4,7 @@
 // here — the long tail lives in sheets (Appearance, Currency & region, Public
 // profile) so the hub stays one scannable list.
 import { $, $$, haptic, escapeHtml, fmtMoney, fmtMoneyShort, toast, setHue, bvIDB, celebrate, celebrateChime, soundEnabled, advisorEnabled, publicOrigin } from '../utils.js';
-import { state, invalidatePortfolio, earlyAccessPro } from '../state.js';
+import { state, invalidatePortfolio, earlyAccessPro, proLooksUnlocked } from '../state.js';
 import { api, sbSignOut, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
 import { promptSheet, showSheet, hideSheet } from '../components/sheet.js';
@@ -174,7 +174,7 @@ export async function renderMe() {
   try {
     me = me || await api("/api/me");
     state.me = me;
-    syncAppIconWithPro(!!me.is_supporter).catch(() => {});
+    syncAppIconWithPro(proLooksUnlocked(me)).catch(() => {});
   } catch (_e) {
     toast(t('bvAccount.loadFailed'), "error");
     me = me || { display_name: t('bvAccount.collector'), handle: null, notify_price_drops: true, portfolio_stats: {} };
@@ -365,7 +365,8 @@ async function wireAppLock() {
 // ------------------------------------------------------------- Appearance
 function openAppearanceSheet(me) {
   const skins = [['retro', 'bvAccount.skinRetro'], ['modular', 'bvAccount.skinModular'], ['vivid', 'bvAccount.skinVivid'], ['premium', 'bvAccount.skinPremium'], ['gold', 'bvAccount.skinGold']];
-  const locked = (v) => !me.is_supporter && (v === 'premium' || v === 'gold');
+  const looks = proLooksUnlocked(me);
+  const locked = (v) => !looks && (v === 'premium' || v === 'gold');
   const switchRow = (id, label, sub, on) => `<div class="bv-prefrow"><span class="bv-prefrow__text"><span class="bv-prefrow__title">${escapeHtml(label)}</span><span class="bv-prefrow__sub">${escapeHtml(sub)}</span></span>${toggle({ id, on, label })}</div>`;
   showSheet(sheetBody({
     title: t('bvAccount.appearance'),
@@ -374,10 +375,10 @@ function openAppearanceSheet(me) {
         <div class="bv-field"><span class="bv-field__label">${escapeHtml(t('bvAccount.theme'))}</span>${seg([['light', 'bvAccount.themeLight'], ['auto', 'bvAccount.themeAuto'], ['dark', 'bvAccount.themeDark']].map(([value, key]) => ({ label: t(key), value, current: getThemePref() === value })), { label: t('bvAccount.theme'), id: 'themeSeg' })}</div>
         <div class="bv-field"><span class="bv-field__label">${escapeHtml(t('bvAccount.style'))}</span>
           <div class="bv-chips bv-chips--wrap" id="skinSeg" role="group" aria-label="${escapeHtml(t('bvAccount.style'))}">${skins.map(([v, key]) => `<button type="button" class="bv-chip" data-skin-val="${v}" aria-pressed="${getSkinPref() === v}"><span class="bv-skin-dot bv-skin-dot--${v}" aria-hidden="true"></span>${escapeHtml(t(key))}${locked(v) ? ' ★' : ''}</button>`).join('')}</div>
-          <span class="bv-field__help">${escapeHtml(t(me.is_supporter ? 'bvAccount.styleHelpPro' : 'bvAccount.styleHelp'))}</span></div>
+          <span class="bv-field__help">${escapeHtml(t(looks ? (me.is_supporter ? 'bvAccount.styleHelpPro' : 'bvAccount.styleHelpEarly') : 'bvAccount.styleHelp'))}</span></div>
         ${appIconAvailable() ? `<div class="bv-field"><span class="bv-field__label">${escapeHtml(t('bvAccount.appIcon'))}</span>
-          <div class="bv-chips bv-chips--wrap" id="iconSeg" role="group" aria-label="${escapeHtml(t('bvAccount.appIcon'))}">${[['default', 'bvAccount.appIconClassic'], ['gold', 'bvAccount.appIconGold']].map(([v, key]) => `<button type="button" class="bv-chip" data-icon-val="${v}" aria-pressed="${v === 'default'}">${escapeHtml(t(key))}${!me.is_supporter && v === 'gold' ? ' ★' : ''}</button>`).join('')}</div>
-          <span class="bv-field__help">${escapeHtml(t(me.is_supporter ? 'bvAccount.appIconHelpPro' : 'bvAccount.appIconHelp'))}</span></div>` : ''}
+          <div class="bv-chips bv-chips--wrap" id="iconSeg" role="group" aria-label="${escapeHtml(t('bvAccount.appIcon'))}">${[['default', 'bvAccount.appIconClassic'], ['gold', 'bvAccount.appIconGold']].map(([v, key]) => `<button type="button" class="bv-chip" data-icon-val="${v}" aria-pressed="${v === 'default'}">${escapeHtml(t(key))}${!looks && v === 'gold' ? ' ★' : ''}</button>`).join('')}</div>
+          <span class="bv-field__help">${escapeHtml(t(looks ? 'bvAccount.appIconHelpPro' : 'bvAccount.appIconHelp'))}</span></div>` : ''}
         <div class="bv-field"><span class="bv-field__label">${escapeHtml(t('bvAccount.viewMode'))}</span>${seg([['pro', 'bvAccount.modeFull'], ['simple', 'bvAccount.modeSimple']].map(([value, key]) => ({ label: t(key), value, current: getModePref() === value })), { label: t('bvAccount.viewMode'), id: 'modeSeg' })}
           <span class="bv-field__help">${escapeHtml(t('bvAccount.viewModeHelp'))}</span></div>
         <div class="bv-field"><label for="languageSelect">${escapeHtml(t("settings.language"))}</label>
@@ -401,7 +402,7 @@ function openAppearanceSheet(me) {
   }));
   $$("#skinSeg [data-skin-val]").forEach(b => b.addEventListener("click", () => {
     const val = b.dataset.skinVal;
-    if (!me.is_supporter && (val === "premium" || val === "gold")) {
+    if (locked(val)) {
       toast(t('bvAccount.skinLocked'), "info");
       return;
     }
@@ -413,7 +414,7 @@ function openAppearanceSheet(me) {
   if (appIconAvailable()) getAppIcon().then(pressIcon);
   $$("#iconSeg [data-icon-val]").forEach(b => b.addEventListener("click", async () => {
     const val = b.dataset.iconVal;
-    if (!me.is_supporter && val === 'gold') {
+    if (!looks && val === 'gold') {
       toast(t('bvAccount.appIconLocked'), "info");
       return;
     }
