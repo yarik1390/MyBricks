@@ -192,7 +192,9 @@ export async function importSets(db: D1Database, env?: Env, options: CatalogImpo
   const updated = await db.prepare(`
     UPDATE lego_sets AS ls SET
       name = s.name, year = s.year, theme = s.theme,
-      pieces = s.pieces, minifigs = s.minifigs,
+      -- Rebrickable lists a new set with 0 parts until it is inventoried;
+      -- keep a piece count Brickset already filled in (brickset-enrich.ts).
+      pieces = CASE WHEN COALESCE(s.pieces, 0) = 0 AND COALESCE(ls.pieces, 0) > 0 THEN ls.pieces ELSE s.pieces END, minifigs = s.minifigs,
       image_url = COALESCE(s.image_url, ls.image_url),
       -- Magazine gifts have no retail beyond a real Brickset MSRP: never
       -- seed the piece-count estimate.
@@ -207,7 +209,7 @@ export async function importSets(db: D1Database, env?: Env, options: CatalogImpo
     FROM _rb_sets_stage AS s
     WHERE s.set_num = ls.set_num AND (
       s.name IS NOT ls.name OR s.year IS NOT ls.year OR s.theme IS NOT ls.theme
-      OR s.pieces IS NOT ls.pieces OR s.minifigs IS NOT ls.minifigs
+      OR (s.pieces IS NOT ls.pieces AND COALESCE(s.pieces, 0) > 0) OR s.minifigs IS NOT ls.minifigs
       OR COALESCE(s.image_url, ls.image_url) IS NOT ls.image_url
       OR (ls.valuation_method NOT IN ${PROTECTED} AND (
         (CASE WHEN LOWER(COALESCE(ls.subtheme, '')) = 'magazine gift' THEN ls.brickset_msrp ELSE s.retail_price END) IS NOT ls.retail_price

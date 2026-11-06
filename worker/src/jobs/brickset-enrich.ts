@@ -29,6 +29,7 @@ const BRICKSET_SCHEMA = {
     review_count: { type: 'number', description: 'Number of user reviews' },
     brickset_set_id: { type: 'number', description: 'Brickset internal numeric set ID shown in the URL or page metadata' },
     dimensions: { type: 'string', description: 'Physical dimensions of the packaged set' },
+    pieces: { type: 'number', description: 'Number of pieces in the set' },
   },
 };
 
@@ -81,9 +82,17 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number; bud
   const { results } = await env.DB.prepare(`
     SELECT ls.set_num, ls.year, ls.brickset_enriched_at
     FROM lego_sets ls LEFT JOIN set_market_ext ext ON ext.set_num=ls.set_num
-    WHERE (ls.brickset_enriched_at IS NULL OR ls.brickset_enriched_at < datetime('now', '-90 days'))
+    -- A recent set with no piece count yet (Rebrickable lists new sets with 0
+    -- parts until they are inventoried) is read again weekly, not every 90
+    -- days: the value model prices it from its pieces (21065 Sagrada Família,
+    -- 12,060 pieces, was valued below retail with 0, 2026-11-06).
+    WHERE (ls.brickset_enriched_at IS NULL OR ls.brickset_enriched_at < datetime('now', '-90 days')
+           OR (COALESCE(ls.pieces, 0) = 0 AND ls.year >= CAST(strftime('%Y', 'now') AS INTEGER) - 1
+               AND ls.brickset_enriched_at < datetime('now', '-7 days')))
       AND (ext.brickset_attempted_at IS NULL OR ext.brickset_attempted_at < datetime('now',
-        CASE ext.brickset_attempt_status WHEN 'error' THEN '-1 hour' ELSE '-90 days' END))
+        CASE WHEN ext.brickset_attempt_status = 'error' THEN '-1 hour'
+             WHEN COALESCE(ls.pieces, 0) = 0 AND ls.year >= CAST(strftime('%Y', 'now') AS INTEGER) - 1 THEN '-7 days'
+             ELSE '-90 days' END))
       AND ls.year >= 2000
     ORDER BY
       (ext.brickset_attempted_at IS NOT NULL), ext.brickset_attempted_at,
@@ -207,6 +216,9 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number; bud
     maybe('brickset_review_count', intInRange(d.review_count, 0, 1_000_000));
     maybe('brickset_set_id', intInRange(d.brickset_set_id, 1, 100_000_000));
     maybe('brickset_dimensions', d.dimensions);
+    // Fill a missing piece count only; a Rebrickable count is never replaced.
+    const pieces = intInRange(d.pieces, 1, 50_000);
+    if (pieces != null) { fields.push('pieces=CASE WHEN COALESCE(pieces, 0) = 0 THEN ? ELSE pieces END'); binds.push(pieces); }
     if (Array.isArray(d.tags) && d.tags.length) {
       // Scraped tags can carry a "|x" metadata suffix ("Harry Potter|n") that
       // must never reach the UI — store the bare label.
