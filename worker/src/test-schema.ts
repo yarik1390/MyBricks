@@ -782,6 +782,17 @@ export const TABLE_DDL: Record<string, string> = {
 )`,
 
 
+  set_image_checks: `CREATE TABLE IF NOT EXISTS set_image_checks (
+  set_num TEXT PRIMARY KEY,
+  rb_url TEXT,
+  rb_status INTEGER,
+  checked_at TEXT,
+  fallback_url TEXT,
+  fallback_source TEXT,
+  fallback_checked_at TEXT,
+  attempts INTEGER DEFAULT 0
+)`,
+
   app_settings: `CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,
   value TEXT,

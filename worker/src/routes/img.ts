@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, Variables } from '../types';
 import { ALLOWED_IMG_HOSTS, imageR2Key } from '../lib/img-proxy';
+import { recordMissingRebrickableImage } from '../jobs/set-image-backfill';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -116,7 +117,14 @@ app.get('/', async (c) => {
   } catch {
     return redirectToOrigin();
   }
-  if (!upstream.ok) return upstream.status === 404 || upstream.status === 410 ? placeholderResponse() : redirectToOrigin();
+  if (!upstream.ok) {
+    if (upstream.status === 404 || upstream.status === 410) {
+      // Queue the set for the photo fallback job (set-image-backfill).
+      c.executionCtx.waitUntil(recordMissingRebrickableImage(c.env, src));
+      return placeholderResponse();
+    }
+    return redirectToOrigin();
+  }
   const contentType = upstream.headers.get('content-type') || 'image/jpeg';
   if (!contentType.startsWith('image/') || !upstream.body) return redirectToOrigin();
 

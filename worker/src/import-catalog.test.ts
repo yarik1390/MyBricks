@@ -46,6 +46,19 @@ describe('import-catalog', () => {
     expect(progress.at(-1)).toBe(250); // final callback reports the full count
   });
 
+  it('importSets keeps a photo fallback instead of the Rebrickable URL', async () => {
+    await applyTestTables(db, ['set_image_checks']);
+    await importSets(db);
+    const fb = 'https://images.brickset.com/sets/images/75192-1.jpg';
+    await db.prepare(`UPDATE lego_sets SET image_url=?1 WHERE set_num='75192-1'`).bind(fb).run();
+    await db.prepare(`INSERT INTO set_image_checks (set_num, rb_url, rb_status, fallback_url, fallback_source)
+      VALUES ('75192-1','https://cdn.rebrickable.com/x.jpg',404,?1,'brickset')`).bind(fb).run();
+    await importSets(db);
+    const row = await db.prepare(`SELECT image_url FROM lego_sets WHERE set_num='75192-1'`).first<any>();
+    expect(row.image_url).toBe(fb);
+    await db.prepare('DROP TABLE set_image_checks').run();
+  });
+
   it('importSets resolves themes, parses quoted CSV, and writes a formula valuation', async () => {
     const r = await importSets(db);
     expect(r).toMatchObject({ loaded: 1, themes: 2 });
