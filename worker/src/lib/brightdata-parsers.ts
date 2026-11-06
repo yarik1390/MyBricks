@@ -18,6 +18,8 @@ export interface BricksetScrape {
   review_count: number | null;
   brickset_set_id: number | null;
   dimensions: string | null;
+  /** Piece count ('Pieces' row); optional so older scrapes still type-check. */
+  pieces?: number | null;
 }
 
 const decodeHtml = (value: string): string => value
@@ -101,6 +103,7 @@ export function parseBricksetHtml(html: string): BricksetScrape | null {
     review_count: finite(ratingText.match(/([0-9,]+)\s+(?:ratings|reviews)/i)?.[1]?.replace(/,/g, '')),
     brickset_set_id: finite(internalId),
     dimensions: get('dimensions', 'packaging size'),
+    pieces: finite((get('pieces') ?? '').replace(/,/g, '').match(/\d+/)?.[0]),
   };
   return Object.values(result).some((value) => value != null) ? result : null;
 }

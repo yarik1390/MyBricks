@@ -67,6 +67,20 @@ describe('runTrainValueModel', () => {
     expect(await modelValue('ECHO-1')).toBeNull();
   });
 
+  it('never estimates a set launched in the last 6 months below its retail price', async () => {
+    const day = (d: number) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
+    await insertSets([
+      ...trainingSets(240).map((t) => ({ ...t, year: YEAR, retired: 0, bl_new_value: t.theme === 'City' ? 35 : t.bl_new_value })),
+      { set_num: 'LAUNCH-1', name: 'Just out', year: YEAR, retired: 0, pieces: 500, theme: 'City', retail_price: 100, launch_date: day(5) },
+      { set_num: 'OLDER-1', name: 'Out a year', year: YEAR, retired: 0, pieces: 500, theme: 'City', retail_price: 100, launch_date: day(300) },
+      { set_num: 'GONE-1', name: 'Retired early', year: YEAR, retired: 1, pieces: 500, theme: 'City', retail_price: 100, launch_date: day(5) },
+    ]);
+    await runTrainValueModel(env as any);
+    expect((await modelValue('LAUNCH-1'))!.model_value).toBe(100);
+    expect((await modelValue('OLDER-1'))!.model_value!).toBeLessThan(80);
+    expect((await modelValue('GONE-1'))!.model_value!).toBeLessThan(100);
+  });
+
   it('blends in the BrickLink used guide when one exists', async () => {
     await insertSets([
       // Used sells at half the new price across the training sets.
