@@ -2487,6 +2487,32 @@ describe('localStoreOffers', () => {
   });
 });
 
+import { mergeCatalogPage } from '../lib/pure.js';
+
+describe('mergeCatalogPage', () => {
+  it('appends new sets and refreshes a set that comes back on a later page', () => {
+    const shown = [{ set_num: '42163-1', value: 8 }, { set_num: '42164-1', value: 11 }];
+    const page = [{ set_num: '42163-1', value: 9 }, { set_num: '412401-1', value: 5 }];
+    const r = mergeCatalogPage(shown, page);
+    assert.deepEqual(r.items.map(s => s.set_num), ['42163-1', '42164-1', '412401-1']);
+    assert.equal(r.items[0].value, 9);
+    assert.deepEqual(r.added.map(s => s.set_num), ['412401-1']);
+    assert.deepEqual(r.updated.map(s => s.set_num), ['42163-1']);
+  });
+  it('drops duplicates inside one page', () => {
+    const r = mergeCatalogPage([], [{ set_num: 'a' }, { set_num: 'a' }, { set_num: 'b' }]);
+    assert.deepEqual(r.items.map(s => s.set_num), ['a', 'b']);
+    assert.deepEqual(r.added.map(s => s.set_num), ['a', 'b']);
+  });
+});
+
+describe('seedFilterSort tiebreak', () => {
+  it('orders equal years by set number, like the API', () => {
+    const rows = ['42164-1', '412501-1', '42163-1', '30682-1'].map(n => ({ set_num: n, year: 2024, pieces: 100, theme: 'Technic' }));
+    assert.deepEqual(seedFilterSort(rows, { sort: 'year_desc' }).map(s => s.set_num), ['30682-1', '412501-1', '42163-1', '42164-1']);
+  });
+});
+
 describe('findContactDetails', async () => {
   const { findContactDetails } = await import('../lib/pure.js');
   it('flags emails, phones, links and messengers', () => {

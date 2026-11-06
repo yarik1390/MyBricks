@@ -332,6 +332,16 @@ const searchHandler = async (c: Context<{ Bindings: Env; Variables: Variables }>
     } catch (_) { /* non-critical */ }
   }
 
+  // One row per set number on a page, whatever a join or the Rebrickable merge
+  // above produced, so a card never shows twice with two prices.
+  const pageSeen = new Set<string>();
+  rows = rows.filter(r => {
+    const k = String(r.set_num ?? '');
+    if (!k || pageSeen.has(k)) return false;
+    pageSeen.add(k);
+    return true;
+  });
+
   return c.json({ sets: rows.map(stripServerOnlyFields), total, hasMore: offset + rows.length < total, search_degraded: searchDegraded });
 };
 

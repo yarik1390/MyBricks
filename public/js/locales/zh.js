@@ -534,7 +534,7 @@ export const zh = {
     themeGroup: '主题组',
     theme: '主题',
     teachTitle: '告诉我们这个条形码',
-    teachThanks: '谢谢——我们会核实并添加。',
+    teachThanks: '谢谢！对你立即生效，我们核实后对所有人生效。',
     teachSubmit: '提交审核',
     teachSignIn: '登录后即可告诉我们新的条形码。',
     teachLabel: '这是哪套？',

@@ -534,7 +534,7 @@ export const es = {
     themeGroup: 'Grupo de temas',
     theme: 'Tema',
     teachTitle: 'Enséñanos este código',
-    teachThanks: 'Gracias: lo revisaremos y lo añadiremos.',
+    teachThanks: '¡Gracias! Ya funciona para ti y, cuando lo revisemos, para todos.',
     teachSubmit: 'Enviar a revisión',
     teachSignIn: 'Inicia sesión para enseñarnos códigos nuevos.',
     teachLabel: '¿Qué set es?',
