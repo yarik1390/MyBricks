@@ -105,12 +105,12 @@ describe('Exa jobs', () => {
     fetchMock.mockImplementation(async (_url, init) => {
       const q = JSON.parse(String(init?.body)).query as string;
       if (q.includes('10300')) {
-        return exaResponse([{ url: 'https://brickset.com/article/1', summary: { mentions_set: true, retiring: true, retirement_date: `${y}-12` } }]);
+        return exaResponse([{ url: 'https://brickset.com/article/1', summary: { mentions_set: 'true', retiring: true, retirement_date: `${y}-12` } }]);
       }
       return exaResponse([{ url: 'https://brickset.com/article/2', summary: { mentions_set: true, retiring: false } }]);
     });
     const r = await runExaRetirementLookups(withKey, { limit: 10 });
-    expect(r).toMatchObject({ processed: 2, found: 1, failed: 0 });
+    expect(r).toMatchObject({ processed: 2, found: 1, search_errors: 0 });
     const news = await db.prepare(`SELECT set_num, expected_date FROM set_news`).all();
     expect(news.results).toEqual([{ set_num: '10300-1', expected_date: `${y}-12-31` }]);
     const stamps = await db.prepare(`SELECT set_num, status FROM exa_lookups ORDER BY set_num`).all();

@@ -200,13 +200,13 @@ export async function runExaNewsScan(env: Env, options: { now?: Date } = {}) {
 
   const rows: NewsRow[] = [];
   let searches = 0;
-  let failed = 0;
+  let searchErrors = 0;
   for (const query of NEWS_QUERIES) {
     const results = await exaSearch(env, {
       query, numResults: 8, includeDomains: LEGO_NEWS_DOMAINS, startPublishedDate: since,
       summary: { query: NEWS_PROMPT, schema: NEWS_SCHEMA },
     });
-    if (!results) { failed++; continue; }
+    if (!results) { searchErrors++; continue; }
     searches++;
     for (const r of results) rows.push(...newsRowsFromResult(r, now));
   }
@@ -226,7 +226,7 @@ export async function runExaNewsScan(env: Env, options: { now?: Date } = {}) {
     `DELETE FROM upcoming_sets WHERE scraped_at IS NULL AND datetime(first_seen_at) < datetime('now', '-150 days')`,
   ).run()).meta.changes ?? 0;
 
-  return { searches, failed, reports: kept.length, retiring: retiring.length, rescored, upcoming: upcoming.length, upcoming_added: upcomingAdded, pruned };
+  return { searches, search_errors: searchErrors, reports: kept.length, retiring: retiring.length, rescored, upcoming: upcoming.length, upcoming_added: upcomingAdded, pruned };
 }
 
 // ---------------------------------------------------------------------------
@@ -242,11 +242,14 @@ const LOOKUP_SCHEMA = {
   },
 };
 
+/** A summary's yes/no answer: true, or the text "true"/"yes". */
+const yes = (v: unknown): boolean => v === true || (typeof v === 'string' && /^(true|yes)$/i.test(v.trim()));
+
 /** A set_news row from one lookup result, or null when the page doesn't report it retiring. */
 export function lookupRowFromResult(setNum: string, r: ExaResult, now = new Date()): NewsRow | null {
   const s = r.summary as { mentions_set?: unknown; retiring?: unknown; retirement_date?: unknown } | null;
   const domain = hostOf(r.url);
-  if (!s || s.mentions_set !== true || s.retiring !== true || !domain) return null;
+  if (!s || !yes(s.mentions_set) || !yes(s.retiring) || !domain) return null;
   return {
     set_num: setNum, kind: 'retiring', url: r.url.slice(0, 500), domain,
     title: r.title?.slice(0, 200) ?? null, name: null, published_at: r.publishedDate,
@@ -285,7 +288,7 @@ export async function runExaRetirementLookups(env: Env, options: { limit?: numbe
   const stmts: D1PreparedStatement[] = [];
   const found: string[] = [];
   let processed = 0;
-  let failed = 0;
+  let searchErrors = 0;
   for (const { set_num, name } of results ?? []) {
     if ((await quotaRemaining(env, 'exa')) < 1) break;
     processed++;
@@ -299,7 +302,7 @@ export async function runExaRetirementLookups(env: Env, options: { limit?: numbe
       },
     });
     let status = 'none';
-    if (!hits) { status = 'error'; failed++; }
+    if (!hits) { status = 'error'; searchErrors++; }
     for (const r of hits ?? []) {
       const row = lookupRowFromResult(set_num, r, now);
       if (row) { stmts.push(upsertNews(env, row)); status = 'found'; }
@@ -312,5 +315,5 @@ export async function runExaRetirementLookups(env: Env, options: { limit?: numbe
   }
   for (let i = 0; i < stmts.length; i += 90) await env.DB.batch(stmts.slice(i, i + 90));
   const rescored = await rescoreRetirementRisk(env, found);
-  return { processed, found: found.length, failed, rescored };
+  return { processed, found: found.length, search_errors: searchErrors, rescored };
 }
