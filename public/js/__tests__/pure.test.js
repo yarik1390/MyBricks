@@ -2459,6 +2459,19 @@ describe('localizeStoreUrl', () => {
   });
 });
 
+describe('formatMoneyIn', () => {
+  it('writes amounts the way the app language writes numbers', async () => {
+    const { formatMoneyIn } = await import('../lib/pure.js');
+    const sp = (x) => x.replace(/[\u00a0\u202f]/g, ' ');
+    assert.equal(formatMoneyIn(1322, { currency: 'EUR', symbol: '€', locale: 'en', digits: 0 }), '€1,322');
+    assert.equal(sp(formatMoneyIn(1322, { currency: 'EUR', symbol: '€', locale: 'uk', digits: 0 })), '1 322 €');
+    assert.equal(sp(formatMoneyIn(749.99, { currency: 'EUR', symbol: '€', locale: 'uk' })), '749,99 €');
+    assert.equal(sp(formatMoneyIn(1322, { currency: 'EUR', symbol: '€', locale: 'de', digits: 0 })), '1.322 €');
+    assert.equal(formatMoneyIn(-712.38, { currency: 'CAD', symbol: 'CA$', locale: 'en' }), '-CA$712.38');
+    assert.equal(formatMoneyIn(1300, { currency: 'USD', symbol: '$', locale: 'en', digits: 0, compact: true }), '$1.3K');
+    assert.equal(formatMoneyIn(null, { currency: 'USD', symbol: '$' }), '—');
+  });
+});
 describe('localStoreOffers', () => {
   it('keeps the local LEGO.com price and sorts on its USD equivalent', async () => {
     const { localStoreOffers } = await import('../lib/pure.js');

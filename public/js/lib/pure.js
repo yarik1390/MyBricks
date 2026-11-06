@@ -15,6 +15,34 @@ import { displayValueOf } from './pure-core.js';
  * Imported by utils.js and portfolio.js (see those files for DOM-aware wrappers).
  */
 
+/**
+ * A money amount written the way the app's language writes numbers: "€1,322"
+ * in English, "1 322 €" in Ukrainian or French, "1.322 €" in German. English
+ * grouping in a Ukrainian app read "€1,322" as one euro thirty-two (Sagrada
+ * Família set page, 2026-11-06). `symbol` (optional) replaces Intl's own sign so
+ * CA$/A$ stay unambiguous; `digits` is the number of decimals (0 = whole amount);
+ * `compact` writes "€1.3K" in English, "1,3 тис. €" in Ukrainian.
+ */
+const moneyFormatters = new Map();
+export function formatMoneyIn(amount, { currency = 'USD', symbol = null, locale = 'en', digits = 2, compact = false } = {}) {
+  const n = Number(amount);
+  if (amount == null || !Number.isFinite(n)) return '—';
+  const key = `${locale}|${currency}|${digits}|${compact}`;
+  try {
+    let f = moneyFormatters.get(key);
+    if (!f) {
+      f = new Intl.NumberFormat(locale || 'en', compact
+        ? { style: 'currency', currency, currencyDisplay: 'narrowSymbol', notation: 'compact', minimumFractionDigits: 0, maximumFractionDigits: 1 }
+        : { style: 'currency', currency, currencyDisplay: 'narrowSymbol', minimumFractionDigits: digits, maximumFractionDigits: digits });
+      moneyFormatters.set(key, f);
+    }
+    return f.formatToParts(n).map((p) => (p.type === 'currency' && symbol ? symbol : p.value)).join('');
+  } catch {
+    const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    return (n < 0 ? '-' : '') + (symbol || currency + ' ') + abs;
+  }
+}
+
 export function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }

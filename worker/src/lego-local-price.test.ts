@@ -67,7 +67,13 @@ describe('Compare stores with a local LEGO.com price', () => {
   it('asks for a check when the local price is missing, and hides LEGO.com when it is not sold there', async () => {
     const none = await (await app.fetch(new Request('https://example.test/api/stores/21066-1?market=DE'), env as any, ctx)).json() as any;
     expect(none.lego_local_due).toBe(true);
-    expect(none.offers.find((o: any) => o.store === 'lego')).toMatchObject({ price: 99.99 });
+    // The US fallback abroad is flagged as the US price with no stock note
+    // (US stock says nothing about lego.com/de-de); a US member keeps both.
+    expect(none.offers.find((o: any) => o.store === 'lego')).toMatchObject({ price: 99.99, us_price: true, in_stock: null });
+    const usRow = (await (await app.fetch(new Request('https://example.test/api/stores/21066-1?market=US'), env as any, ctx)).json() as any)
+      .offers.find((o: any) => o.store === 'lego');
+    expect(usRow).toMatchObject({ price: 99.99, in_stock: true });
+    expect(usRow.us_price).toBeUndefined();
     await db.prepare(`INSERT INTO lego_local_prices (set_num, market, currency, price, in_stock, availability, checked_at)
       VALUES ('21067-1', 'FR', 'EUR', NULL, 0, 'not_sold', datetime('now'))`).run();
     const gone = await (await app.fetch(new Request('https://example.test/api/stores/21067-1?market=FR'), env as any, ctx)).json() as any;
