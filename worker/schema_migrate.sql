@@ -778,3 +778,6 @@ ALTER TABLE set_market_ext ADD COLUMN bundle_value REAL;
 ALTER TABLE set_market_ext ADD COLUMN bundle_cached_at TEXT;
 -- No-sales set with a swinging estimate: value withheld (detectValueMovers).
 ALTER TABLE set_market_ext ADD COLUMN value_unstable_at TEXT;
+-- Promotions per LEGO.com country store, in that store's own currency.
+ALTER TABLE promotions ADD COLUMN market TEXT NOT NULL DEFAULT 'US';
+ALTER TABLE promotions ADD COLUMN currency TEXT;

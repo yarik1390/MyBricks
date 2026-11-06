@@ -10,7 +10,7 @@ import { showSheet, hideSheet } from '../components/sheet.js';
 import { openScan, lookupScanInput } from '../components/scanner-lazy.js';
 import { trustBadgeHTML } from '../components/trust.js';
 import { priceItCardHTML } from '../components/price-it-card.js';
-import { activeCatalogFilterCount, pricePerPiece, estMark, displayValueOf, cleanFacetList } from '../lib/pure.js';
+import { activeCatalogFilterCount, pricePerPiece, estMark, displayValueOf, cleanFacetList, mergeCatalogPage } from '../lib/pure.js';
 import { catalogFilterSummaryText } from '../lib/filter-summary.js';
 import { scanIntentFromHash } from '../lib/deep-links.js';
 import { skelPage, skelCardList } from '../components/skeleton.js';
@@ -134,6 +134,12 @@ export async function loadCatalog({ reset = false } = {}) {
   const c = state.catalog;
   if (!reset && c.loading) return [];
   if (!reset && !c.hasMore) return [];
+  // Scrolling an offline (seed) list once the API is back: reload from the
+  // top instead of asking the API for the seed's offset, whose rows and order
+  // don't line up with the live catalog.
+  const fromSeed = !reset && !!c._seed;
+  const before = fromSeed ? { offset: c.offset, hasMore: c.hasMore, total: c.total } : null;
+  if (fromSeed) reset = true;
   if (reset) { _catalogGen++; c.offset = 0; c.hasMore = false; c.total = 0; }
   const myGen = _catalogGen;
   const key = catalogKey();
@@ -141,16 +147,33 @@ export async function loadCatalog({ reset = false } = {}) {
   try {
     const res = await api("/api/sets/search?" + catalogQuery());
     if (myGen !== _catalogGen) return [];
-    const fresh = res.sets || [];
+    const page = res.sets || [];
     c._key = key;
-    c.items = reset ? fresh : c.items.concat(fresh);
+    // One card per set: a set already shown (re-ranked by a valuation between
+    // page loads, or left over from an offline page) is refreshed in place
+    // instead of appearing again with a different price.
+    const merged = mergeCatalogPage(reset ? [] : c.items, page);
+    c.items = merged.items;
+    c._updated = reset ? [] : merged.updated;
     c.total = res.total ?? c.items.length;
-    c.offset = c.items.length;
+    // Page by what the server returned, not by unique cards, so a merged
+    // duplicate can't pull the next page's offset backwards.
+    c.offset = (reset ? 0 : c.offset) + page.length;
     c.hasMore = !!res.hasMore;
     c._seed = false;
-    return fresh;
+    if (fromSeed) {
+      if (location.hash.startsWith("#/add") && $("#catalogResults")) refreshCatalogGrid();
+      return [];
+    }
+    return merged.added;
   } catch (e) {
     if (myGen !== _catalogGen) return [];
+    // A failed "load more" under live results keeps what's shown and lets the
+    // sentinel retry: splicing an offline page in here mixed the bundled
+    // snapshot (older prices, its own ordering) into the live list, so sets
+    // already on screen came back a second time with a different price.
+    if (!reset && !c._seed && c.items.length) return [];
+    if (fromSeed) { Object.assign(c, before); return []; }
     // Offline / API unreachable: fall back to the bundled seed catalog so a
     // fresh install with no network can still browse and search the top sets.
     try {
@@ -158,10 +181,12 @@ export async function loadCatalog({ reset = false } = {}) {
       const params = Object.fromEntries(new URLSearchParams(catalogQuery()));
       const seed = await searchSeedCatalog(params);
       if (myGen === _catalogGen && seed && (seed.sets.length || reset)) {
-        const fresh = seed.sets;
-        c.items = reset ? fresh : c.items.concat(fresh);
+        const merged = mergeCatalogPage(reset ? [] : c.items, seed.sets);
+        const fresh = merged.added;
+        c.items = merged.items;
+        c._updated = [];
         c.total = seed.total;
-        c.offset = c.items.length;
+        c.offset = (reset ? 0 : c.offset) + seed.sets.length;
         c.hasMore = seed.hasMore;
         c._seed = true;
         return fresh;
@@ -482,10 +507,17 @@ function mountCatalogSentinel() {
   state._catalogObserver = new IntersectionObserver(async (entries) => {
     if (!entries[0].isIntersecting || state.catalog.loading) return;
     const fresh = await loadCatalog();
+    // Sets that came back on this page but are already shown: repaint their
+    // card with the newer value rather than adding a second one.
+    for (const s of state.catalog._updated || []) {
+      const card = grid.querySelector(`[data-set="${CSS.escape(s.set_num)}"]`);
+      if (card) card.outerHTML = catalogCardHTML(s);
+    }
     if (fresh.length) {
       grid.insertAdjacentHTML("beforeend", fresh.map(s => catalogCardHTML(s)).join(""));
-      wireCatalogCards();
     }
+    if (fresh.length || state.catalog._updated?.length) wireCatalogCards();
+    state.catalog._updated = [];
     sentinel.style.display = state.catalog.hasMore ? "" : "none";
     if (!state.catalog.hasMore) state._catalogObserver.disconnect();
   }, { rootMargin: "400px" });
