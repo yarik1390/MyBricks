@@ -263,6 +263,9 @@ jobs:
           echo "Pushed signed bundle to branch 'aab-delivery'."
 
       - name: Upload artifact
+        # The bundle is already on the delivery branch; a full Actions artifact
+        # quota must not skip the Play upload below.
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: bricksvault-${{ (inputs.build_type || 'bundle') == 'apk-debug' && 'debug-apk' || (steps.keystore.outputs.signed == 'true' && 'release-aab' || 'UNSIGNED-aab') }}
