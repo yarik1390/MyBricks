@@ -84,10 +84,18 @@ export function markSetOwned(setNum, owned) {
 
 // Early-access free launch: the server's EARLY_ACCESS_PRO switch (shown in
 // /api/config for everyone and /api/me for members) unlocks Pro features for
-// all accounts. Paid status (me.is_supporter) still drives paid-only
-// cosmetics (gold style/icon, supporter badge).
+// all accounts. Paid status (me.is_supporter) still drives the supporter
+// badge, the supporter wall and the gold Wrapped/room perks.
 export function earlyAccessPro() {
   return !!(state.config?.early_access_pro || state.me?.early_access_pro);
+}
+
+/**
+ * Premium/Gold styles and the gold app icon: open to everyone (guests too,
+ * they are local-only looks) during early access, otherwise paid Pro only.
+ */
+export function proLooksUnlocked(me = state.me) {
+  return !!(me?.is_supporter || me?.pro_access || earlyAccessPro());
 }
 
 /** True when Pro features are unlocked for the signed-in member. */

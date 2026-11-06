@@ -11169,6 +11169,12 @@
     ]
   },
   {
+    "text": "bvAccount.styleHelpEarly",
+    "files": [
+      "views/me.js"
+    ]
+  },
+  {
     "text": "bvAccount.styleHelpPro",
     "files": [
       "views/me.js"
