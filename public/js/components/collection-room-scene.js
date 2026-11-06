@@ -19,6 +19,16 @@ const DOOR_INTRO_DURATION_MS = 3600;
 const DOOR_INTRO_MAX_FRAME_STEP = 0.12;
 // Where the video hand-off picks up: leaf open, camera just outside the ring.
 const DOOR_ENTRY_FROM = 0.86;
+// Leaving: turn to the door, walk out through the ring, look back as the
+// leaf swings shut, fade. Short enough not to feel like a toll on leaving.
+const DOOR_EXIT_DURATION_MS = 2400;
+// Further than this from the door, cut (under black) to a closer start so the
+// walk never streams half the room's bays in two seconds.
+const DOOR_EXIT_MAX_WALK = 7;
+const DOOR_EXIT_OUTSIDE_Z = -2.4;
+const DOOR_EXIT_LOOK_BACK_Z = -4.6;
+// Pressing into the doorway this long counts as "walk out".
+const DOOR_PUSH_EXIT_MS = 260;
 const PICKUP_DURATION_MS = 480;
 const PICKUP_RETURN_DURATION_MS = 360;
 const PICKUP_VIEW_DISTANCE = 2.2;
@@ -159,6 +169,8 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
   let pickupStartedAt = 0;
   let doorPivot = null;
   let doorWheel = null;
+  let exitState = null;
+  let doorPushStartedAt = 0;
   let residentSegment = -1;
   let resizeObserver;
   let removalObserver;
@@ -965,7 +977,7 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       controller.destroy();
       return false;
     }
-    return !manuallyPaused && !document.hidden;
+    return !manuallyPaused && !document.hidden && !exitState;
   }
 
   function updateCamera() {
@@ -1129,6 +1141,136 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     return true;
   }
 
+  function shortestAngle(from, to) {
+    return Math.atan2(Math.sin(to - from), Math.cos(to - from));
+  }
+
+  function exitPath(from) {
+    // Line up with the ring inside the room first, so a walk from beside the
+    // shelves never clips the wall next to the aperture, then straight out.
+    const lineUp = { x: 0, z: Math.max(1, Math.min(from.z, 1.6)) };
+    const out = { x: 0, z: DOOR_EXIT_OUTSIDE_Z };
+    const first = Math.hypot(lineUp.x - from.x, lineUp.z - from.z);
+    const second = lineUp.z - out.z;
+    const total = first + second || 1;
+    return amount => {
+      const distance = amount * total;
+      if (distance <= first && first > 0) {
+        const t = distance / first;
+        return { x: from.x + (lineUp.x - from.x) * t, z: from.z + (lineUp.z - from.z) * t };
+      }
+      const t = Math.min(1, (distance - first) / second);
+      return { x: 0, z: lineUp.z + (out.z - lineUp.z) * t };
+    };
+  }
+
+  function setExitFade(opacity) {
+    if (!exitState) return;
+    exitState.fade.style.opacity = Math.max(0, Math.min(1, opacity)).toFixed(3);
+  }
+
+  function setDoorClosed(amount) {
+    const closed = smoothstep(amount);
+    if (doorPivot) doorPivot.rotation.y = DOOR_OPEN_ANGLE * (1 - closed);
+    if (doorWheel) doorWheel.rotation.z = -Math.PI * 1.35 * (1 - closed);
+    stage.dataset.doorAngle = (DOOR_OPEN_ANGLE * (1 - closed)).toFixed(5);
+    stage.dataset.doorState = closed >= 1 ? 'closed' : closed > 0 ? 'closing' : 'open';
+  }
+
+  function finishExit() {
+    const state = exitState;
+    if (!state || state.done) return;
+    state.done = true;
+    if (state.frame) cancelAnimationFrame(state.frame);
+    clearTimeout(state.timer);
+    state.abort.abort();
+    stage.dataset.doorExit = 'done';
+    // The view navigates away (and destroys the room) from here.
+    try { state.onDone?.(); } catch { /* navigation errors must not wedge the exit */ }
+  }
+
+  function exitDoorFrame(time) {
+    const state = exitState;
+    if (!state || state.done) return;
+    state.frame = 0;
+    if (destroyed || !stage.isConnected || !isCurrent()) { finishExit(); return; }
+    if (!state.startedAt) state.startedAt = time;
+    const t = Math.min(1, (time - state.startedAt) / state.durationMs);
+    const walkT = Math.min(1, t / 0.5);
+    const lookBackT = Math.max(0, Math.min(1, (t - 0.45) / 0.35));
+    const point = state.path(smoothstep(walkT));
+    // Face the door quickly, then look back into the vault as the leaf closes.
+    const faceDoor = smoothstep(Math.min(1, t / 0.22));
+    const lookBack = smoothstep(lookBackT);
+    pose = {
+      x: point.x,
+      z: point.z + (state.lookBackZ - DOOR_EXIT_OUTSIDE_Z) * lookBack,
+      yaw: state.from.yaw + state.turnToDoor * faceDoor + Math.PI * lookBack * state.lookBackDirection,
+      pitch: state.from.pitch * (1 - faceDoor),
+    };
+    setDoorClosed(Math.max(0, Math.min(1, (t - 0.58) / 0.32)));
+    const fadeIn = state.cutIn ? 1 - Math.min(1, t / 0.12) : 0;
+    setExitFade(Math.max(fadeIn, Math.max(0, (t - 0.86) / 0.14)));
+    reconcileResidents(false, false);
+    updateCamera();
+    renderer.render(scene, camera);
+    stage.dataset.doorExitProgress = t.toFixed(3);
+    if (t >= 1) { finishExit(); return; }
+    state.frame = requestAnimationFrame(exitDoorFrame);
+  }
+
+  function exitThroughDoor(onDone) {
+    // Reduced motion, a hidden tab or a lost context: just leave.
+    if (destroyed || exitState || reducedMotion || document.hidden || contextLost || !stage.isConnected) return false;
+    cancelDoorIntro({ finish: true });
+    restoreBoxPickup({ immediate: true });
+    resetInputs();
+    if (document.pointerLockElement === canvas) document.exitPointerLock?.();
+    manuallyPaused = false;
+    inspecting = false;
+    const fade = document.createElement('div');
+    fade.className = 'showroom-exit-fade';
+    fade.setAttribute('aria-hidden', 'true');
+    fade.style.cssText = 'position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;z-index:5;';
+    let cutIn = false;
+    if (Math.hypot(pose.x, pose.z) > DOOR_EXIT_MAX_WALK) {
+      // Start closer under black; the first frames fade the shot in.
+      cutIn = true;
+      pose = { x: 0, z: DOOR_EXIT_MAX_WALK - 1, yaw: Math.PI, pitch: 0 };
+      fade.style.opacity = '1';
+      reconcileResidents(true, false);
+    }
+    const from = { ...pose };
+    const turnToDoor = shortestAngle(from.yaw, Math.PI);
+    const abort = new AbortController();
+    exitState = {
+      abort, cutIn, done: false, fade, frame: 0, from, onDone, startedAt: 0,
+      durationMs: DOOR_EXIT_DURATION_MS,
+      path: exitPath(from),
+      // Back far enough to frame the whole closing door on this canvas.
+      lookBackZ: Math.min(DOOR_EXIT_LOOK_BACK_Z, introDoorCameraZ() * 0.8),
+      turnToDoor,
+      // Turn back the same way round as the user swung toward the door.
+      lookBackDirection: turnToDoor >= 0 ? 1 : -1,
+      timer: 0,
+    };
+    stage.append(fade);
+    stage.dataset.doorExit = 'walking';
+    // Any tap or key skips straight to the destination.
+    const skip = event => {
+      if (event.repeat) return; // a held W key must not cut the walk short
+      event.preventDefault?.();
+      finishExit();
+    };
+    stage.addEventListener('pointerdown', skip, { signal: abort.signal });
+    window.addEventListener('keydown', skip, { signal: abort.signal, capture: true });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) finishExit(); }, { signal: abort.signal });
+    // A stalled frame loop (software WebGL, throttled tab) must never trap the user.
+    exitState.timer = setTimeout(finishExit, DOOR_EXIT_DURATION_MS + 1200);
+    exitState.frame = requestAnimationFrame(exitDoorFrame);
+    return true;
+  }
+
   function beginModalTransition() {
     cancelDoorIntro({ finish: true });
     textureLoadPaused = true;
@@ -1181,7 +1323,31 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     pose = moveRoomPose(layout, pose, keyInput(), (time - lastFrameTime) / 1000);
     lastFrameTime = time;
     renderNow();
+    if (checkDoorPush(time)) return;
     frame = requestAnimationFrame(movementFrame);
+  }
+
+  function checkDoorPush(time) {
+    // Walking into the open doorway (not just backing into the wall) leaves.
+    const input = keyInput();
+    const worldDz = Math.cos(pose.yaw) * input.forward + Math.sin(pose.yaw) * input.strafe;
+    const atDoor = introProgress >= 1
+      && typeof options.onDoorReached === 'function'
+      && pose.z <= ROOM_LAYOUT.playerRadius + 0.12
+      && Math.abs(pose.x) < 1.5
+      && Math.cos(pose.yaw) < -0.45
+      && worldDz < -0.3;
+    if (!atDoor) {
+      doorPushStartedAt = 0;
+      stage.dataset.doorPush = 'none';
+      return false;
+    }
+    doorPushStartedAt ||= time;
+    stage.dataset.doorPush = 'pushing';
+    if (time - doorPushStartedAt < DOOR_PUSH_EXIT_MS) return false;
+    doorPushStartedAt = 0;
+    options.onDoorReached();
+    return Boolean(exitState);
   }
 
   function flushMovement(time = performance.now()) {
@@ -1437,6 +1603,12 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
       if (destroyed) return;
       destroyed = true;
       cancelDoorIntro();
+      if (exitState && !exitState.done) {
+        exitState.done = true;
+        if (exitState.frame) cancelAnimationFrame(exitState.frame);
+        clearTimeout(exitState.timer);
+        exitState.abort.abort();
+      }
       cancelPickupFrame();
       if (activePickup?.mesh) {
         activePickup.mesh.position.set(activePickup.origX, activePickup.origY, activePickup.origZ);
@@ -1477,6 +1649,9 @@ export async function createCollectionRoom(stage, catalog, options = {}) {
     finishDoorIntro,
     playDoorIntro,
     enterThroughDoor,
+    exitThroughDoor,
+    skipExit: finishExit,
+    isExiting: () => Boolean(exitState && !exitState.done),
     reset() {
       if (destroyed) return;
       cancelDoorIntro({ finish: true });

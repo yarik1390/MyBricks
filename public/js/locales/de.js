@@ -1859,6 +1859,7 @@ Object.assign(de.room, {
   walkInstructions: 'Gehe mit WASD oder den Pfeiltasten. Ziehe, um dich umzusehen. Klicke auf eine Box, um ihre Details zu sehen.',
   touchInstructions: 'Auf Touchscreens bewegst du dich mit dem linken Joystick. Ziehe an einer anderen Stelle, um dich umzusehen. Tippe auf eine Box, um sie anzusehen.',
   escapeInstructions: 'Die Maussteuerung ermöglicht kontinuierliches Umschauen mit der Maus. Escape gibt die Maus frei oder schließt das geöffnete Fenster.',
+  doorExitInstructions: 'Geh durch die offene Tresortür oder tippe auf den Zurück-Pfeil, um den Raum zu verlassen. Tippe irgendwo, um den Weg nach draußen zu überspringen.',
   joystick: 'Bewegungs-Joystick', backToRoom: 'Zurück zum Raum', fullDetails: 'Alle Details öffnen',
   copiesOne: '{quantity} Exemplar im Besitz', copiesOther: '{quantity} Exemplare im Besitz', search: 'Sets durchsuchen', more: 'Weitere Sets anzeigen',
   arrived: 'Du bist am ausgewählten Regal. Wähle eine Box aus, um sie anzusehen.', mouseUnavailable: 'Die Maussteuerung ist nicht verfügbar. Ziehe, um dich umzusehen.',

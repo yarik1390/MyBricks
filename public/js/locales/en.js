@@ -2133,6 +2133,7 @@ Object.assign(en.room, {
   walkInstructions: 'Use WASD or arrow keys to walk. Drag to look around. Click a box to see its details.',
   touchInstructions: 'On touch screens, move with the left joystick and drag elsewhere to look. Tap a box to inspect it.',
   escapeInstructions: 'Capture mouse enables continuous mouse look. Escape releases the mouse or closes the open panel.',
+  doorExitInstructions: 'Walk into the open vault door, or use the back arrow, to leave the room. Tap anywhere to skip the walk out.',
   joystick: 'Movement joystick', backToRoom: 'Back to room', fullDetails: 'Open full details',
   copiesOne: '{quantity} copy owned', copiesOther: '{quantity} copies owned', search: 'Search sets', more: 'Show more sets',
   arrived: 'You are at the selected shelf. Select a box to inspect it.', mouseUnavailable: 'Mouse capture is unavailable. Drag to look around.',

@@ -1841,6 +1841,7 @@ Object.assign(zh.room, {
   walkInstructions: '使用 WASD 或方向键行走。拖动以环顾四周。点击套装盒可查看详情。',
   touchInstructions: '在触摸屏上，使用左侧摇杆移动，并在其他区域拖动以环顾四周。轻触套装盒即可查看。',
   escapeInstructions: '启用鼠标控制后可连续转动视角。按 Escape 可释放鼠标或关闭已打开的面板。',
+  doorExitInstructions: '走进敞开的金库门或点按返回箭头即可离开收藏室。点按任意位置可跳过离场动画。',
   joystick: '移动摇杆', backToRoom: '返回收藏室', fullDetails: '打开完整详情',
   copiesOne: '{quantity} 套已收藏', copiesOther: '{quantity} 套已收藏', search: '搜索套装', more: '显示更多套装',
   arrived: '你已到达所选陈列架。选择一个套装盒即可查看。', mouseUnavailable: '无法启用鼠标控制。请拖动以环顾四周。',
