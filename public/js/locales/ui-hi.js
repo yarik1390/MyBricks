@@ -871,7 +871,6 @@ export const ui = {
   "More prices": "अधिक कीमतें",
   "Most price guides show you one number and ask you to trust it. We'd rather show you how the number is made, what it's based on, and — when the evidence isn't good enough — say so instead of guessing.": "अधिकांश मूल्य मार्गदर्शिकाएँ आपको एक ही आँकड़ा दिखाती हैं और उस पर भरोसा करने को कहती हैं। हम बल्कि यह दिखाना चाहते हैं कि वह आँकड़ा कैसे बनता है, किस पर आधारित है, और — जब प्रमाण पर्याप्त अच्छे न हों — अनुमान लगाने के बजाय यह कह देना चाहते हैं।",
   "Multiple fresh market sources agree on this price": "कई ताज़ा बाज़ार स्रोत इस कीमत पर सहमत हैं",
-  "My Badges": "मेरे बैज",
   "NO MATCH": "कोई मिलान नहीं",
   "NONE": "कोई नहीं",
   "Native alerts are waiting for the app's Firebase configuration.": "नेटिव अलर्ट ऐप के Firebase कॉन्फ़िगरेशन का इंतज़ार कर रहे हैं।",
@@ -1541,7 +1540,6 @@ ui["asking data available"] = "माँग मूल्य डेटा उप�
 ui["needs key"] = "कुंजी चाहिए";
 ui["pieces missing"] = "टुकड़े गायब";
 ui["— Requires Chrome on desktop/Android with Gemini Nano flags enabled."] = "— डेस्कटॉप/Android पर Chrome चाहिए जिसमें Gemini Nano फ़्लैग सक्षम हों।";
-ui["✓ Earned!"] = "✓ अर्जित!";
 ui["Downloading..."] = "डाउनलोड हो रहा है...";
 ui["Resuming..."] = "फिर से शुरू हो रहा है...";
 ui["approved contribution"] = "स्वीकृत योगदान";

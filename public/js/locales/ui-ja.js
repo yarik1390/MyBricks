@@ -871,7 +871,6 @@ export const ui = {
   "More prices": "他の価格",
   "Most price guides show you one number and ask you to trust it. We'd rather show you how the number is made, what it's based on, and — when the evidence isn't good enough — say so instead of guessing.": "ほとんどの価格ガイドは数字をひとつだけ示し、それを信じるよう求めます。私たちはむしろ、その数字がどう作られ、何に基づいているかをお見せします。そして根拠が十分でないときは — 推測せずに、そう申し上げます。",
   "Multiple fresh market sources agree on this price": "複数の最新の市場ソースがこの価格で一致しています",
-  "My Badges": "マイバッジ",
   "NO MATCH": "一致なし",
   "NONE": "なし",
   "Native alerts are waiting for the app's Firebase configuration.": "ネイティブアラートはアプリのFirebase設定待ちです。",
@@ -1541,7 +1540,6 @@ ui["asking data available"] = "出品価格データあり";
 ui["needs key"] = "キーが必要";
 ui["pieces missing"] = "パーツ不足";
 ui["— Requires Chrome on desktop/Android with Gemini Nano flags enabled."] = "— Gemini Nanoフラグを有効にしたデスクトップ/AndroidのChromeが必要です。";
-ui["✓ Earned!"] = "✓ 獲得！";
 ui["Downloading..."] = "ダウンロード中...";
 ui["Resuming..."] = "再開中...";
 ui["approved contribution"] = "承認済みの投稿";

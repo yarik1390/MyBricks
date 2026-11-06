@@ -871,7 +871,6 @@ export const ui = {
   "More prices": "Más precios",
   "Most price guides show you one number and ask you to trust it. We'd rather show you how the number is made, what it's based on, and — when the evidence isn't good enough — say so instead of guessing.": "La mayoría de las guías de precios te muestran un número y te piden que confíes en él. Preferimos mostrarte cómo se construye ese número, en qué se basa y — cuando la evidencia no es lo bastante buena — decirlo en lugar de adivinar.",
   "Multiple fresh market sources agree on this price": "Varias fuentes de mercado recientes coinciden en este precio",
-  "My Badges": "Mis insignias",
   "NO MATCH": "SIN COINCIDENCIA",
   "NONE": "NINGUNO",
   "Native alerts are waiting for the app's Firebase configuration.": "Los avisos nativos esperan la configuración de Firebase de la app.",
@@ -1541,7 +1540,6 @@ ui["asking data available"] = "datos de precios pedidos disponibles";
 ui["needs key"] = "necesita clave";
 ui["pieces missing"] = "piezas faltantes";
 ui["— Requires Chrome on desktop/Android with Gemini Nano flags enabled."] = "— Requiere Chrome en escritorio/Android con las funciones de Gemini Nano activadas.";
-ui["✓ Earned!"] = "✓ ¡Conseguido!";
 ui["Downloading..."] = "Descargando...";
 ui["Resuming..."] = "Reanudando...";
 ui["approved contribution"] = "contribución aprobada";

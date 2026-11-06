@@ -871,7 +871,6 @@ export const ui = {
   "More prices": "Більше цін",
   "Most price guides show you one number and ask you to trust it. We'd rather show you how the number is made, what it's based on, and — when the evidence isn't good enough — say so instead of guessing.": "Більшість цінових довідників показують одне число і просять йому вірити. Ми радше покажемо, як це число утворюється, на чому воно ґрунтується, і — коли доказів недостатньо — скажемо про це, замість того щоб вгадувати.",
   "Multiple fresh market sources agree on this price": "Кілька свіжих ринкових джерел підтверджують цю ціну",
-  "My Badges": "Мої значки",
   "NO MATCH": "НЕМАЄ ЗБІГУ",
   "NONE": "НЕМАЄ",
   "Native alerts are waiting for the app's Firebase configuration.": "Нативні сповіщення очікують на конфігурацію Firebase для застосунку.",
@@ -1541,7 +1540,6 @@ ui["asking data available"] = "дані запитуваних цін досту
 ui["needs key"] = "потрібен ключ";
 ui["pieces missing"] = "деталей відсутні";
 ui["— Requires Chrome on desktop/Android with Gemini Nano flags enabled."] = "— потрібен Chrome на комп'ютері/Android з увімкненими прапорцями Gemini Nano.";
-ui["✓ Earned!"] = "✓ Отримано!";
 ui["Downloading..."] = "Завантаження...";
 ui["Resuming..."] = "Відновлення...";
 ui["approved contribution"] = "схвалений внесок";

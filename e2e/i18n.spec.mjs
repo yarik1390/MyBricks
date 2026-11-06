@@ -436,7 +436,7 @@ test.describe(() => {
       state.me = null;
     });
     await page.goto('/#/kids/badges', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByText('✓ Отримано!')).toBeVisible();
+    await expect(page.getByText('✓ Отримано!').first()).toBeVisible();
   });
 });
 

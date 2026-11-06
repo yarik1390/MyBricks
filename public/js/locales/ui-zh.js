@@ -871,7 +871,6 @@ export const ui = {
   "More prices": "更多价格",
   "Most price guides show you one number and ask you to trust it. We'd rather show you how the number is made, what it's based on, and — when the evidence isn't good enough — say so instead of guessing.": "大多数价格指南只给你一个数字，然后要你相信它。我们更愿意让你看到这个数字是怎么得出的、依据是什么，而当证据不够充分时 — 我们会直说，而不是猜测。",
   "Multiple fresh market sources agree on this price": "多个最新市场数据源一致支持此价格",
-  "My Badges": "我的徽章",
   "NO MATCH": "无匹配",
   "NONE": "无",
   "Native alerts are waiting for the app's Firebase configuration.": "原生提醒正在等待应用的 Firebase 配置完成。",
@@ -1541,7 +1540,6 @@ ui["asking data available"] = "报价数据可用";
 ui["needs key"] = "需要密钥";
 ui["pieces missing"] = "颗零件缺失";
 ui["— Requires Chrome on desktop/Android with Gemini Nano flags enabled."] = "——需要在桌面版/Android 版 Chrome 中启用 Gemini Nano 相关标志。";
-ui["✓ Earned!"] = "✓ 已获得！";
 ui["Downloading..."] = "正在下载...";
 ui["Resuming..."] = "正在恢复...";
 ui["approved contribution"] = "已批准的贡献";

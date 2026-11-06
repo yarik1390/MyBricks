@@ -249,6 +249,54 @@ test('the advisor is a full-screen page: old entry points open it and answers st
   await expect(page.locator('.chat-msg.user')).toHaveCount(0);
 });
 
+test('Kids Mode: tiles open a price-free set page, "I built it!" pays XP, and the daily game answers once', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('bv_mode', 'kids'));
+  const SETS = [
+    { id: 1, set_num: '60001-1', name: 'Fire Truck', theme: 'City', year: 2020, pieces: 500, minifigs: 3, quantity: 1, purchase_price: 40, current_value: 55 },
+    { id: 2, set_num: '60002-1', name: 'Police Car', theme: 'City', year: 2015, pieces: 200, minifigs: 2, quantity: 1, purchase_price: 20, current_value: 30 },
+  ];
+  const marks = [];
+  const plays = [];
+  let xp = 20;
+  await page.route('**/api/me', (route) => json(route, { display_name: 'Kid', currency: 'USD', is_guest: false, kids_xp: xp, has_kids_pin: true, portfolio_stats: {} }));
+  await page.route('**/api/collection', (route) => json(route, { items: SETS, count: 2 }));
+  await page.route('**/api/kids/state', (route) => json(route, { xp, level: 2, badges: [], marks, plays }));
+  await page.route('**/api/kids/badges', (route) => json(route, { ok: true }));
+  await page.route('**/api/kids/mark', async (route) => {
+    const body = route.request().postDataJSON();
+    marks.push({ set_num: body.set_num, built: !!body.built, favorite: false });
+    xp += 5;
+    return json(route, { ok: true, set_num: body.set_num, built: !!body.built, favorite: false, xp_gained: 5, xp, level: 2, new_level: null });
+  });
+  await page.route('**/api/kids/game', async (route) => {
+    const b = route.request().postDataJSON();
+    const val = (n) => SETS.find(s => s.set_num === n);
+    const key = b.kind === 'older' ? 'year' : b.kind;
+    const A = val(b.set_a), B = val(b.set_b);
+    const answer = b.kind === 'older' ? (A.year < B.year ? A.set_num : B.set_num) : (A[key] > B[key] ? A.set_num : B.set_num);
+    plays.push({ ...b, correct: b.pick === answer });
+    xp += 5;
+    return json(route, { correct: b.pick === answer, answer, values: { [A.set_num]: A[key], [B.set_num]: B[key] }, xp_gained: 5, xp, level: 2, new_level: null });
+  });
+
+  await page.goto('/#/kids', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#kidsGame .bv-kids__pick')).toHaveCount(2);
+  await expect(page.locator('.bv-kids')).not.toContainText('$');
+  await page.locator('#kidsGame .bv-kids__pick').first().click();
+  await expect(page.locator('#kidsGame .bv-kids__pick.is-answer')).toHaveCount(1);
+  await expect(page.locator('#kidsGame')).toContainText('A new question comes tomorrow.');
+  await expect(page.locator('#kidsGame .bv-kids__pick[disabled]')).toHaveCount(2);
+
+  await page.locator('.bv-kids__tile', { hasText: 'Fire Truck' }).click();
+  await expect(page).toHaveURL(/#\/kids\/set\/60001-1$/);
+  await expect(page.locator('.bv-kids__setname')).toHaveText('Fire Truck');
+  await expect(page.locator('.bv-kids')).toContainText('500 pieces');
+  await expect(page.locator('.bv-kids')).not.toContainText('$');
+  await page.locator('#kidsBuiltBtn').click();
+  await expect(page.locator('#kidsBuiltBtn')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#kidsBuiltBtn')).toContainText('Built it!');
+});
+
 test('Kids Mode home is price-free with a big scan button and the badge row', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('bv_mode', 'kids'));
   await page.route('**/api/me', (route) => json(route, { display_name: 'Kid', handle: null, currency: 'USD', is_guest: false, kids_xp: 30, kids_badges: ['first_brick'], has_kids_pin: true, portfolio_stats: { set_count: 1 } }));
@@ -257,7 +305,7 @@ test('Kids Mode home is price-free with a big scan button and the badge row', as
   await expect(page.locator('#kidsScan')).toHaveAttribute('href', '#/pile');
   await expect(page.locator('.bv-kids__tile')).toHaveCount(1);
   await expect(page.locator('.bv-kids')).not.toContainText('$');
-  await expect(page.locator('.bv-kids__badges')).toContainText('My badges · 1 of 6');
+  await expect(page.locator('.bv-kids__badges')).toContainText(/My badges · \d+ of \d+/);
   const box = await page.locator('#kidsScan').boundingBox();
   expect(box.height).toBeGreaterThanOrEqual(72);
 

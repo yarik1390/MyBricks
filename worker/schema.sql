@@ -784,6 +784,29 @@ CREATE TABLE IF NOT EXISTS kids_badges (
 );
 CREATE INDEX IF NOT EXISTS idx_kids_badges_user ON kids_badges(user_id);
 
+-- Kids Mode play layer (routes/kids.ts): per-set "I built it!" / favourite
+-- marks and the once-a-day game. built_xp latches so XP is given once per set.
+CREATE TABLE IF NOT EXISTS kids_set_marks (
+  user_id TEXT NOT NULL,
+  set_num TEXT NOT NULL,
+  built INTEGER NOT NULL DEFAULT 0,
+  favorite INTEGER NOT NULL DEFAULT 0,
+  built_xp INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, set_num)
+);
+CREATE TABLE IF NOT EXISTS kids_game_plays (
+  user_id TEXT NOT NULL,
+  day TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  set_a TEXT NOT NULL,
+  set_b TEXT NOT NULL,
+  pick TEXT NOT NULL,
+  correct INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, day)
+);
+
 CREATE TABLE IF NOT EXISTS portfolio_snapshots (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id TEXT NOT NULL,
