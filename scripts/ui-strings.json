@@ -5060,9 +5060,9 @@
     ]
   },
   {
-    "text": "My Badges",
+    "text": "My set",
     "files": [
-      "views/kids.js"
+      "route-meta.js"
     ]
   },
   {
@@ -10791,6 +10791,18 @@
     ]
   },
   {
+    "text": "bv-kids__game is-done",
+    "files": [
+      "views/kids.js"
+    ]
+  },
+  {
+    "text": "bv-kids__game is-locked",
+    "files": [
+      "views/kids.js"
+    ]
+  },
+  {
     "text": "bv-lot__meta bv-num",
     "files": [
       "views/lot.js"
@@ -11890,6 +11902,30 @@
     ]
   },
   {
+    "text": "kidsPlay.built",
+    "files": [
+      "views/kids.js"
+    ]
+  },
+  {
+    "text": "kidsPlay.builtDone",
+    "files": [
+      "views/kids.js"
+    ]
+  },
+  {
+    "text": "kidsPlay.gameRightShort",
+    "files": [
+      "views/kids.js"
+    ]
+  },
+  {
+    "text": "kidsPlay.gameWrongShort",
+    "files": [
+      "views/kids.js"
+    ]
+  },
+  {
     "text": "main, .page",
     "files": [
       "router.js"
@@ -12248,12 +12284,6 @@
     "text": "✓ Already in your vault!",
     "files": [
       "views/catalog.js"
-    ]
-  },
-  {
-    "text": "✓ Earned!",
-    "files": [
-      "views/kids.js"
     ]
   },
   {

@@ -31,7 +31,6 @@ const required = [
   'Checking compatibility...',
   'Loading pricing methodology...',
   'needs key',
-  '✓ Earned!',
   'Submitting…',
   'Uploading…',
   'Working…',
