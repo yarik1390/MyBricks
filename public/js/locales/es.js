@@ -534,7 +534,7 @@ export const es = {
     themeGroup: 'Grupo de temas',
     theme: 'Tema',
     teachTitle: 'Enséñanos este código',
-    teachThanks: 'Gracias: lo revisaremos y lo añadiremos.',
+    teachThanks: '¡Gracias! Ya funciona para ti y, cuando lo revisemos, para todos.',
     teachSubmit: 'Enviar a revisión',
     teachSignIn: 'Inicia sesión para enseñarnos códigos nuevos.',
     teachLabel: '¿Qué set es?',
@@ -1866,7 +1866,7 @@ es.copies = {"paid": "Pagado {price}", "soldToast": "Vendido por {price}", "edit
 // Sales & taxes (views/me-sales.js).
 es.sales = {"checkReady": "En {sales} ventas que los coleccionistas registraron el último año, nuestro valor quedó a menos del 10% del precio real en el {w10}% de los casos y a menos del 20% en el {w20}%. La desviación típica fue del {miss}%.", "checkPending": "Lo publicaremos cuando los coleccionistas hayan registrado {min} ventas de sets precintados en un año. Por ahora: {sales}.", "salesIn": "Ventas de {year}", "net": "Neto {amount}", "cost": "coste {amount}", "costMissing": "coste no registrado", "longTerm": "Largo plazo", "shortTerm": "Corto plazo", "locked": "El informe venta por venta, con tiempo en tu poder, coste y ganancia de cada una, más descargas CSV y PDF para tu declaración, viene con Pro."};
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
-es.stores = {"best": "Mejor precio", "outOfStock": "Agotado", "belowValue": "{pct}% por debajo de su valor", "aboveValue": "{pct}% por encima de su valor", "checking": "Comprobando…", "notListed": "No se vende allí ahora mismo", "unchecked": "Aún sin comprobar", "ebayAskPlain": "Precio pedido habitual", "ebayAskOne": "Precio pedido habitual, {n} anuncio", "ebayAskOther": "Precio pedido habitual, {n} anuncios", "blSoldPlain": "Venta media reciente, nuevo", "blSoldOne": "Venta media reciente, {n} vendido nuevo", "blSoldOther": "Venta media reciente, {n} vendidos nuevos"};
+es.stores = {"best": "Mejor precio", "outOfStock": "Agotado", "usConverted": "Precio de EE. UU., convertido", "belowValue": "{pct}% por debajo de su valor", "aboveValue": "{pct}% por encima de su valor", "checking": "Comprobando…", "notListed": "No se vende allí ahora mismo", "unchecked": "Aún sin comprobar", "ebayAskPlain": "Precio pedido habitual", "ebayAskOne": "Precio pedido habitual, {n} anuncio", "ebayAskOther": "Precio pedido habitual, {n} anuncios", "blSoldPlain": "Venta media reciente, nuevo", "blSoldOne": "Venta media reciente, {n} vendido nuevo", "blSoldOther": "Venta media reciente, {n} vendidos nuevos"};
 es.promos = {"until": "Hasta el {date}", "starts": "Empieza el {date}", "fromTo": "Del {start} al {end}", "whileItLasts": "Hasta agotar existencias", "spend": "Compra de {amount} o más", "footer": "Ofertas de LEGO.com {store}. Cambia la tienda en Ajustes, Moneda y región. Revisa los detalles antes de comprar: el stock y las condiciones pueden cambiar.", "fallback": "Aún no hay ofertas de LEGO.com {store}. Mostramos las de EE. UU.: importes en dólares estadounidenses que quizá no se apliquen en tu país."};
 // Rebrickable sync (components/rebrickable-card.js).
 es.rebrickable = {"importResult": "Nuevos en tu colección: {fresh}. Ya estaban: {already}. Aún no están en nuestro catálogo: {unknown}.", "exportPartial": "Enviados hasta ahora: {sent}. Pendientes: {left}. Vuelve a tocar Enviar dentro de un minuto.", "exportDone": "Enviados a Rebrickable: {sent}."};

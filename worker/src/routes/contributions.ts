@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { saveBarcodeStatements } from '../lib/barcodes';
 import type { Context } from 'hono';
 import { optionalMember, requireMember } from '../auth';
 import type { Env, Variables } from '../types';
@@ -128,6 +129,25 @@ app.post('/data', requireMember, async (c) => {
   await c.env.DB.prepare(
     'INSERT INTO set_contributions (user_id, set_num, kind, payload, note, status) VALUES (?, ?, ?, ?, ?, ?)'
   ).bind(userId, setNum, kind, JSON.stringify(payload), (body.note || '').slice(0, 1000) || null, 'pending').run();
+  if (kind === 'barcode') {
+    // The teacher's own scans match this code right away (the scanner reads
+    // their pending submissions). Once a SECOND person teaches the same code
+    // for the same set, it goes live for everyone without waiting for review.
+    let confirmed = false;
+    try {
+      const other = await c.env.DB.prepare(
+        `SELECT 1 AS x FROM set_contributions
+         WHERE kind='barcode' AND set_num=? AND user_id<>? AND status IN ('pending','approved') AND deleted_at IS NULL
+           AND json_extract(payload, '$.upc')=? LIMIT 1`
+      ).bind(setNum, userId, payload.upc).first();
+      if (other) {
+        const stmts = saveBarcodeStatements(c.env, setNum, [payload.upc], 'community');
+        if (stmts.length) await c.env.DB.batch(stmts);
+        confirmed = true;
+      }
+    } catch { /* best-effort */ }
+    return c.json({ ok: true, status: 'pending', active_for_you: true, confirmed });
+  }
   return c.json({ ok: true, status: 'pending' });
 });
 

@@ -5,7 +5,7 @@
 // the spot for signed-in members. Data: GET /api/stores/:setnum and
 // POST /api/stores/:setnum/check (worker/src/routes/stores.ts).
 // Store prices are US prices in USD; fmtMoney shows them in the user's currency.
-import { escapeHtml, fmtMoney, getExchangeRate } from '../utils.js';
+import { escapeHtml, fmtMoney, fmtMoneyIn, getExchangeRate } from '../utils.js';
 import { api, isGuestMode } from '../api.js';
 import { state } from '../state.js';
 import { icon, pill } from '../ui/kit.js';
@@ -22,7 +22,7 @@ const storeUrl = (url) => localizeStoreUrl(url, state.me?.retail_market || 'FR')
 function offerPriceText(o) {
   const userCurrency = state.me?.currency || 'USD';
   if (o.local_price > 0 && (o.currency === userCurrency || !(o.price > 0))) {
-    try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: o.currency }).format(o.local_price); } catch { /* fall through */ }
+    return fmtMoneyIn(o.local_price, o.currency);
   }
   return o.price > 0 ? fmtMoney(o.price) : '—';
 }
@@ -32,6 +32,7 @@ function offerRowHTML(o, best, value) {
   const out = o.in_stock === false;
   const below = value > 0 && o.in_stock && o.price > 0 ? Math.round((1 - o.price / value) * 100) : null;
   const note = out ? t('stores.outOfStock')
+    : o.us_price ? t('stores.usConverted')
     : below != null && below >= 5 ? t('stores.belowValue', { pct: below })
     : below != null && below <= -5 ? t('stores.aboveValue', { pct: -below })
     : '';
@@ -84,15 +85,21 @@ function amazonRowHTML(a) {
     <a class="bv-stores__link" href="${escapeHtml(a.url)}" target="_blank" rel="sponsored nofollow noopener">
       <span class="bv-stores__name">Amazon</span>
       <span class="bv-stores__note">${escapeHtml(a.availability || '')}</span>
-      <span class="bv-num bv-stores__price">${escapeHtml(new Intl.NumberFormat(undefined, { style: 'currency', currency: a.currency || 'EUR' }).format(price))}</span>
+      <span class="bv-num bv-stores__price">${escapeHtml(fmtMoneyIn(price, a.currency || 'EUR'))}</span>
       ${icon('ext', { size: 16 })}
     </a>
   </li>`;
 }
 
 export function storePricesHTML(data, { checking = false, amazon = null } = {}) {
-  const offers = localStoreOffers(data?.offers || [], (cur) => getExchangeRate(cur));
-  const stores = data?.stores || [];
+  // While the local LEGO.com page (lego.com/fr-fr ...) is being read, its row
+  // says "Checking now…" instead of flashing the US price converted.
+  const legoPending = checking && !!data?.lego_local_due && (data?.offers || []).some((o) => o.store === 'lego' && o.us_price);
+  const offers = localStoreOffers((data?.offers || []).filter((o) => !(legoPending && o.store === 'lego')), (cur) => getExchangeRate(cur));
+  const stores = [
+    ...(legoPending ? data.offers.filter((o) => o.store === 'lego').map((o) => ({ store: 'lego', label: o.label, status: 'unchecked', url: o.url })) : []),
+    ...(data?.stores || []),
+  ];
   const priced = new Set(offers.map((o) => o.store));
   const statusRows = stores.filter((s) => !priced.has(s.store));
   const market = data?.market || [];
@@ -104,7 +111,7 @@ export function storePricesHTML(data, { checking = false, amazon = null } = {}) 
   const value = Number(data.value) || 0;
   const bestIndex = offers.findIndex((o) => o.in_stock);
   const usd = (state.me?.currency || 'USD') === 'USD';
-  const usStores = stores.length > 0;
+  const usStores = (data?.stores || []).length > 0;
   return `<section class="detail-card bv-stores" aria-labelledby="storesTitle">
     <div class="detail-card-title" id="storesTitle">Compare stores</div>
     ${offers.length || statusRows.length || market.length || azPriced

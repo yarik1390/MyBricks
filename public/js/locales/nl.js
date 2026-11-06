@@ -534,7 +534,7 @@ export const nl = {
     themeGroup: 'Themagroep',
     theme: 'Thema',
     teachTitle: 'Leer ons deze barcode',
-    teachThanks: 'Bedankt — we controleren en voegen hem toe.',
+    teachThanks: 'Bedankt! Hij werkt meteen voor jou, en voor iedereen zodra we hem gecontroleerd hebben.',
     teachSubmit: 'Ter controle sturen',
     teachSignIn: 'Log in om ons nieuwe barcodes te leren.',
     teachLabel: 'Welke set is het?',
@@ -1866,7 +1866,7 @@ nl.copies = {"paid": "Betaald {price}", "soldToast": "Verkocht voor {price}", "e
 // Sales & taxes (views/me-sales.js).
 nl.sales = {"checkReady": "Bij {sales} verkopen die verzamelaars het afgelopen jaar vastlegden, zat onze waarde voor {w10}% binnen 10% van de echte prijs en voor {w20}% binnen 20%. De gebruikelijke afwijking was {miss}%.", "checkPending": "We publiceren dit zodra verzamelaars in een jaar {min} verkopen van verzegelde sets hebben vastgelegd. Tot nu toe: {sales}.", "salesIn": "Verkopen in {year}", "net": "Netto {amount}", "cost": "kosten {amount}", "costMissing": "kosten niet vastgelegd", "longTerm": "Lange termijn", "shortTerm": "Korte termijn", "locked": "Het overzicht per verkoop, met bezitsduur, kosten en winst, plus CSV- en PDF-downloads voor je aangifte, hoort bij Pro."};
 // Compare stores (components/store-prices.js) and promotions (views/promotions.js).
-nl.stores = {"best": "Beste prijs", "outOfStock": "Niet op voorraad", "belowValue": "{pct}% onder de waarde", "aboveValue": "{pct}% boven de waarde", "checking": "Nu aan het checken…", "notListed": "Daar nu niet te koop", "unchecked": "Nog niet gecheckt", "ebayAskPlain": "Gangbare vraagprijs", "ebayAskOne": "Gangbare vraagprijs, {n} advertentie", "ebayAskOther": "Gangbare vraagprijs, {n} advertenties", "blSoldPlain": "Gemiddelde recente verkoop, nieuw", "blSoldOne": "Gemiddelde recente verkoop, {n} nieuw verkocht", "blSoldOther": "Gemiddelde recente verkoop, {n} nieuw verkocht"};
+nl.stores = {"best": "Beste prijs", "outOfStock": "Niet op voorraad", "usConverted": "Amerikaanse prijs, omgerekend", "belowValue": "{pct}% onder de waarde", "aboveValue": "{pct}% boven de waarde", "checking": "Nu aan het checken…", "notListed": "Daar nu niet te koop", "unchecked": "Nog niet gecheckt", "ebayAskPlain": "Gangbare vraagprijs", "ebayAskOne": "Gangbare vraagprijs, {n} advertentie", "ebayAskOther": "Gangbare vraagprijs, {n} advertenties", "blSoldPlain": "Gemiddelde recente verkoop, nieuw", "blSoldOne": "Gemiddelde recente verkoop, {n} nieuw verkocht", "blSoldOther": "Gemiddelde recente verkoop, {n} nieuw verkocht"};
 nl.promos = {"until": "Tot {date}", "starts": "Vanaf {date}", "fromTo": "{start} tot {end}", "whileItLasts": "Zolang de voorraad strekt", "spend": "Vanaf {amount} besteding", "footer": "Aanbiedingen van LEGO.com {store}. Wijzig de winkel via Instellingen, Valuta en regio. Controleer de details voor je koopt: voorraad en voorwaarden kunnen veranderen.", "fallback": "Nog geen aanbiedingen van LEGO.com {store} gevonden. We tonen de Amerikaanse: bedragen in Amerikaanse dollars, mogelijk niet geldig in jouw land."};
 // Rebrickable sync (components/rebrickable-card.js).
 nl.rebrickable = {"importResult": "Nieuw in je kluis: {fresh}. Stond er al: {already}. Nog niet in onze catalogus: {unknown}.", "exportPartial": "Tot nu toe verstuurd: {sent}. Nog te versturen: {left}. Tik over een minuut opnieuw op Versturen.", "exportDone": "Naar Rebrickable verstuurd: {sent}."};

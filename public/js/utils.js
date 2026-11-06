@@ -2,8 +2,8 @@ import { I } from './icons.js';
 import { state } from './state.js';
 import morphdom from './lib/morphdom.js';
 import { upsertDetailCache } from './lib/pure-core.js';
-import { escapeHtml, fmtPct, daysAgo, clamp, parseMarkdown, themeHue, THEME_COLORS, bricklinkBuyURL } from './lib/pure.js';
-import { t, tPlural, getLocale } from './lib/i18n.js';
+import { escapeHtml, fmtPct, daysAgo, clamp, parseMarkdown, themeHue, THEME_COLORS, bricklinkBuyURL, formatMoneyIn } from './lib/pure.js';
+import { t, tPlural, getLocale, intlLocale } from './lib/i18n.js';
 import { resolveMoneyInputContext } from './lib/money-input.js';
 
 // Pure helpers live in lib/pure.js (unit-tested there); re-exported for existing callers.
@@ -147,14 +147,14 @@ export function fmtMoney(n, opts = {}) {
   try { persistedCurrency = JSON.parse(localStorage.getItem('bv_guest_prefs') || '{}')?.currency || localStorage.getItem('bv_currency'); } catch {}
   const userCurrency = state.me?.currency || persistedCurrency || "USD";
   const rate = getExchangeRate(userCurrency);
-  const symbol = CURRENCY_SYMBOLS[userCurrency] || "$";
-  const converted = n * rate;
-  const sign = converted < 0 ? "-" : "";
-  const abs = Math.abs(converted);
   // cents: 0 means whole units — "$103", never "$102.98" beside a "$103" hero.
-  const digits = opts.cents ?? 2;
-  const v = abs.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits === 0 ? 0 : Math.max(digits, 2) });
-  return sign + symbol + v;
+  // Grouping, decimals and the sign's side follow the app language ("1 322 €" in Ukrainian).
+  return formatMoneyIn(n * rate, { currency: userCurrency, symbol: CURRENCY_SYMBOLS[userCurrency] || "$", locale: intlLocale(), digits: opts.cents ?? 2 });
+}
+
+/** An amount already in `currency` (a local LEGO.com price), written like fmtMoney. */
+export function fmtMoneyIn(n, currency, opts = {}) {
+  return formatMoneyIn(n, { currency, symbol: CURRENCY_SYMBOLS[currency] || null, locale: intlLocale(), digits: opts.cents ?? 2 });
 }
 
 export function fmtMoneyShort(n) {
@@ -163,12 +163,8 @@ export function fmtMoneyShort(n) {
   try { persistedCurrency = JSON.parse(localStorage.getItem('bv_guest_prefs') || '{}')?.currency || localStorage.getItem('bv_currency'); } catch {}
   const userCurrency = state.me?.currency || persistedCurrency || "USD";
   const rate = getExchangeRate(userCurrency);
-  const symbol = CURRENCY_SYMBOLS[userCurrency] || "$";
   const converted = n * rate;
-  const a = Math.abs(converted); const s = converted < 0 ? "-" : "";
-  if (a >= 1e6) return s + symbol + (a / 1e6).toFixed(1) + "M";
-  if (a >= 1e3) return s + symbol + (a / 1e3).toFixed(1) + "K";
-  return s + symbol + a.toFixed(0);
+  return formatMoneyIn(converted, { currency: userCurrency, symbol: CURRENCY_SYMBOLS[userCurrency] || "$", locale: intlLocale(), digits: 0, compact: Math.abs(converted) >= 1e3 });
 }
 
 

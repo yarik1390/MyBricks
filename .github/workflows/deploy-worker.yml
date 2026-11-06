@@ -264,6 +264,7 @@ jobs:
             "SELECT notify_target, notify_retiring, notify_stock FROM user_wishlist LIMIT 0"
             "SELECT user_id, badge_slug FROM kids_badges LIMIT 0"
             "SELECT user_id, set_num, built, favorite, built_xp FROM kids_set_marks LIMIT 0"
+            "SELECT code, set_num, kind, source, created_at FROM set_barcodes LIMIT 0"
             "SELECT user_id, day, kind, set_a, set_b, pick, correct FROM kids_game_plays LIMIT 0"
             "SELECT blocked_until, ok_count, fail_count FROM integration_health LIMIT 0"
             "SELECT hit_count FROM rate_limits LIMIT 0"

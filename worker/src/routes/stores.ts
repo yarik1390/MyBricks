@@ -31,7 +31,10 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 // `currency` is set only on a local LEGO.com row (price in that currency, not USD).
 // `in_stock` is null when nobody has read LEGO.com's stock for the set yet: the
 // card then shows LEGO's list price without an "out of stock" note.
-export interface StoreRow { store: string; label: string; price: number; in_stock: boolean | null; url: string; checked_at: string; currency?: string }
+// `us_price` marks LEGO.com's US list price shown to a member outside the US
+// (no local price held yet, or the local page could not be read): its stock is
+// left unknown, since US stock says nothing about lego.com/fr-fr.
+export interface StoreRow { store: string; label: string; price: number; in_stock: boolean | null; url: string; checked_at: string; currency?: string; us_price?: boolean }
 
 export interface MarketRow { store: 'ebay' | 'bricklink'; label: string; kind: 'ask' | 'sold'; price: number; count: number | null; checked_at: string; url: string }
 
@@ -66,6 +69,9 @@ export interface StoreStatus { store: string; label: string; status: 'priced' | 
 
 async function storesBody(env: Env, setNum: string, marketRaw?: string | null) {
   const localMarket = legoLocalMarket(marketRaw);
+  // Any member whose shop country is not the US (FR, GB, ... or one LEGO.com
+  // local pages are not read for).
+  const abroad = !!marketRaw && String(marketRaw).toUpperCase() !== 'US';
   const set = await env.DB.prepare(
     `SELECT s.set_num, s.retired, s.retail_price, s.brickset_msrp, s.lego_in_stock, s.lego_checked_at,
             COALESCE(NULLIF(s.blended_value, 0), s.current_value) AS value,
@@ -90,9 +96,12 @@ async function storesBody(env: Env, setNum: string, marketRaw?: string | null) {
     // LEGO.com's US list price, in stock or not: a sold-out or never-checked
     // set still has a LEGO.com price, and a bare "Check the price at" link
     // hid it (21061 Notre-Dame, 2026-11-04).
+    // Outside the US it is labelled as the US price, converted, with no stock
+    // note: Sagrada Família showed "€712.38, out of stock" (US $799.99, sold
+    // out there) while lego.com/fr-fr had it in stock at €749.99 (2026-11-06).
     offers.push({ store: 'lego', label: STORE_LABEL.lego, price: Number(set.retail_price),
-      in_stock: set.lego_in_stock == null ? null : Number(set.lego_in_stock) === 1,
-      url: storeSearchUrl('lego', setNum), checked_at: set.lego_checked_at || '' });
+      in_stock: abroad || set.lego_in_stock == null ? null : Number(set.lego_in_stock) === 1,
+      url: storeSearchUrl('lego', setNum), checked_at: set.lego_checked_at || '', ...(abroad ? { us_price: true } : {}) });
   }
   const { results } = await env.DB.prepare(
     `SELECT store, price, in_stock, url, checked_at FROM store_offers

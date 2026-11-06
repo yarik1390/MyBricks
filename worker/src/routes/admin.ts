@@ -45,6 +45,7 @@ import { integrationReadiness } from '../lib/config-readiness';
 import { holdingValueForRollout } from '../lib/market-sources';
 import { auditAdminMutation, claimAdminOperation, settleAdminOperation } from '../lib/admin-audit';
 import type { Env, Variables } from '../types';
+import { saveBarcodeStatements } from '../lib/barcodes';
 
 import { createImportRun, updateImportRunProgress, completeImportRun, failImportRun, expireStaleImportRuns, getActiveImportRun, getDataCoverage, getPopulationSnapshot, populationDone, populationRemainingNote, getMarketExtCoverage, buildFirecrawlDiagnostics, IMPORT_RUN_FIELDS } from './admin-helpers';
 
@@ -1254,6 +1255,9 @@ app.patch('/contributions/:type/:id', async (c) => {
           UPDATE lego_sets SET upc=? WHERE set_num=? AND (upc IS NULL OR upc='')
           AND EXISTS (SELECT 1 FROM set_contributions WHERE id=? AND status='pending' AND deleted_at IS NULL)
         `).bind(upc, row.set_num, id));
+        // Also index it in set_barcodes: the set may already carry another
+        // code (US UPC vs EU EAN), and the scanner checks every stored code.
+        statements.push(...saveBarcodeStatements(c.env, row.set_num, [upc], 'admin'));
       }
     }
   }
