@@ -1,8 +1,11 @@
 // Promotions calendar (#/promos): LEGO gifts with purchase, double Insiders
 // points weeks and sales, on now and coming up. Read daily from LEGO.com
 // (worker/src/jobs/promotions-refresh.ts); the admin can add, fix or hide an
-// entry here. Data: GET /api/promotions (+ /admin for the admin).
-import { $, $$, escapeHtml, fmtMoney, toast, haptic, proxyImg } from '../utils.js';
+// entry here. Offers come from the LEGO.com store of the member's region
+// (Settings > Currency & region), with that store's own minimum spend and
+// currency; a store with nothing on file shows the US list and says so.
+// Data: GET /api/promotions?market=FR (+ /admin for the admin).
+import { $, $$, escapeHtml, toast, haptic, proxyImg } from '../utils.js';
 import { state } from '../state.js';
 import { api } from '../api.js';
 import { t, intlLocale } from '../lib/i18n.js';
@@ -10,6 +13,20 @@ import { topbar, btn, pill, field, sheetBody, emptyState, skeletonRows } from '.
 import { showSheet, hideSheet } from '../components/sheet.js';
 
 const onScreen = () => location.hash.split('?')[0] === '#/promos';
+const MARKETS = ['US', 'FR', 'DE', 'NL', 'GB', 'CA', 'AU'];
+const myMarket = () => {
+  const m = String(state.me?.retail_market || 'FR').toUpperCase();
+  return MARKETS.includes(m) ? m : 'US';
+};
+function regionName(code) {
+  try { return new Intl.DisplayNames([intlLocale()], { type: 'region' }).of(code) || code; } catch { return code; }
+}
+/** The store's own amount in the store's own currency: €40, not $40 converted. */
+function storeMoney(amount, currency) {
+  try {
+    return new Intl.NumberFormat(intlLocale(), { style: 'currency', currency: currency || 'USD', maximumFractionDigits: 0 }).format(amount);
+  } catch { return `${amount} ${currency || 'USD'}`; }
+}
 const KINDS = [
   ['gwp', 'Gift with purchase'],
   ['double_points', 'Double Insiders points'],
@@ -31,14 +48,14 @@ function whenText(p, upcoming) {
 }
 
 function promoHTML(p, { upcoming = false, admin = false } = {}) {
-  const meta = [whenText(p, upcoming), p.min_spend ? t('promos.spend', { amount: fmtMoney(p.min_spend, { cents: 0 }) }) : ''].filter(Boolean).join(' · ');
+  const meta = [whenText(p, upcoming), p.min_spend ? t('promos.spend', { amount: storeMoney(Number(p.min_spend), p.currency) }) : ''].filter(Boolean).join(' · ');
   const gift = p.gift_set_num
     ? `<a class="bv-promo__gift" href="#/set/${encodeURIComponent(p.gift_set_num)}">
         ${p.gift_image ? `<img src="${escapeHtml(proxyImg(p.gift_image))}" alt="" loading="lazy" decoding="async">` : ''}
         <span>${escapeHtml(p.gift_name || p.gift_set_num)}</span></a>`
     : '';
   return `<li class="bv-promo${Number(p.hidden) ? ' is-hidden' : ''}" data-promo="${Number(p.id)}">
-    <div class="bv-promo__head">${pill(kindLabel(p.kind), kindTone(p.kind))}${Number(p.hidden) ? pill('Hidden', 'neutral') : ''}</div>
+    <div class="bv-promo__head">${pill(kindLabel(p.kind), kindTone(p.kind))}${Number(p.hidden) ? pill('Hidden', 'neutral') : ''}${admin && p.market ? pill(String(p.market), 'neutral') : ''}</div>
     <h3 class="bv-promo__title">${escapeHtml(p.title)}</h3>
     ${meta ? `<p class="bv-promo__meta">${escapeHtml(meta)}</p>` : ''}
     ${p.details ? `<p class="bv-promo__details">${escapeHtml(p.details)}</p>` : ''}
@@ -61,7 +78,9 @@ function editSheet(p, onSaved) {
         <select id="pKind" class="bv-field__input">${KINDS.map(([k, l]) => `<option value="${k}"${(p?.kind || 'gwp') === k ? ' selected' : ''}>${escapeHtml(l)}</option>`).join('')}</select></label>
       ${field({ id: 'pStart', label: 'Starts', type: 'date', value: v(p?.starts_on) })}
       ${field({ id: 'pEnd', label: 'Ends', type: 'date', value: v(p?.ends_on) })}
-      ${field({ id: 'pSpend', label: 'Minimum spend (USD)', type: 'number', value: v(p?.min_spend) })}
+      <label class="bv-field"><span class="bv-field__label">LEGO.com store</span>
+        <select id="pMarket" class="bv-field__input">${MARKETS.map((m) => `<option value="${m}"${(p?.market || myMarket()) === m ? ' selected' : ''}>${escapeHtml(regionName(m))}</option>`).join('')}</select></label>
+      ${field({ id: 'pSpend', label: "Minimum spend (in that store's currency)", type: 'number', value: v(p?.min_spend) })}
       ${field({ id: 'pGift', label: 'Gift set number', value: v(p?.gift_set_num), placeholder: '40573' })}
       ${field({ id: 'pDetails', label: 'Details', value: v(p?.details) })}
       ${field({ id: 'pUrl', label: 'Link', type: 'url', value: v(p?.url) })}
@@ -73,7 +92,7 @@ function editSheet(p, onSaved) {
     const body = {
       title: $('#pTitle').value, kind: $('#pKind').value, starts_on: $('#pStart').value || null, ends_on: $('#pEnd').value || null,
       min_spend: $('#pSpend').value ? Number($('#pSpend').value) : null, gift_set_num: $('#pGift').value || null,
-      details: $('#pDetails').value || null, url: $('#pUrl').value || null,
+      details: $('#pDetails').value || null, url: $('#pUrl').value || null, market: $('#pMarket').value,
     };
     try {
       await api(p ? `/api/promotions/admin/${p.id}` : '/api/promotions/admin', { method: p ? 'PATCH' : 'POST', body });
@@ -95,10 +114,11 @@ function paint(data, admin) {
   root.innerHTML = `<main class="bv-page no-nav bv-promos" id="promosPage">
     ${topbar({ title: 'Promotions', sub: 'Gifts, double points and sales at LEGO', back: '#/me' })}
     ${admin ? `<div class="bv-promos__admin">${btn('Add a promotion', { kind: 'outline', icon: 'plus', id: 'promoAdd', full: true })}</div>` : ''}
+    ${data.fallback ? `<p class="bv-promos__note bv-foot" role="note">${escapeHtml(t('promos.fallback', { store: regionName(data.asked_market || myMarket()) }))}</p>` : ''}
     ${!all.length ? emptyState({ icon: 'cal', title: 'No promotions right now', body: 'We check LEGO.com every day. New gifts with purchase and double points weeks show up here.' }) : ''}
     ${now.length ? `<h2 class="bv-h2">On now</h2>${list(now, {})}` : ''}
     ${upcoming.length ? `<h2 class="bv-h2">Coming up</h2>${list(upcoming, { upcoming: true })}` : ''}
-    ${all.length ? '<p class="bv-foot">US offers from LEGO.com. Check the details before you buy: stock and terms can change.</p>' : ''}
+    ${all.length ? `<p class="bv-foot">${escapeHtml(t('promos.footer', { store: regionName(data.market || 'US') }))}</p>` : ''}
   </main>`;
   const reload = () => load();
   $('#promoAdd')?.addEventListener('click', () => editSheet(null, reload));
@@ -120,7 +140,8 @@ function paint(data, admin) {
 async function load() {
   const admin = !!state.me?.is_admin;
   try {
-    paint(await api(admin ? '/api/promotions/admin' : '/api/promotions'), admin);
+    const q = `?market=${encodeURIComponent(myMarket())}`;
+    paint(await api(admin ? `/api/promotions/admin${q}` : `/api/promotions${q}`), admin);
   } catch {
     const root = $('#root');
     if (!root || !onScreen()) return;
