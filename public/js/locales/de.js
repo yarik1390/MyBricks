@@ -534,7 +534,7 @@ export const de = {
     themeGroup: 'Themengruppe',
     theme: 'Thema',
     teachTitle: 'Bring uns diesen Barcode bei',
-    teachThanks: 'Danke — wir prüfen und ergänzen ihn.',
+    teachThanks: 'Danke! Ab jetzt erkennt die App ihn bei dir, nach unserer Prüfung bei allen.',
     teachSubmit: 'Zur Prüfung senden',
     teachSignIn: 'Melde dich an, um uns neue Barcodes beizubringen.',
     teachLabel: 'Welches Set ist es?',

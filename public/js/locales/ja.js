@@ -534,7 +534,7 @@ export const ja = {
     themeGroup: 'テーマグループ',
     theme: 'テーマ',
     teachTitle: 'このバーコードを教える',
-    teachThanks: 'ありがとうございます。確認して追加します。',
+    teachThanks: 'ありがとうございます！あなたはすぐに使えます。確認後、全員に反映されます。',
     teachSubmit: 'レビューに送信',
     teachSignIn: '新しいバーコードを教えるにはサインインしてください。',
     teachLabel: 'どのセットですか？',
