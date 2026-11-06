@@ -52,9 +52,11 @@ alerts, and share a public profile. Live: https://bricksvault.app
      **new columns directly in the CREATE TABLE** here.
    - `worker/schema_migrate.sql` — plain `ALTER TABLE ADD COLUMN` (no `IF NOT
      EXISTS`), **one per line**, for existing DBs. The deploy workflow greps
-     these lines and runs **each ALTER independently** with `|| true`, so a
-     duplicate-column error on one can't block the rest — adding a column is a
-     one-line edit here, no workflow change needed.
+     these lines, reads the live columns in **one query**, and runs only the
+     ALTERs whose column is missing (each independently) — adding a column is
+     a one-line edit here, no workflow change needed. All remote D1 calls in
+     the deploy go through `worker/scripts/d1-remote.sh`, which retries D1's
+     transient "overloaded [7429]" errors; don't add per-line wrangler loops.
    When you add a column, add it to **both schema files**, and extend the
    "Validate schema before deploy" probes in
    `.github/workflows/deploy-worker.yml` (`SELECT <cols> FROM <table> LIMIT 0`)

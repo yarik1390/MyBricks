@@ -5,11 +5,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Cancel a running smoke suite when a newer commit supersedes it, so a burst of
-# pushes doesn't stack N parallel Playwright installs + browser downloads.
+# On a PR, cancel a running smoke suite when a newer commit supersedes it, so a
+# burst of pushes doesn't stack N parallel Playwright installs. On main every
+# merge is its own post-merge check: group by commit and never cancel, so
+# overlapping merges each get a finished result instead of "cancelled".
 concurrency:
-  group: e2e-smoke-${{ github.ref }}
-  cancel-in-progress: true
+  group: e2e-smoke-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Least-privilege token: nothing in this workflow writes to the repo via GITHUB_TOKEN.
 permissions:
