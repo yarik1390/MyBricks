@@ -1846,6 +1846,7 @@ Object.assign(ja.room, {
   walkInstructions: 'WASDキーまたは矢印キーで移動します。ドラッグして周囲を見回します。箱をクリックすると詳細を確認できます。',
   touchInstructions: 'タッチスクリーンでは、左のジョイスティックで移動し、それ以外の場所をドラッグして周囲を見回します。箱をタップすると確認できます。',
   escapeInstructions: 'マウスをキャプチャすると、マウスで連続して周囲を見回せます。Escapeキーを押すとマウスが解放されるか、開いているパネルが閉じます。',
+  doorExitInstructions: '開いた金庫の扉へ歩くか、戻る矢印を押すとルームを出られます。どこかをタップすると退出シーンをスキップできます。',
   joystick: '移動用ジョイスティック', backToRoom: 'ルームに戻る', fullDetails: '詳細をすべて開く',
   copiesOne: '{quantity}個所有', copiesOther: '{quantity}個所有', search: 'セットを検索', more: 'さらにセットを表示',
   arrived: '選択した棚に到着しました。箱を選択すると確認できます。', mouseUnavailable: 'マウスキャプチャを利用できません。ドラッグして周囲を見回してください。',

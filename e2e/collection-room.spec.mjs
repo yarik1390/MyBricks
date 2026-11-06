@@ -142,7 +142,8 @@ test('Vault enters fullscreen directly; walking, mouse looking, collision and ex
   await page.locator('#roomReset').click();
   await page.screenshot({ path: 'audit/showroom-desktop.png' });
   await page.getByRole('link', { name: 'Back to vault', exact: true }).click();
-  await expect(page.locator('#roomStage')).toHaveCount(0);
+  // Leaving walks out through the door first (about 2.4 s, longer under software WebGL).
+  await expect(page.locator('#roomStage')).toHaveCount(0, { timeout: 15000 });
   await expect(page.locator('#nav')).toBeVisible();
 });
 
@@ -607,4 +608,81 @@ test('narrow Catalog toolbar view toggle stays on screen without badge letter wr
     const filterBtn = page.locator('#filterChip');
     await expect(filterBtn).toBeVisible();
   }
+});
+
+test('leaving walks out through the vault door, which closes behind, then returns to the Vault', async ({ page }) => {
+  test.slow();
+  await page.addInitScript(() => {
+    window.__exitSamples = [];
+    new MutationObserver(() => {
+      const stage = document.querySelector('#roomStage');
+      if (stage?.dataset.doorExit) window.__exitSamples.push({ exit: stage.dataset.doorExit, z: Number(stage.dataset.cameraZ), door: stage.dataset.doorState });
+    }).observe(document, { attributes: true, attributeFilter: ['data-door-exit-progress', 'data-door-exit'], subtree: true });
+  });
+  await stubRoom(page);
+  await page.goto('/#/');
+  await page.getByRole('link', { name: 'Room', exact: true }).click();
+  await ready(page);
+  await doorOpen(page);
+  await page.getByRole('link', { name: 'Back to vault', exact: true }).click();
+  await expect(page).toHaveURL(/#\/$/, { timeout: 15000 });
+  await expect(page.locator('#roomStage')).toHaveCount(0);
+  const samples = await page.evaluate(() => window.__exitSamples);
+  expect(samples.some(sample => sample.exit === 'walking')).toBe(true);
+  expect(samples.some(sample => sample.z < 0)).toBe(true);
+  expect(samples.some(sample => sample.door === 'closing' || sample.door === 'closed')).toBe(true);
+  await expect(page.locator('#nav')).toBeVisible();
+});
+
+test('a tap skips the walk out, and walking into the open door leaves too', async ({ page }) => {
+  test.slow();
+  await stubRoom(page);
+  await page.goto('/#/');
+  await page.getByRole('link', { name: 'Room', exact: true }).click();
+  await ready(page);
+  await doorOpen(page);
+  // Under software WebGL the walk can finish before a poll sees it, so the
+  // skip is driven in-page right after the click starts the walk.
+  const skipped = await page.evaluate(() => new Promise(resolve => {
+    const stage = document.querySelector('#roomStage');
+    document.querySelector('#roomBack').click();
+    const walking = stage.dataset.doorExit === 'walking';
+    stage.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    resolve({ walking, done: stage.dataset.doorExit });
+  }));
+  expect(skipped).toEqual({ walking: true, done: 'done' });
+  await expect(page).toHaveURL(/#\/$/, { timeout: 3000 });
+
+  await page.getByRole('link', { name: 'Room', exact: true }).click();
+  await ready(page);
+  await doorOpen(page);
+  // Turn to face the door (yaw π), then walk into it.
+  const start = await pose(page);
+  const delta = Math.atan2(Math.sin(start.yaw - Math.PI), Math.cos(start.yaw - Math.PI));
+  const box = await page.locator('#roomStage').boundingBox();
+  let remaining = delta / 0.0032;
+  while (Math.abs(remaining) > 1) {
+    const step = Math.max(-300, Math.min(300, remaining));
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + step, box.y + box.height / 2, { steps: 4 });
+    await page.mouse.up();
+    remaining -= step;
+  }
+  expect(Math.cos((await pose(page)).yaw)).toBeLessThan(-0.9);
+  await page.locator('#roomStage').focus();
+  await page.keyboard.down('w');
+  await expect(page).toHaveURL(/#\/$/, { timeout: 15000 });
+  await page.keyboard.up('w');
+});
+
+test('reduced motion leaves the room without the walk out', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await stubRoom(page);
+  await page.goto('/#/');
+  await page.getByRole('link', { name: 'Room', exact: true }).click();
+  await ready(page);
+  await page.getByRole('link', { name: 'Back to vault', exact: true }).click();
+  await expect(page).toHaveURL(/#\/$/, { timeout: 2000 });
+  await expect(page.locator('#roomStage')).toHaveCount(0);
 });

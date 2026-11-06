@@ -1841,6 +1841,7 @@ Object.assign(nl.room, {
   walkInstructions: 'Gebruik WASD of de pijltjestoetsen om te lopen. Sleep om rond te kijken. Klik op een doos om de details te bekijken.',
   touchInstructions: 'Gebruik op touchscreens de linker joystick om te bewegen en sleep ergens anders om rond te kijken. Tik op een doos om die te bekijken.',
   escapeInstructions: 'Met muisbesturing kun je continu rondkijken. Met Escape geef je de muis vrij of sluit je het geopende paneel.',
+  doorExitInstructions: 'Loop door de open kluisdeur of gebruik de terugpijl om de kamer te verlaten. Tik ergens om de wandeling naar buiten over te slaan.',
   joystick: 'Bewegingsjoystick', backToRoom: 'Terug naar de kamer', fullDetails: 'Alle details openen',
   copiesOne: '{quantity} exemplaar in bezit', copiesOther: '{quantity} exemplaren in bezit', search: 'Sets zoeken', more: 'Meer sets tonen',
   arrived: 'Je bent bij de geselecteerde plank. Selecteer een doos om die te bekijken.', mouseUnavailable: 'Muisbesturing is niet beschikbaar. Sleep om rond te kijken.',

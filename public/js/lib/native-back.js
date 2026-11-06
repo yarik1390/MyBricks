@@ -10,7 +10,7 @@ import { getCapacitorPlugin, isNativeCapacitor } from './native-auth.js';
 import { hideSheet } from '../components/sheet.js';
 import { closeScan } from '../components/scanner-lazy.js';
 import { cancelActiveStream } from '../components/advisor-lazy.js';
-import { goBackOr, backTarget } from './nav-history.js';
+import { goBackOr, backTarget, leaveVia } from './nav-history.js';
 import { getModePref } from '../theme.js';
 
 let wired = false;
@@ -81,7 +81,7 @@ export function initNativeBack(win) {
       window.dispatchEvent(new HashChangeEvent('hashchange', { oldURL: from, newURL: location.href }));
       return;
     }
-    if (target === 'history') { goBackOr(home); return; }
+    if (target === 'history') { leaveVia(() => goBackOr(home)); return; }
 
     // 7. A root with nothing open: the handler should already be off. If a
     // press raced the toggle, leave the app the way Android would.

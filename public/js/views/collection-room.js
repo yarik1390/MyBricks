@@ -12,14 +12,18 @@ import {
   unwarpQuadToCanvas,
 } from '../lib/collection-room.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
+import { leaveVia, setLeaveHook } from '../lib/nav-history.js';
 
 let generation = 0;
 let activeRoom = null;
 let activeIntro = null;
 let rememberedPose = null;
 let roomSheet = false;
+let clearLeaveHook = () => {};
 const inRoom = () => location.hash.split('?')[0] === '#/room';
 function releaseRoom(remember = true) {
+  clearLeaveHook();
+  clearLeaveHook = () => {};
   activeIntro?.destroy();
   activeIntro = null;
   if (remember && activeRoom) rememberedPose = { owner: getSessionOwnerSnapshot(), pose: activeRoom.getPose() };
@@ -77,7 +81,7 @@ export async function renderCollectionRoom() {
     <div id="roomStage" class="showroom-stage" tabindex="0" aria-label="${escapeHtml(t('room.walkInstructions'))}" data-room-state="loading"></div>
     <div class="showroom-chrome-top">
       <header class="bv-room-bar">
-        <a class="bv-iconbtn bv-room-btn" href="#/" data-vault-view="grid" aria-label="${escapeHtml(t('bvVault.roomBack'))}">${icon('back')}</a>
+        <a class="bv-iconbtn bv-room-btn" id="roomBack" href="#/" data-vault-view="grid" aria-label="${escapeHtml(t('bvVault.roomBack'))}">${icon('back')}</a>
         <div class="bv-room-heading"><h1>${escapeHtml(t('bvVault.roomTitle'))}</h1><span>${escapeHtml(tPlural('room.count', catalog.length, { count: catalog.length }))}</span></div>
         ${roomBtn('roomFind', 'search', t('room.find'))}${roomBtn('roomList', 'list', t('room.accessibleList'))}
       </header>
@@ -94,6 +98,21 @@ export async function renderCollectionRoom() {
   </main>`;
   const stage = $('#roomStage');
   const status = $('#roomStatus');
+  // Leaving walks out through the vault door first (see the leave hook set
+  // once the 3D room is ready); with no room, or reduced motion, it just goes.
+  const backLink = $('#roomBack');
+  let leaving = false;
+  backLink.addEventListener('click', event => {
+    if (leaving || event.button > 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    // The click has already bubbled (the Vault view preference is saved);
+    // after the walk, navigate the way the link's href would.
+    leaveVia(() => {
+      if (leaving || !inRoom()) return;
+      leaving = true;
+      location.hash = backLink.getAttribute('href') || '#/';
+    });
+  });
   const imageUrl = item => {
     const artwork = boxArtworkPresentation(item);
     return escapeHtml(artwork.url ? thumbImg(artwork.url, 400) : '/brand-brick-transparent.png');
@@ -296,7 +315,7 @@ export async function renderCollectionRoom() {
       capture?.catch?.(() => { if (current()) status.textContent = t('room.mouseUnavailable'); });
     } catch { if (current()) status.textContent = t('room.mouseUnavailable'); }
   });
-  $('#roomHelp').addEventListener('click', () => modal(`<h2 id="roomSheetTitle">${t('room.controls')}</h2><p>${t('room.walkInstructions')}</p><p>${t('room.touchInstructions')}</p><p>${t('room.escapeInstructions')}</p>`, $('#roomHelp')));
+  $('#roomHelp').addEventListener('click', () => modal(`<h2 id="roomSheetTitle">${t('room.controls')}</h2><p>${t('room.walkInstructions')}</p><p>${t('room.touchInstructions')}</p><p>${t('room.escapeInstructions')}</p><p>${t('room.doorExitInstructions')}</p>`, $('#roomHelp')));
   const unavailable = () => {
     if (!current() || !stage.isConnected) return;
     failed = true;
@@ -323,11 +342,21 @@ export async function renderCollectionRoom() {
       isCurrent: () => current() && stage.isConnected,
       gold: !!state.me?.is_supporter,
       onSelect: details, onUnavailable: unavailable, joystick: $('#roomJoystick'), initialPose,
+      // Walking into the open doorway leaves the room, like the back arrow.
+      onDoorReached: () => { if (!roomSheet && backLink.isConnected) backLink.click(); },
       doorIntroMode: useVideoIntro ? 'deferred' : 'native',
     });
     if (!current() || !stage.isConnected || failed) { controller?.destroy(); return; }
     if (!controller) { unavailable(); return; }
     activeRoom = controller;
+    clearLeaveHook = setLeaveHook(go => {
+      if (activeRoom !== controller || roomSheet || activeIntro) return false;
+      // A second back press during the walk skips straight out.
+      if (controller.isExiting()) { controller.skipExit(); return true; }
+      if (!controller.exitThroughDoor(go)) return false;
+      $('#collectionRoomPage')?.classList.add('is-leaving');
+      return true;
+    });
     controller.setPaused(roomSheet);
     stage.dataset.roomState = 'ready';
     status.textContent = catalog.length ? t('bvVault.roomHint') : t('room.empty');

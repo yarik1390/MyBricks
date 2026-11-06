@@ -2686,3 +2686,7 @@ body.collector-ui.offline #app { padding-top: 56px; }
 #root > .boot-wel { display: none; }
 body.bv-fullscreen #root > .boot-wel { display: flex; }
 body.bv-fullscreen #root > .boot-wel ~ .page { display: none; }
+
+/* Collection room: walking out through the vault door hides the controls. */
+.bv-room.is-leaving .bv-room-bottom,
+.bv-room.is-leaving .showroom-crosshair { opacity: 0; pointer-events: none; transition: opacity .3s ease; }

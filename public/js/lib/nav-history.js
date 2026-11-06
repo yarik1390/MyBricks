@@ -44,6 +44,26 @@ export function goBackOr(fallback = '#/') {
   window.dispatchEvent(new HashChangeEvent('hashchange', { oldURL: from, newURL: location.href }));
 }
 
+// A screen can play a short exit before leaving (the Collection room walks
+// out through its vault door). The hook receives the navigation to run and
+// returns true when it will call it itself, later; otherwise it runs now.
+let leaveHook = null;
+export function setLeaveHook(hook) {
+  leaveHook = typeof hook === 'function' ? hook : null;
+  return () => { if (leaveHook === hook) leaveHook = null; };
+}
+
+/** Run `go` (a back navigation), giving the current screen's exit a turn first. */
+export function leaveVia(go) {
+  const hook = leaveHook;
+  if (hook) {
+    try {
+      if (hook(go) === true) return;
+    } catch { /* a broken exit never blocks back */ }
+  }
+  go();
+}
+
 // Android back with nothing open. Roots leave the app. The other bottom-bar
 // tabs (Kids Mode has its own bar) return to the home tab — Android's
 // bottom-navigation rule — instead of retracing every tab and page visited

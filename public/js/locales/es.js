@@ -1841,6 +1841,7 @@ Object.assign(es.room, {
   walkInstructions: 'Usa WASD o las flechas para caminar. Arrastra para mirar alrededor. Haz clic en una caja para ver sus detalles.',
   touchInstructions: 'En pantallas táctiles, muévete con el joystick izquierdo y arrastra en otra zona para mirar alrededor. Toca una caja para examinarla.',
   escapeInstructions: 'Al activar el control con ratón, puedes mirar continuamente. Escape libera el ratón o cierra el panel abierto.',
+  doorExitInstructions: 'Camina hacia la puerta abierta de la cámara o usa la flecha atrás para salir de la sala. Toca en cualquier lugar para saltar la salida.',
   joystick: 'Joystick de movimiento', backToRoom: 'Volver a la sala', fullDetails: 'Abrir todos los detalles',
   copiesOne: 'Tienes {quantity} copia', copiesMany: 'Tienes {quantity} copias', copiesOther: 'Tienes {quantity} copias', search: 'Buscar sets', more: 'Mostrar más sets',
   arrived: 'Has llegado al estante seleccionado. Selecciona una caja para examinarla.', mouseUnavailable: 'El control con ratón no está disponible. Arrastra para mirar alrededor.',
