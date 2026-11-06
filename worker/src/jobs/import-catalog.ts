@@ -166,6 +166,16 @@ export async function importSets(db: D1Database, env?: Env, options: CatalogImpo
     }),
   });
 
+  // Keep photo fallbacks (jobs/set-image-backfill.ts): Rebrickable lists an
+  // img_url even for sets whose photo it doesn't have yet, so its URL must not
+  // overwrite a working Brickset/LEGO.com photo. The backfill switches back
+  // once Rebrickable has the image.
+  try {
+    await db.prepare(`UPDATE _rb_sets_stage SET image_url = (
+        SELECT c.fallback_url FROM set_image_checks c WHERE c.set_num = _rb_sets_stage.set_num)
+      WHERE set_num IN (SELECT set_num FROM set_image_checks WHERE fallback_url IS NOT NULL)`).run();
+  } catch { /* table not created yet: nothing to keep */ }
+
   await options.onProgress?.({ current: 0, total: null, label: 'Applying set deltas' });
   // Sources whose market-derived values must never be clobbered by the bulk
   // formula placeholder — keep in sync with the guards this replaced.

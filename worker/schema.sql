@@ -1328,3 +1328,20 @@ CREATE TABLE IF NOT EXISTS app_feedback (
 );
 CREATE INDEX IF NOT EXISTS idx_app_feedback_created ON app_feedback(created_at);
 CREATE INDEX IF NOT EXISTS idx_app_feedback_user ON app_feedback(user_id, created_at);
+
+-- Set photo fallbacks (jobs/set-image-backfill.ts). Rebrickable lists an image
+-- URL for every set, even when the file 404s (new sets, promos). rb_status is
+-- the last probe of that URL; fallback_url/source is the Brickset or LEGO.com
+-- photo written into lego_sets.image_url (side table: lego_sets is at D1's
+-- 100-column cap).
+CREATE TABLE IF NOT EXISTS set_image_checks (
+  set_num TEXT PRIMARY KEY,
+  rb_url TEXT,
+  rb_status INTEGER,
+  checked_at TEXT,
+  fallback_url TEXT,
+  fallback_source TEXT,
+  fallback_checked_at TEXT,
+  attempts INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_set_image_checks_missing ON set_image_checks (rb_status, fallback_url);

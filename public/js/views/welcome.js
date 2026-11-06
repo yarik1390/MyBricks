@@ -8,7 +8,7 @@
 // price alerts. Finishing anywhere marks the first run done (bv_setup_v1), the
 // same flag the old setup wizard used, so returning users never see it again.
 import { $, $$, escapeHtml, haptic, toast, CURRENCY_SYMBOLS, bvIDB } from '../utils.js';
-import { state, invalidatePortfolio, earlyAccessPro } from '../state.js';
+import { state, invalidatePortfolio, earlyAccessPro, proLooksUnlocked } from '../state.js';
 import { api, isGuestMode } from '../api.js';
 import { go } from '../router.js';
 import { t, tPlural, SUPPORTED, getLocale, setLocale, applyUiDictionary, translateDOM, intlLocale } from '../lib/i18n.js';
@@ -199,7 +199,8 @@ function openSelectSheet(kind) {
 
 function openLookSheet() {
   haptic('light');
-  const locked = (v) => !state.me?.is_supporter && (v === 'premium' || v === 'gold');
+  const looks = proLooksUnlocked();
+  const locked = (v) => !looks && (v === 'premium' || v === 'gold');
   const skins = ['retro', 'modular', 'vivid', 'premium', 'gold'].map((v) => `<button type="button" class="bv-chip" data-skin="${v}" aria-pressed="${getSkinPref() === v}"${locked(v) ? ' data-locked="1"' : ''}><span class="bv-skin-dot bv-skin-dot--${v}" aria-hidden="true"></span>${locked(v) ? icon('lock', { size: 16 }) : ''}<span>${escapeHtml(t(skinKey[v]))}</span></button>`).join('');
   showSheet(sheetBody({
     title: t('bvFirst.look'),
@@ -209,7 +210,7 @@ function openLookSheet() {
       ${seg(['light', 'auto', 'dark'].map((v) => ({ label: t(themeKey[v]), value: v, current: getThemePref() === v, attrs: { 'data-theme-val': v } })), { label: t('bvFirst.theme'), id: 'welThemeSeg' })}
       <span class="bv-field__label">${escapeHtml(t('bvFirst.style'))}</span>
       <div class="bv-wel__skins" role="group" aria-label="${escapeHtml(t('bvFirst.style'))}">${skins}</div>
-      <p class="bv-field__help">${escapeHtml(t('bvFirst.styleHelp'))}</p>
+      ${looks ? '' : `<p class="bv-field__help">${escapeHtml(t('bvFirst.styleHelp'))}</p>`}
     </div>`,
   }));
   $$('#welLookSheet [data-theme-val]').forEach((b) => b.addEventListener('click', () => {

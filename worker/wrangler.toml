@@ -101,6 +101,8 @@ crons = [
   # the 'community' family joins the blend as soon as data exists.
   "0 22 * * *",
   "15 * * * *",
+  # Set photo fallbacks (Brickset / LEGO.com) for Rebrickable 404s.
+  "20 * * * *",
   # Hourly BrickLink-staleness refresh. BrickLink age (not data availability) is what
   # caps blend confidence: of the sets with two independent sold families, 100% meet
   # the sample bar and 78% agree within 1.4x, but only ~19% had BOTH sources fresh.
