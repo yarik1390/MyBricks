@@ -104,7 +104,8 @@ test('outside the US, LEGO.com shows its own local price and links the local sto
 });
 
 test('promotions page splits offers into on now and coming up', async ({ page }) => {
-  await page.route('**/api/promotions', route => route.fulfill({ json: {
+  await page.route('**/api/promotions?*', route => route.fulfill({ json: {
+    market: 'US', asked_market: 'US', fallback: false,
     now: [{ id: 1, kind: 'gwp', title: 'Free Christmas Tree', starts_on: '2026-10-01', ends_on: '2099-12-31', min_spend: 150, gift_set_num: '40573-1', gift_name: 'Christmas Tree', gift_image: null, url: 'https://www.lego.com/en-us/offers' }],
     upcoming: [{ id: 2, kind: 'double_points', title: 'Double points weekend', starts_on: '2099-11-27', ends_on: '2099-11-30' }],
   } }));
@@ -115,4 +116,21 @@ test('promotions page splits offers into on now and coming up', async ({ page })
   await expect(page$.locator('.bv-promo').first()).toContainText('Christmas Tree');
   await expect(page$.getByRole('heading', { name: 'Coming up' })).toBeVisible();
   await expect(page$.locator('.bv-promo').nth(1)).toContainText('Double Insiders points');
+});
+
+test('promotions page shows the store currency and says when it falls back to US offers', async ({ page }) => {
+  let asked = '';
+  await page.route('**/api/promotions?*', (route) => {
+    asked = route.request().url();
+    return route.fulfill({ json: {
+      market: 'US', asked_market: 'GB', fallback: true,
+      now: [{ id: 1, kind: 'gwp', title: 'TIE Interceptor Mini-Build', ends_on: '2099-12-31', min_spend: 40, currency: 'USD', market: 'US' }],
+      upcoming: [],
+    } });
+  });
+  await page.goto('/#/promos');
+  const page$ = page.locator('#promosPage');
+  await expect(page$.locator('.bv-promo').first()).toContainText('$40');
+  await expect(page$.locator('.bv-promos__note')).toContainText('US dollars');
+  expect(asked).toMatch(/market=[A-Z]{2}/);
 });
