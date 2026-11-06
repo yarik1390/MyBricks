@@ -1240,3 +1240,22 @@ describe('withheld values ("No market price")', () => {
     }
   });
 });
+
+describe('sub-$1 placeholder estimates', () => {
+  it('shows no price instead of €0 for 1-piece promos without sales', async () => {
+    const { enrichSetRecord, holdingValueForRollout } = await import('./lib/market-sources');
+    const tag = { set_num: '4000701-1', pieces: 1, retail_price: 0.11, current_value: 0.11, blended_value: 0.1, valuation_method: 'formula_bulk' };
+    const out = enrichSetRecord({ ...tag }) as Record<string, any>;
+    expect(out.value_withheld).toBe(true);
+    expect(out.current_value).toBeNull();
+    expect(out.market_value).toBeNull();
+    expect(out.retail_price).toBeNull();
+    expect(holdingValueForRollout({ ...tag }, 0)).toBe(0);
+    // A real Brickset RRP stays; a real sale keeps the value.
+    expect((enrichSetRecord({ ...tag, brickset_msrp: 0.5 }) as Record<string, any>).retail_price).toBe(0.11);
+    const sold = enrichSetRecord({ ...tag, bl_new_value: 0.8 }) as Record<string, any>;
+    expect(sold.value_withheld).toBeUndefined();
+    const normal = enrichSetRecord({ set_num: '30001-1', current_value: 4.5, valuation_method: 'formula_bulk' }) as Record<string, any>;
+    expect(normal.value_withheld).toBeUndefined();
+  });
+});
