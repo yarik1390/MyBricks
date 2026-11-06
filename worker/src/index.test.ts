@@ -5,6 +5,7 @@ import { integrationReadiness } from './lib/config-readiness';
 import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { apiErrorHandler, app } from './index';
+import { clearLlmRoutesCache } from './lib/llm-routing';
 
 declare module 'cloudflare:test' {
   interface ProvidedEnv {
@@ -128,6 +129,9 @@ describe('BrickVault API Worker Tests', () => {
     (env as any).GOOGLE_CLIENT_ID = 'google-client-id-mock';
     (env as any).GOOGLE_CLIENT_SECRET = 'google-client-secret-mock';
     (env as any).OPENAI_API_KEY = 'openai-api-key-mock';
+    // Shared scans no longer use the paid OpenAI step; the free OpenRouter pool
+    // goes through the same mocked 'openai' client.
+    (env as any).OPENROUTER_API_KEY = 'openrouter-api-key-mock';
     // Route-level Brickognize tests opt in explicitly. Keeping the rest of this
     // broad suite isolated avoids accidental calls to the public recognition API.
     (env as any).BRICKOGNIZE_ENABLED = '0';
@@ -965,6 +969,11 @@ describe('BrickVault API Worker Tests', () => {
     });
 
     it('does not label an uncertain empty shared response as non-LEGO', async () => {
+      // One free step only, so the single uncertain-empty answer ends the cascade.
+      await db.prepare(`CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)`).run();
+      await db.prepare(`INSERT OR REPLACE INTO app_settings (key, value) VALUES ('llm_routing', ?)`)
+        .bind(JSON.stringify({ scan: [{ provider: 'openrouter', model: 'google/gemma-4-31b-it:free', enabled: true }] })).run();
+      clearLlmRoutesCache();
       const res = await app.fetch(
         new Request('http://localhost/api/scan/identify', {
           method: 'POST',
@@ -982,6 +991,8 @@ describe('BrickVault API Worker Tests', () => {
       expect(sharedAmbiguousCalls).toBeGreaterThan(0);
       expect(data.reason).toBe('provider_unavailable');
       expect(data.reason).not.toBe('not_lego');
+      await db.prepare(`DELETE FROM app_settings WHERE key='llm_routing'`).run();
+      clearLlmRoutesCache();
     });
 
     it('rejects unknown scan modes', async () => {

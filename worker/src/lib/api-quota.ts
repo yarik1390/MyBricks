@@ -55,6 +55,10 @@ export const QUOTA_CAPS: Record<string, number> = {
   // route with the shared Gemini key. Each result is cached per set+language,
   // so real traffic needs few; the cap stops a crawler walking the catalog.
   describe_translate: 600,
+  // Workers AI scan calls (lib/workers-ai.ts). The account's free allocation is
+  // 10,000 Neurons/day; a Gemma 4 photo scan is ~15-35, a shelf scan more. 250
+  // calls keeps the worst case under the free line, so this step never bills.
+  workersai: 250,
 };
 
 // Admin-tunable daily-cap overrides (lib/source-config.ts), keyed by service.

@@ -99,6 +99,8 @@ export interface Env {
   OPENCODEX_API_KEY?: string;
   OPENCODEX_BASE_URL?: string;
   OPENCODEX_VPC?: Fetcher;
+  // Cloudflare Workers AI binding ([ai] in wrangler.toml). Free scan step.
+  AI?: Ai;
   // Monthly USD allowance the admin console meters Merge spend against
   // (default 10). Merge publishes no balance API, so remaining credit is
   // derived from the real per-call `usage.cost` it returns, accumulated in the

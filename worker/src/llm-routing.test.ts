@@ -40,20 +40,46 @@ describe('llm-routing', () => {
     for (const w of LLM_WORKLOADS) expect(routes[w].length).toBeGreaterThan(0);
   });
 
-  it('defaults scan to the dedicated OpenCodex scan-vision combo, then the free pool, no Merge', () => {
-    expect(DEFAULT_LLM_ROUTES.scan.slice(0, 2)).toEqual([
+  it('defaults scan to OpenCodex, then free Workers AI, then the free OpenRouter pool', () => {
+    expect(DEFAULT_LLM_ROUTES.scan).toEqual([
       { provider: 'opencodex', model: 'brickvault-scan-vision', enabled: true },
+      { provider: 'workersai', model: '@cf/google/gemma-4-26b-a4b-it', enabled: true },
       { provider: 'openrouter', model: '', enabled: true },
     ]);
   });
 
-  it('keeps Merge out of scan and shelf, with the metered OpenAI backstop last', async () => {
+  it('keeps scan and shelf free: no Merge, no OpenAI', async () => {
     for (const w of ['scan', 'shelf'] as const) {
       const steps = DEFAULT_LLM_ROUTES[w].map((s) => s.provider);
       expect(steps[0]).toBe('opencodex');
       expect(steps).not.toContain('merge');
-      expect(steps[steps.length - 1]).toBe('openai');
+      expect(steps).not.toContain('openai');
     }
+  });
+
+  it('strips stored OpenAI and paid OpenRouter steps from scan and shelf', async () => {
+    await db.prepare(`INSERT INTO app_settings (key, value) VALUES ('llm_routing', ?)`)
+      .bind(JSON.stringify({
+        scan: [
+          { provider: 'opencodex', model: 'brickvault-scan-vision', enabled: true },
+          { provider: 'openrouter', model: 'mistralai/mistral-small-3.2-24b-instruct', enabled: true },
+          { provider: 'openrouter', model: 'google/gemma-4-31b-it:free', enabled: true },
+          { provider: 'openai', model: 'gpt-4o-mini', enabled: true },
+        ],
+        shelf: [
+          { provider: 'openai', model: 'gpt-4o', enabled: true },
+          { provider: 'workersai', model: '@cf/google/gemma-4-26b-a4b-it', enabled: true },
+        ],
+        advisor: [{ provider: 'openai', model: 'gpt-4o-mini', enabled: true }],
+      })).run();
+    clearLlmRoutesCache();
+    const routes = await getLlmRoutes(env as any);
+    expect(routes.scan.map((s) => `${s.provider}:${s.model}`)).toEqual([
+      'opencodex:brickvault-scan-vision',
+      'openrouter:google/gemma-4-31b-it:free',
+    ]);
+    expect(routes.shelf.map((s) => s.provider)).toEqual(['workersai']);
+    expect(routes.advisor.map((s) => s.provider)).toEqual(['openai']);
   });
 
   it('strips stored Merge steps from scan and shelf but keeps them elsewhere', async () => {
@@ -136,7 +162,7 @@ describe('llm-routing', () => {
     await db.prepare(`INSERT INTO app_settings (key, value) VALUES ('llm_routing', ?)`)
       .bind(JSON.stringify({
         scan: [
-          { provider: 'openai', model: 'gpt-4o-mini', enabled: false },
+          { provider: 'opencodex', model: 'brickvault-scan-vision', enabled: false },
           { provider: 'merge', model: 'openai/gpt-5.6-luna', enabled: true },
           { provider: 'openrouter', model: '', enabled: true },
           { provider: 'gemini', model: 'gemini-3.6-flash', enabled: true },
@@ -146,7 +172,7 @@ describe('llm-routing', () => {
 
     const routes = await getLlmRoutes(env as any);
     expect(routes.scan).toEqual([
-      { provider: 'openai', model: 'gpt-4o-mini', enabled: false },
+      { provider: 'opencodex', model: 'brickvault-scan-vision', enabled: false },
       { provider: 'openrouter', model: '', enabled: true },
     ]);
   });
@@ -157,13 +183,13 @@ describe('llm-routing', () => {
         scan: [
           { provider: 'omniroute', model: 'antigravity/gemini-3.5-flash-low', enabled: true },
           { provider: 'merge', model: 'google/gemini-3.5-flash-lite', enabled: true },
-          { provider: 'openai', model: 'gpt-4o-mini', enabled: true },
+          { provider: 'opencodex', model: 'brickvault-scan-vision', enabled: true },
         ],
       })).run();
 
     const routes = await getLlmRoutes(env as any);
     expect(routes.scan).toEqual([
-      { provider: 'openai', model: 'gpt-4o-mini', enabled: true },
+      { provider: 'opencodex', model: 'brickvault-scan-vision', enabled: true },
     ]);
   });
 
@@ -173,7 +199,7 @@ describe('llm-routing', () => {
         scan: [
           { provider: 'gemini', model: 'gemini-3.6-flash', enabled: false },
           { provider: 'openrouter', model: '', enabled: true },
-          { provider: 'openai', model: 'gpt-4o-mini', enabled: false },
+          { provider: 'opencodex', model: 'brickvault-scan-vision', enabled: false },
         ],
       })).run();
 
@@ -181,7 +207,7 @@ describe('llm-routing', () => {
     expect(routes.scan).toEqual([
       { provider: 'gemini', model: 'gemini-3.6-flash', enabled: false },
       { provider: 'openrouter', model: '', enabled: true },
-      { provider: 'openai', model: 'gpt-4o-mini', enabled: false },
+      { provider: 'opencodex', model: 'brickvault-scan-vision', enabled: false },
     ]);
   });
 
@@ -234,7 +260,7 @@ describe('llm-routing', () => {
 
   it('resolveRoute drops disabled steps and providers with no key', async () => {
     await saveLlmRoutes(env as any, {
-      scan: [
+      advisor: [
         { provider: 'gemini', model: 'gemini-2.5-flash', enabled: true },
         { provider: 'merge', model: 'openai/gpt-4o-mini', enabled: false },
         { provider: 'openai', model: 'gpt-4o-mini', enabled: true },
@@ -242,7 +268,7 @@ describe('llm-routing', () => {
     });
     // Only Gemini has a key here, so the OpenAI step is not a real fallback.
     const onlyGemini = { ...(env as any), GEMINI_API_KEY: 'g', OPENAI_API_KEY: '', MERGE_GATEWAY_API_KEY: '' };
-    const steps = await resolveRoute(onlyGemini, 'scan');
+    const steps = await resolveRoute(onlyGemini, 'advisor');
     expect(steps.map((s) => s.provider)).toEqual(['gemini']);
   });
 
@@ -251,16 +277,16 @@ describe('llm-routing', () => {
     await db.prepare(`CREATE TABLE integration_health (service TEXT PRIMARY KEY, last_ok_at TEXT, last_fail_at TEXT,
       last_error TEXT, ok_count INTEGER DEFAULT 0, fail_count INTEGER DEFAULT 0, updated_at TEXT, blocked_until TEXT)`).run();
     await saveLlmRoutes(env as any, {
-      scan: [
+      advisor: [
         { provider: 'gemini', model: 'gemini-2.5-flash', enabled: true },
         { provider: 'openai', model: 'gpt-4o-mini', enabled: true },
       ],
     });
     const { recordIntegrationAttempt } = await import('./lib/integration-health');
     await recordIntegrationAttempt(withKeys() as any, 'gemini', false, 'HTTP 401');
-    expect((await resolveRoute(withKeys() as any, 'scan')).map((s) => s.provider)).toEqual(['openai']);
+    expect((await resolveRoute(withKeys() as any, 'advisor')).map((s) => s.provider)).toEqual(['openai']);
     // Only the paused provider left: keep it rather than return no route.
-    expect((await resolveRoute(withKeys({ OPENAI_API_KEY: '' }) as any, 'scan')).map((s) => s.provider)).toEqual(['gemini']);
+    expect((await resolveRoute(withKeys({ OPENAI_API_KEY: '' }) as any, 'advisor')).map((s) => s.provider)).toEqual(['gemini']);
     await db.prepare('DROP TABLE integration_health').run();
   });
 

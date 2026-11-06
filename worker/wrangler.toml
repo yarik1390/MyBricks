@@ -45,6 +45,11 @@ simple = { limit = 600, period = 60 }
 # Workers VPC: private route to OpenCodex on Core01 (127.0.0.1:10100) through
 # the dedicated "core01-opencodex-vpc" Cloudflare Tunnel. The connector runs on
 # Core01 as the user service bv-opencodex-tunnel.service.
+# Workers AI: free scan step (Gemma 4 vision, lib/workers-ai.ts). Daily-capped
+# by api_quota 'workersai' inside the account's free 10,000 Neurons/day.
+[ai]
+binding = "AI"
+
 [[vpc_services]]
 binding = "OPENCODEX_VPC"
 service_id = "01a15f34-a954-7a32-8e1c-a06bf87f12ad"
