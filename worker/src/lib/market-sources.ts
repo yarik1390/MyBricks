@@ -9,7 +9,7 @@ import {
 import { recordPricingWrites } from './pricing-budget';
 import { invalidateSetDetailMany } from './edge-cache';
 import { plausibleAskValue } from './valuation';
-import { isValueWithheld } from './value-withheld';
+import { isValueWithheld, isTrivialEstimate, isPlaceholderRetail } from './value-withheld';
 
 export type MarketConfidence = 'high' | 'medium' | 'low' | 'estimated';
 export type MarketFreshness = 'fresh' | 'stale' | 'expired' | 'missing';
@@ -422,7 +422,7 @@ export function holdingValueForRollout(
   percent = pricingV3ReadPercent,
 ): number {
   // No sales and a swinging estimate: the holding counts as unpriced.
-  if (isValueWithheld(row.set_num)) return 0;
+  if (isValueWithheld(row.set_num) || isTrivialEstimate(row)) return 0;
   const legacyNew = num(row.blended_value) || num(row.current_value) || 0;
   const legacyUsed = num(row.ebay_used_value) || num(row.used_value) || legacyNew;
   const isUsed = String(row.condition || '').startsWith('used');
@@ -827,14 +827,23 @@ const PART_OUT_MIN_COVERAGE = 0.9;
 
 export function enrichSetRecord<T extends Record<string, unknown>>(row: T, history?: BlendHistory): T {
   const enriched = enrichSetRecordInner(row, history);
-  return isValueWithheld(row.set_num) ? withholdSetValue(enriched) : enriched;
+  if (isValueWithheld(row.set_num)) return withholdSetValue(enriched);
+  if (isTrivialEstimate(row)) {
+    const out = withholdSetValue(enriched, 'No market sales and no real retail price, so no price is shown.');
+    if (isPlaceholderRetail(row)) (out as Record<string, unknown>).retail_price = null;
+    return out;
+  }
+  return enriched;
 }
 
 /**
  * Strip every number a surface could show as this set's value, so the app
  * renders its existing "no market price" state. See lib/value-withheld.ts.
  */
-function withholdSetValue<T extends Record<string, unknown>>(out: T): T {
+function withholdSetValue<T extends Record<string, unknown>>(
+  out: T,
+  note = 'No market sales found and the estimate is unreliable, so no price is shown.',
+): T {
   const o = out as Record<string, unknown>;
   for (const key of [
     'current_value', 'blended_value', 'blended_low', 'blended_high',
@@ -842,7 +851,7 @@ function withholdSetValue<T extends Record<string, unknown>>(out: T): T {
     'forecast_2y', 'forecast_5y', 'deal_signal', 'deal_discount_pct', 'deal_strong',
   ]) o[key] = null;
   o.market_value_basis = [];
-  o.market_value_note = 'No market sales found and the estimate is unreliable, so no price is shown.';
+  o.market_value_note = note;
   o.value_withheld = true;
   const valuation = o.valuation as Record<string, unknown> | undefined;
   if (valuation && typeof valuation === 'object') {
