@@ -105,7 +105,13 @@ export async function renderCollectionRoom() {
   backLink.addEventListener('click', event => {
     if (leaving || event.button > 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
-    leaveVia(() => { leaving = true; backLink.click(); });
+    // The click has already bubbled (the Vault view preference is saved);
+    // after the walk, navigate the way the link's href would.
+    leaveVia(() => {
+      if (leaving || !inRoom()) return;
+      leaving = true;
+      location.hash = backLink.getAttribute('href') || '#/';
+    });
   });
   const imageUrl = item => {
     const artwork = boxArtworkPresentation(item);
