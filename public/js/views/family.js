@@ -6,6 +6,12 @@ import { api } from '../api.js';
 import { t } from '../lib/i18n.js';
 import { topbar, btn, pill, field, card, skeletonRows } from '../ui/kit.js';
 import { confirmSheet } from '../components/sheet.js';
+import { shareContent } from '../lib/native-share.js';
+
+// Join link for an invite code: opens #/family with the code filled in
+// (in the app via the bricksvault.app deep link, otherwise on the web).
+export const familyJoinURL = (code) => `https://bricksvault.app/#/family?code=${encodeURIComponent(code)}`;
+const codeFromHash = () => (new URLSearchParams(location.hash.split('?')[1] || '').get('code') || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 16).toUpperCase();
 
 const onScreen = () => location.hash.split('?')[0] === '#/family';
 let filter = 'all';
@@ -73,6 +79,8 @@ function paint(data) {
     ${data.household ? familyHTML(data) : setupHTML()}
   </main>`;
   wire(data);
+  const pre = !data.household && codeFromHash();
+  if (pre && $('#famCode')) $('#famCode').value = pre;
 }
 
 async function run(btnEl, call, done) {
@@ -80,18 +88,24 @@ async function run(btnEl, call, done) {
   try { const r = await call(); haptic('light'); done?.(r); } catch (e) { setBtnLoading(btnEl, false); toast(e?.message || 'Something went wrong.', 'error'); }
 }
 
+// Share sheet for the invite code: message + code + join link.
+async function shareInvite(data) {
+  const code = data?.household?.invite_code || '';
+  if (!code) return;
+  const url = familyJoinURL(code);
+  const text = t('family.shareText', { code });
+  // Capacitor Share in the app (Android WebView has no navigator.share),
+  // Web Share in the browser; copy only when neither exists.
+  const res = await shareContent({ title: t('family.shareTitle'), text, url, dialogTitle: t('family.shareTitle') });
+  if (res !== 'unsupported') return;
+  try { await navigator.clipboard.writeText(`${text}\n${url}`); toast('Invite code copied', 'success'); } catch { toast(code, 'info'); }
+}
+
 function wire(data) {
   $('#famCreate')?.addEventListener('click', () => run($('#famCreate'), () => api('/api/family', { method: 'POST', body: { name: $('#famName')?.value || '' } }), (r) => { toast('Family vault created', 'success'); paint(r); }));
   $('#famJoin')?.addEventListener('click', () => run($('#famJoin'), () => api('/api/family/join', { method: 'POST', body: { code: $('#famCode')?.value || '' } }), (r) => { toast('You joined the family vault', 'success'); paint(r); }));
   $('#famRotate')?.addEventListener('click', () => run($('#famRotate'), () => api('/api/family/code', { method: 'POST' }), (r) => { toast('New invite code ready. The old one no longer works.', 'success'); paint(r); }));
-  $('#famShare')?.addEventListener('click', async () => {
-    const code = data.household?.invite_code || '';
-    const payload = { title: t('family.shareTitle'), text: t('family.shareText', { code }) };
-    try {
-      if (navigator.share) { await navigator.share(payload); return; }
-    } catch (e) { if (e?.name === 'AbortError') return; }
-    try { await navigator.clipboard.writeText(code); toast('Invite code copied', 'success'); } catch { toast(code, 'info'); }
-  });
+  $('#famShare')?.addEventListener('click', () => shareInvite(data));
   $('#famLeave')?.addEventListener('click', async () => {
     const ok = await confirmSheet({ title: 'Leave the family vault?', message: 'Your sets stay in your own vault. You can join again with a code.', confirmLabel: 'Leave', danger: true });
     if (!ok) return;
