@@ -35,7 +35,7 @@ const swaps = caller(swapsRoute);
 beforeEach(async () => {
   (env as any).SUPABASE_JWT_SECRET = secret;
   (env as any).SUPABASE_URL = 'https://supabase.mock.io';
-  await applyTestTables(db, ['lego_sets', 'set_valuation_state', 'user_collection', 'user_wishlist', 'user_prefs', 'households', 'household_members', 'swap_requests', 'push_subscriptions', 'native_push_tokens']);
+  await applyTestTables(db, ['lego_sets', 'set_valuation_state', 'user_collection', 'user_wishlist', 'user_prefs', 'households', 'household_members', 'swap_requests', 'swap_messages', 'swap_blocks', 'rate_limits', 'app_feedback', 'push_subscriptions', 'native_push_tokens']);
   await db.batch([
     db.prepare(`INSERT INTO lego_sets (set_num, name, year, current_value, blended_value, used_value) VALUES
       ('75313-1', 'AT-AT', 2021, 900, 900, 700), ('10497-1', 'Galaxy Explorer', 2022, 100, 100, 80),
@@ -119,19 +119,101 @@ describe('swap matching', () => {
   it('sends, answers and shows a swap request from each side', async () => {
     await swaps('mum', 'POST', '/prefs', { open: true });
     await swaps('mum', 'POST', '/trade', { set_num: '10497-1', for_trade: true });
-    expect((await swaps('mum', 'POST', '/requests', { to: 'ann', give: ['10497-1'], get: ['6086-1'] })).status).toBe(400);
+    expect((await swaps('mum', 'POST', '/requests', { to: 'ann', give: [], get: [] })).status).toBe(400);
     expect((await swaps('mum', 'POST', '/requests', { to: 'ann', give: ['75313-1'], get: ['6086-1'], message: 'hi' })).status).toBe(400);
     expect((await swaps('mum', 'POST', '/requests', { to: 'cat', give: ['10497-1'], get: ['75313-1'], message: 'hi' })).status).toBe(404);
-    const sent = await swaps('mum', 'POST', '/requests', { to: 'ann', give: ['10497-1'], get: ['6086-1'], message: 'Discord: mum#1' });
+    // Contact details stay out of a request until it is accepted.
+    const leak = await swaps('mum', 'POST', '/requests', { to: 'ann', give: ['10497-1'], get: ['6086-1'], message: 'mail me: mum@example.com' });
+    expect(leak).toMatchObject({ status: 400, body: { code: 'contact_blocked', kinds: ['email'] } });
+    const sent = await swaps('mum', 'POST', '/requests', { to: 'ann', give: ['10497-1'], get: ['6086-1'] });
     expect(sent.status).toBe(201);
     expect((await swaps('mum', 'POST', '/requests', { to: 'ann', give: ['10497-1'], get: [], message: 'again' })).status).toBe(409);
     const inbox = (await swaps('ann', 'GET', '/')).body.requests[0];
-    expect(inbox).toMatchObject({ direction: 'incoming', status: 'pending', with_handle: 'mum', message: 'Discord: mum#1' });
+    expect(inbox).toMatchObject({ direction: 'incoming', status: 'pending', with_handle: 'mum', message: null, can_chat: true, unread: 0 });
     expect(inbox.i_give.map((s: any) => s.set_num)).toEqual(['6086-1']);
-    expect((await swaps('ann', 'POST', `/requests/${sent.body.id}/respond`, { accept: true })).status).toBe(400);
-    expect((await swaps('ann', 'POST', `/requests/${sent.body.id}/respond`, { accept: true, reply: 'ann@example.com' })).status).toBe(200);
+    expect((await swaps('ann', 'POST', `/requests/${sent.body.id}/respond`, { accept: true, reply: 'ann@example.com' })).body.code).toBe('contact_confirm');
+    expect((await swaps('ann', 'POST', `/requests/${sent.body.id}/respond`, { accept: true, reply: 'ann@example.com', confirm_contact: true })).status).toBe(200);
     const out = (await swaps('mum', 'GET', '/')).body.requests[0];
     expect(out).toMatchObject({ direction: 'outgoing', status: 'accepted', reply: 'ann@example.com' });
-    expect((await swaps('mum', 'POST', `/requests/${sent.body.id}/cancel`)).status).toBe(404);
+    // Pending-only withdraw is gone once accepted, but either side can call it off.
+    expect((await swaps('ann', 'POST', `/requests/${sent.body.id}/cancel`)).status).toBe(200);
+    expect((await swaps('mum', 'GET', '/')).body.requests[0].status).toBe('cancelled');
+  });
+
+  async function acceptedSwap() {
+    await swaps('mum', 'POST', '/prefs', { open: true });
+    await swaps('mum', 'POST', '/trade', { set_num: '10497-1', for_trade: true });
+    const { id } = (await swaps('mum', 'POST', '/requests', { to: 'ann', give: ['10497-1'], get: ['6086-1'], message: 'Hi Ann!' })).body;
+    return id as number;
+  }
+
+  it('chats on a request, counts unread and guards contact details', async () => {
+    const id = await acceptedSwap();
+    expect((await swaps('bob', 'POST', `/requests/${id}/messages`, { body: 'hi' })).status).toBe(404);
+    expect((await swaps('mum', 'POST', `/requests/${id}/messages`, { body: 'call +44 7700 900123' })).body.code).toBe('contact_blocked');
+    expect((await swaps('mum', 'POST', `/requests/${id}/messages`, { body: 'Is 75313-1 and 10497-1 still boxed?' })).status).toBe(201);
+    expect((await swaps('ann', 'GET', '/')).body.requests[0].unread).toBe(1);
+    const chat = (await swaps('ann', 'GET', `/requests/${id}/messages`)).body;
+    expect(chat).toMatchObject({ can_send: true, with_handle: 'mum' });
+    expect(chat.messages.map((m: any) => [m.mine, m.body])).toEqual([[false, 'Is 75313-1 and 10497-1 still boxed?']]);
+    expect((await swaps('ann', 'GET', '/')).body.requests[0].unread).toBe(0);
+    await swaps('ann', 'POST', `/requests/${id}/respond`, { accept: true });
+    expect((await swaps('ann', 'POST', `/requests/${id}/messages`, { body: 'my telegram is @ann' })).body.code).toBe('contact_confirm');
+    expect((await swaps('ann', 'POST', `/requests/${id}/messages`, { body: 'my telegram is @ann', confirm_contact: true })).status).toBe(201);
+    expect((await swaps('mum', 'GET', `/requests/${id}/messages`)).body.messages).toHaveLength(2);
+  });
+
+  it('marks a swap complete only when both sides say done', async () => {
+    const id = await acceptedSwap();
+    expect((await swaps('mum', 'POST', `/requests/${id}/done`)).status).toBe(404);
+    await swaps('ann', 'POST', `/requests/${id}/respond`, { accept: true });
+    expect((await swaps('mum', 'POST', `/requests/${id}/done`)).body.completed).toBe(false);
+    expect((await swaps('ann', 'GET', '/')).body.requests[0]).toMatchObject({ status: 'accepted', they_marked_done: true, i_marked_done: false });
+    expect((await swaps('ann', 'POST', `/requests/${id}/done`)).body.completed).toBe(true);
+    const view = (await swaps('mum', 'GET', '/')).body;
+    expect(view.requests[0]).toMatchObject({ status: 'completed', with_swaps_done: 1 });
+    expect(view.matches.find((m: any) => m.handle === 'ann').swaps_done).toBe(1);
+    // A completed swap cannot be called off.
+    expect((await swaps('mum', 'POST', `/requests/${id}/cancel`)).status).toBe(404);
+  });
+
+  it('deletes a request from one list, and for good once both sides do', async () => {
+    const id = await acceptedSwap();
+    await swaps('mum', 'POST', `/requests/${id}/messages`, { body: 'hello' });
+    await swaps('ann', 'POST', `/requests/${id}/respond`, { accept: true });
+    expect((await swaps('mum', 'DELETE', `/requests/${id}`)).status).toBe(200);
+    expect((await swaps('mum', 'GET', '/')).body.requests).toEqual([]);
+    // Deleting an accepted swap calls it off for the other side.
+    expect((await swaps('ann', 'GET', '/')).body.requests[0]).toMatchObject({ status: 'cancelled', can_chat: false });
+    expect((await swaps('ann', 'POST', `/requests/${id}/messages`, { body: 'wait' })).status).toBe(409);
+    expect((await swaps('bob', 'DELETE', `/requests/${id}`)).status).toBe(404);
+    await swaps('ann', 'DELETE', `/requests/${id}`);
+    expect(await db.prepare('SELECT COUNT(*) AS n FROM swap_requests').first()).toEqual({ n: 0 });
+    expect(await db.prepare('SELECT COUNT(*) AS n FROM swap_messages').first()).toEqual({ n: 0 });
+  });
+
+  it('hides, blocks and reports collectors', async () => {
+    await swaps('mum', 'POST', '/prefs', { open: true });
+    await swaps('mum', 'POST', '/trade', { set_num: '10497-1', for_trade: true });
+    expect((await swaps('mum', 'POST', '/people/bob/hide')).status).toBe(200);
+    let view = (await swaps('mum', 'GET', '/')).body;
+    expect(view.matches.map((m: any) => m.handle)).toEqual(['ann']);
+    expect(view.hidden).toEqual([{ handle: 'bob', name: 'Bob', kind: 'hide' }]);
+    await swaps('mum', 'DELETE', '/people/bob');
+    expect((await swaps('mum', 'GET', '/')).body.matches.map((m: any) => m.handle)).toEqual(['ann', 'bob']);
+
+    const id = (await swaps('mum', 'POST', '/requests', { to: 'ann', give: ['10497-1'], get: ['6086-1'] })).body.id;
+    const report = await swaps('ann', 'POST', '/people/mum/report', { reason: 'scam', details: 'asked for money first', request_id: id });
+    expect(report.status).toBe(200);
+    const fb = await db.prepare("SELECT user_id, message FROM app_feedback WHERE screen = 'swap-report'").first<any>();
+    expect(fb.user_id).toBe('ann');
+    expect(fb.message).toContain('@mum');
+    expect(fb.message).toContain('asked for money first');
+    // Reporting blocks both ways: the open request ends and nobody can reach the other.
+    expect((await swaps('mum', 'GET', '/')).body.requests[0]).toMatchObject({ status: 'cancelled', can_chat: false });
+    expect((await swaps('mum', 'GET', '/')).body.matches.map((m: any) => m.handle)).toEqual(['bob']);
+    expect((await swaps('mum', 'POST', '/requests', { to: 'ann', give: ['10497-1'], get: ['6086-1'] })).status).toBe(404);
+    expect((await swaps('ann', 'POST', '/people/mum/hide')).status).toBe(200);
+    expect((await swaps('ann', 'GET', '/')).body.hidden[0].kind).toBe('block');
   });
 });
