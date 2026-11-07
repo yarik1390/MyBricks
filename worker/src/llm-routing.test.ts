@@ -40,24 +40,24 @@ describe('llm-routing', () => {
     for (const w of LLM_WORKLOADS) expect(routes[w].length).toBeGreaterThan(0);
   });
 
-  it('defaults scan to OpenCodex, then free Workers AI, then the free OpenRouter pool', () => {
+  it('defaults scan to free Workers AI, then free Groq, then paid Gemini Flash-Lite', () => {
     expect(DEFAULT_LLM_ROUTES.scan).toEqual([
-      { provider: 'opencodex', model: 'brickvault-scan-vision', enabled: true },
       { provider: 'workersai', model: '@cf/google/gemma-4-26b-a4b-it', enabled: true },
-      { provider: 'openrouter', model: '', enabled: true },
+      { provider: 'groq', model: 'qwen/qwen3.8-27b', enabled: true },
+      { provider: 'gemini', model: 'gemini-3.5-flash-lite', enabled: true },
     ]);
+    expect(DEFAULT_LLM_ROUTES.shelf).toEqual(DEFAULT_LLM_ROUTES.scan);
   });
 
-  it('keeps scan and shelf free: no Merge, no OpenAI', async () => {
+  it('keeps scan and shelf off Merge, OpenAI, OpenCodex and OpenRouter', async () => {
     for (const w of ['scan', 'shelf'] as const) {
       const steps = DEFAULT_LLM_ROUTES[w].map((s) => s.provider);
-      expect(steps[0]).toBe('opencodex');
-      expect(steps).not.toContain('merge');
-      expect(steps).not.toContain('openai');
+      expect(steps[0]).toBe('workersai');
+      for (const p of ['merge', 'openai', 'opencodex', 'openrouter']) expect(steps).not.toContain(p);
     }
   });
 
-  it('strips stored OpenAI and paid OpenRouter steps from scan and shelf', async () => {
+  it('strips stored OpenAI, OpenCodex and OpenRouter steps from scan and shelf', async () => {
     await db.prepare(`INSERT INTO app_settings (key, value) VALUES ('llm_routing', ?)`)
       .bind(JSON.stringify({
         scan: [
@@ -74,10 +74,8 @@ describe('llm-routing', () => {
       })).run();
     clearLlmRoutesCache();
     const routes = await getLlmRoutes(env as any);
-    expect(routes.scan.map((s) => `${s.provider}:${s.model}`)).toEqual([
-      'opencodex:brickvault-scan-vision',
-      'openrouter:google/gemma-4-31b-it:free',
-    ]);
+    // Every stored scan step is excluded, so scan falls back to the defaults.
+    expect(routes.scan).toEqual(DEFAULT_LLM_ROUTES.scan);
     expect(routes.shelf.map((s) => s.provider)).toEqual(['workersai']);
     expect(routes.advisor.map((s) => s.provider)).toEqual(['openai']);
   });
@@ -99,7 +97,7 @@ describe('llm-routing', () => {
       })).run();
 
     const routes = await getLlmRoutes(env as any);
-    expect(routes.scan).toEqual([{ provider: 'openrouter', model: '', enabled: true }]);
+    expect(routes.scan).toEqual(DEFAULT_LLM_ROUTES.scan);
     expect(routes.shelf).toEqual(DEFAULT_LLM_ROUTES.shelf);
     expect(routes.advisor).toEqual([{ provider: 'merge', model: 'openai/gpt-4o-mini', enabled: true }]);
   });
@@ -162,9 +160,9 @@ describe('llm-routing', () => {
     await db.prepare(`INSERT INTO app_settings (key, value) VALUES ('llm_routing', ?)`)
       .bind(JSON.stringify({
         scan: [
-          { provider: 'opencodex', model: 'brickvault-scan-vision', enabled: false },
+          { provider: 'workersai', model: '@cf/google/gemma-4-26b-a4b-it', enabled: false },
           { provider: 'merge', model: 'openai/gpt-5.6-luna', enabled: true },
-          { provider: 'openrouter', model: '', enabled: true },
+          { provider: 'groq', model: 'qwen/qwen3.8-27b', enabled: true },
           { provider: 'gemini', model: 'gemini-3.6-flash', enabled: true },
           { provider: 'merge', model: 'openai/gpt-4o-mini', enabled: true },
         ],
@@ -172,8 +170,8 @@ describe('llm-routing', () => {
 
     const routes = await getLlmRoutes(env as any);
     expect(routes.scan).toEqual([
-      { provider: 'opencodex', model: 'brickvault-scan-vision', enabled: false },
-      { provider: 'openrouter', model: '', enabled: true },
+      { provider: 'workersai', model: '@cf/google/gemma-4-26b-a4b-it', enabled: false },
+      { provider: 'groq', model: 'qwen/qwen3.8-27b', enabled: true },
     ]);
   });
 
@@ -183,13 +181,13 @@ describe('llm-routing', () => {
         scan: [
           { provider: 'omniroute', model: 'antigravity/gemini-3.5-flash-low', enabled: true },
           { provider: 'merge', model: 'google/gemini-3.5-flash-lite', enabled: true },
-          { provider: 'opencodex', model: 'brickvault-scan-vision', enabled: true },
+          { provider: 'gemini', model: 'gemini-3.5-flash-lite', enabled: true },
         ],
       })).run();
 
     const routes = await getLlmRoutes(env as any);
     expect(routes.scan).toEqual([
-      { provider: 'opencodex', model: 'brickvault-scan-vision', enabled: true },
+      { provider: 'gemini', model: 'gemini-3.5-flash-lite', enabled: true },
     ]);
   });
 
@@ -198,16 +196,16 @@ describe('llm-routing', () => {
       .bind(JSON.stringify({
         scan: [
           { provider: 'gemini', model: 'gemini-3.6-flash', enabled: false },
-          { provider: 'openrouter', model: '', enabled: true },
-          { provider: 'opencodex', model: 'brickvault-scan-vision', enabled: false },
+          { provider: 'groq', model: 'qwen/qwen3.8-27b', enabled: true },
+          { provider: 'workersai', model: '@cf/google/gemma-4-26b-a4b-it', enabled: false },
         ],
       })).run();
 
     const routes = await getLlmRoutes(env as any);
     expect(routes.scan).toEqual([
       { provider: 'gemini', model: 'gemini-3.6-flash', enabled: false },
-      { provider: 'openrouter', model: '', enabled: true },
-      { provider: 'opencodex', model: 'brickvault-scan-vision', enabled: false },
+      { provider: 'groq', model: 'qwen/qwen3.8-27b', enabled: true },
+      { provider: 'workersai', model: '@cf/google/gemma-4-26b-a4b-it', enabled: false },
     ]);
   });
 

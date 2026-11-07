@@ -19,6 +19,7 @@ export type IntegrationName =
   | 'openrouter'
   | 'opencodex'
   | 'workersai'
+  | 'groq'
   | 'merge'
   | 'rebrickable'
   | 'brickinsights'
@@ -245,6 +246,15 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     notes: 'Cloudflare Workers AI (Gemma 4 vision) as a free scan step. Daily-capped (api_quota workersai) inside the free 10,000 Neurons/day.',
     recommended_action: 'Check the [ai] binding in wrangler.toml and the Workers AI dashboard for errors or capacity limits.',
   },
+  groq: {
+    on_demand: true,
+    label: 'Groq',
+    configured: (env) => !!(env.GROQ_API_KEY ?? '').trim(),
+    required_secrets: ['GROQ_API_KEY'],
+    used_by: ['scan'],
+    notes: 'Groq free tier (OpenAI-compatible vision) as a free scan step after Workers AI. About 1,000 requests a day; API data is not used for training.',
+    recommended_action: 'Check the GROQ_API_KEY GitHub secret and the Groq console for rate limits or a deprecated model id.',
+  },
   merge: {
     on_demand: true,
     label: 'Merge Gateway',
@@ -459,7 +469,7 @@ export async function recordIntegrationHealth(
   }
 }
 
-const AI_ROUTED_SERVICES = new Set<IntegrationName>(['gemini', 'openai', 'openrouter', 'opencodex', 'merge', 'workersai']);
+const AI_ROUTED_SERVICES = new Set<IntegrationName>(['gemini', 'openai', 'openrouter', 'opencodex', 'merge', 'workersai', 'groq']);
 
 /** AI providers currently paused by a credential failure (see above). */
 export async function blockedIntegrations(env: Env): Promise<Set<string>> {

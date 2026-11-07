@@ -439,6 +439,7 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           MERGE_GATEWAY_API_KEY: ${{ secrets.MERGE_GATEWAY_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           AI_GATEWAY_TOKEN: ${{ secrets.AI_GATEWAY_TOKEN }}
@@ -480,6 +481,7 @@ jobs:
           put_optional GOOGLE_CLIENT_ID "${GOOGLE_CLIENT_ID}"
           put_optional GOOGLE_CLIENT_SECRET "${GOOGLE_CLIENT_SECRET}"
           put_optional GEMINI_API_KEY "${GEMINI_API_KEY}"
+          put_optional GROQ_API_KEY "${GROQ_API_KEY}"
           # Merge Gateway: second LLM gateway alongside OpenRouter. Optional —
           # every workload's route skips an unkeyed provider at runtime.
           # The monthly allowance is NOT here: it is a plain [vars] entry in

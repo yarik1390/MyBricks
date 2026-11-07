@@ -1581,7 +1581,7 @@ function recommendedQualityAction(cards) {
 let llmData = null;
 let llmDirty = false;
 const LLM_PROVIDER_LABEL = {
-  gemini: 'Gemini', opencodex: 'OpenCodex', merge: 'Merge', openrouter: 'OpenRouter', openai: 'OpenAI', workersai: 'Workers AI',
+  gemini: 'Gemini', opencodex: 'OpenCodex', merge: 'Merge', openrouter: 'OpenRouter', openai: 'OpenAI', workersai: 'Workers AI', groq: 'Groq',
 };
 const LLM_CUSTOM = '__custom__';
 

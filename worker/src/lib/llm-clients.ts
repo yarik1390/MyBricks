@@ -31,6 +31,8 @@ const RETRIES = 0;
  * current by the daily model-refresh cron, so that cascade position keeps
  * working as free-tier availability churns without anyone editing the route.
  */
+export const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
+
 export async function openAiCompatibleStep(
   env: Env,
   step: RouteStep,
@@ -66,6 +68,12 @@ export async function openAiCompatibleStep(
         client: new OpenAI({ apiKey, baseURL: openAIServerBaseURL(env), defaultHeaders: headers, maxRetries: RETRIES }),
         models: [step.model],
       };
+    }
+    case 'groq': {
+      // Groq is OpenAI-compatible. Free tier; API data is not used for training.
+      const apiKey = (env.GROQ_API_KEY ?? '').trim();
+      if (!apiKey || !step.model) return { client: null, models: [] };
+      return { client: new OpenAI({ apiKey, baseURL: GROQ_BASE_URL, maxRetries: RETRIES }), models: [step.model] };
     }
     case 'workersai': {
       const client = workersAiClient(env);
