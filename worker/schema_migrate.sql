@@ -763,6 +763,7 @@ ALTER TABLE holding_copies ADD COLUMN box_grade TEXT;
 ALTER TABLE holding_copies ADD COLUMN box_notes TEXT;
 ALTER TABLE user_collection ADD COLUMN for_trade INTEGER DEFAULT 0;
 ALTER TABLE user_prefs ADD COLUMN open_to_swaps INTEGER DEFAULT 0;
+ALTER TABLE user_prefs ADD COLUMN swaps_adult_at TEXT;
 -- BrickLink thin-sold + current-listing fallbacks (discovery lane).
 ALTER TABLE set_market_ext ADD COLUMN bl_thin_value REAL;
 ALTER TABLE set_market_ext ADD COLUMN bl_thin_qty INTEGER;

@@ -409,8 +409,19 @@ async function vaultSheet(data) {
 
 function wire(data) {
   $('#swapOpen')?.addEventListener('change', async (e) => {
+    const open = e.target.checked;
+    let adult = false;
+    if (open && !data.adult_confirmed) {
+      // Swaps and chat are 18+ (Terms of Service). Asked once, remembered on the server.
+      adult = await confirmSheet({
+        title: 'Swaps are for adults',
+        message: 'Swaps let you chat with and meet other collectors, so they are only for people aged 18 or older. By continuing you confirm you are 18 or older and agree to the swap rules in our Terms: trade only sets you own, keep it respectful, and report anything suspicious.',
+        confirmLabel: "I'm 18 or older",
+      });
+      if (!adult) { e.target.checked = false; return; }
+    }
     try {
-      await api('/api/swaps/prefs', { method: 'POST', body: { open: e.target.checked } });
+      await api('/api/swaps/prefs', { method: 'POST', body: adult ? { open, adult: true } : { open } });
       haptic('light');
       reload();
     } catch (err) { e.target.checked = !e.target.checked; toast(err?.message || 'Could not save.', 'error'); }

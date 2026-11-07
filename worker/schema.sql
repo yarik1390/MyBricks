@@ -794,6 +794,7 @@ CREATE TABLE IF NOT EXISTS user_prefs (
   rebrickable_user_token TEXT,
   -- Listed in swap matching (routes/swaps.ts).
   open_to_swaps INTEGER DEFAULT 0,
+  swaps_adult_at TEXT,
   is_supporter INTEGER DEFAULT 0,
   supporter_since TEXT,
   stripe_customer_id TEXT,
