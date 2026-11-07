@@ -119,7 +119,7 @@ function paint(data) {
   root.innerHTML = `<main class="bv-page no-nav bv-swaps" id="swapsPage">
     ${topbar({ title: 'Swaps', sub: 'Trade sets with other collectors', back: '#/me' })}
     ${card(`<label class="bv-swaps__switch"><span><span class="bv-swaps__switchtitle">Open to swaps</span>
-        <span class="bv-field__help">Collectors who are also open see your handle and the sets you offer when they match your wishlist. Nothing else is shared. For collectors aged 18 or older.</span></span>
+        <span class="bv-field__help">Collectors who are also open see your handle and the sets you offer when they match your wishlist. Nothing else is shared.</span></span>
         <input type="checkbox" role="switch" id="swapOpen" ${data.open ? 'checked' : ''}></label>
       ${!data.has_handle ? '<p class="bv-field__help">You need a public handle first. Set it in <a href="#/me">your profile</a>.</p>' : ''}`, { cls: 'bv-swaps__card' })}
     ${tradeHTML(data)}

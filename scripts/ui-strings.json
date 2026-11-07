@@ -3972,6 +3972,12 @@
     ]
   },
   {
+    "text": "I'm 18 or older",
+    "files": [
+      "views/swaps.js"
+    ]
+  },
+  {
     "text": "Icons",
     "files": [
       "views/catalog.js"
@@ -9142,6 +9148,12 @@
     "files": [
       "route-meta.js",
       "views/me.js",
+      "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Swaps are for adults",
+    "files": [
       "views/swaps.js"
     ]
   },
