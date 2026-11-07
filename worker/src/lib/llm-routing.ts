@@ -1,6 +1,6 @@
 import type { Env } from '../types';
 import { MODELS } from './llm';
-import { OPENCODEX_SCAN_COMBO, OPENCODEX_SHELF_COMBO, openCodexConfigured } from './opencodex';
+import { openCodexConfigured } from './opencodex';
 import { blockedIntegrations } from './integration-health';
 import { WORKERS_AI_SCAN_MODEL, workersAiConfigured } from './workers-ai';
 
@@ -21,8 +21,13 @@ import { WORKERS_AI_SCAN_MODEL, workersAiConfigured } from './workers-ai';
 // ---------------------------------------------------------------------------
 
 /** Providers a route step can name. */
-export type LlmProvider = 'gemini' | 'opencodex' | 'merge' | 'openrouter' | 'openai' | 'workersai';
-export const LLM_PROVIDERS: LlmProvider[] = ['gemini', 'opencodex', 'merge', 'openrouter', 'openai', 'workersai'];
+export type LlmProvider = 'gemini' | 'opencodex' | 'merge' | 'openrouter' | 'openai' | 'workersai' | 'groq';
+export const LLM_PROVIDERS: LlmProvider[] = ['gemini', 'opencodex', 'merge', 'openrouter', 'openai', 'workersai', 'groq'];
+
+/** Groq free-tier vision model for scans (OpenAI-compatible API, no training on API data). */
+export const GROQ_SCAN_MODEL = 'qwen/qwen3.8-27b';
+/** Paid Gemini key (AI Studio paid tier: not used for training). Same id the advisor already runs on. */
+export const GEMINI_SCAN_MODEL = 'gemini-3.5-flash-lite';
 
 /** Workloads that resolve their cascade through this config. */
 export type LlmWorkload = 'scan' | 'shelf' | 'advisor' | 'valuation' | 'listing';
@@ -51,11 +56,12 @@ export interface RouteStep {
  * Merge was removed from both scan workloads on 2026-11-06: its free monthly
  * allowance is gone, so every Merge step was a paid or failing call.
  *
- * Scanning is FREE during early launch (2026-11-06): the paid OpenAI
- * gpt-4o-mini backstop is gone too. Scans go OpenCodex (Core01) -> Workers AI
- * Gemma 4 (daily-capped inside Cloudflare's free Neuron allocation) ->
- * OpenRouter free pool. When every free step comes back empty the app offers
- * barcode / search instead of spending money.
+ * 2026-11-07 (legal review): scans no longer go through OpenCodex, which ran
+ * on consumer subscription logins (against those providers' terms), or the
+ * OpenRouter free pool (some free models log or train on requests, which is
+ * wrong for user photos). Order: Workers AI Gemma 4 (free, daily-capped inside
+ * Cloudflare's Neuron allocation) -> Groq free tier -> paid Gemini Flash-Lite
+ * (about $0.001 a scan). None of these train on the photos.
  *
  * gpt-5.6-luna remains retired for scanning: repeated calls returned no usable
  * structured identification. Re-benchmark before changing these ids or order.
@@ -63,15 +69,15 @@ export interface RouteStep {
 export const DEFAULT_LLM_ROUTES: Record<LlmWorkload, RouteStep[]> = {
   // Vision. Fast measured primary -> accurate measured fallback -> best effort.
   scan: [
-    { provider: 'opencodex', model: OPENCODEX_SCAN_COMBO, enabled: true },
     { provider: 'workersai', model: WORKERS_AI_SCAN_MODEL, enabled: true },
-    { provider: 'openrouter', model: '', enabled: true },
+    { provider: 'groq', model: GROQ_SCAN_MODEL, enabled: true },
+    { provider: 'gemini', model: GEMINI_SCAN_MODEL, enabled: true },
   ],
   // Shelf Snap. Thorough multi-set vision -> accurate fallback -> best effort.
   shelf: [
-    { provider: 'opencodex', model: OPENCODEX_SHELF_COMBO, enabled: true },
     { provider: 'workersai', model: WORKERS_AI_SCAN_MODEL, enabled: true },
-    { provider: 'openrouter', model: '', enabled: true },
+    { provider: 'groq', model: GROQ_SCAN_MODEL, enabled: true },
+    { provider: 'gemini', model: GEMINI_SCAN_MODEL, enabled: true },
   ],
   advisor: [
     { provider: 'gemini', model: MODELS.advisor, enabled: true },
@@ -139,21 +145,19 @@ const RETIRED_SCAN_MODELS = new Set([
 /**
  * Providers never allowed in the scan / shelf cascades, whatever the stored
  * admin routing says. Merge's free allowance ran out (2026-11-06) and OpenAI is
- * paid per photo; scanning stays free during early launch. Stored routing
- * outlives code defaults, so these providers are stripped at read time.
+ * paid per photo. OpenCodex (consumer subscription logins) and OpenRouter (free
+ * models may log or train on photos) were removed on 2026-11-07 for legal and
+ * privacy reasons. Stored routing outlives code defaults, so these providers
+ * are stripped at read time.
  */
-const SCAN_EXCLUDED_PROVIDERS = new Set<string>(['merge', 'openai']);
+const SCAN_EXCLUDED_PROVIDERS = new Set<string>(['merge', 'openai', 'opencodex', 'openrouter']);
 
 function stripExcludedScanProviders(stored: unknown): unknown {
   if (!Array.isArray(stored)) return stored;
   return stored.filter((raw) => {
     if (!raw || typeof raw !== 'object') return true;
-    const { provider, model } = raw as Record<string, unknown>;
-    if (typeof provider === 'string' && SCAN_EXCLUDED_PROVIDERS.has(provider)) return false;
-    // A pinned OpenRouter model is only allowed when it is a free variant; the
-    // empty-model pool step expands to the free pool and always stays.
-    if (provider === 'openrouter' && typeof model === 'string' && model.trim() && !model.trim().endsWith(':free')) return false;
-    return true;
+    const { provider } = raw as Record<string, unknown>;
+    return !(typeof provider === 'string' && SCAN_EXCLUDED_PROVIDERS.has(provider));
   });
 }
 
@@ -250,6 +254,7 @@ export function providerConfigured(env: Env, provider: LlmProvider): boolean {
     case 'openrouter': return !!env.OPENROUTER_API_KEY;
     case 'openai': return !!env.OPENAI_API_KEY;
     case 'workersai': return workersAiConfigured(env);
+    case 'groq': return !!(env.GROQ_API_KEY ?? '').trim();
   }
 }
 

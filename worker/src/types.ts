@@ -72,6 +72,8 @@ export interface Env {
   // Pricing-source kill switch (see lib/pricing-flags.ts).
   BRICKINSIGHTS_ENABLED?: string;
   GEMINI_API_KEY?: string;
+  /** Groq free-tier key for scan vision (OpenAI-compatible). */
+  GROQ_API_KEY?: string;
   // Cloudflare AI Gateway (optional). When account + gateway id are set, SERVER-key
   // AI calls route through the gateway for caching, analytics, rate/spend limits.
   // Token is only needed if the gateway has authentication enabled.

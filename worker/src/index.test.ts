@@ -129,9 +129,11 @@ describe('BrickVault API Worker Tests', () => {
     (env as any).GOOGLE_CLIENT_ID = 'google-client-id-mock';
     (env as any).GOOGLE_CLIENT_SECRET = 'google-client-secret-mock';
     (env as any).OPENAI_API_KEY = 'openai-api-key-mock';
-    // Shared scans no longer use the paid OpenAI step; the free OpenRouter pool
-    // goes through the same mocked 'openai' client.
+    // Shared scans no longer use the paid OpenAI step or OpenRouter; the free
+    // Groq step goes through the same mocked 'openai' client. OpenRouter stays
+    // configured for the text workloads that still use it.
     (env as any).OPENROUTER_API_KEY = 'openrouter-api-key-mock';
+    (env as any).GROQ_API_KEY = 'groq-api-key-mock';
     // Route-level Brickognize tests opt in explicitly. Keeping the rest of this
     // broad suite isolated avoids accidental calls to the public recognition API.
     (env as any).BRICKOGNIZE_ENABLED = '0';

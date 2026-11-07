@@ -3772,6 +3772,12 @@
     ]
   },
   {
+    "text": "Groq",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
     "text": "Gross",
     "files": [
       "components/flip-calc.js"
