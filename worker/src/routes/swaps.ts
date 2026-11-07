@@ -14,7 +14,7 @@ import { findContactDetails } from '../lib/contact-details';
 // requests or messages either way) or report them (lands in Admin feedback).
 //
 // GET    /                         my swap status, sets up for swap, matches, requests, hidden people
-// POST   /prefs                    { open }  join or leave swap matching
+// POST   /prefs                    { open, adult? }  join or leave swap matching (joining needs a one-time 18+ confirmation)
 // POST   /trade                    { set_num, for_trade }  offer a vault set, or stop
 // POST   /requests                 { to, give, get, message? }  propose a swap
 // POST   /requests/:id/respond     { accept, reply?, confirm_contact? }  answer a request sent to me
@@ -73,9 +73,14 @@ async function setInfo(db: D1Database, nums: string[]): Promise<Map<string, { se
 }
 
 async function prefs(db: D1Database, userId: string) {
-  return db.prepare('SELECT handle, display_name, open_to_swaps FROM user_prefs WHERE user_id = ?')
-    .bind(userId).first<{ handle: string | null; display_name: string | null; open_to_swaps: number | null }>();
+  return db.prepare('SELECT handle, display_name, open_to_swaps, swaps_adult_at FROM user_prefs WHERE user_id = ?')
+    .bind(userId).first<{ handle: string | null; display_name: string | null; open_to_swaps: number | null; swaps_adult_at: string | null }>();
 }
+
+// Swaps and chat are 18+: a collector counts as open to swaps only after
+// confirming once that they are 18 or older (swaps_adult_at).
+const isOpen = (me: { open_to_swaps: number | null; swaps_adult_at: string | null } | null) => !!me?.open_to_swaps && !!me?.swaps_adult_at;
+const ADULT_ERROR = { error: 'Swaps are for collectors aged 18 or older. Confirm your age to use swaps.', code: 'needs_adult' } as const;
 
 function notify(env: Env, ctx: { waitUntil(p: Promise<unknown>): void } | undefined, userId: string, title: string, body: string, url = '#/swaps', tag = 'swap') {
   const task = sendPushToUser(env, userId, JSON.stringify({ title, body, url, tag })).catch(() => {});
@@ -148,7 +153,7 @@ async function personByHandle(db: D1Database, handle: string) {
 app.get('/', async (c) => {
   const userId = c.get('userId');
   const me = await prefs(c.env.DB, userId);
-  const open = !!me?.open_to_swaps;
+  const open = isOpen(me);
   const { results: trade } = await c.env.DB.prepare(
     'SELECT set_num FROM user_collection WHERE user_id = ? AND deleted_at IS NULL AND for_trade = 1 ORDER BY set_num',
   ).bind(userId).all<{ set_num: string }>();
@@ -159,14 +164,14 @@ app.get('/', async (c) => {
     const [have, want] = await Promise.all([
       c.env.DB.prepare(
         `SELECT uc.user_id, uc.set_num FROM user_collection uc
-         JOIN user_prefs p ON p.user_id = uc.user_id AND p.open_to_swaps = 1 AND p.handle IS NOT NULL
+         JOIN user_prefs p ON p.user_id = uc.user_id AND p.open_to_swaps = 1 AND p.swaps_adult_at IS NOT NULL AND p.handle IS NOT NULL
          WHERE uc.for_trade = 1 AND uc.deleted_at IS NULL AND uc.user_id != ?
            AND uc.set_num IN (SELECT set_num FROM user_wishlist WHERE user_id = ?)
          LIMIT 500`,
       ).bind(userId, userId).all<Pair>(),
       c.env.DB.prepare(
         `SELECT w.user_id, w.set_num FROM user_wishlist w
-         JOIN user_prefs p ON p.user_id = w.user_id AND p.open_to_swaps = 1 AND p.handle IS NOT NULL
+         JOIN user_prefs p ON p.user_id = w.user_id AND p.open_to_swaps = 1 AND p.swaps_adult_at IS NOT NULL AND p.handle IS NOT NULL
          WHERE w.user_id != ?
            AND w.set_num IN (SELECT set_num FROM user_collection WHERE user_id = ? AND for_trade = 1 AND deleted_at IS NULL)
          LIMIT 500`,
@@ -220,6 +225,7 @@ app.get('/', async (c) => {
   return c.json({
     open,
     has_handle: !!me?.handle,
+    adult_confirmed: !!me?.swaps_adult_at,
     for_trade: sets(trade.map((t) => t.set_num)),
     matches: ranked.map((m) => ({
       handle: people.get(m.user_id)?.handle,
@@ -259,15 +265,19 @@ app.get('/', async (c) => {
 
 app.post('/prefs', async (c) => {
   const userId = c.get('userId');
-  const { open } = await c.req.json<{ open?: boolean }>().catch(() => ({} as { open?: boolean }));
+  const { open, adult } = await c.req.json<{ open?: boolean; adult?: boolean }>().catch(() => ({} as { open?: boolean; adult?: boolean }));
+  let confirmAdult = false;
   if (open) {
     const me = await prefs(c.env.DB, userId);
     if (!me?.handle) return c.json({ error: 'Pick a public handle in your profile first, so other collectors can find your offer.', code: 'needs_handle' }, 400);
+    if (!me.swaps_adult_at && adult !== true) return c.json(ADULT_ERROR, 400);
+    confirmAdult = !me.swaps_adult_at;
   }
   await c.env.DB.prepare(
-    `INSERT INTO user_prefs (user_id, open_to_swaps, updated_at) VALUES (?, ?, datetime('now'))
-     ON CONFLICT (user_id) DO UPDATE SET open_to_swaps = excluded.open_to_swaps, updated_at = datetime('now')`,
-  ).bind(userId, open ? 1 : 0).run();
+    `INSERT INTO user_prefs (user_id, open_to_swaps, swaps_adult_at, updated_at) VALUES (?, ?, CASE WHEN ? THEN datetime('now') END, datetime('now'))
+     ON CONFLICT (user_id) DO UPDATE SET open_to_swaps = excluded.open_to_swaps,
+       swaps_adult_at = COALESCE(user_prefs.swaps_adult_at, excluded.swaps_adult_at), updated_at = datetime('now')`,
+  ).bind(userId, open ? 1 : 0, confirmAdult ? 1 : 0).run();
   return c.json({ ok: true, open: !!open });
 });
 
@@ -294,8 +304,9 @@ app.post('/requests', async (c) => {
   if (kinds.length) return c.json(contactError(kinds, 'pending'), 400);
 
   const me = await prefs(c.env.DB, userId);
-  if (!me?.open_to_swaps) return c.json({ error: 'Turn on swaps first' }, 400);
-  const target = await c.env.DB.prepare('SELECT user_id FROM user_prefs WHERE handle = ? AND open_to_swaps = 1')
+  if (me?.open_to_swaps && !me.swaps_adult_at) return c.json(ADULT_ERROR, 403);
+  if (!me || !isOpen(me)) return c.json({ error: 'Turn on swaps first' }, 400);
+  const target = await c.env.DB.prepare('SELECT user_id FROM user_prefs WHERE handle = ? AND open_to_swaps = 1 AND swaps_adult_at IS NOT NULL')
     .bind(String(body.to || '')).first<{ user_id: string }>();
   if (!target || target.user_id === userId || await isBlocked(c.env.DB, userId, target.user_id)) {
     return c.json({ error: 'That collector is not open to swaps' }, 404);
@@ -330,6 +341,7 @@ app.post('/requests/:id/respond', async (c) => {
   const kinds = findContactDetails(text);
   if (kinds.length && !accept) return c.json(contactError(kinds, 'pending'), 400);
   if (kinds.length && !confirm_contact) return c.json(contactError(kinds, 'accepted'), 400);
+  if (accept && !(await prefs(c.env.DB, userId))?.swaps_adult_at) return c.json(ADULT_ERROR, 403);
   const row = await c.env.DB.prepare(
     `UPDATE swap_requests SET status = ?, reply = ?, updated_at = datetime('now')
      WHERE id = ? AND to_user = ? AND status = 'pending' RETURNING from_user`,
@@ -445,6 +457,7 @@ app.post('/requests/:id/messages', async (c) => {
     .catch(() => ({} as { body?: string; confirm_contact?: boolean }));
   const text = String(body || '').trim().slice(0, MAX_MESSAGE_CHARS);
   if (!text) return c.json({ error: 'Write a message first' }, 400);
+  if (!(await prefs(c.env.DB, userId))?.swaps_adult_at) return c.json(ADULT_ERROR, 403);
   const req = await myRequest(c.env.DB, Number(c.req.param('id')), userId);
   if (!req || (req.mine === 'from' ? req.row.from_hidden : req.row.to_hidden)) return c.json({ error: 'Request not found' }, 404);
   if (req.row.status !== 'pending' && req.row.status !== 'accepted') return c.json({ error: 'This swap is closed' }, 409);

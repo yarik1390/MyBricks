@@ -93,7 +93,7 @@ describe('swap matching', () => {
     await db.batch([
       db.prepare(`INSERT INTO user_collection (user_id, set_num, for_trade) VALUES ('ann', '6086-1', 1), ('bob', '21318-1', 0), ('cat', '75313-1', 1)`),
       db.prepare(`INSERT INTO user_wishlist (user_id, set_num) VALUES ('ann', '10497-1'), ('mum', '6086-1'), ('mum', '75313-1'), ('bob', '10497-1')`),
-      db.prepare(`UPDATE user_prefs SET open_to_swaps = 1 WHERE user_id IN ('ann', 'bob')`),
+      db.prepare(`UPDATE user_prefs SET open_to_swaps = 1, swaps_adult_at = datetime('now') WHERE user_id IN ('ann', 'bob')`),
     ]);
   });
 
@@ -106,9 +106,18 @@ describe('swap matching', () => {
     expect((await swaps('mum', 'GET', '/')).body.matches).toEqual([]);
     await db.prepare("UPDATE user_prefs SET handle = NULL WHERE user_id = 'kid'").run();
     expect((await swaps('kid', 'POST', '/prefs', { open: true })).body.code).toBe('needs_handle');
+    // Swaps are 18+: joining needs a one-time age confirmation, remembered after that.
+    expect((await swaps('mum', 'POST', '/prefs', { open: true })).body.code).toBe('needs_adult');
+    expect((await swaps('mum', 'POST', '/prefs', { open: true, adult: true })).status).toBe(200);
+    await swaps('mum', 'POST', '/prefs', { open: false });
+    expect((await swaps('mum', 'GET', '/')).body.adult_confirmed).toBe(true);
     expect((await swaps('mum', 'POST', '/prefs', { open: true })).status).toBe(200);
     expect((await swaps('mum', 'POST', '/trade', { set_num: '10497-1', for_trade: true })).status).toBe(200);
     expect((await swaps('mum', 'POST', '/trade', { set_num: '6086-1', for_trade: true })).status).toBe(404);
+    // Cat switched swaps on before the 18+ check existed: hidden from matches and can't send requests until confirming.
+    await db.prepare("UPDATE user_prefs SET open_to_swaps = 1 WHERE user_id = 'cat'").run();
+    expect((await swaps('cat', 'POST', '/requests', { to: 'mum', give: ['75313-1'], get: [] })).body.code).toBe('needs_adult');
+    expect((await swaps('cat', 'GET', '/')).body.open).toBe(false);
     const view = (await swaps('mum', 'GET', '/')).body;
     // Ann has the castle Mum wants and wants Mum's Galaxy Explorer; Bob only wants it; Cat is not open to swaps.
     expect(view.matches.map((m: any) => [m.handle, m.they_have.map((s: any) => s.set_num), m.they_want.map((s: any) => s.set_num)]))
@@ -117,7 +126,7 @@ describe('swap matching', () => {
   });
 
   it('sends, answers and shows a swap request from each side', async () => {
-    await swaps('mum', 'POST', '/prefs', { open: true });
+    await swaps('mum', 'POST', '/prefs', { open: true, adult: true });
     await swaps('mum', 'POST', '/trade', { set_num: '10497-1', for_trade: true });
     expect((await swaps('mum', 'POST', '/requests', { to: 'ann', give: [], get: [] })).status).toBe(400);
     expect((await swaps('mum', 'POST', '/requests', { to: 'ann', give: ['75313-1'], get: ['6086-1'], message: 'hi' })).status).toBe(400);
@@ -141,7 +150,7 @@ describe('swap matching', () => {
   });
 
   async function acceptedSwap() {
-    await swaps('mum', 'POST', '/prefs', { open: true });
+    await swaps('mum', 'POST', '/prefs', { open: true, adult: true });
     await swaps('mum', 'POST', '/trade', { set_num: '10497-1', for_trade: true });
     const { id } = (await swaps('mum', 'POST', '/requests', { to: 'ann', give: ['10497-1'], get: ['6086-1'], message: 'Hi Ann!' })).body;
     return id as number;
@@ -193,7 +202,7 @@ describe('swap matching', () => {
   });
 
   it('hides, blocks and reports collectors', async () => {
-    await swaps('mum', 'POST', '/prefs', { open: true });
+    await swaps('mum', 'POST', '/prefs', { open: true, adult: true });
     await swaps('mum', 'POST', '/trade', { set_num: '10497-1', for_trade: true });
     expect((await swaps('mum', 'POST', '/people/bob/hide')).status).toBe(200);
     let view = (await swaps('mum', 'GET', '/')).body;

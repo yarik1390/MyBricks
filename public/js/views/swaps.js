@@ -119,7 +119,7 @@ function paint(data) {
   root.innerHTML = `<main class="bv-page no-nav bv-swaps" id="swapsPage">
     ${topbar({ title: 'Swaps', sub: 'Trade sets with other collectors', back: '#/me' })}
     ${card(`<label class="bv-swaps__switch"><span><span class="bv-swaps__switchtitle">Open to swaps</span>
-        <span class="bv-field__help">Collectors who are also open see your handle and the sets you offer when they match your wishlist. Nothing else is shared.</span></span>
+        <span class="bv-field__help">Collectors who are also open see your handle and the sets you offer when they match your wishlist. Nothing else is shared. For collectors aged 18 or older.</span></span>
         <input type="checkbox" role="switch" id="swapOpen" ${data.open ? 'checked' : ''}></label>
       ${!data.has_handle ? '<p class="bv-field__help">You need a public handle first. Set it in <a href="#/me">your profile</a>.</p>' : ''}`, { cls: 'bv-swaps__card' })}
     ${tradeHTML(data)}
@@ -409,8 +409,19 @@ async function vaultSheet(data) {
 
 function wire(data) {
   $('#swapOpen')?.addEventListener('change', async (e) => {
+    const open = e.target.checked;
+    let adult = false;
+    if (open && !data.adult_confirmed) {
+      // Swaps and chat are 18+ (Terms of Service). Asked once, remembered on the server.
+      adult = await confirmSheet({
+        title: 'Swaps are for adults',
+        message: 'Swaps let you chat with and meet other collectors, so they are only for people aged 18 or older. By continuing you confirm you are 18 or older and agree to the swap rules in our Terms: trade only sets you own, keep it respectful, and report anything suspicious.',
+        confirmLabel: "I'm 18 or older",
+      });
+      if (!adult) { e.target.checked = false; return; }
+    }
     try {
-      await api('/api/swaps/prefs', { method: 'POST', body: { open: e.target.checked } });
+      await api('/api/swaps/prefs', { method: 'POST', body: adult ? { open, adult: true } : { open } });
       haptic('light');
       reload();
     } catch (err) { e.target.checked = !e.target.checked; toast(err?.message || 'Could not save.', 'error'); }
