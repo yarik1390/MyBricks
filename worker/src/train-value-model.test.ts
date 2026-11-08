@@ -95,6 +95,29 @@ describe('runTrainValueModel', () => {
     expect(v).toBeLessThan(170);
   });
 
+  it('learns how long a set has been retired, and trains on vintage sets up to 40x retail', async () => {
+    // Same theme, age and size: retired 8 years ago sells at 2x, retired 1 year ago at 1x.
+    const rows = Array.from({ length: 240 }, (_, i) => {
+      const long = i % 2 === 0;
+      return {
+        set_num: `R${i}-1`, name: `R ${i}`, year: YEAR - 10, retired: 1, retired_year: long ? YEAR - 8 : YEAR - 1,
+        pieces: 500, theme: 'City', retail_price: 50, bl_new_value: long ? 100 : 50, bl_new_qty: 8,
+      };
+    });
+    await insertSets([
+      ...rows,
+      { set_num: 'OLD-RET-1', name: 'Long gone', year: YEAR - 10, retired: 1, retired_year: YEAR - 8, pieces: 500, theme: 'City', retail_price: 80 },
+      { set_num: 'NEW-RET-1', name: 'Just gone', year: YEAR - 10, retired: 1, retired_year: YEAR - 1, pieces: 500, theme: 'City', retail_price: 80 },
+      // A 1980s set selling at 30x its old retail is real, not bad data.
+      { set_num: 'VINTAGE-1', name: 'Vintage', year: YEAR - 40, retired: 1, pieces: 300, theme: 'Castle', retail_price: 10, bl_new_value: 300, bl_new_qty: 6 },
+    ]);
+    const result = await runTrainValueModel(env as any);
+    expect(result.trained).toBe(241);
+    const oldRet = (await modelValue('OLD-RET-1'))!.model_value!;
+    const newRet = (await modelValue('NEW-RET-1'))!.model_value!;
+    expect(oldRet).toBeGreaterThan(newRet * 1.6);
+  });
+
   it('does not train on too little ground truth', async () => {
     await insertSets(trainingSets(20));
     const result = await runTrainValueModel(env as any);
@@ -152,7 +175,9 @@ describe('runTrainValueModel', () => {
     // A 3-piece count must not put it in the tiny-set bucket that sells at 8x.
     const duplo = (await modelValue('DUPLO-3P-1'))!.model_value!;
     expect(duplo).toBeGreaterThan(20);
-    expect(duplo).toBeLessThan(45);
+    // Well under the 8x tiny-set level (shrunk leftovers of the tiny sets reach
+    // the shared retirement and rating groups, so not exactly 1x either).
+    expect(duplo).toBeLessThan(60);
     expect((await modelValue('PACK-1'))!.model_value!).toBeGreaterThan(50);
   });
 
