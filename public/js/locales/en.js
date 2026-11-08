@@ -747,6 +747,8 @@ export const en = {
     nQuietRange: '{start} – {end}',
     nQuiet: 'Quiet hours',
     nDigestSub: 'Sunday morning email · value change and movers',
+    emailAlerts: 'Email alerts',
+    emailAlertsSub: 'Alerts and the weekly summary by email',
     nDigest: 'Weekly digest',
     nStockSub: 'Wishlist sets open for order at LEGO.com',
     nStock: 'Back in stock',

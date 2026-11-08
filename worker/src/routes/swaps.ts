@@ -3,6 +3,9 @@ import { requireMember } from '../auth';
 import type { Env, Variables } from '../types';
 import { sendPushToUser } from '../jobs/wishlist-alerts';
 import { findContactDetails } from '../lib/contact-details';
+import { sendAdminEmail } from '../lib/resend';
+import { escapeHtml } from '../lib/alert-email';
+import { appBaseUrl } from '../lib/app-url';
 
 // Swap matching (mounted at /api/swaps). Collectors who switch swaps on (and
 // have a public handle) are matched when one has a set up for swap that the
@@ -555,7 +558,26 @@ app.post('/people/:handle/report', async (c) => {
     "INSERT INTO app_feedback (user_id, email, message, screen, user_agent) VALUES (?, ?, ?, 'swap-report', ?)",
   ).bind(userId, c.get('userEmail') ?? null, message, String(c.req.header('User-Agent') || '').slice(0, 300) || null).run();
   await setBlock(c.env.DB, userId, other.user_id, 'block');
+  // Tell the owner straight away (Admin feedback still has the full record), so
+  // a report on a possible scam or safety problem isn't left waiting.
+  const notify = notifyAdminOfReport(c.env, `Swap report: @${other.handle} (${reason})`, message);
+  try { c.executionCtx.waitUntil(notify); } catch { await notify; }
   return c.json({ ok: true });
 });
+
+async function notifyAdminOfReport(env: Env, subject: string, message: string): Promise<void> {
+  try {
+    if (!env.RESEND_API_KEY || !env.ADMIN_USER_ID) return;
+    const admin = await env.DB.prepare('SELECT email FROM user_prefs WHERE user_id = ?')
+      .bind(env.ADMIN_USER_ID).first<{ email: string | null }>();
+    if (!admin?.email) return;
+    const html = `<p>A collector reported someone in Swaps. They are blocked for the reporter; review it in Admin, Feedback.</p>`
+      + `<pre style="white-space:pre-wrap;font-family:monospace;font-size:13px;">${escapeHtml(message)}</pre>`
+      + `<p><a href="${escapeHtml(appBaseUrl(env))}/#/me/admin">Open Admin</a></p>`;
+    await sendAdminEmail(admin.email, subject, html, env);
+  } catch (e) {
+    console.warn('[swaps] report email failed:', (e as Error).message);
+  }
+}
 
 export { app as swapsRoute };

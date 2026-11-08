@@ -738,6 +738,8 @@ export const hi = {
     nQuietRange: '{start} – {end}',
     nQuiet: 'शांत घंटे',
     nDigestSub: 'रविवार सुबह ईमेल · मूल्य बदलाव और बड़े उतार-चढ़ाव',
+    emailAlerts: 'ईमेल अलर्ट',
+    emailAlertsSub: 'अलर्ट और साप्ताहिक सारांश ईमेल से',
     nDigest: 'साप्ताहिक सारांश',
     nStockSub: 'LEGO.com पर ऑर्डर के लिए उपलब्ध इच्छा-सूची सेट',
     nStock: 'फिर से स्टॉक में',

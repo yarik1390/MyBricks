@@ -35,7 +35,7 @@ function hourLabel(h) {
 
 function subtitle() {
   const pushOn = push === 'on';
-  const email = !isGuestMode() && !!state.me?.email;
+  const email = !isGuestMode() && !!state.me?.email && prefs.email_alerts !== false;
   const weekly = !!prefs.notify_weekly_digest;
   if (pushOn && email) return t(weekly ? 'bvAlerts.subPushWeekly' : 'bvAlerts.subPushEmail');
   if (pushOn) return t('bvAlerts.subPush');
@@ -76,6 +76,7 @@ function pageHTML() {
   ].join('');
   const email = state.me?.email;
   const delivery = pushRowHTML()
+    + switchRow('email_alerts', 'bvAlerts.emailAlerts', 'bvAlerts.emailAlertsSub', { disabled: guest || !email })
     + row({ icon: 'send', title: t('bvAlerts.email'), sub: guest ? t('bvAlerts.emailGuest') : email || t('bvAlerts.emailNone'), href: guest ? '#/login' : '#/me/integrations' })
     + row({ icon: 'chat', title: t('bvAlerts.discord'), sub: state.me?.discord_webhook_url ? t('bvAlerts.connected') : t('bvAlerts.notConnected'), href: guest ? '#/login' : '#/me/integrations' });
   return `<main class="bv-page no-nav bv-notifs" id="notificationsPage">
@@ -109,6 +110,7 @@ export async function renderMeNotifications() {
     notify_retiring: me.notify_retiring ?? master,
     notify_back_in_stock: me.notify_back_in_stock ?? master,
     notify_weekly_digest: !!me.notify_weekly_digest,
+    email_alerts: me.email_alerts !== false,
     quiet_hours: !!me.quiet_hours,
     quiet_start: Number.isInteger(me.quiet_start) ? me.quiet_start : 22,
     quiet_end: Number.isInteger(me.quiet_end) ? me.quiet_end : 8,

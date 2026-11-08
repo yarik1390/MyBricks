@@ -1176,7 +1176,7 @@ describe('alertEmailHTML', () => {
     const html = alertEmailHTML('retiring', { setNum: '30735-1', name: 'Hot Rod Car', value: 0 }, {}, 'https://bricksvault.app');
     expect(html).toContain('href="https://bricksvault.app/s/30735-1"');
     expect(html).toMatch(/href="https:\/\/bricksvault\.app\/s\/30735-1"[^>]*>Open in BricksVault</);
-    expect(html).toContain('href="https://bricksvault.app/#/me"');
+    expect(html).toContain('href="https://bricksvault.app/#/me/notifications"');
   });
 
   it('shows the photo, market vs retail and the exit date for a retiring set', async () => {

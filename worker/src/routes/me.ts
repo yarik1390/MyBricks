@@ -34,7 +34,7 @@ app.use('*', requireMember);
 // existed stays paused until they choose otherwise.
 const NOTIFY_CATEGORY_COLS = ['notify_sell_targets', 'notify_big_moves', 'notify_retiring', 'notify_back_in_stock'] as const;
 type NotificationPrefsPatch = Partial<Record<typeof NOTIFY_CATEGORY_COLS[number] | 'quiet_hours', boolean>>
-  & { quiet_start?: number; quiet_end?: number; timezone?: string | null };
+  & { quiet_start?: number; quiet_end?: number; timezone?: string | null; email_alerts?: boolean };
 
 function notificationPrefsOut(p: Record<string, unknown>) {
   const master = p.notify_price_drops !== 0;
@@ -48,6 +48,9 @@ function notificationPrefsOut(p: Record<string, unknown>) {
   out.quiet_start = hour(p.quiet_start, 22);
   out.quiet_end = hour(p.quiet_end, 8);
   out.timezone = (p.timezone as string | null) ?? null;
+  // Master switch for every alert and digest EMAIL (push and Discord keep their
+  // own switches). The one-click unsubscribe link in each email turns it off.
+  out.email_alerts = p.email_off_at == null;
   return out;
 }
 
@@ -74,6 +77,10 @@ function parseNotificationPrefs(body: NotificationPrefsPatch): { values: Record<
     if (body.timezone !== null && !isValidTimeZone(String(body.timezone))) return { error: 'timezone must be an IANA time zone' };
     values.timezone = body.timezone;
   }
+  if (body.email_alerts !== undefined) {
+    if (typeof body.email_alerts !== 'boolean') return { error: 'email_alerts must be a boolean' };
+    values.email_off_at = body.email_alerts ? null : new Date().toISOString();
+  }
   return { values };
 }
 
@@ -90,7 +97,7 @@ app.get('/', async (c) => {
       `SELECT display_name, handle, is_public, expose_public_value, currency, retail_market,
               notify_price_drops, notify_weekly_digest, discord_webhook_url, brickset_user_hash, rebrickable_user_token, email, is_supporter,
               notify_sell_targets, notify_big_moves, notify_retiring, notify_back_in_stock,
-              quiet_hours, quiet_start, quiet_end, timezone,
+              quiet_hours, quiet_start, quiet_end, timezone, email_off_at,
               kids_pin_hash, kids_xp, kids_level
        FROM user_prefs WHERE user_id=?`
     ).bind(userId).first<Record<string, unknown>>(),

@@ -738,6 +738,8 @@ export const es = {
     nQuietRange: '{start} – {end}',
     nQuiet: 'Horas de silencio',
     nDigestSub: 'Correo el domingo por la mañana · cambio de valor y destacados',
+    emailAlerts: 'Alertas por correo',
+    emailAlertsSub: 'Alertas y resumen semanal por correo',
     nDigest: 'Resumen semanal',
     nStockSub: 'Sets de tu lista disponibles en LEGO.com',
     nStock: 'De nuevo en stock',

@@ -65,6 +65,13 @@ const KIND_META: Record<AlertKind, { label: string; color: string }> = {
   preorder: { label: 'Available soon', color: '#C9A7FF' },
 };
 
+/**
+ * Placeholder for the recipient's unsubscribe link. The HTML is built before
+ * the recipient's signed link is known; sendAlertEmail (lib/resend.ts) swaps it
+ * for the real link, or for the Notifications screen when it has none.
+ */
+export const UNSUBSCRIBE_MARKER = '%%BV_UNSUBSCRIBE_URL%%';
+
 export function escapeHtml(s: unknown): string {
   return String(s ?? '').replace(/[&<>"']/g, (ch) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] as string
@@ -158,7 +165,9 @@ function shell({ preheader, badge, body, baseUrl, footerReason }: ShellParts): s
     </td></tr>
     <tr><td style="padding:18px 8px 0;font-family:${SANS};font-size:12px;line-height:1.6;color:${C.mute};text-align:center;">
       ${escapeHtml(footerReason)}<br>
-      <a href="${escapeHtml(baseUrl)}/#/me" style="color:${C.mute};text-decoration:underline;">Manage alerts</a>
+      <a href="${escapeHtml(baseUrl)}/#/me/notifications" style="color:${C.mute};text-decoration:underline;">Manage alerts</a>
+      &nbsp;·&nbsp;
+      <a href="${UNSUBSCRIBE_MARKER}" style="color:${C.mute};text-decoration:underline;">Unsubscribe</a>
       &nbsp;·&nbsp;
       <a href="${escapeHtml(baseUrl)}" style="color:${C.mute};text-decoration:underline;">bricksvault.app</a>
     </td></tr>
