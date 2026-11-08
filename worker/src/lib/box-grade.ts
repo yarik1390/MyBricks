@@ -2,7 +2,10 @@ import { spendQuotaFailClosed } from './api-quota';
 import OpenAI from 'openai';
 import type { Env } from '../types';
 import { MODELS, geminiUrl, openAIServerBaseURL, gatewayHeaders } from './llm';
-import { recordIntegrationAttempt } from './integration-health';
+import { openAiCompatibleStep } from './llm-clients';
+import type { RouteStep } from './llm-routing';
+import { FREE_FALLBACK_STEPS } from './ai-access';
+import { recordIntegrationAttempt, type IntegrationName } from './integration-health';
 
 // Box condition grading from a photo (routes/grade.ts). One vision call returns
 // a grade on a five-step scale plus what drove it; the screen shows the usual
@@ -73,6 +76,20 @@ async function viaGemini(env: Env, key: string, image: string, prompt: string, s
   return body.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
 }
 
+async function viaFreeStep(env: Env, step: RouteStep, image: string, prompt: string): Promise<string | null> {
+  const { client, models } = await openAiCompatibleStep(env, step, {});
+  if (!client || !models[0]) return null;
+  const result = await client.chat.completions.create({
+    model: models[0],
+    max_tokens: 400,
+    messages: [{ role: 'user', content: [
+      { type: 'text', text: prompt },
+      { type: 'image_url', image_url: { url: image } },
+    ] }],
+  }, { timeout: 20_000 });
+  return result.choices[0]?.message?.content ?? null;
+}
+
 async function viaOpenAI(env: Env, key: string, image: string, prompt: string, server: boolean): Promise<string | null> {
   const openai = new OpenAI({
     apiKey: key,
@@ -98,12 +115,21 @@ export async function gradeBox(
   image: string,
   setLabel: string,
   keys: { gemini?: string | null; openai?: string | null },
+  /** Past the AI trial: free vision models only (BYOK-first, 2026-11-08). */
+  freeOnly = false,
 ): Promise<BoxGradeResult | null> {
   const prompt = boxGradePrompt(setLabel);
-  const steps: Array<['gemini' | 'openai', () => Promise<string | null>]> = [];
+  const steps: Array<[IntegrationName, () => Promise<string | null>]> = [];
   if (keys.gemini) steps.push(['gemini', () => viaGemini(env, keys.gemini as string, image, prompt, false)]);
   if (keys.openai) steps.push(['openai', () => viaOpenAI(env, keys.openai as string, image, prompt, false)]);
   if (!steps.length) {
+    // Free vision models first (Workers AI, Groq), then, during the trial only,
+    // the paid server keys.
+    for (const step of FREE_FALLBACK_STEPS) {
+      steps.push([step.provider as IntegrationName, () => viaFreeStep(env, step, image, prompt)]);
+    }
+  }
+  if (!keys.gemini && !keys.openai && !freeOnly) {
     if (env.GEMINI_API_KEY) {
       steps.push(['gemini', async () => (await spendQuotaFailClosed(env, 'gemini_paid'))
         ? viaGemini(env, env.GEMINI_API_KEY as string, image, prompt, true)

@@ -11,7 +11,7 @@ import { openAiCompatibleStep } from '../lib/llm-clients';
 import { recordAiUsage } from '../lib/ai-usage';
 import type { Env, Variables } from '../types';
 import { hasProAccess } from '../lib/early-access';
-import { aiAccess, byokRequiredBody } from '../lib/ai-access';
+import { aiAccess, byokSuggested, freeOnlySteps } from '../lib/ai-access';
 import { spendQuotaFailClosed } from '../lib/api-quota';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -113,10 +113,9 @@ app.post('/', async (c) => {
     return c.json({ error: 'OpenAI is not configured. Add your own Gemini or OpenAI key in Settings.' }, 500);
   }
 
-  // BYOK-first: past the new-account trial the shared keys stop answering
-  // the advisor; the app turns this code into the "add your key" sheet.
+  // BYOK-first: past the new-account trial the advisor runs on the free
+  // models only (Workers AI, Groq); paid server keys are skipped.
   const access = await aiAccess(c.env, userId, 'advisor', !!(geminiKey || openaiKey));
-  if (access.mode === 'blocked') return c.json(byokRequiredBody('advisor'), 402);
 
   // Rate limit for server-key path only (BYOK bypasses it).
   if (!geminiKey && !openaiKey) {
@@ -137,7 +136,7 @@ app.post('/', async (c) => {
         .bind(userId).first<{ is_supporter: number }>().catch(() => null);
       const limit = hasProAccess(c.env, pref?.is_supporter) ? ADVISOR_PRO_DAILY_LIMIT : ADVISOR_DAILY_LIMIT;
       if (used > limit) {
-        return c.json({ error: `Rate limit: ${limit} advisor queries per day. Add your Gemini key in Settings for unlimited access.` }, 429);
+        return c.json({ error: `Rate limit: ${limit} advisor queries per day. Add your Gemini key in Settings for unlimited access.`, ...byokSuggested('advisor', access) }, 429);
       }
     }
   }
@@ -228,7 +227,8 @@ ${context}`;
         // answers into one reply. A step may therefore only be retried if it
         // failed BEFORE producing text — `emitted` is what enforces that.
         const meta = { ...gatewayHeaders(c.env), ...gatewayMetadataHeader({ workload: 'advisor' }) };
-        const steps = await resolveRoute(c.env, 'advisor');
+        const route = await resolveRoute(c.env, 'advisor');
+        const steps = access.mode === 'free' ? freeOnlySteps(route) : route;
         let emitted = false;
         let lastError: unknown = null;
         let lastProvider: LlmProvider = 'openai';
@@ -243,7 +243,21 @@ ${context}`;
             } else {
               const { client, models } = await openAiCompatibleStep(c.env, step, meta, 'text');
               if (!client) continue;
-              for (const model of models) {
+              if (step.provider === 'workersai') {
+                // The Workers AI binding answers in one piece (no stream).
+                const done = await client.chat.completions.create({
+                  model: models[0],
+                  max_tokens: 512,
+                  messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: q },
+                  ],
+                });
+                const text = done.choices[0]?.message?.content?.trim() ?? '';
+                if (text) { emitted = true; await send({ text }); }
+                await recordAiUsage(c.env, step.provider, models[0], (done.usage ?? null) as { prompt_tokens?: number; completion_tokens?: number } | null, null);
+              }
+              for (const model of step.provider === 'workersai' ? [] : models) {
                 const stream = await client.chat.completions.create({
                   model,
                   max_tokens: 512,

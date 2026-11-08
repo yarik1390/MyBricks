@@ -1,16 +1,21 @@
 import type { Env } from '../types';
+import type { RouteStep } from './llm-routing';
+import { GROQ_SCAN_MODEL } from './llm-routing';
+import { WORKERS_AI_SCAN_MODEL } from './workers-ai';
 
 // ---------------------------------------------------------------------------
 // BYOK-first AI access (2026-11-08, Iaroslav).
 //
 // Every new account gets a trial: for AI_TRIAL_DAYS after its first AI request
-// the shared server keys power every AI feature, within the usual per-feature
-// daily limits. After the trial:
+// the shared server keys, paid Gemini included, power every AI feature within
+// the usual per-feature daily limits. After the trial:
 //   - users with their own Gemini/OpenAI key (BYOK) keep everything, unlimited;
-//   - photo scans keep working on the FREE providers only (Workers AI, Groq),
-//     at POST_TRIAL_SCAN_DAILY_LIMIT a day — scanning is the app's front door;
-//   - shelf scans, the advisor, listing drafts and box grading need a key.
-// The paid Gemini key is never used for an account past its trial.
+//   - everyone else keeps EVERY feature on the FREE providers only (Workers AI,
+//     Groq), within the same daily limits. Barcode and Brickognize are not AI
+//     and never count. Iaroslav: "Barcode and Brickognize, and free models stay
+//     free for all the features."
+// The paid Gemini/OpenAI server keys are never used for an account past its
+// trial; hitting a daily limit then suggests adding a free key.
 //
 // The trial clock lives in its own table (`ai_trials`) and starts lazily, on
 // the first AI call, so it needs no account-creation date. Every read fails
@@ -18,7 +23,6 @@ import type { Env } from '../types';
 // ---------------------------------------------------------------------------
 
 export const AI_TRIAL_DAYS = 14;
-export const POST_TRIAL_SCAN_DAILY_LIMIT = 5;
 
 export type AiFeature = 'scan' | 'shelf' | 'advisor' | 'listing' | 'grade';
 
@@ -76,32 +80,38 @@ export async function touchAiTrial(env: Env, userId: string, now = Date.now()): 
 export type AiAccess =
   | { mode: 'byok' }
   | { mode: 'trial'; trial: AiTrial }
-  /** Past the trial, free providers only, with a smaller daily limit. */
-  | { mode: 'free'; trial: AiTrial; dailyLimit: number }
-  | { mode: 'blocked'; trial: AiTrial };
+  /** Past the trial: free providers only, same daily limits. */
+  | { mode: 'free'; trial: AiTrial };
 
 /**
  * Decide how a request for `feature` may use AI. BYOK always wins. Guests
  * (no userId) are handled by the callers' existing guest rules and get trial
- * treatment here.
+ * treatment here. Nothing is ever blocked: past the trial it is free models.
  */
-export async function aiAccess(env: Env, userId: string | null | undefined, feature: AiFeature, byok: boolean): Promise<AiAccess> {
+export async function aiAccess(env: Env, userId: string | null | undefined, _feature: AiFeature, byok: boolean): Promise<AiAccess> {
   if (byok) return { mode: 'byok' };
   if (!userId) return { mode: 'trial', trial: trialFrom(null) };
   const trial = await touchAiTrial(env, userId);
   if (trial.active) return { mode: 'trial', trial };
-  if (feature === 'scan') return { mode: 'free', trial, dailyLimit: POST_TRIAL_SCAN_DAILY_LIMIT };
-  return { mode: 'blocked', trial };
+  return { mode: 'free', trial };
 }
 
-/** JSON body for a blocked request. The app opens the "add your key" sheet on this code. */
-export function byokRequiredBody(feature: AiFeature) {
-  return {
-    error: 'Your free AI trial has ended. Add your own free Gemini key in Settings to keep using this feature.',
-    code: 'byok_required',
-    feature,
-  };
+/** Extra JSON for a 429 on the free path: the app offers the free-key sheet. */
+export function byokSuggested(feature: AiFeature, access: AiAccess) {
+  return access.mode === 'free' ? { code: 'byok_suggested', feature } : {};
 }
 
 /** Providers a post-trial (free) request may use: never a billed key. */
 export const FREE_ONLY_PROVIDERS = new Set(['workersai', 'groq']);
+
+/** The free steps used when a route holds none (e.g. an older stored admin route). */
+export const FREE_FALLBACK_STEPS: RouteStep[] = [
+  { provider: 'workersai', model: WORKERS_AI_SCAN_MODEL, enabled: true },
+  { provider: 'groq', model: GROQ_SCAN_MODEL, enabled: true },
+];
+
+/** Keep only free providers; fall back to the default free pair when none are left. */
+export function freeOnlySteps(steps: RouteStep[]): RouteStep[] {
+  const free = steps.filter((s) => FREE_ONLY_PROVIDERS.has(s.provider));
+  return free.length ? free : FREE_FALLBACK_STEPS.map((s) => ({ ...s }));
+}

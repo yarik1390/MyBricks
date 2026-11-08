@@ -3,7 +3,7 @@ import { requireMember } from '../auth';
 import type { Env, Variables } from '../types';
 import { GRADE_PRICE_SHARE, gradeBox } from '../lib/box-grade';
 import { hasProAccess } from '../lib/early-access';
-import { aiAccess, byokRequiredBody } from '../lib/ai-access';
+import { aiAccess, byokSuggested, type AiAccess } from '../lib/ai-access';
 
 // Box condition grading (mounted at /api/grade).
 //
@@ -24,9 +24,10 @@ app.post('/box', async (c) => {
 
   const geminiKey = c.req.header('X-Gemini-Key') || null;
   const openaiKey = c.req.header('X-OpenAI-Key') || null;
+  let access: AiAccess = { mode: 'byok' };
   if (!geminiKey && !openaiKey) {
-    const access = await aiAccess(c.env, userId, 'grade', false);
-    if (access.mode === 'blocked') return c.json(byokRequiredBody('grade'), 402);
+    // BYOK-first: past the AI trial, grading runs on the free vision models.
+    access = await aiAccess(c.env, userId, 'grade', false);
     const pref = await c.env.DB.prepare('SELECT is_supporter FROM user_prefs WHERE user_id = ?')
       .bind(userId).first<{ is_supporter: number }>().catch(() => null);
     if (!hasProAccess(c.env, pref?.is_supporter)) return c.json({ error: 'Box grading comes with Pro.', code: 'pro_required' }, 402);
@@ -38,7 +39,7 @@ app.post('/box', async (c) => {
        RETURNING hit_count`,
     ).bind(userId, day.toISOString()).first<{ hit_count: number }>();
     if ((rl?.hit_count ?? 0) > BOX_GRADE_DAILY_LIMIT) {
-      return c.json({ error: `You've used today's ${BOX_GRADE_DAILY_LIMIT} box grades. Add your own Gemini key in Settings for more.` }, 429);
+      return c.json({ error: `You've used today's ${BOX_GRADE_DAILY_LIMIT} box grades. Add your own Gemini key in Settings for more.`, ...byokSuggested('grade', access) }, 429);
     }
   }
 
@@ -46,7 +47,7 @@ app.post('/box', async (c) => {
   const set = setNum
     ? await c.env.DB.prepare('SELECT set_num, name FROM lego_sets WHERE set_num = ?').bind(setNum).first<{ set_num: string; name: string }>()
     : null;
-  const result = await gradeBox(c.env, image, set ? `LEGO ${set.set_num} ${set.name}` : 'a LEGO set', { gemini: geminiKey, openai: openaiKey });
+  const result = await gradeBox(c.env, image, set ? `LEGO ${set.set_num} ${set.name}` : 'a LEGO set', { gemini: geminiKey, openai: openaiKey }, access.mode === 'free');
   if (!result) return c.json({ error: 'Could not grade this photo right now. Try again with the whole box in view.' }, 503);
   return c.json({ ...result, price_share: result.grade ? GRADE_PRICE_SHARE[result.grade] : null });
 });

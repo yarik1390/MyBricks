@@ -18,7 +18,7 @@ import { CATALOG_COLS, MARKET_EXT_JOIN } from './sets';
 import { findSetByBarcodeLocal, findSetByBarcodeRemote } from '../lib/barcodes';
 import type { Env, Variables } from '../types';
 import { hasProAccess } from '../lib/early-access';
-import { aiAccess, byokRequiredBody, readAiTrial, FREE_ONLY_PROVIDERS, POST_TRIAL_SCAN_DAILY_LIMIT } from '../lib/ai-access';
+import { aiAccess, readAiTrial, freeOnlySteps } from '../lib/ai-access';
 import { spendQuotaFailClosed } from '../lib/api-quota';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -63,10 +63,10 @@ function windowStarts(now = new Date()): { day: string; month: string } {
   return { day: day.toISOString(), month: month.toISOString() };
 }
 
-function scanQuotaBuckets(shelf: boolean, pro: boolean, now = new Date(), photoLimitOverride?: number): ScanQuotaBucket[] {
+function scanQuotaBuckets(shelf: boolean, pro: boolean, now = new Date()): ScanQuotaBucket[] {
   const { day, month } = windowStarts(now);
   if (!shelf) {
-    const limit = photoLimitOverride ?? (pro ? PRO_SCAN_DAILY_LIMIT : SCAN_DAILY_LIMIT);
+    const limit = pro ? PRO_SCAN_DAILY_LIMIT : SCAN_DAILY_LIMIT;
     return [{ endpoint: 'scan_image', windowStart: day, limit, label: `${limit} scan units per day`, reason: 'scan_limit' }];
   }
   if (pro) {
@@ -105,8 +105,8 @@ type ScanAllowance = {
   shelf: { used: number; limit: number; remaining: number; period: 'day' | 'month' };
 };
 
-async function scanAllowance(db: D1Database, userId: string, pro: boolean, photoLimitOverride?: number): Promise<ScanAllowance> {
-  const [photoBucket] = scanQuotaBuckets(false, pro, new Date(), photoLimitOverride);
+async function scanAllowance(db: D1Database, userId: string, pro: boolean): Promise<ScanAllowance> {
+  const [photoBucket] = scanQuotaBuckets(false, pro, new Date());
   const shelfBuckets = scanQuotaBuckets(true, pro);
   const shelfBucket = shelfBuckets[shelfBuckets.length - 1];
   const [photoUsed, shelfUsed] = await Promise.all([
@@ -383,7 +383,8 @@ async function describeSharedScan(
 } | { error: string }> {
   const meta = { ...gatewayHeaders(env), ...gatewayMetadataHeader({ workload: 'scan-shared' }) };
   // Past the AI trial only free providers may answer (never a billed key).
-  const steps = (await resolveRoute(env, workload)).filter((step) => !freeOnly || FREE_ONLY_PROVIDERS.has(step.provider));
+  const route = await resolveRoute(env, workload);
+  const steps = freeOnly ? freeOnlySteps(route) : route;
   const stepTimeout = workload === 'shelf' ? SHELF_STEP_TIMEOUT_MS : STEP_TIMEOUT_MS;
   let lastOpenAiError: unknown = null;
   let notLegoVotes = 0;
@@ -525,9 +526,8 @@ app.get('/quota', async (c) => {
   if (!userId) return c.json({ error: 'Sign in to see your scan allowance.' }, 401);
   const pro = await isProMember(c.env, userId);
   const trial = await readAiTrial(c.env, userId);
-  const postTrial = !trial.active && !c.req.header('X-Gemini-Key') && !c.req.header('X-OpenAI-Key');
   return c.json({
-    ...(await scanAllowance(c.env.DB, userId, pro, postTrial ? POST_TRIAL_SCAN_DAILY_LIMIT : undefined)),
+    ...(await scanAllowance(c.env.DB, userId, pro)),
     ai_trial: trial,
   });
 });
@@ -803,15 +803,12 @@ app.post('/identify', async (c) => {
     // Single photos use the daily photo bucket (Pro gets 5x). Shelf Snap has its
     // own buckets: a monthly teaser for free accounts, a daily cap for Pro.
     const units = shelfMode ? SHELF_SCAN_UNITS : SINGLE_SCAN_UNITS;
-    // BYOK-first: past the new-account trial, shelf scans need the user's own
-    // key and photo scans drop to a small daily allowance on free models.
+    // BYOK-first: past the new-account trial, scans keep working on the free
+    // models only (same limits); the paid Gemini step is skipped.
     const access = await aiAccess(c.env, userId, shelfMode ? 'shelf' : 'scan', false);
-    if (access.mode === 'blocked') {
-      return finalizeShared({ ...byokRequiredBody('shelf'), reason: 'byok_required' }, 402);
-    }
     sharedFreeOnly = access.mode === 'free';
     sharedPro = await isProMember(c.env, userId);
-    sharedBuckets = scanQuotaBuckets(shelfMode, sharedPro, new Date(), access.mode === 'free' ? access.dailyLimit : undefined);
+    sharedBuckets = scanQuotaBuckets(shelfMode, sharedPro, new Date());
     const quota = await consumeSharedScanQuota(c.env.DB, userId, quotaRequestKey, units, sharedBuckets);
     if (!quota.allowed) {
       const shelfPro = quota.bucket.reason === 'shelf_pro';

@@ -1,6 +1,6 @@
 // BYOK-first AI (2026-11-08): the Profile row shows the free trial and opens
-// the "add your free Gemini key" sheet; a server refusal (402 byok_required)
-// opens the same sheet by itself; a working key is saved on the device.
+// the "add your free Gemini key" sheet; a free-path daily limit (429
+// byok_suggested) opens the same sheet by itself; a working key is saved on the device.
 import { test, expect } from './fixtures.mjs';
 
 async function stubMe(page, aiTrial) {
@@ -44,12 +44,12 @@ test('a rejected key shows an error and is not saved', async ({ page }) => {
   await expect(page.locator('#byokError')).toContainText('rejected');
 });
 
-test('a 402 byok_required answer opens the sheet with the trial-ended lead', async ({ page }) => {
+test('a post-trial daily limit (byok_suggested) opens the sheet', async ({ page }) => {
   await stubMe(page, { started_at: '2026-10-01T00:00:00Z', ends_at: '2026-10-15T00:00:00Z', active: false, days_left: 0 });
   await page.goto('/#/me');
-  await expect(page.locator('#byokRow')).toContainText('trial ended');
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('bv:byok', { detail: { code: 'byok_required', feature: 'advisor' } })));
+  await expect(page.locator('#byokRow')).toContainText('Free AI models still work');
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('bv:byok', { detail: { code: 'byok_suggested', feature: 'advisor' } })));
   const sheet = page.locator('.byok-sheet');
   await expect(sheet).toBeVisible();
-  await expect(sheet).toContainText('keep using the advisor');
+  await expect(sheet).toContainText("today's free advisor questions");
 });
