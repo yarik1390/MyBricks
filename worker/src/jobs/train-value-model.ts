@@ -9,8 +9,9 @@ import { pricingWritesAllowed } from '../lib/pricing-budget';
  * sold guide (>=5 lots). In log space, predicted value / retail price is:
  *   base uplift for (years since release, retired)
  *   + theme deviation (per age class) + subtheme deviation + piece-count
- *     deviation, each fitted on the previous step's residuals and shrunk
- *     toward 0 when a group has few sets.
+ *     deviation + years-since-retirement, price-per-piece and Brickset-rating
+ *     deviations (each per age class), each fitted on the previous step's
+ *     residuals and shrunk toward 0 when a group has few sets.
  * Where BrickLink has a USED sold guide for the set, the used price times the
  * learned new/used ratio is blended in at 65% (it is the strongest signal we
  * have for old sets).
@@ -18,6 +19,13 @@ import { pricingWritesAllowed } from '../lib/pricing-budget';
  * Backtest 2026-10-13 (half held out, within -20%/+25% of BrickLink sold):
  * 0-3 yrs 62% (BrickEconomy 40%), 4-10 yrs 50% (43%), 11+ yrs 37% (49%).
  * The old formula scored 49% / 35% / 20%. See pricing-review/own-value-model-test.md.
+ *
+ * Backtest 2026-11-08 (train on half the BrickLink-priced sets, score the other
+ * half, no used-guide blend, same band): before the three extra deviations and
+ * the 40x training band 59% / 43% / 36%, after 63% / 45% / 37%; the 11+ group's
+ * average miss went from -17% to -11% (training no longer drops vintage sets
+ * that sell at 20-40x their 1980s-90s retail). Only real sales and catalog
+ * facts are used: BrickLink sold guides, Brickset MSRP, rating and retirement.
  *
  * The result lands in set_market_ext.model_value and enters the v3 blend as
  * an 'estimate' signal (lib/valuation-v3.ts): it is the headline only when no
@@ -28,11 +36,20 @@ import { pricingWritesAllowed } from '../lib/pricing-budget';
 const SHRINK_THEME = 4;
 const SHRINK_SUBTHEME = 4;
 const SHRINK_PIECES = 8;
+const SHRINK_RETIRED_YEARS = 8;
+const SHRINK_PRICE_PER_PIECE = 8;
+const SHRINK_RATING = 8;
 // Weight of the used-sales anchor in log space when one exists.
 const USED_WEIGHT = 0.65;
 // Training rows outside this sold/retail band are treated as bad retail data.
+// The upper end is 40x: vintage sets really do sell at 20-40x their old retail,
+// and cutting them at 20x made the model undervalue every old set.
 const TRAIN_RATIO_MIN = 0.1;
-const TRAIN_RATIO_MAX = 20;
+const TRAIN_RATIO_MAX = 40;
+// An ESTIMATE never goes above 20x retail, though: the few sets the model puts
+// higher are small cheap packs (a 2002 Bionicle mask pack at 40x), and the
+// backtest scores the same with this cap (it only stops those runaways).
+const ESTIMATE_RATIO_MAX = 20;
 
 // Independent retail anchor, same rule as independentRetailAnchor(): Brickset
 // MSRP, else Brickset's UK/DE/CA price (ext.bs_retail_alt, USD-equivalent),
@@ -78,6 +95,14 @@ const features = (retail: string, minPieces = 0) => `
   CASE WHEN ls.pieces > ${minPieces} THEN MIN(CAST(ln(ls.pieces) * 2 AS INTEGER), 18) ELSE -1 END AS pb,
   ${retail} AS rp,
   CASE WHEN ls.bl_used_qty > 0 AND ls.used_value > 0 THEN ls.used_value END AS u,
+  -- Years since retirement (0-12), -2 still sold, -1 retired with no year.
+  CASE WHEN ls.retired_year > 0 THEN MIN(MAX(CAST(strftime('%Y','now') AS INTEGER) - ls.retired_year, 0), 12)
+       WHEN COALESCE(ls.retired, 0) = 0 THEN -2 ELSE -1 END AS yr,
+  -- Retail per piece in log steps: licensed/large-element sets vs plain ones.
+  -- Like pb, a set estimated with no real piece count scores as unknown.
+  CASE WHEN ls.pieces > ${minPieces} THEN MIN(MAX(CAST(ln((${retail}) / ls.pieces) * 3 AS INTEGER), -15), 6) ELSE -99 END AS pp,
+  -- Brickset rating in half-star steps (-1 unrated).
+  CASE WHEN ls.brickset_rating > 0 THEN CAST(ls.brickset_rating * 2 AS INTEGER) ELSE -1 END AS rt,
   ${NEW_RELEASE} AS nr`;
 
 export const TRAIN_VALUE_MODEL_SQL = `
@@ -100,6 +125,12 @@ WITH
   d_st AS (SELECT st, SUM(res2) / (COUNT(*) + ${SHRINK_SUBTHEME}) AS d FROM r2 GROUP BY st),
   r3 AS (SELECT r2.*, r2.res2 - COALESCE(d_st.d, 0) AS res3 FROM r2 LEFT JOIN d_st USING (st)),
   d_pb AS (SELECT pb, ac, SUM(res3) / (COUNT(*) + ${SHRINK_PIECES}) AS d FROM r3 GROUP BY pb, ac),
+  r4 AS (SELECT r3.*, r3.res3 - COALESCE(d_pb.d, 0) AS res4 FROM r3 LEFT JOIN d_pb USING (pb, ac)),
+  d_yr AS (SELECT yr, ac, SUM(res4) / (COUNT(*) + ${SHRINK_RETIRED_YEARS}) AS d FROM r4 GROUP BY yr, ac),
+  r5 AS (SELECT r4.*, r4.res4 - COALESCE(d_yr.d, 0) AS res5 FROM r4 LEFT JOIN d_yr USING (yr, ac)),
+  d_pp AS (SELECT pp, ac, SUM(res5) / (COUNT(*) + ${SHRINK_PRICE_PER_PIECE}) AS d FROM r5 GROUP BY pp, ac),
+  r6 AS (SELECT r5.*, r5.res5 - COALESCE(d_pp.d, 0) AS res6 FROM r5 LEFT JOIN d_pp USING (pp, ac)),
+  d_rt AS (SELECT rt, ac, SUM(res6) / (COUNT(*) + ${SHRINK_RATING}) AS d FROM r6 GROUP BY rt, ac),
   used_ratio AS (SELECT ac, AVG(ln(bl / u)) AS m FROM train WHERE u > 0 GROUP BY ac),
   target AS (
     SELECT ${features(TARGET_RETAIL, NO_PIECE_COUNT_MAX)}
@@ -108,7 +139,8 @@ WITH
   scored AS (
     SELECT t.set_num, t.rp, t.nr,
       ln(t.rp) + COALESCE(bar.m, ba.m, (SELECT m FROM base_all))
-        + COALESCE(d_th.d, 0) + COALESCE(d_st.d, 0) + COALESCE(d_pb.d, 0) AS lr,
+        + COALESCE(d_th.d, 0) + COALESCE(d_st.d, 0) + COALESCE(d_pb.d, 0)
+        + COALESCE(d_yr.d, 0) + COALESCE(d_pp.d, 0) + COALESCE(d_rt.d, 0) AS lr,
       CASE WHEN t.u > 0 AND ur.m IS NOT NULL THEN ln(t.u) + ur.m END AS lu
     FROM target t
     LEFT JOIN base_ar bar ON bar.age = t.age AND bar.ret = t.ret
@@ -116,12 +148,15 @@ WITH
     LEFT JOIN d_th ON d_th.th = t.th AND d_th.ac = t.ac
     LEFT JOIN d_st ON d_st.st = t.st
     LEFT JOIN d_pb ON d_pb.pb = t.pb AND d_pb.ac = t.ac
+    LEFT JOIN d_yr ON d_yr.yr = t.yr AND d_yr.ac = t.ac
+    LEFT JOIN d_pp ON d_pp.pp = t.pp AND d_pp.ac = t.ac
+    LEFT JOIN d_rt ON d_rt.rt = t.rt AND d_rt.ac = t.ac
     LEFT JOIN used_ratio ur ON ur.ac = t.ac),
   final AS (
     SELECT set_num,
       -- Clamp to a sane band around retail so one odd group can't run away.
       MIN(MAX(exp(CASE WHEN lu IS NOT NULL THEN ${1 - USED_WEIGHT} * lr + ${USED_WEIGHT} * lu ELSE lr END),
-              CASE WHEN nr = 1 THEN rp ELSE rp * 0.2 END), rp * 20) AS v
+              CASE WHEN nr = 1 THEN rp ELSE rp * 0.2 END), rp * ${ESTIMATE_RATIO_MAX}) AS v
     FROM scored)
 INSERT INTO set_market_ext (set_num, model_value, model_cached_at)
 SELECT set_num, CASE WHEN v >= 20 THEN ROUND(v, 0) ELSE ROUND(v, 1) END, datetime('now')
