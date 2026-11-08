@@ -32,6 +32,7 @@ import { getLlmRoutes, saveLlmRoutes, resolveRoute, providerConfigured, DEFAULT_
 import { openCodexModels } from '../lib/opencodex';
 import { getOpenRouterPools, MODELS } from '../lib/llm';
 import { getFeatureFlags, saveFeatureFlags, applyFeatureFlags, FEATURE_FLAGS } from '../lib/feature-flags';
+import { recordProbeResult } from '../jobs/health-probes';
 import { runServiceTest, TESTABLE_SERVICES } from '../lib/service-tests';
 import { getRecentRuns, recordCronStart, recordCronFinish, summarizeResult } from '../lib/cron-runs';
 import { runPriceChartingVerify } from '../jobs/pricecharting-verify';
@@ -679,6 +680,8 @@ app.post('/test/:service', async (c) => {
   await applySourceConfig(c.env).catch(() => {});
   const result = await runServiceTest(c.env, service);
   if (!result) return c.json({ error: `Unknown service '${service}'. Valid: ${TESTABLE_SERVICES.join(', ')}` }, 400);
+  // A passing test counts as evidence: it clears an old error and its block.
+  await recordProbeResult(c.env, service, result).catch(() => {});
   return c.json(result);
 });
 
