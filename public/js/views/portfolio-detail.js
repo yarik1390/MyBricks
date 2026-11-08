@@ -5,7 +5,7 @@ import { icon as kitIcon, iconBtn as kitIconBtn, row as kitRow, seg as kitSeg, f
 import { localMoneyToUsd, usdMoneyInputValue } from '../lib/money-input.js';
 import { derivePartOutDecision } from '../lib/part-out-decision.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML, investmentPricingHTML, investmentPricingDetailHTML, soldEvidenceHTML } from './portfolio-detail-market.js';
-import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, openedCopyValue, estMark, displayValueOf, flipEconomics, cleanTagLabel, priceMovementSummary, valuationConfidencePresentation, localizeStoreUrl } from '../lib/pure.js';
+import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, openedCopyValue, estMark, estimateAccuracyClass, displayValueOf, flipEconomics, cleanTagLabel, priceMovementSummary, valuationConfidencePresentation, localizeStoreUrl } from '../lib/pure.js';
 import { t, tPlural, getLocale, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 import { pricechartingAttributionHTML } from '../lib/partner-attribution.js';
 import { figAvatarSVG } from '../lib/fig-avatar.js';
@@ -1027,7 +1027,15 @@ function valueProvenanceHTML(set) {
     const range = lo > 0 && hi > 0 && hi > lo ? t('detail.typicalRange', { low: fmtMoney(lo, { cents: 0 }), high: fmtMoney(hi, { cents: 0 }) }) : '';
     return n > 0 ? `<div class="detail-summary-src">${tPlural('detail.fromSources', n)}${range}${pcCreditHTML(set)}</div>` : '';
   }
-  if (estMark(set)) return `<div class="detail-summary-src">${t('detail.estimateNoSales')}${pcCreditHTML(set)}</div>`;
+  if (estMark(set)) {
+    const ageClass = estimateAccuracyClass(set);
+    const note = ageClass === 'New' ? t('detail.estimateAccNew') : ageClass === 'Mid' ? t('detail.estimateAccMid') : ageClass === 'Old' ? t('detail.estimateAccOld') : '';
+    const accuracy = note
+      ? `<span class="detail-summary-acc" style="display:block;margin-top:4px;">${escapeHtml(note)} <a href="/methodology.html#estimate-accuracy" style="color:inherit;text-decoration:underline;">${escapeHtml(t('detail.estimateAccLink'))}</a></span>`
+      : '';
+    // One element: the hero summary rewraps this div as a single span.
+    return `<div class="detail-summary-src">${t('detail.estimateNoSales')}${pcCreditHTML(set)}${accuracy}</div>`;
+  }
   return '';
 }
 

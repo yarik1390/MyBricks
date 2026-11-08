@@ -612,6 +612,8 @@ test('formula-valued set renders as a humble estimate (~, label, provenance)', a
   await expect(summary.locator('.detail-summary-lbl')).toHaveText('Estimated value');
   await expect(summary.locator('.detail-summary-val')).toContainText('~');
   await expect(summary.locator('.detail-summary-src')).toContainText('no recent market sales');
+  // And it says honestly how often such estimates are right.
+  await expect(summary.locator('.detail-summary-acc')).toContainText('similar sets, not this one');
   // The sticky add button carries the same humility marker.
   await expect(page.locator('#addBtn')).toContainText('~');
 });

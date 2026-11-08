@@ -8,7 +8,7 @@ import {
   jobProgressSummary, computeSpreadSignals, buyWindow, pricePerPiece, isStalledJobRun,
   parseCSVTable, parseCollectionCSV, sanitizeMoneyInput, activeCatalogFilterCount, activeFigFilterCount, figFilterSummary,
   liquidityLabel, classifyProviderHealth, validateSourceTuningInput, groupAdminJobRuns,
-  formatRelativeTime, processRunBadge, isEstimatedValue, estMark,
+  formatRelativeTime, processRunBadge, isEstimatedValue, estMark, estimateAccuracyClass,
   displayValueOf, withDisplayValue, shouldUseKeyboardShell, classifyScanFailure, isCredentialAuthFailure, flipEconomics,
   cleanTagLabel, pluralize, manualScanTarget, cleanFacetList,
   computeStoreVerdict, computeSellSignal, scanResultHeading, adminJobStartFeedback,
@@ -2537,5 +2537,16 @@ describe('findContactDetails', async () => {
   it('ignores set numbers and plain notes', () => {
     assert.deepEqual(findContactDetails('75258-1 10497-1 21318-1'), []);
     assert.deepEqual(findContactDetails('Box slightly dented'), []);
+  });
+});
+
+describe('estimateAccuracyClass', () => {
+  it('uses the value model age classes (0-3, 4-10, 11+ years)', () => {
+    assert.equal(estimateAccuracyClass({ year: 2023 }, 2026), 'New');
+    assert.equal(estimateAccuracyClass({ year: 2022 }, 2026), 'Mid');
+    assert.equal(estimateAccuracyClass({ year: 2016 }, 2026), 'Mid');
+    assert.equal(estimateAccuracyClass({ year: 2015 }, 2026), 'Old');
+    assert.equal(estimateAccuracyClass({}, 2026), null);
+    assert.equal(estimateAccuracyClass({ year: 0 }, 2026), null);
   });
 });

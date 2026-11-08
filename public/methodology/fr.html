@@ -69,6 +69,9 @@
   de ventes vérifiées, la fourchette probable et la date de la dernière
   vérification.</p>
 
+  <h2 id="estimate-accuracy">La précision de l’estimation</h2>
+  <p>Quand un set n’a pas de ventes récentes à lui, la valeur affichée est l’estimation de notre modèle. Il apprend des ventes BrickLink de sets similaires (thème, taille, âge, années depuis le retrait, prix par pièce et note), pas de ce set. Nous le testons en masquant les vrais prix de vente de milliers de sets puis en comparant. Lors du dernier test (novembre 2026), il est tombé à environ 20 % près du prix réel pour environ 6 sets sur 10 de moins de 3 ans, environ la moitié des sets de 4 à 10 ans, et seulement environ 4 sets plus anciens sur 10, pour lesquels il est aussi en général trop bas d’environ 10 %. C’est pourquoi les estimations portent un « ~ » et la mention <em>Estimé</em> : prenez-les comme un ordre de grandeur et fiez-vous aux ventes du set lui-même dès qu’il y en a.</p>
+
   <h2>Des contrôles chaque nuit</h2>
   <ul>
     <li>Les variations de valeur de ±40 % en une nuit sont signalées et examinées, et validées automatiquement seulement si le marché les confirme vraiment.</li>

@@ -533,6 +533,16 @@ export function isEstimatedValue(set = {}) {
 // "~" for estimated values, "" for market-derived ones — prepend to fmtMoney.
 export const estMark = (set) => (isEstimatedValue(set) ? "~" : "");
 
+// Age class for the honest accuracy note under a model estimate. Mirrors the
+// value model's own classes (train-value-model.ts `ac`): 0-3, 4-10, 11+ years
+// since release. Returns the locale key suffix, or null without a year.
+export function estimateAccuracyClass(set = {}, nowYear = new Date().getFullYear()) {
+  const year = Number(set?.year);
+  if (!(year > 1900)) return null;
+  const age = nowYear - year;
+  return age <= 3 ? "New" : age <= 10 ? "Mid" : "Old";
+}
+
 // One vocabulary for the confidence badge on every set surface. Catalog cards
 // used valuationTrust() ("Market price") while detail used its own wording
 // ("Good estimate") for the same medium-confidence row.

@@ -40,7 +40,7 @@ async function loadMethodologyContent() {
   return cachedContent;
 }
 
-async function openMethodologySheet() {
+async function openMethodologySheet(anchor = '') {
   haptic('light');
   showSheet(`
     <div class="sheet-title-row">
@@ -70,6 +70,7 @@ async function openMethodologySheet() {
       <article class="methodology-sheet">${html}</article>`;
     sheet.setAttribute('aria-labelledby', 'methodologySheetTitle');
     $('#methodologySheetClose')?.addEventListener('click', hideSheet);
+    if (anchor) sheet.querySelector(`[id="${anchor.replace(/[^\w-]/g, '')}"]`)?.scrollIntoView({ block: 'start' });
   } catch {
     hideSheet();
     window.location.href = '/methodology.html';
@@ -78,9 +79,9 @@ async function openMethodologySheet() {
 
 export function installMethodologySheet() {
   document.addEventListener('click', (event) => {
-    const link = event.target.closest?.('a[href="/methodology.html"]');
+    const link = event.target.closest?.('a[href="/methodology.html"], a[href^="/methodology.html#"]');
     if (!link) return;
     event.preventDefault();
-    openMethodologySheet();
+    openMethodologySheet(link.getAttribute('href').split('#')[1] || '');
   });
 }
