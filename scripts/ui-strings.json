@@ -2868,6 +2868,7 @@
     "text": "Estimated",
     "files": [
       "lib/pure.js",
+      "methodology.html",
       "views/portfolio-detail-market.js",
       "views/portfolio-detail.js"
     ]
@@ -3936,6 +3937,12 @@
   },
   {
     "text": "How We Price — BricksVault",
+    "files": [
+      "methodology.html"
+    ]
+  },
+  {
+    "text": "How accurate the estimate is",
     "files": [
       "methodology.html"
     ]
@@ -5063,6 +5070,13 @@
     ]
   },
   {
+    "text": "Mid",
+    "files": [
+      "lib/pure.js",
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "Mid-size set, moderate appeal",
     "files": [
       "views/portfolio-detail.js"
@@ -5309,6 +5323,13 @@
     "text": "Never pay a stranger in advance. A swap is sets for sets.",
     "files": [
       "views/swaps.js"
+    ]
+  },
+  {
+    "text": "New",
+    "files": [
+      "lib/pure.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -5919,6 +5940,13 @@
     "text": "Offer sets for swap",
     "files": [
       "views/swaps.js"
+    ]
+  },
+  {
+    "text": "Old",
+    "files": [
+      "lib/pure.js",
+      "views/portfolio-detail.js"
     ]
   },
   {
@@ -12299,6 +12327,12 @@
     "text": "kidsPlay.gameWrongShort",
     "files": [
       "views/kids.js"
+    ]
+  },
+  {
+    "text": "label: use them as a rough guide, and trust a set's own sales whenever they exist.",
+    "files": [
+      "methodology.html"
     ]
   },
   {
