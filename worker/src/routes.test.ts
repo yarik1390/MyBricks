@@ -741,6 +741,15 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(gd.ok).toBe(true);
       expect(typeof gd.ms).toBe('number');
 
+      // A passing test clears an old error's routing block (a fixed key stops being skipped).
+      await db.prepare(`INSERT INTO integration_health (service, last_fail_at, last_error, ok_count, fail_count, updated_at, blocked_until)
+        VALUES ('d1', datetime('now'), 'HTTP 401', 0, 1, datetime('now'), datetime('now', '+1 day'))
+        ON CONFLICT(service) DO UPDATE SET blocked_until=excluded.blocked_until, last_error=excluded.last_error`).run();
+      await app.fetch(new Request('http://localhost/api/admin/test/d1', { method: 'POST', headers: auth(adminToken) }), env);
+      const row = await db.prepare(`SELECT blocked_until, last_ok_at FROM integration_health WHERE service='d1'`).first<any>();
+      expect(row.blocked_until).toBeNull();
+      expect(row.last_ok_at).toBeTruthy();
+
       const bad = await app.fetch(new Request('http://localhost/api/admin/test/not-a-service', {
         method: 'POST', headers: auth(adminToken),
       }), env);

@@ -13,7 +13,7 @@ import { configuredFirecrawlKeys, recoverFirecrawlKeys } from '../lib/firecrawl-
 //
 // Not probed here: services with hourly real traffic (BrickLink, eBay, Bright
 // Data) and Amazon, whose own job records every call once it is switched on.
-const PROBED: Array<{ test: string; service: IntegrationName }> = [
+export const PROBED: Array<{ test: string; service: IntegrationName }> = [
   { test: 'd1', service: 'd1' },
   { test: 'supabase', service: 'supabase' },
   { test: 'google', service: 'google' },
@@ -26,6 +26,19 @@ const PROBED: Array<{ test: string; service: IntegrationName }> = [
   { test: 'firebase', service: 'firebase' },
   { test: 'resend', service: 'email' },
 ];
+
+/**
+ * Record a successful probe or Admin "Test" like a real call and lift the
+ * service's routing block. Before, a passing Admin Test left an old 401 (and
+ * its 24h block) in place, so Admin kept showing the error and the provider
+ * stayed skipped even though the key was fixed.
+ */
+export async function recordProbeResult(env: Env, test: string, r: { ok: boolean; status?: string; detail: string } | null) {
+  const entry = PROBED.find((p) => p.test === test);
+  if (!entry || !r || r.status === 'unconfigured') return;
+  await recordIntegrationAttempt(env, entry.service, r.ok, r.ok ? undefined : r.detail);
+  if (r.ok) await clearIntegrationBlock(env, entry.service);
+}
 
 export async function runHealthProbes(env: Env) {
   const results: Record<string, string> = {};
