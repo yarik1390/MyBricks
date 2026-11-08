@@ -1031,9 +1031,10 @@ function valueProvenanceHTML(set) {
     const ageClass = estimateAccuracyClass(set);
     const note = ageClass === 'New' ? t('detail.estimateAccNew') : ageClass === 'Mid' ? t('detail.estimateAccMid') : ageClass === 'Old' ? t('detail.estimateAccOld') : '';
     const accuracy = note
-      ? `<div class="detail-summary-src">${escapeHtml(note)} <a href="/methodology.html#estimate-accuracy" style="color:inherit;text-decoration:underline;">${escapeHtml(t('detail.estimateAccLink'))}</a></div>`
+      ? `<span class="detail-summary-acc" style="display:block;margin-top:4px;">${escapeHtml(note)} <a href="/methodology.html#estimate-accuracy" style="color:inherit;text-decoration:underline;">${escapeHtml(t('detail.estimateAccLink'))}</a></span>`
       : '';
-    return `<div class="detail-summary-src">${t('detail.estimateNoSales')}${pcCreditHTML(set)}</div>${accuracy}`;
+    // One element: the hero summary rewraps this div as a single span.
+    return `<div class="detail-summary-src">${t('detail.estimateNoSales')}${pcCreditHTML(set)}${accuracy}</div>`;
   }
   return '';
 }
