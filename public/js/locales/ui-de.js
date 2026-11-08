@@ -1509,7 +1509,7 @@ export const ui = {
   "The store is not ready. You can continue setup and try again from Settings.": "Der Store ist noch nicht bereit. Du kannst die Einrichtung fortsetzen und es in den Einstellungen erneut versuchen.",
   "LLM Routing": "LLM-Routing",
   "Loading LLM routing...": "LLM-Routing wird geladen …",
-  "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers should sit above the Merge allowance, and the metered backstop last.": "Lege die Reihenfolge der Anbieter je KI-Aufgabe fest. Schritte laufen von oben nach unten; der erste, der antwortet, gewinnt. Kostenlose Stufen gehören über das Merge-Guthaben, der abgerechnete Rückfall ganz nach unten.",
+  "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers go first, the paid backstop last.": "Lege die Reihenfolge der Anbieter je KI-Aufgabe fest. Schritte laufen von oben nach unten; der erste, der antwortet, gewinnt. Kostenlose Stufen kommen zuerst, der bezahlte Rückfall ganz nach unten.",
   "After you accept, agree on shipping or a meetup in the chat.": "Nach dem Annehmen vereinbart ihr Versand oder Treffen im Chat.",
   "Block": "Blockieren",
   "Call off": "Absagen",

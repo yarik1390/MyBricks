@@ -1793,11 +1793,11 @@ Object.assign(ja.detail, { minifigsCountOne: 'ミニフィグ{n}体', minifigsCo
 Object.assign(ja.market, { listingsOne: '{n}件の出品', listingsOther: '{n}件の出品', slashListingsOne: ' / {n}件の出品', slashListingsOther: ' / {n}件の出品', slashSamplesOne: ' / {n}件のサンプル', slashSamplesOther: ' / {n}件のサンプル' });
 Object.assign(ja.scanner, { estimatedValue: '(~推定価格)', marketGrabThreshold: '市場価格 {market} — {price}未満ならお買い得{estimated}', underMarket: '市場より{amount}安い{estimated}', withinMarket: '市場価格の{pct}%以内{estimated}', overMarket: '市場より{amount}高い{estimated}' });
 
-Object.assign(ja.admin, { llmUnavailable: 'LLM ルーティングを利用できません', llmMergeBalance: '今月の Merge 残高', llmMeteredNote: 'Merge が各呼び出しで返すコストから算出しています。正式な数値は Merge のダッシュボードです。', llmEffective: '現在の実行順', llmEffectiveNone: '設定済みプロバイダなし', llmLivePool: '最新の無料プール（自動更新）', llmNoKey: 'キーなし', llmNoKeyHint: 'このプロバイダは API キーが未設定のため、実行時にスキップされます。', llmMoveUp: 'ステップを前へ', llmMoveDown: 'ステップを後ろへ', llmOn: 'オン', llmOff: 'オフ', llmReset: '既定値に戻す', llmSave: 'ルーティングを保存', llmSaved: 'LLM ルーティングを保存しました', llmSaveFailed: 'LLM ルーティングを保存できませんでした', llmRefreshModels: 'Merge モデルを更新', llmModelsRefreshedOne: 'Merge モデルを {n} 件更新しました', llmModelsRefreshedOther: 'Merge モデルを {n} 件更新しました', llmModelsFailed: 'Merge モデルカタログを更新できませんでした' });
+Object.assign(ja.admin, { llmUnavailable: 'LLM ルーティングを利用できません', llmEffective: '現在の実行順', llmEffectiveNone: '設定済みプロバイダなし', llmLivePool: '最新の無料プール（自動更新）', llmNoKey: 'キーなし', llmNoKeyHint: 'このプロバイダは API キーが未設定のため、実行時にスキップされます。', llmMoveUp: 'ステップを前へ', llmMoveDown: 'ステップを後ろへ', llmOn: 'オン', llmOff: 'オフ', llmReset: '既定値に戻す', llmSave: 'ルーティングを保存', llmSaved: 'LLM ルーティングを保存しました', llmSaveFailed: 'LLM ルーティングを保存できませんでした' });
 
 Object.assign(ja.admin, { llmModelPlaceholder: "プロバイダ/モデル（例: openai/gpt-5.6-luna）" });
 
-Object.assign(ja.admin, { llmReload: "再読み込み", llmChooseModel: "モデルを選択", llmCustomModel: "カスタムモデル ID…", llmSpentOf: "{budget} のうち {spent} 使用", llmLivePoolShort: "無料プール", llmUnsaved: "未保存の変更", llmModelsOther: "その他", llmWorkload_scan: "写真スキャン", llmWorkload_shelf: "シェルフスキャン", llmWorkload_advisor: "AI アドバイザー", llmWorkload_valuation: "評価額", llmWorkload_listing: "出品ドラフト" });
+Object.assign(ja.admin, { llmReload: "再読み込み", llmChooseModel: "モデルを選択", llmCustomModel: "カスタムモデル ID…", llmLivePoolShort: "無料プール", llmUnsaved: "未保存の変更", llmModelsOther: "その他", llmWorkload_scan: "写真スキャン", llmWorkload_shelf: "シェルフスキャン", llmWorkload_advisor: "AI アドバイザー", llmWorkload_valuation: "評価額", llmWorkload_listing: "出品ドラフト" });
 
 Object.assign(ja.admin, { llmLivePoolHint: "OpenRouter から毎日自動更新" });
 

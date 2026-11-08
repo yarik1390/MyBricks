@@ -83,11 +83,6 @@ export interface Env {
   // OpenRouter API key. When set, LLM workloads can route through OpenRouter
   // (free model first, then cheap paid) via the AI Gateway.
   OPENROUTER_API_KEY?: string;
-  // Merge Gateway (https://gateway.merge.dev) — a second multi-provider LLM
-  // gateway that runs in parallel with OpenRouter. Key format "mg_...". It is
-  // OpenAI-compatible, so it reuses the same client with a different baseURL.
-  // Where each workload tries it is admin-tunable — see lib/llm-routing.ts.
-  MERGE_GATEWAY_API_KEY?: string;
   // Optional Core01 recognition backend. All four bindings must be present;
   // otherwise calls fail closed as an unavailable optional capability.
   RECOGNITION_API_URL?: string;
@@ -103,16 +98,6 @@ export interface Env {
   OPENCODEX_VPC?: Fetcher;
   // Cloudflare Workers AI binding ([ai] in wrangler.toml). Free scan step.
   AI?: Ai;
-  // Monthly USD allowance the admin console meters Merge spend against
-  // (default 10). Merge publishes no balance API, so remaining credit is
-  // derived from the real per-call `usage.cost` it returns, accumulated in the
-  // ai_usage ledger. Set a matching HARD budget in the Merge dashboard as the
-  // authoritative backstop — that one answers with HTTP 402.
-  //
-  // Configured as a plain [vars] entry in wrangler.toml, NOT a secret and NOT
-  // in the Cloudflare dashboard: `wrangler deploy` sends the full binding list,
-  // so a var missing from wrangler.toml is REMOVED on the next deploy.
-  MERGE_MONTHLY_BUDGET_USD?: string;
   // Cloudflare Turnstile (optional bot protection for the shared-key photo scan).
   // SITE key is public (sent to the browser via /api/config); SECRET key is
   // server-only. When SECRET is unset, scan verification is skipped (opt-in).

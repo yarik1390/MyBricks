@@ -155,10 +155,15 @@ export async function fetchSetAlternates(
     `https://rebrickable.com/api/v3/lego/sets/${encodeURIComponent(rb)}/alternates/?page_size=100`;
   try {
     while (url) {
+      // 403 here is per set, not a key problem: Rebrickable answers a bad key
+      // with 401 "Invalid token", but refuses the alternates list of a few sets
+      // (21066-1, 11370-1) with 403 every time. Treat that as "no alternates"
+      // so the set is marked done instead of failing daily and flagging
+      // Rebrickable as broken in Admin.
       const resp = await fetchTracked(env, 'rebrickable', url, {
         headers: { Authorization: `key ${env.REBRICKABLE_API_KEY}` },
-      }, { okStatuses: [404] });
-      if (resp.status === 404) return alts; // no alternates for this set
+      }, { okStatuses: [403, 404] });
+      if (resp.status === 404 || resp.status === 403) return alts; // no alternates for this set
       if (!resp.ok) return alts.length ? alts : null;
       const data = await resp.json() as { next?: string | null; results?: Array<{
         set_num: string; name: string; num_parts?: number; year?: number;

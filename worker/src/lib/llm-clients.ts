@@ -1,7 +1,6 @@
 import OpenAI from 'openai';
 import type { Env } from '../types';
 import { getOpenRouterPools, openAIServerBaseURL, openRouterBaseURL } from './llm';
-import { mergeBaseURL } from './merge-gateway';
 import { openCodexClient } from './opencodex';
 import { isFreeWorkersAiModel, workersAiClient } from './workers-ai';
 import type { RouteStep } from './llm-routing';
@@ -21,9 +20,9 @@ const RETRIES = 0;
  * Turn one route step into a ready OpenAI-compatible client plus the ordered
  * model ids to try on it.
  *
- * Four providers (opencodex, merge, openrouter, openai) speak the OpenAI wire
- * format, so they differ only by base URL and key — which is the whole reason
- * Merge was cheap to add. Gemini is NOT included here: it has its own REST
+ * Every provider here (opencodex, openrouter, openai, groq, workersai) speaks
+ * the OpenAI wire format, so they differ only by base URL and key. Gemini is
+ * NOT included here: it has its own REST
  * shape and its callers handle it separately.
  *
  * The model list is usually a single id. The exception is an `openrouter` step
@@ -44,14 +43,6 @@ export async function openAiCompatibleStep(
       const client = openCodexClient(env);
       if (!client || !step.model) return { client: null, models: [] };
       return { client, models: [step.model] };
-    }
-    case 'merge': {
-      const apiKey = (env.MERGE_GATEWAY_API_KEY ?? '').trim();
-      if (!apiKey || !step.model) return { client: null, models: [] };
-      // Merge is billed against a fixed monthly allowance and is not fronted by
-      // the Cloudflare AI Gateway — it is a gateway itself, and double-proxying
-      // would hide the per-call `usage.cost` we meter the budget from.
-      return { client: new OpenAI({ apiKey, baseURL: mergeBaseURL(), maxRetries: RETRIES }), models: [step.model] };
     }
     case 'openrouter': {
       const apiKey = env.OPENROUTER_API_KEY;

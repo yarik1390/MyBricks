@@ -2058,8 +2058,6 @@ Object.assign(en.scanner, { estimatedValue: '(~estimated value)', marketGrabThre
 
 Object.assign(en.admin, {
   llmUnavailable: 'LLM routing unavailable',
-  llmMergeBalance: 'Merge allowance remaining this month',
-  llmMeteredNote: 'Metered from the cost Merge reports on each call — its dashboard is the authoritative figure.',
   llmEffective: 'Runs now',
   llmEffectiveNone: 'no configured provider',
   llmLivePool: 'Live free pool (auto-updated)',
@@ -2073,15 +2071,11 @@ Object.assign(en.admin, {
   llmSave: 'Save routing',
   llmSaved: 'LLM routing saved',
   llmSaveFailed: 'Could not save LLM routing',
-  llmRefreshModels: 'Refresh Merge models',
-  llmModelsRefreshedOne: 'Refreshed {n} Merge model',
-  llmModelsRefreshedOther: 'Refreshed {n} Merge models',
-  llmModelsFailed: 'Could not refresh the Merge model catalog',
 });
 
 Object.assign(en.admin, { llmModelPlaceholder: "provider/model, e.g. openai/gpt-5.6-luna" });
 
-Object.assign(en.admin, { llmReload: "Reload", llmChooseModel: "Choose a model", llmCustomModel: "Custom model ID…", llmSpentOf: "{spent} spent of {budget}", llmLivePoolShort: "free pool", llmUnsaved: "Unsaved changes", llmModelsOther: "Other", llmWorkload_scan: "Photo scan", llmWorkload_shelf: "Shelf scan", llmWorkload_advisor: "AI advisor", llmWorkload_valuation: "Valuation", llmWorkload_listing: "Listing drafts" });
+Object.assign(en.admin, { llmReload: "Reload", llmChooseModel: "Choose a model", llmCustomModel: "Custom model ID…", llmLivePoolShort: "free pool", llmUnsaved: "Unsaved changes", llmModelsOther: "Other", llmWorkload_scan: "Photo scan", llmWorkload_shelf: "Shelf scan", llmWorkload_advisor: "AI advisor", llmWorkload_valuation: "Valuation", llmWorkload_listing: "Listing drafts" });
 
 Object.assign(en.admin, { llmLivePoolHint: "Auto-updated daily from OpenRouter" });
 

@@ -10,12 +10,12 @@ const ROUTES = {
   scan: [
     { provider: 'gemini', model: 'gemini-2.5-flash', enabled: true },
     { provider: 'openrouter', model: '', enabled: true },
-    { provider: 'merge', model: 'openai/gpt-4o-mini', enabled: true },
+    { provider: 'groq', model: 'qwen/qwen3.8-27b', enabled: true },
     { provider: 'openai', model: 'gpt-4o-mini', enabled: false },
   ],
   advisor: [
     { provider: 'gemini', model: 'gemini-2.5-flash-lite', enabled: true },
-    { provider: 'merge', model: 'openai/gpt-5.6-luna', enabled: true },
+    { provider: 'workersai', model: '@cf/google/gemma-4-26b-a4b-it', enabled: true },
   ],
   valuation: [{ provider: 'gemini', model: 'gemini-2.5-flash-lite', enabled: true }],
   listing: [{ provider: 'gemini', model: 'gemini-2.5-flash-lite', enabled: true }],
@@ -40,35 +40,25 @@ async function stubAdmin(page) {
         routes: ROUTES,
         defaults: ROUTES,
         effective: {
-          scan: [{ provider: 'gemini', model: 'gemini-2.5-flash' }, { provider: 'merge', model: 'openai/gpt-4o-mini' }],
+          scan: [{ provider: 'gemini', model: 'gemini-2.5-flash' }, { provider: 'groq', model: 'qwen/qwen3.8-27b' }],
           advisor: [{ provider: 'gemini', model: 'gemini-2.5-flash-lite' }],
           valuation: [{ provider: 'gemini', model: 'gemini-2.5-flash-lite' }],
           listing: [{ provider: 'gemini', model: 'gemini-2.5-flash-lite' }],
         },
         workloads: ['scan', 'advisor', 'valuation', 'listing'],
         providers: [
-          { name: 'gemini', configured: true }, { name: 'merge', configured: true },
+          { name: 'gemini', configured: true }, { name: 'groq', configured: true },
+          { name: 'workersai', configured: true },
           { name: 'openrouter', configured: true }, { name: 'openai', configured: false },
         ],
         models: {
-          merge: ['openai/gpt-5.6-luna', 'openai/gpt-4o-mini', 'z-ai/glm-5.2'],
+          groq: ['qwen/qwen3.8-27b'],
+          workersai: ['@cf/google/gemma-4-26b-a4b-it'],
           openrouter_vision: ['google/gemma-4-31b-it:free'],
           openrouter_text: ['meta-llama/llama-3.3-70b-instruct:free'],
           gemini: ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'],
           openai: ['gpt-4o-mini'],
         },
-      }),
-    });
-  });
-  await page.route('**/api/admin/llm-status', async (route) => {
-    await route.fulfill({
-      contentType: 'application/json',
-      body: JSON.stringify({
-        merge: {
-          configured: true, month: '2026-08', budget_usd: 10, spent_usd: 2.5,
-          remaining_usd: 7.5, pct: 25, calls: 42, status: 'ok',
-        },
-        spend_by_provider: [],
       }),
     });
   });
@@ -85,8 +75,9 @@ test('LLM routing console is reachable and its controls render', async ({ page }
   const section = page.locator('#adminLlm');
   await expect(section).toHaveClass(/is-active/);
 
-  // The allowance meter states both numbers so "remaining" cannot be misread.
-  await expect(section.getByText('$7.50')).toBeVisible();
+  // Merge Gateway was removed (2026-11-08): no allowance card, no Merge rows.
+  await expect(section.locator('.llm-balance')).toHaveCount(0);
+  await expect(section.getByText(/Merge/)).toHaveCount(0);
 
   // Model choice is a button that opens the app's bottom sheet — a native
   // <select> renders as an Android system spinner outside the page and did not
@@ -112,8 +103,8 @@ test('the model picker opens a sheet and applies a choice', async ({ page }) => 
   await section.locator('.llm-model-btn').first().click();
   const list = page.locator('.llm-pick-list');
   await expect(list).toBeVisible();
-  // Merge serves no catalogue on this plan, so the custom escape hatch has to
-  // be present or its route could never be changed at all.
+  // The custom escape hatch must be present so a route can name a model the
+  // suggestion list does not carry.
   await expect(list.getByText('Custom model ID…')).toBeVisible();
 
   await list.locator('[data-pick-value="gemini-3.6-flash"]').click();

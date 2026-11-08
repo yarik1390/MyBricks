@@ -1,5 +1,23 @@
 import type { Env } from '../types';
 import { fetchTracked } from './http';
+import { isIntegrationBlocked } from './integration-health';
+
+// While BrickLink is paused (planned maintenance detected by fetchTracked, or
+// any other circuit-breaker block) every call would fail and still spend the
+// daily call budget, so skip the network. Memoized per isolate for a minute so
+// a batch costs one D1 read, not one per set. Probes (recordHealth: false) are
+// never skipped: they are how the pause ends early.
+let pausedMemo: { at: number; paused: boolean } | null = null;
+async function assertBrickLinkAvailable(env: Env, recordHealth: boolean | undefined): Promise<void> {
+  if (recordHealth === false) return;
+  if (!pausedMemo || Date.now() - pausedMemo.at > 60_000) {
+    pausedMemo = { at: Date.now(), paused: await isIntegrationBlocked(env, 'bricklink') };
+  }
+  if (pausedMemo.paused) throw new Error('bricklink paused (maintenance or outage)');
+}
+
+/** Tests only. */
+export function __resetBrickLinkPauseMemo(): void { pausedMemo = null; }
 
 export interface BrickLinkPricing {
   current_value: number;
@@ -105,6 +123,7 @@ export async function fetchUsedPricing(
       env.BRICKLINK_CONSUMER_KEY, env.BRICKLINK_CONSUMER_SECRET,
       env.BRICKLINK_TOKEN, env.BRICKLINK_TOKEN_SECRET,
     );
+    await assertBrickLinkAvailable(env, options.recordHealth);
     const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
     }, {
@@ -187,6 +206,8 @@ export async function fetchSetPricingDetailed(
       env.BRICKLINK_TOKEN, env.BRICKLINK_TOKEN_SECRET,
     );
 
+    await assertBrickLinkAvailable(env, options.recordHealth);
+
     const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
     }, {
@@ -260,6 +281,7 @@ export async function fetchSetStockAsk(
     env.BRICKLINK_CONSUMER_KEY, env.BRICKLINK_CONSUMER_SECRET,
     env.BRICKLINK_TOKEN, env.BRICKLINK_TOKEN_SECRET,
   );
+  await assertBrickLinkAvailable(env, options.recordHealth);
   const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
     headers: { Authorization: authHeader, Accept: 'application/json' },
   }, {
@@ -333,6 +355,7 @@ export async function fetchPartPricing(
       env.BRICKLINK_CONSUMER_KEY, env.BRICKLINK_CONSUMER_SECRET,
       env.BRICKLINK_TOKEN, env.BRICKLINK_TOKEN_SECRET,
     );
+    await assertBrickLinkAvailable(env, options.recordHealth);
     const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
     }, {
@@ -379,6 +402,7 @@ export async function fetchMinifigPricing(
       env.BRICKLINK_CONSUMER_KEY, env.BRICKLINK_CONSUMER_SECRET,
       env.BRICKLINK_TOKEN, env.BRICKLINK_TOKEN_SECRET,
     );
+    await assertBrickLinkAvailable(env, options.recordHealth);
     const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
     }, { okStatuses: [404], record: options.recordHealth !== false });

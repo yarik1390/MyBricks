@@ -8,7 +8,6 @@ import { logEvent } from '../lib/analytics';
 import { MODELS, geminiUrl, gatewayHeaders, gatewayMetadataHeader } from '../lib/llm';
 import { resolveRoute, type LlmProvider } from '../lib/llm-routing';
 import { openAiCompatibleStep } from '../lib/llm-clients';
-import { isMergeBudgetExhausted, mergeReportedCostUsd } from '../lib/merge-gateway';
 import { recordAiUsage } from '../lib/ai-usage';
 import type { Env, Variables } from '../types';
 import { hasProAccess } from '../lib/early-access';
@@ -252,11 +251,10 @@ ${context}`;
                   if (text) { emitted = true; await send({ text }); }
                   if ((chunk as { usage?: unknown }).usage) usage = (chunk as { usage?: unknown }).usage;
                 }
-                const cost = step.provider === 'merge' ? mergeReportedCostUsd(usage) : null;
                 await recordAiUsage(
                   c.env, step.provider, model,
                   usage as { prompt_tokens?: number; completion_tokens?: number } | null,
-                  cost,
+                  null,
                 );
                 if (emitted) break;
               }
@@ -269,10 +267,6 @@ ${context}`;
             lastError = e;
             await recordIntegrationAttempt(c.env, step.provider, false, e);
             if (emitted) break; // committed — cannot splice a second answer in
-            const status = Number((e as { status?: unknown })?.status ?? 0);
-            if (step.provider === 'merge' && isMergeBudgetExhausted(status)) {
-              console.warn(`[advisor] Merge out of budget/key (HTTP ${status}) — skipping provider`);
-            }
           }
         }
 

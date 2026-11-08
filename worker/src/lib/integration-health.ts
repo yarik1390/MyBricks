@@ -20,7 +20,6 @@ export type IntegrationName =
   | 'opencodex'
   | 'workersai'
   | 'groq'
-  | 'merge'
   | 'rebrickable'
   | 'brickinsights'
   | 'firecrawl'
@@ -255,15 +254,6 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     notes: 'Groq free tier (OpenAI-compatible vision) as a free scan step after Workers AI. About 1,000 requests a day; API data is not used for training.',
     recommended_action: 'Check the GROQ_API_KEY GitHub secret and the Groq console for rate limits or a deprecated model id.',
   },
-  merge: {
-    on_demand: true,
-    label: 'Merge Gateway',
-    configured: (env) => !!(env.MERGE_GATEWAY_API_KEY ?? '').trim(),
-    required_secrets: ['MERGE_GATEWAY_API_KEY'],
-    used_by: ['scan', 'advisor', 'valuation', 'listing'],
-    notes: 'Second multi-provider LLM gateway alongside OpenRouter, OpenAI-compatible at /v1/openai. Billed against a fixed monthly allowance and reports real per-call cost (usage.cost), so its spend in the ai_usage ledger is measured rather than estimated. Where each workload tries it is admin-tunable under LLM routing.',
-    recommended_action: 'Add MERGE_GATEWAY_API_KEY (mg_...) from gateway.merge.dev, then set a HARD budget there so an exhausted allowance answers 402 instead of overspending.',
-  },
   rebrickable: {
     label: 'Rebrickable',
     configured: (env) => !!env.REBRICKABLE_API_KEY,
@@ -469,7 +459,7 @@ export async function recordIntegrationHealth(
   }
 }
 
-const AI_ROUTED_SERVICES = new Set<IntegrationName>(['gemini', 'openai', 'openrouter', 'opencodex', 'merge', 'workersai', 'groq']);
+const AI_ROUTED_SERVICES = new Set<IntegrationName>(['gemini', 'openai', 'openrouter', 'opencodex', 'workersai', 'groq']);
 
 /** AI providers currently paused by a credential failure (see above). */
 export async function blockedIntegrations(env: Env): Promise<Set<string>> {

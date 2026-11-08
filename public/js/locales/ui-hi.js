@@ -1509,7 +1509,7 @@ export const ui = {
   "The store is not ready. You can continue setup and try again from Settings.": "स्टोर अभी तैयार नहीं है। आप सेटअप जारी रख सकते हैं और सेटिंग्स से फिर कोशिश कर सकते हैं।",
   "LLM Routing": "LLM रूटिंग",
   "Loading LLM routing...": "LLM रूटिंग लोड हो रही है…",
-  "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers should sit above the Merge allowance, and the metered backstop last.": "तय करें कि हर AI कार्य किन प्रदाताओं को किस क्रम में आज़माए। चरण ऊपर से नीचे चलते हैं; जो पहले उत्तर दे वही चुना जाता है। मुफ़्त स्तर Merge क्रेडिट से ऊपर रखें, और मीटर वाला विकल्प सबसे अंत में।",
+  "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers go first, the paid backstop last.": "तय करें कि हर AI कार्य किन प्रदाताओं को किस क्रम में आज़माए। चरण ऊपर से नीचे चलते हैं; जो पहले उत्तर दे वही चुना जाता है। मुफ़्त स्तर पहले रखें, और सशुल्क विकल्प सबसे अंत में।",
   "After you accept, agree on shipping or a meetup in the chat.": "स्वीकार करने के बाद, चैट में शिपिंग या मुलाक़ात तय करें।",
   "Block": "ब्लॉक करें",
   "Call off": "रद्द करें",

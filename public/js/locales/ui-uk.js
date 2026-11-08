@@ -1509,7 +1509,7 @@ export const ui = {
   "The store is not ready. You can continue setup and try again from Settings.": "Магазин ще не готовий. Ви можете продовжити налаштування та спробувати ще раз у Налаштуваннях.",
   "LLM Routing": "Маршрутизація LLM",
   "Loading LLM routing...": "Завантаження маршрутизації LLM…",
-  "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers should sit above the Merge allowance, and the metered backstop last.": "Задайте порядок провайдерів, які пробує кожне завдання ШІ. Кроки виконуються згори вниз; перемагає перший, що відповів. Безкоштовні рівні мають бути вище кредиту Merge, а платний резерв — останнім.",
+  "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers go first, the paid backstop last.": "Задайте порядок провайдерів, які пробує кожне завдання ШІ. Кроки виконуються згори вниз; перемагає перший, що відповів. Безкоштовні рівні йдуть першими, платний резерв — останнім.",
   "After you accept, agree on shipping or a meetup in the chat.": "Після прийняття домовтеся про доставку чи зустріч у чаті.",
   "Block": "Заблокувати",
   "Call off": "Скасувати",

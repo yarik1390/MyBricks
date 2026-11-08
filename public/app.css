@@ -8155,19 +8155,6 @@ body[data-route="set-detail"] .detail-page-container[data-detail-tab="manage"] {
    number is a first-class element. The first build stacked every control in a
    tall card, which on a phone turned four workloads into a very long scroll —
    this one keeps each step to a two-row block with a real dropdown. */
-.llm-balance { border: 2px solid var(--line); border-radius: var(--r-2); padding: 12px 14px; margin-bottom: 18px; }
-.llm-balance.warn { border-color: var(--warn, #b8860b); }
-.llm-balance.danger { border-color: var(--down, #c0392b); }
-.llm-balance-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-.llm-balance-label { font-weight: 700; }
-.llm-balance-figure { font-family: var(--mono, monospace); font-weight: 700; font-size: 1.25rem; }
-.llm-balance-bar { height: 8px; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin: 10px 0 8px; background: var(--bg, transparent); }
-.llm-balance-bar > span { display: block; height: 100%; background: var(--accent, #ffd700); }
-.llm-balance.warn .llm-balance-bar > span { background: var(--warn, #b8860b); }
-.llm-balance.danger .llm-balance-bar > span { background: var(--down, #c0392b); }
-.llm-balance-foot { display: flex; flex-direction: column; gap: 2px; }
-.llm-balance-foot small { color: var(--muted); }
-.llm-balance-note { font-size: 0.75rem; }
 
 .llm-workload { border: 2px solid var(--line); border-radius: var(--r-2); padding: 10px 12px; margin-bottom: 12px; }
 .llm-workload-head { display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 700; }
