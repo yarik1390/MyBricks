@@ -42,21 +42,15 @@ const TRAIN_RATIO_MAX = 20;
 const RETAIL = `COALESCE(NULLIF(ls.brickset_msrp, 0), NULLIF(ext.bs_retail_alt, 0), CASE WHEN ls.retail_price > 0
   AND (ls.be_retail IS NULL OR ls.be_retail <= 0 OR ls.retail_price <> ls.be_retail) THEN ls.retail_price END)`;
 
-// Sets with no independent retail may still be estimated from the
-// BrickEconomy-echo retail_price (Iaroslav's choice, 2026-10-19), but only
-// when it is believable for the piece count: $1-$1,000 and $0.03-$2 a piece.
-// Brickset MSRP sits in that band for 97% of sets. A count of 0-5 pieces is
-// not a real count (bundles, old Duplo/Primo/Quatro, education kits), so there
-// only the $1-$1,000 band applies, except for gear, books and games, which are
-// not collectible sets.
-export const ECHO_PPP_MIN = 0.03;
-export const ECHO_PPP_MAX = 2;
+// Sets with no independent retail get no model estimate. Until 2026-11-08 the
+// model also estimated from a retail_price that only echoed the BrickEconomy
+// scrape (PR #108); that data is unlicensed, so it no longer feeds the model in
+// any way (Iaroslav, legal review). be_retail is still read above, but only to
+// recognise and REJECT such an echo, never as a value.
+// A count of 0-5 pieces is not a real count (bundles, old Duplo/Primo/Quatro,
+// education kits); those sets score in the unknown piece bucket.
 export const NO_PIECE_COUNT_MAX = 5;
-const NOT_SETS = `('Gear', 'Books', 'Games')`;
-const TARGET_RETAIL = `COALESCE(${RETAIL}, CASE WHEN ls.retail_price BETWEEN 1 AND 1000 AND (
-    (ls.pieces > ${NO_PIECE_COUNT_MAX} AND ls.retail_price BETWEEN ls.pieces * ${ECHO_PPP_MIN} AND ls.pieces * ${ECHO_PPP_MAX})
-    OR (COALESCE(ls.pieces, 0) <= ${NO_PIECE_COUNT_MAX} AND COALESCE(ls.theme, '') NOT IN ${NOT_SETS}))
-  THEN ls.retail_price END)`;
+const TARGET_RETAIL = RETAIL;
 
 // A set released in the last 6 months and still sold (launch date, else this
 // year's sets) is estimated at no less than its retail price: discounts and
@@ -138,7 +132,18 @@ WHERE set_market_ext.bundle_value IS NULL AND (set_market_ext.model_value IS NOT
    OR set_market_ext.model_cached_at IS NULL
    OR set_market_ext.model_cached_at < datetime('now', '-7 days'))`;
 
-export async function runTrainValueModel(env: Env): Promise<{ trained: number; written: number; skipped?: string }> {
+// Estimates for sets that no longer have an independent retail anchor (in
+// practice the ones made from a BrickEconomy-echo retail before 2026-11-08)
+// are cleared, so no value derived from that data stays in the blend.
+// Bundle values (jobs/bundle-values.ts) are left alone.
+export const CLEAR_UNANCHORED_MODEL_SQL = `
+UPDATE set_market_ext SET model_value = NULL, model_cached_at = NULL
+WHERE model_value IS NOT NULL AND bundle_value IS NULL
+  AND set_num NOT IN (
+    SELECT ls.set_num FROM lego_sets ls LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
+    WHERE ls.year > 0 AND ${TARGET_RETAIL} > 0)`;
+
+export async function runTrainValueModel(env: Env): Promise<{ trained: number; written: number; cleared?: number; skipped?: string }> {
   if (!(await pricingWritesAllowed(env.DB))) {
     return { trained: 0, written: 0, skipped: 'D1 pricing write budget paused non-critical jobs' };
   }
@@ -152,5 +157,6 @@ export async function runTrainValueModel(env: Env): Promise<{ trained: number; w
   // Too little ground truth would make every group mean noise.
   if (trained < 200) return { trained, written: 0, skipped: 'fewer than 200 BrickLink-priced sets to train on' };
   const result = await env.DB.prepare(TRAIN_VALUE_MODEL_SQL).run();
-  return { trained, written: Number(result.meta?.changes ?? 0) };
+  const cleared = await env.DB.prepare(CLEAR_UNANCHORED_MODEL_SQL).run();
+  return { trained, written: Number(result.meta?.changes ?? 0), cleared: Number(cleared.meta?.changes ?? 0) };
 }
