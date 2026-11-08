@@ -30,7 +30,7 @@ import {
   getFreshAmazonOffer,
 } from '../lib/amazon';
 import { hasProAccess } from '../lib/early-access';
-import { aiAccess, byokRequiredBody } from '../lib/ai-access';
+import { aiAccess, byokSuggested } from '../lib/ai-access';
 
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -1000,10 +1000,8 @@ app.post('/:setnum/listing-draft', requireMember, async (c) => {
   // Rate limit the SERVER-key path only (BYOK bypasses) so a user can't loop the
   // shared OpenAI key for free — mirrors /advisor, /scan, /revalue. Atomic
   // increment+read (RETURNING) closes the read-after-write race.
-  {
-    const access = await aiAccess(c.env, userId, 'listing', !!(c.req.header('X-Gemini-Key') || c.req.header('X-OpenAI-Key')));
-    if (access.mode === 'blocked') return c.json(byokRequiredBody('listing'), 402);
-  }
+  // BYOK-first: past the AI trial, drafts come from the free models only.
+  const access = await aiAccess(c.env, userId, 'listing', !!(c.req.header('X-Gemini-Key') || c.req.header('X-OpenAI-Key')));
   if (!c.req.header('X-Gemini-Key') && !c.req.header('X-OpenAI-Key')) {
     const LISTING_DRAFT_DAILY_LIMIT = 30;
     const dws = new Date(); dws.setHours(0, 0, 0, 0);
@@ -1014,13 +1012,13 @@ app.post('/:setnum/listing-draft', requireMember, async (c) => {
       RETURNING hit_count
     `).bind(userId, dws.toISOString()).first<{ hit_count: number }>();
     if ((rl?.hit_count ?? 0) > LISTING_DRAFT_DAILY_LIMIT) {
-      return c.json({ error: `Rate limit: ${LISTING_DRAFT_DAILY_LIMIT} listing drafts per day. Add your own Gemini or OpenAI key in Settings for unlimited access.` }, 429);
+      return c.json({ error: `Rate limit: ${LISTING_DRAFT_DAILY_LIMIT} listing drafts per day. Add your own Gemini or OpenAI key in Settings for unlimited access.`, ...byokSuggested('listing', access) }, 429);
     }
   }
 
   let draft: ListingDraft;
   try {
-    draft = await generateListingDraft(c, set, entry);
+    draft = await generateListingDraft(c, set, entry, access.mode === 'free');
   } catch {
     return c.json({ error: 'Could not generate listing. Check your AI key or try again later.' }, 500);
   }

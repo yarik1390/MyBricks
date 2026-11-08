@@ -1,11 +1,11 @@
 // "Add your free Gemini key" sheet (BYOK-first AI, 2026-11-08).
 //
-// New accounts get a free AI trial on our keys. After it, the advisor, shelf
-// scans, listing drafts and box grading need the user's own key, and photo
-// scans drop to a small daily allowance. This sheet is the 2-minute path to a
-// free Google AI Studio key: open the page, copy, paste, test, done. It opens
-// from Profile, and by itself when the server answers byok_required (see
-// api.js, which fires `bv:byok`).
+// New accounts get a free AI trial on our keys (paid Gemini included). After
+// it every feature keeps working on free models within daily limits; the
+// user's own key removes the limits. This sheet is the 2-minute path to a free
+// Google AI Studio key: open the page, copy, paste, test, done. It opens from
+// Profile, and by itself when a free-path daily limit is hit (429
+// byok_suggested; api.js fires `bv:byok`).
 import { escapeHtml, haptic, toast } from '../utils.js';
 import { t, tPlural } from '../lib/i18n.js';
 import { getProviderCredential, setProviderCredential, hasPersistentProviderCredential } from '../lib/provider-credentials.js';

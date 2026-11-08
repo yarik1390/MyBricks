@@ -1,9 +1,25 @@
 import OpenAI from 'openai';
 import type { Env } from '../types';
-import { MODELS, geminiUrl, openAIServerBaseURL, gatewayHeaders } from '../lib/llm';
+import { MODELS, geminiUrl, gatewayHeaders } from '../lib/llm';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { fetchTracked } from '../lib/http';
 import { enrichSetRecord } from '../lib/market-sources';
+import { resolveRoute } from '../lib/llm-routing';
+import { openAiCompatibleStep } from '../lib/llm-clients';
+import { spendQuotaFailClosed } from '../lib/api-quota';
+import { freeOnlySteps } from '../lib/ai-access';
+
+const SYSTEM = 'You are an expert eBay seller specializing in LEGO. Return JSON only.';
+
+/** Parse a model's JSON reply (fenced or bare, thinking text tolerated). */
+export function parseDraft(text: string | null | undefined): ListingDraft {
+  const raw = String(text ?? '').replace(/<think>[\s\S]*?<\/think>/g, '').replace(/```json?\n?|```/g, '').trim();
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  const obj = JSON.parse(start >= 0 && end > start ? raw.slice(start, end + 1) : raw) as ListingDraft;
+  if (!obj || typeof obj.title !== 'string' || typeof obj.description !== 'string') throw new Error('AI reply was not a listing draft');
+  return obj;
+}
 
 export interface ListingDraft {
   title: string;
@@ -26,6 +42,8 @@ export async function generateListingDraft(
   c: DraftCtx,
   set: Record<string, unknown>,
   entry: Record<string, unknown> | null,
+  /** Past the AI trial: free providers only (BYOK-first, 2026-11-08). */
+  freeOnly = false,
 ): Promise<ListingDraft> {
   const condition = (entry?.condition as string) || 'used_good';
   const conditionLabel: Record<string, string> = {
@@ -90,27 +108,70 @@ price_reasoning: one sentence explaining the price.`;
       if (!resp.ok) throw new Error('Gemini request failed');
       const body = await resp.json() as Record<string, unknown>;
       const text = (body['candidates'] as { content: { parts: { text: string }[] } }[])?.[0]?.content?.parts?.[0]?.text ?? '{}';
-      return JSON.parse(text.replace(/```json?\n?|```/g, '').trim()) as ListingDraft;
+      return parseDraft(text);
     }
-    const finalOpenAIKey = openaiKey || c.env.OPENAI_API_KEY;
-    if (!finalOpenAIKey) throw new Error('OpenAI is not configured');
-    const openai = new OpenAI({
-      apiKey: finalOpenAIKey,
-      // Server-key calls route through the gateway; BYOK OpenAI stays direct.
-      baseURL: openaiKey ? undefined : openAIServerBaseURL(c.env),
-      defaultHeaders: openaiKey ? undefined : gatewayHeaders(c.env),
-    });
-    const result = await openai.chat.completions.create({
-      model: MODELS.openaiFallback,
-      max_tokens: 400,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: 'You are an expert eBay seller specializing in LEGO. Return JSON only.' },
-        { role: 'user', content: prompt },
-      ],
-    });
-    await recordIntegrationAttempt(c.env, 'openai', true);
-    return JSON.parse(result.choices[0].message.content!.trim()) as ListingDraft;
+    if (openaiKey) {
+      // BYOK OpenAI stays direct, no gateway.
+      const openai = new OpenAI({ apiKey: openaiKey });
+      const result = await openai.chat.completions.create({
+        model: MODELS.openaiFallback,
+        max_tokens: 400,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: SYSTEM },
+          { role: 'user', content: prompt },
+        ],
+      });
+      await recordIntegrationAttempt(c.env, 'openai', true);
+      return parseDraft(result.choices[0].message.content);
+    }
+    // Server keys: the admin listing route (free models after the trial).
+    const route = await resolveRoute(c.env, 'listing');
+    const steps = freeOnly ? freeOnlySteps(route) : route;
+    let lastError: unknown = new Error('No AI provider is configured');
+    for (const step of steps) {
+      try {
+        if (step.provider === 'gemini') {
+          if (!c.env.GEMINI_API_KEY || !(await spendQuotaFailClosed(c.env, 'gemini_paid'))) continue;
+          const resp = await fetchTracked(c.env, 'gemini', geminiUrl(step.model || MODELS.listing, { env: c.env, routeThroughGateway: true }), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.env.GEMINI_API_KEY, ...gatewayHeaders(c.env) },
+            body: JSON.stringify({
+              contents: [{ role: 'user', parts: [{ text: prompt }] }],
+              generationConfig: { maxOutputTokens: 400, responseMimeType: 'application/json' },
+            }),
+          });
+          if (!resp.ok) throw new Error(`Gemini HTTP ${resp.status}`);
+          const body = await resp.json() as Record<string, unknown>;
+          return parseDraft((body['candidates'] as { content: { parts: { text: string }[] } }[])?.[0]?.content?.parts?.[0]?.text);
+        }
+        const { client, models } = await openAiCompatibleStep(
+          c.env,
+          step.provider === 'openai' ? { ...step, model: step.model || MODELS.openaiFallback } : step,
+          step.provider === 'openai' ? gatewayHeaders(c.env) : {},
+          'text',
+        );
+        if (!client) continue;
+        for (const model of models) {
+          const result = await client.chat.completions.create({
+            model,
+            max_tokens: 600,
+            ...(step.provider === 'workersai' ? {} : { response_format: { type: 'json_object' as const } }),
+            messages: [
+              { role: 'system', content: SYSTEM },
+              { role: 'user', content: prompt },
+            ],
+          });
+          const draft = parseDraft(result.choices[0]?.message?.content);
+          await recordIntegrationAttempt(c.env, step.provider, true);
+          return draft;
+        }
+      } catch (e) {
+        lastError = e;
+        await recordIntegrationAttempt(c.env, step.provider, false, e).catch(() => {});
+      }
+    }
+    throw lastError;
   } catch (e) {
     await recordIntegrationAttempt(c.env, geminiKey ? 'gemini' : 'openai', false, e);
     console.warn('[listing-draft] AI failed:', (e as Error).message);

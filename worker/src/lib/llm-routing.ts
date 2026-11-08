@@ -82,8 +82,11 @@ export const DEFAULT_LLM_ROUTES: Record<LlmWorkload, RouteStep[]> = {
     { provider: 'groq', model: GROQ_SCAN_MODEL, enabled: true },
     { provider: 'gemini', model: GEMINI_SCAN_MODEL, enabled: true },
   ],
+  // Free models back up the paid key; past the AI trial only they answer.
   advisor: [
     { provider: 'gemini', model: MODELS.advisor, enabled: true },
+    { provider: 'groq', model: GROQ_SCAN_MODEL, enabled: true },
+    { provider: 'workersai', model: WORKERS_AI_SCAN_MODEL, enabled: true },
     { provider: 'openai', model: MODELS.openaiFallback, enabled: true },
   ],
   valuation: [
@@ -94,6 +97,8 @@ export const DEFAULT_LLM_ROUTES: Record<LlmWorkload, RouteStep[]> = {
   ],
   listing: [
     { provider: 'gemini', model: MODELS.listing, enabled: true },
+    { provider: 'groq', model: GROQ_SCAN_MODEL, enabled: true },
+    { provider: 'workersai', model: WORKERS_AI_SCAN_MODEL, enabled: true },
     { provider: 'openai', model: MODELS.openaiFallback, enabled: true },
   ],
 };

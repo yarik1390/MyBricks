@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { AI_TRIAL_DAYS, POST_TRIAL_SCAN_DAILY_LIMIT, aiAccess, hasByok, readAiTrial } from './lib/ai-access';
+import { AI_TRIAL_DAYS, aiAccess, byokSuggested, freeOnlySteps, hasByok, readAiTrial } from './lib/ai-access';
 
 const db = (env as any).DB as D1Database;
 
@@ -27,12 +27,19 @@ describe('BYOK-first AI access', () => {
     expect((await readAiTrial(env as any, 'u1')).days_left).toBe(AI_TRIAL_DAYS);
   });
 
-  it('after the trial: photo scans go free-only with a small limit, everything else needs a key', async () => {
+  it('after the trial: every feature stays on, free models only', async () => {
     await setStart('u2', AI_TRIAL_DAYS + 1);
-    expect(await aiAccess(env as any, 'u2', 'scan', false)).toMatchObject({ mode: 'free', dailyLimit: POST_TRIAL_SCAN_DAILY_LIMIT });
-    for (const f of ['shelf', 'advisor', 'listing', 'grade'] as const) {
-      expect((await aiAccess(env as any, 'u2', f, false)).mode).toBe('blocked');
+    for (const f of ['scan', 'shelf', 'advisor', 'listing', 'grade'] as const) {
+      const access = await aiAccess(env as any, 'u2', f, false);
+      expect(access.mode).toBe('free');
+      expect(byokSuggested(f, access)).toEqual({ code: 'byok_suggested', feature: f });
     }
+  });
+
+  it('free-only routes drop paid providers and fall back to the free pair', () => {
+    const paid = [{ provider: 'gemini', model: 'g', enabled: true }, { provider: 'openai', model: 'o', enabled: true }] as any;
+    expect(freeOnlySteps(paid).map((s) => s.provider)).toEqual(['workersai', 'groq']);
+    expect(freeOnlySteps([...paid, { provider: 'groq', model: 'q', enabled: true }]).map((s) => s.provider)).toEqual(['groq']);
   });
 
   it('own key always wins, inside or after the trial', async () => {

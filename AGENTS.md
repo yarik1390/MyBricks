@@ -333,15 +333,17 @@ Behavioral notes:
 - AI BYOK: clients may send `X-Gemini-Key` / `X-OpenAI-Key` headers; these are
   used per-request and **never persisted**.
 - **BYOK-first AI (2026-11-08, `lib/ai-access.ts`).** Each account gets a
-  14-day AI trial (clock in `ai_trials`, started on first AI call). After it:
-  BYOK users keep everything; photo scans run on free providers only (Workers
-  AI, Groq) at 5/day; advisor, shelf scans, listing drafts and box grading
-  answer 402 `{code:'byok_required', feature}`. Over-limit post-trial scans
-  answer 429 `code:'byok_suggested'`. `api.js` turns either code into a
-  `bv:byok` event and `app.js` opens `components/byok-sheet.js` (free AI
-  Studio key, tested before saving). Paid Gemini across all users is capped
-  by `api_quota` `gemini_paid` (1,500/day, fail closed). Every new AI route
-  must call `aiAccess()` and honor BYOK.
+  14-day AI trial (clock in `ai_trials`, started on first AI call) with the
+  paid server keys as fallback. After it nothing is blocked (Iaroslav:
+  "Barcode and Brickognize, and free models stay free for all the
+  features"): scan, shelf, advisor, listing drafts and box grading run on the
+  free providers only (`freeOnlySteps`: Workers AI, Groq) within the usual
+  daily limits. A post-trial 429 carries `code:'byok_suggested'`; `api.js`
+  turns it into a `bv:byok` event and `app.js` opens
+  `components/byok-sheet.js` (free AI Studio key, tested before saving). BYOK
+  removes limits. Paid Gemini across all users is capped by `api_quota`
+  `gemini_paid` (1,500/day, fail closed). Every new AI route must call
+  `aiAccess()`, honor BYOK and use free-only steps in `free` mode.
 
 ---
 
