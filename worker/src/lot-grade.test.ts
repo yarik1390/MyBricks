@@ -35,7 +35,7 @@ async function call(route: { fetch: typeof lotRoute.fetch }, path: string, body:
 beforeEach(async () => {
   (env as any).SUPABASE_JWT_SECRET = secret;
   (env as any).SUPABASE_URL = 'https://supabase.mock.io';
-  await applyTestTables(db, ['lego_sets', 'set_valuation_state', 'user_prefs', 'rate_limits', 'integration_health']);
+  await applyTestTables(db, ['lego_sets', 'set_valuation_state', 'user_prefs', 'rate_limits', 'integration_health', 'api_quota', 'ai_trials']);
   await db.batch([
     db.prepare(`INSERT INTO lego_sets (set_num, name, year, current_value, blended_value, used_value) VALUES
       ('75313-1', 'AT-AT', 2021, 900, 900, 700), ('10497-1', 'Galaxy Explorer', 2022, 110, 100, 80),

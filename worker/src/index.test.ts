@@ -1229,6 +1229,7 @@ describe('BrickVault API Worker Tests', () => {
         pro: false,
         photo: { used: 0, limit: 20, remaining: 20, period: 'day' },
         shelf: { used: 1, limit: 3, remaining: 2, period: 'month' },
+        ai_trial: { started_at: null, ends_at: null, active: true, days_left: 14 },
       });
       const anon = await app.fetch(new Request('http://localhost/api/scan/quota'), env);
       expect(anon.status).toBe(401);

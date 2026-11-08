@@ -694,6 +694,13 @@ CREATE TABLE IF NOT EXISTS import_runs (
   error TEXT
 );
 
+-- BYOK-first AI trial (lib/ai-access.ts): when each account's free trial of
+-- the shared AI keys started. Set on the first AI request.
+CREATE TABLE IF NOT EXISTS ai_trials (
+  user_id TEXT PRIMARY KEY,
+  started_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS rate_limits (
   user_id TEXT NOT NULL,
   endpoint TEXT NOT NULL,

@@ -18,6 +18,8 @@ import { CATALOG_COLS, MARKET_EXT_JOIN } from './sets';
 import { findSetByBarcodeLocal, findSetByBarcodeRemote } from '../lib/barcodes';
 import type { Env, Variables } from '../types';
 import { hasProAccess } from '../lib/early-access';
+import { aiAccess, byokRequiredBody, readAiTrial, FREE_ONLY_PROVIDERS, POST_TRIAL_SCAN_DAILY_LIMIT } from '../lib/ai-access';
+import { spendQuotaFailClosed } from '../lib/api-quota';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -61,10 +63,10 @@ function windowStarts(now = new Date()): { day: string; month: string } {
   return { day: day.toISOString(), month: month.toISOString() };
 }
 
-function scanQuotaBuckets(shelf: boolean, pro: boolean, now = new Date()): ScanQuotaBucket[] {
+function scanQuotaBuckets(shelf: boolean, pro: boolean, now = new Date(), photoLimitOverride?: number): ScanQuotaBucket[] {
   const { day, month } = windowStarts(now);
   if (!shelf) {
-    const limit = pro ? PRO_SCAN_DAILY_LIMIT : SCAN_DAILY_LIMIT;
+    const limit = photoLimitOverride ?? (pro ? PRO_SCAN_DAILY_LIMIT : SCAN_DAILY_LIMIT);
     return [{ endpoint: 'scan_image', windowStart: day, limit, label: `${limit} scan units per day`, reason: 'scan_limit' }];
   }
   if (pro) {
@@ -103,8 +105,8 @@ type ScanAllowance = {
   shelf: { used: number; limit: number; remaining: number; period: 'day' | 'month' };
 };
 
-async function scanAllowance(db: D1Database, userId: string, pro: boolean): Promise<ScanAllowance> {
-  const [photoBucket] = scanQuotaBuckets(false, pro);
+async function scanAllowance(db: D1Database, userId: string, pro: boolean, photoLimitOverride?: number): Promise<ScanAllowance> {
+  const [photoBucket] = scanQuotaBuckets(false, pro, new Date(), photoLimitOverride);
   const shelfBuckets = scanQuotaBuckets(true, pro);
   const shelfBucket = shelfBuckets[shelfBuckets.length - 1];
   const [photoUsed, shelfUsed] = await Promise.all([
@@ -372,6 +374,7 @@ async function describeSharedScan(
   timings: StepTiming[] = [],
   routeDeadline = Date.now() + SCAN_BUDGET_MS,
   workload: LlmWorkload = 'scan',
+  freeOnly = false,
 ): Promise<{
   sets: DescribedSet[];
   minifigs: DescribedMinifig[];
@@ -379,7 +382,8 @@ async function describeSharedScan(
   classification?: 'not_lego';
 } | { error: string }> {
   const meta = { ...gatewayHeaders(env), ...gatewayMetadataHeader({ workload: 'scan-shared' }) };
-  const steps = await resolveRoute(env, workload);
+  // Past the AI trial only free providers may answer (never a billed key).
+  const steps = (await resolveRoute(env, workload)).filter((step) => !freeOnly || FREE_ONLY_PROVIDERS.has(step.provider));
   const stepTimeout = workload === 'shelf' ? SHELF_STEP_TIMEOUT_MS : STEP_TIMEOUT_MS;
   let lastOpenAiError: unknown = null;
   let notLegoVotes = 0;
@@ -396,6 +400,13 @@ async function describeSharedScan(
     }
     // Gemini speaks its own REST shape, not the OpenAI one — separate client.
     if (step.provider === 'gemini') {
+      // The server Gemini key is billed: a daily cap across all users keeps a
+      // swarm of free accounts from running up the bill (Google-side quota is
+      // the hard stop behind it).
+      if (!(await spendQuotaFailClosed(env, 'gemini_paid'))) {
+        timings.push({ provider: 'gemini', model: step.model, ms: 0, outcome: 'skipped: daily paid cap' });
+        continue;
+      }
       const t0 = Date.now();
       try {
         const outcome = await callGeminiScanOutcome(image, env.GEMINI_API_KEY ?? '', env, {
@@ -513,7 +524,12 @@ app.get('/quota', async (c) => {
   const userId = c.get('userId') || '';
   if (!userId) return c.json({ error: 'Sign in to see your scan allowance.' }, 401);
   const pro = await isProMember(c.env, userId);
-  return c.json(await scanAllowance(c.env.DB, userId, pro));
+  const trial = await readAiTrial(c.env, userId);
+  const postTrial = !trial.active && !c.req.header('X-Gemini-Key') && !c.req.header('X-OpenAI-Key');
+  return c.json({
+    ...(await scanAllowance(c.env.DB, userId, pro, postTrial ? POST_TRIAL_SCAN_DAILY_LIMIT : undefined)),
+    ai_trial: trial,
+  });
 });
 
 app.post('/identify', async (c) => {
@@ -564,6 +580,7 @@ app.post('/identify', async (c) => {
   let sharedQuotaReserved = false;
   let sharedQuotaSettled = false;
   let sharedPro = false;
+  let sharedFreeOnly = false;
   let sharedBuckets: ScanQuotaBucket[] = [];
 
   const settleReservedQuota = async (
@@ -612,7 +629,7 @@ app.post('/identify', async (c) => {
     sharedQuotaSettled = true;
   };
 
-  const finalizeShared = async (payload: Record<string, unknown>, status: 200 | 202 | 400 | 409 | 413 | 429 | 500 | 503 = 200) => {
+  const finalizeShared = async (payload: Record<string, unknown>, status: 200 | 202 | 400 | 402 | 409 | 413 | 429 | 500 | 503 = 200) => {
     // Shelf Snap tells the app what is left so it can show "2 of 3 left".
     if (shelfMode && sharedQuotaReserved && status < 500) {
       const missed = payload.identified === false;
@@ -786,8 +803,15 @@ app.post('/identify', async (c) => {
     // Single photos use the daily photo bucket (Pro gets 5x). Shelf Snap has its
     // own buckets: a monthly teaser for free accounts, a daily cap for Pro.
     const units = shelfMode ? SHELF_SCAN_UNITS : SINGLE_SCAN_UNITS;
+    // BYOK-first: past the new-account trial, shelf scans need the user's own
+    // key and photo scans drop to a small daily allowance on free models.
+    const access = await aiAccess(c.env, userId, shelfMode ? 'shelf' : 'scan', false);
+    if (access.mode === 'blocked') {
+      return finalizeShared({ ...byokRequiredBody('shelf'), reason: 'byok_required' }, 402);
+    }
+    sharedFreeOnly = access.mode === 'free';
     sharedPro = await isProMember(c.env, userId);
-    sharedBuckets = scanQuotaBuckets(shelfMode, sharedPro);
+    sharedBuckets = scanQuotaBuckets(shelfMode, sharedPro, new Date(), access.mode === 'free' ? access.dailyLimit : undefined);
     const quota = await consumeSharedScanQuota(c.env.DB, userId, quotaRequestKey, units, sharedBuckets);
     if (!quota.allowed) {
       const shelfPro = quota.bucket.reason === 'shelf_pro';
@@ -796,6 +820,7 @@ app.post('/identify', async (c) => {
           ? `You've used your ${FREE_SHELF_MONTHLY_LIMIT} free shelf scans this month. Shelf scanning is a Pro perk; single photo and barcode scans stay free.`
           : `Rate limit: ${quota.bucket.label}. Add your own Gemini/OpenAI key for unlimited scanning.`,
         reason: quota.bucket.reason,
+        ...(sharedFreeOnly ? { code: 'byok_suggested' } : {}),
         ...(shelfMode ? { quota: { used: quota.bucket.limit, limit: quota.bucket.limit, remaining: 0, period: quota.bucket.endpoint === SHELF_MONTH_ENDPOINT ? 'month' : 'day', pro: sharedPro } } : {}),
       }, 429);
     }
@@ -914,7 +939,7 @@ app.post('/identify', async (c) => {
 
   let desc: Awaited<ReturnType<typeof describeSharedScan>>;
   try {
-    desc = await describeSharedScan(c.env, image, promptOpts, timings, routeDeadline, shelfMode ? 'shelf' : 'scan');
+    desc = await describeSharedScan(c.env, image, promptOpts, timings, routeDeadline, shelfMode ? 'shelf' : 'scan', sharedFreeOnly);
   } catch (error) {
     await settleReservedQuota('released');
     throw error;

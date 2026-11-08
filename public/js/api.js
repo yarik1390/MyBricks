@@ -1496,6 +1496,11 @@ export async function api(path, opts = {}) {
     let body = null;
     try { body = await r.json(); msg = body.error || msg; if (body.reason) msg += ': ' + body.reason; } catch {}
     if (r.status >= 500) track("api_error", `${r.status} ${apiRouteKey(path)}`);
+    // BYOK-first AI: the trial ended (402 byok_required) or a post-trial scan
+    // limit was hit (429 byok_suggested). The app opens the "add your key" sheet.
+    if (body && (body.code === 'byok_required' || body.code === 'byok_suggested')) {
+      try { window.dispatchEvent(new CustomEvent('bv:byok', { detail: { code: body.code, feature: body.feature || (path.includes('/scan') ? 'scan' : '') } })); } catch { /* non-browser ctx */ }
+    }
     // Callers that render the server's own explanation (scan misses) read it here.
     throw Object.assign(new Error(msg), { status: r.status, body });
   }

@@ -729,6 +729,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   // banner directly, so a single failed request can't flash it on its own.
   window.addEventListener("bv:api-ok", () => { if (offlineUiState !== "online") applyOfflineState(false); });
   window.addEventListener("bv:api-fail", () => { refreshOfflineState(); });
+  // Trial over / post-trial scan limit: offer the free Gemini key sheet.
+  window.addEventListener("bv:byok", (event) => {
+    const d = event.detail || {};
+    import('./components/byok-sheet.js')
+      .then(m => m.openByokSheet({ feature: d.feature, ended: d.code === 'byok_required' || d.code === 'byok_suggested' }))
+      .catch(() => {});
+  });
   // Edits made while already offline land in the outbox — keep the banner's
   // "N changes will sync" count current.
   window.addEventListener("bv:outbox", () => {
