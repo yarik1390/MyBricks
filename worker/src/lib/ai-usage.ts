@@ -63,10 +63,9 @@ export function createAiUsageAccumulator() {
   return {
     /**
      * @param reportedCostUsd real billed cost when the provider returns one
-     *        (Merge Gateway does, as `usage.cost`). Pass null/undefined to fall
-     *        back to the AI_PRICES estimate. Measured beats modelled: the price
-     *        table drifts the moment a provider re-prices, and the Merge budget
-     *        meter has to be right or it under-reports exactly when it matters.
+     *        (as `usage.cost`). Pass null/undefined to fall back to the
+     *        AI_PRICES estimate. Measured beats modelled: the price table drifts
+     *        the moment a provider re-prices.
      */
     record(
       provider: string,
@@ -147,9 +146,7 @@ export async function recordAiUsage(
 /**
  * Month-to-date spend for one provider, in USD, from the ai_usage ledger.
  *
- * This is how "remaining Merge balance" is answered: Merge exposes spend only
- * in its dashboard, so we sum what it told us each call actually cost. Fails
- * open to zero spend — a ledger outage must not read as "budget exhausted" and
+ * Sums what the ledger recorded for each call. Fails open to zero spend — a ledger outage must not read as "budget exhausted" and
  * strand the cascade on the paid backstop.
  */
 export async function monthlyAiSpend(

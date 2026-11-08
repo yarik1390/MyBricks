@@ -1,5 +1,5 @@
 import type { Env } from '../types';
-import { integrationErrorMessage, recordIntegrationAttempt, type IntegrationName } from './integration-health';
+import { integrationErrorMessage, recordIntegrationAttempt, setIntegrationBlock, type IntegrationName } from './integration-health';
 
 // Shared fetch helper for external API integrations.
 //
@@ -68,6 +68,19 @@ export async function fetchTracked(
   const shouldRecord = opts.record !== false;
   try {
     const resp = await fetchWithRetry(url, init, opts);
+    // A planned outage: BrickLink answers every API call with a 302 to
+    // maintenance.bricklink.com, fetch follows it, and callers then choked on
+    // an HTML 200 ("Unexpected token '<'") while burning the daily call budget
+    // (2026-11-08: ~1,200 wasted calls). Report it as what it is, pause the
+    // service for an hour (callers that honour the block skip it), and hand
+    // callers a plain 503 so they take their normal outage path.
+    if (isMaintenanceRedirect(resp)) {
+      if (shouldRecord) {
+        await recordIntegrationAttempt(env, service, false, `Planned maintenance (redirected to ${safeHost(resp.url)})`);
+        await setIntegrationBlock(env, service, 1);
+      }
+      return new Response('upstream maintenance', { status: 503, statusText: 'Service Unavailable' });
+    }
     const okStatuses = new Set(opts.okStatuses ?? []);
     if (shouldRecord) {
       if (resp.ok || okStatuses.has(resp.status)) {
@@ -83,4 +96,19 @@ export async function fetchTracked(
     }
     throw error;
   }
+}
+
+/** True when the request was redirected to an upstream maintenance page. */
+export function isMaintenanceRedirect(resp: Pick<Response, 'redirected' | 'url'>): boolean {
+  if (!resp.redirected || !resp.url) return false;
+  try {
+    const u = new URL(resp.url);
+    return /(^|\.)maintenance\./i.test(u.hostname) || /\/maintenance\b/i.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function safeHost(url: string): string {
+  try { return new URL(url).hostname; } catch { return 'a maintenance page'; }
 }

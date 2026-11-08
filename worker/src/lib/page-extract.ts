@@ -6,7 +6,6 @@ import { sourceEnabled } from './source-config';
 import { resolveRoute } from './llm-routing';
 import { openAiCompatibleStep } from './llm-clients';
 import { recordAiUsage } from './ai-usage';
-import { mergeReportedCostUsd } from './merge-gateway';
 import { recordIntegrationAttempt } from './integration-health';
 
 // Bright Data fallback for the pages Firecrawl reads with structured
@@ -202,8 +201,7 @@ export async function llmExtractJson<T = Record<string, unknown>>(
             { role: 'user', content: `${instruction}\n\nJSON schema:\n${JSON.stringify(schema)}\n\nPage text:\n${text}` },
           ],
         }, { timeout: 30_000 });
-        const cost = step.provider === 'merge' ? mergeReportedCostUsd(res.usage) : null;
-        await recordAiUsage(env, step.provider, model, res.usage ?? null, cost);
+        await recordAiUsage(env, step.provider, model, res.usage ?? null, null);
         const content = res.choices[0]?.message?.content ?? '';
         try {
           const parsed = JSON.parse(content.replace(/^```(?:json)?\s*|\s*```$/g, ''));

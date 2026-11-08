@@ -1509,7 +1509,7 @@ export const ui = {
   "The store is not ready. You can continue setup and try again from Settings.": "ストアの準備ができていません。セットアップを続け、設定からもう一度お試しください。",
   "LLM Routing": "LLM ルーティング",
   "Loading LLM routing...": "LLM ルーティングを読み込み中…",
-  "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers should sit above the Merge allowance, and the metered backstop last.": "各 AI ワークロードが試すプロバイダの順序を決めます。ステップは上から下へ実行され、最初に応答したものが採用されます。無料枠は Merge 残高より上に、従量課金のバックストップは最後に置いてください。",
+  "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers go first, the paid backstop last.": "各 AI ワークロードが試すプロバイダの順序を決めます。ステップは上から下へ実行され、最初に応答したものが採用されます。無料枠を先に、有料のバックストップは最後に置いてください。",
   "After you accept, agree on shipping or a meetup in the chat.": "承認後、配送や待ち合わせはチャットで決めてください。",
   "Block": "ブロック",
   "Call off": "取りやめる",

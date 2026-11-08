@@ -67,7 +67,7 @@ export const PROCESS_REGISTRY: Record<string, ProcessInfo> = {
   'db-hygiene': { label: 'Database hygiene', description: 'Cleans up stale rows, expired sessions and orphaned data.', schedule: 'Daily 04:00 UTC', group: 'Maintenance' },
   'daily-catalog-maintenance': { label: 'Catalog maintenance', description: 'Daily catalog upkeep and consistency pass.', schedule: 'Daily 04:00 UTC', group: 'Maintenance' },
   'image-prewarm': { label: 'Image pre-warm', description: 'Pre-warms set images into the edge cache for fast loads.', schedule: 'Daily 14:00 UTC', group: 'Maintenance' },
-  'model-refresh': { label: 'AI model catalog refresh', description: 'Refreshes the cached free-model pool (OpenRouter) and Merge model list used by LLM routing.', schedule: 'Daily 04:00 UTC', group: 'Maintenance' },
+  'model-refresh': { label: 'AI model catalog refresh', description: 'Refreshes the cached free-model pool (OpenRouter) used by LLM routing.', schedule: 'Daily 04:00 UTC', group: 'Maintenance' },
   'amazon-offers': { label: 'Amazon offers', description: 'Amazon Creators API live offers (KV-only, 24h TTL per Associates terms). Two slots keep the freshness window gapless.', schedule: 'Daily 07:30 & 16:30 UTC', group: 'Maintenance' },
   'weekly-digest': { label: 'Weekly digest', description: 'Opt-in weekly vault digest email (portfolio movement, alerts recap).', schedule: 'Weekly Sun 08:00 UTC', group: 'Maintenance' },
   'collection-backups': { label: 'Collection backups', description: 'Weekly per-user collection snapshots to R2 with self-serve restore in Settings.', schedule: 'Weekly Sun 05:00 UTC', group: 'Maintenance' },

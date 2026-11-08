@@ -8,7 +8,6 @@ import { logEvent } from '../lib/analytics';
 import { MODELS, gatewayHeaders, gatewayMetadataHeader, SCAN_SYSTEM_PROMPT, SHELF_SCAN_PROMPT } from '../lib/llm';
 import { resolveRoute, type LlmWorkload } from '../lib/llm-routing';
 import { openAiCompatibleStep } from '../lib/llm-clients';
-import { isMergeBudgetExhausted, mergeReportedCostUsd } from '../lib/merge-gateway';
 import { recordAiUsage } from '../lib/ai-usage';
 import { identifySetWithBrickognize } from '../lib/brickognize';
 import { parseOcrSetNumbers, resolveOcrSetNum } from '../lib/scan-ocr';
@@ -250,7 +249,6 @@ export async function openaiVisionDescribe(
   imageClass: 'lego' | 'not_lego' | 'uncertain';
   parsed: boolean;
   usage?: { prompt_tokens?: number; completion_tokens?: number };
-  rawUsage?: unknown;
 }> {
   const userText = (opts.prompt?.includes('shelf') || opts.prompt?.includes('SHELF') || opts.prompt?.includes('cabinet'))
     ? 'Identify EVERY distinct LEGO set visible in this shelf or display image. Respond with JSON.'
@@ -295,7 +293,7 @@ export async function openaiVisionDescribe(
       }
     } catch { /* malformed model output — let the provider cascade continue */ }
   }
-  return { sets, minifigs, imageClass, parsed, usage: completion.usage, rawUsage: completion.usage };
+  return { sets, minifigs, imageClass, parsed, usage: completion.usage };
 }
 
 const CONFIDENCE_VALUES = new Set(['high', 'medium', 'low', 'none']);
@@ -445,12 +443,10 @@ async function describeSharedScan(
       }
       const t0 = Date.now();
       try {
-        const { sets, minifigs, imageClass, parsed, usage, rawUsage } = await openaiVisionDescribe(
+        const { sets, minifigs, imageClass, parsed, usage } = await openaiVisionDescribe(
           client, model, image, opts, Math.min(stepTimeout, msLeft()),
         );
-        // Merge reports what the call actually cost; everyone else is estimated.
-        const cost = step.provider === 'merge' ? mergeReportedCostUsd(rawUsage) : null;
-        await recordAiUsage(env, step.provider, model, usage, cost);
+        await recordAiUsage(env, step.provider, model, usage, null);
         const hit = sets.length > 0 || minifigs.length > 0;
         timings.push({ provider: step.provider, model, ms: Date.now() - t0, outcome: hit ? 'match' : 'empty' });
         if (hit) {
@@ -471,14 +467,6 @@ async function describeSharedScan(
         timings.push({ provider: step.provider, model, ms: Date.now() - t0, outcome: `error: ${(e as Error).message.slice(0, 60)}` });
         await recordIntegrationAttempt(env, step.provider, false, (e as Error).message);
         if (step.provider === 'openai') lastOpenAiError = e;
-        // A hard budget or a rejected key takes the whole provider out for this
-        // request — no point walking its remaining models.
-        const status = Number((e as { status?: unknown })?.status ?? 0);
-        if (step.provider === 'merge' && isMergeBudgetExhausted(status)) {
-          await recordIntegrationAttempt(env, 'merge', false, `HTTP ${status} (budget or key exhausted)`);
-          console.warn(`[scan] Merge out of budget/key (HTTP ${status}) — skipping provider`);
-          break;
-        }
         console.warn(`[scan] ${step.provider} ${model} failed:`, (e as Error).message);
       }
     }

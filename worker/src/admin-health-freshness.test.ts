@@ -4,9 +4,9 @@ import type { Env } from './types';
 
 function fixture(lastOk: string | null, lastFail: string | null = null): Env {
   return {
-    MERGE_GATEWAY_API_KEY: 'test-only',
+    GROQ_API_KEY: 'test-only',
     SUPABASE_URL: 'https://example.invalid', SUPABASE_ANON_KEY: 'test', SUPABASE_JWT_SECRET: 'test',
-    DB: { prepare: () => ({ all: async () => ({ results: [{ service: 'merge', last_ok_at: lastOk, last_fail_at: lastFail, last_error: 'HTTP 403', ok_count: 1, fail_count: 1, updated_at: lastFail || lastOk }] }) }) },
+    DB: { prepare: () => ({ all: async () => ({ results: [{ service: 'groq', last_ok_at: lastOk, last_fail_at: lastFail, last_error: 'HTTP 403', ok_count: 1, fail_count: 1, updated_at: lastFail || lastOk }] }) }) },
   } as unknown as Env;
 }
 
@@ -18,18 +18,18 @@ describe('admin health evidence freshness', () => {
     }
   });
   it('marks stale success and failure as unknown, retaining history', async () => {
-    // Merge is on-demand, so its evidence window is 14 days, not 48 hours.
+    // Groq is on-demand, so its evidence window is 14 days, not 48 hours.
     const old = new Date(Date.now() - 15 * 24 * 3600000).toISOString();
     const rows = await getIntegrationDiagnostics(fixture(old, old));
-    expect(rows.find(r => r.service === 'merge')).toMatchObject({ status: 'unknown', reachable: null, last_fail_at: old });
+    expect(rows.find(r => r.service === 'groq')).toMatchObject({ status: 'unknown', reachable: null, last_fail_at: old });
   });
   it('keeps a quiet on-demand service classified for two weeks', async () => {
     const old = new Date(Date.now() - 72 * 3600000).toISOString();
     const rows = await getIntegrationDiagnostics(fixture(old));
-    expect(rows.find(r => r.service === 'merge')).toMatchObject({ status: 'ok', stale_after_hours: 14 * 24 });
+    expect(rows.find(r => r.service === 'groq')).toMatchObject({ status: 'ok', stale_after_hours: 14 * 24 });
   });
   it('reports recent success as observed healthy', async () => {
     const rows = await getIntegrationDiagnostics(fixture(new Date().toISOString()));
-    expect(rows.find(r => r.service === 'merge')).toMatchObject({ status: 'ok', reachable: true });
+    expect(rows.find(r => r.service === 'groq')).toMatchObject({ status: 'ok', reachable: true });
   });
 });

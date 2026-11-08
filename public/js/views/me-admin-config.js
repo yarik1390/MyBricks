@@ -168,7 +168,7 @@ export const PROVIDER_GROUPS = [
   ['Catalog', ['rebrickable', 'brickset', 'upc']],
   ['Pricing', ['bricklink', 'brickeconomy', 'ebay', 'pricecharting', 'brickinsights', 'amazon']],
   ['Scraping', ['firecrawl', 'brightdata', 'decodo', 'zenrows']],
-  ['AI', ['gemini', 'openai', 'openrouter', 'merge', 'byok']],
+  ['AI', ['workersai', 'groq', 'gemini', 'openai', 'openrouter', 'byok']],
   ['Notifications', ['resend', 'push', 'vapid', 'discord']],
   ['Sync', ['google', 'patreon']],
   ['Security', ['turnstile']],
@@ -190,12 +190,12 @@ export const FLAG_LABEL = {
 // in worker/src/lib/service-tests.ts).
 // Services with a live probe behind the Test button. Every entry here MUST also
 // appear in PROVIDER_GROUPS above, or the row is never rendered and the probe is
-// unreachable — turnstile and merge both sat in this set for a while with no row
+// unreachable — turnstile and a since-removed gateway both sat in this set for a while with no row
 // to click. A test in pure.test.js now enforces the pairing.
 export const TESTABLE = new Set([
   'd1', 'supabase', 'rebrickable', 'brickset', 'brickinsights', 'bricklink', 'ebay',
   'firecrawl', 'pricecharting', 'brightdata', 'decodo', 'zenrows',
-  'openrouter', 'gemini', 'openai', 'merge', 'resend', 'turnstile', 'patreon', 'push',
+  'openrouter', 'gemini', 'groq', 'openai', 'resend', 'turnstile', 'patreon', 'push',
 ]);
 
 // Pricing sources with weight/cap/refresh tuning (worker DEFAULT_SOURCE_CONFIG).
@@ -215,7 +215,8 @@ export const SERVICE_DESC = {
   upc: 'Barcode backfill so sets can be scanned.',
   brickinsights: 'Aggregated community set ratings shown on set pages.',
   turnstile: 'Cloudflare bot check on keyless web photo scans. Site key and secret must come from the SAME widget, or every scan is rejected.',
-  merge: 'Merge Gateway — second multi-provider LLM gateway, billed against a fixed monthly allowance and reporting real per-call cost.',
+  workersai: 'Cloudflare Workers AI — free daily allowance, first scan step.',
+  groq: 'Groq — free tier, second scan step (no training on API data).',
   patreon: 'Support link shown on the Me tab.',
   gemini: 'Google Gemini — server-side AI features.',
   openai: 'OpenAI — server-side AI features.',

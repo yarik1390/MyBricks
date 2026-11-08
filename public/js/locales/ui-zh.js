@@ -1509,7 +1509,7 @@ export const ui = {
   "The store is not ready. You can continue setup and try again from Settings.": "商店尚未就绪。你可以继续设置，稍后从“设置”中重试。",
   "LLM Routing": "LLM 路由",
   "Loading LLM routing...": "正在加载 LLM 路由…",
-  "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers should sit above the Merge allowance, and the metered backstop last.": "为每个 AI 工作负载设置提供方的尝试顺序。步骤自上而下执行，第一个作出响应的胜出。免费层级应排在 Merge 额度之上，按量计费的兜底放在最后。",
+  "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers go first, the paid backstop last.": "为每个 AI 工作负载设置提供方的尝试顺序。步骤自上而下执行，第一个作出响应的胜出。免费层级优先，付费兜底放在最后。",
   "After you accept, agree on shipping or a meetup in the chat.": "接受后，请在聊天中商定寄送或见面。",
   "Block": "屏蔽",
   "Call off": "取消",

@@ -1579,6 +1579,12 @@
     ]
   },
   {
+    "text": "Cloudflare Workers AI — free daily allowance, first scan step.",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
     "text": "Cloudflare bot check on keyless web photo scans. Site key and secret must come from the SAME widget, or every scan is rejected.",
     "files": [
       "views/me-admin-config.js"
@@ -3778,6 +3784,12 @@
     ]
   },
   {
+    "text": "Groq — free tier, second scan step (no training on API data).",
+    "files": [
+      "views/me-admin-config.js"
+    ]
+  },
+  {
     "text": "Gross",
     "files": [
       "components/flip-calc.js"
@@ -5033,18 +5045,6 @@
     ]
   },
   {
-    "text": "Merge",
-    "files": [
-      "views/me-admin.js"
-    ]
-  },
-  {
-    "text": "Merge Gateway — second multi-provider LLM gateway, billed against a fixed monthly allowance and reporting real per-call cost.",
-    "files": [
-      "views/me-admin-config.js"
-    ]
-  },
-  {
     "text": "Message",
     "files": [
       "views/swaps.js"
@@ -6210,7 +6210,7 @@
     ]
   },
   {
-    "text": "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers should sit above the Merge allowance, and the metered backstop last.",
+    "text": "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers go first, the paid backstop last.",
     "files": [
       "views/me-admin.js"
     ]

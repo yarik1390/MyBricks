@@ -653,7 +653,14 @@ Newest first. (Service-worker `VERSION` in parentheses where relevant.)
   `omniroute (combo) → Merge flash-lite → Merge gpt-4o → OpenRouter pool →
   OpenAI gpt-4o-mini`. Admin LLM picker (`routes/admin.ts`) exposes the combo.
 
-**Merge Gateway + admin-tunable LLM routing (2026-08-19, v430)**
+**Merge Gateway REMOVED (2026-11-08).** Allowance gone and key revoked, so
+the provider is deleted end to end: no `lib/merge-gateway.ts`, no `merge` in
+`LLM_PROVIDERS` (stored steps naming it are dropped on read), no allowance card,
+`/api/admin/llm-status` and `/llm-routing/refresh-models` are gone, no
+`MERGE_GATEWAY_API_KEY` / `MERGE_MONTHLY_BUDGET_USD`, and the Merge benchmark
+workflows were deleted. The history below is kept for context only.
+
+**Merge Gateway + admin-tunable LLM routing (2026-08-19, v430; Merge part obsolete)**
 - **Merge Gateway runs in parallel with OpenRouter.** OpenAI-compatible at
   `https://api-gateway.merge.dev/v1/openai`, key `mg_...` in
   `MERGE_GATEWAY_API_KEY`, so it reuses the same `new OpenAI({ baseURL })`

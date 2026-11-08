@@ -21,8 +21,11 @@ import { WORKERS_AI_SCAN_MODEL, workersAiConfigured } from './workers-ai';
 // ---------------------------------------------------------------------------
 
 /** Providers a route step can name. */
-export type LlmProvider = 'gemini' | 'opencodex' | 'merge' | 'openrouter' | 'openai' | 'workersai' | 'groq';
-export const LLM_PROVIDERS: LlmProvider[] = ['gemini', 'opencodex', 'merge', 'openrouter', 'openai', 'workersai', 'groq'];
+// Merge Gateway was removed entirely on 2026-11-08 (allowance gone, key
+// revoked). A stored step that still names 'merge' is not a known provider any
+// more, so mergeSteps() drops it on read and the console never shows it.
+export type LlmProvider = 'gemini' | 'opencodex' | 'openrouter' | 'openai' | 'workersai' | 'groq';
+export const LLM_PROVIDERS: LlmProvider[] = ['gemini', 'opencodex', 'openrouter', 'openai', 'workersai', 'groq'];
 
 /** Groq free-tier vision model for scans (OpenAI-compatible API, no training on API data). */
 export const GROQ_SCAN_MODEL = 'qwen/qwen3.8-27b';
@@ -81,19 +84,16 @@ export const DEFAULT_LLM_ROUTES: Record<LlmWorkload, RouteStep[]> = {
   ],
   advisor: [
     { provider: 'gemini', model: MODELS.advisor, enabled: true },
-    { provider: 'merge', model: 'openai/gpt-4o-mini', enabled: true },
     { provider: 'openai', model: MODELS.openaiFallback, enabled: true },
   ],
   valuation: [
     { provider: 'gemini', model: MODELS.valuation, enabled: true },
     { provider: 'openrouter', model: '', enabled: true },
-    { provider: 'merge', model: 'openai/gpt-4o-mini', enabled: true },
     { provider: 'openrouter', model: MODELS.openrouterPaid, enabled: true },
     { provider: 'openai', model: MODELS.openaiFallback, enabled: true },
   ],
   listing: [
     { provider: 'gemini', model: MODELS.listing, enabled: true },
-    { provider: 'merge', model: 'openai/gpt-4o-mini', enabled: true },
     { provider: 'openai', model: MODELS.openaiFallback, enabled: true },
   ],
 };
@@ -134,7 +134,6 @@ const RETIRED_SCAN_MODELS = new Set([
   // Production scan-diagnose runs showed these consume the full per-step budget
   // without returning a usable identification. Stored admin routing outlives
   // code-default changes, so active occurrences are filtered at read time.
-  'merge:openai/gpt-5.6-luna',
   'gemini:gemini-3.6-flash',
   // The pinned Antigravity model was deprecated upstream ("Gemini 3.5 Flash is
   // no longer available"); superseded by the brickvault-scan-vision combo.
@@ -150,7 +149,7 @@ const RETIRED_SCAN_MODELS = new Set([
  * privacy reasons. Stored routing outlives code defaults, so these providers
  * are stripped at read time.
  */
-const SCAN_EXCLUDED_PROVIDERS = new Set<string>(['merge', 'openai', 'opencodex', 'openrouter']);
+const SCAN_EXCLUDED_PROVIDERS = new Set<string>(['openai', 'opencodex', 'openrouter']);
 
 function stripExcludedScanProviders(stored: unknown): unknown {
   if (!Array.isArray(stored)) return stored;
@@ -163,7 +162,12 @@ function stripExcludedScanProviders(stored: unknown): unknown {
 
 function staleProductionScanGeneration(stored: unknown): number {
   if (!Array.isArray(stored)) return 0;
-  const normalized = mergeSteps('scan', stored);
+  // Compared on the RAW stored steps: these generations name 'merge', which
+  // mergeSteps() would already have dropped as an unknown provider.
+  const normalized = stored.filter((raw) => raw && typeof raw === 'object').map((raw) => {
+    const { provider, model, enabled } = raw as Record<string, unknown>;
+    return { provider: String(provider), model: typeof model === 'string' ? model.trim() : '', enabled: enabled !== false };
+  });
   const generations = [
     [
       'merge:google/gemini-3.5-flash-lite:true',
@@ -250,7 +254,6 @@ export function providerConfigured(env: Env, provider: LlmProvider): boolean {
   switch (provider) {
     case 'gemini': return !!env.GEMINI_API_KEY;
     case 'opencodex': return openCodexConfigured(env);
-    case 'merge': return !!(env.MERGE_GATEWAY_API_KEY ?? '').trim();
     case 'openrouter': return !!env.OPENROUTER_API_KEY;
     case 'openai': return !!env.OPENAI_API_KEY;
     case 'workersai': return workersAiConfigured(env);

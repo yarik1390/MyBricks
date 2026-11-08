@@ -1509,7 +1509,7 @@ export const ui = {
   "The store is not ready. You can continue setup and try again from Settings.": "De Store is nog niet klaar. Je kunt de installatie voortzetten en het opnieuw proberen vanuit Instellingen.",
   "LLM Routing": "LLM-routering",
   "Loading LLM routing...": "LLM-routering laden…",
-  "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers should sit above the Merge allowance, and the metered backstop last.": "Bepaal de volgorde van providers die elke AI-taak probeert. Stappen lopen van boven naar beneden; de eerste die antwoordt wint. Gratis niveaus horen boven het Merge-tegoed, en de betaalde terugval als laatste.",
+  "Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers go first, the paid backstop last.": "Bepaal de volgorde van providers die elke AI-taak probeert. Stappen lopen van boven naar beneden; de eerste die antwoordt wint. Gratis niveaus eerst, de betaalde terugval als laatste.",
   "After you accept, agree on shipping or a meetup in the chat.": "Spreek na het accepteren verzending of een afspraak af in de chat.",
   "Block": "Blokkeren",
   "Call off": "Afzeggen",

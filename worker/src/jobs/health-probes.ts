@@ -12,14 +12,14 @@ import { configuredFirecrawlKeys, recoverFirecrawlKeys } from '../lib/firecrawl-
 // issue (and its routing block) by itself within a day.
 //
 // Not probed here: services with hourly real traffic (BrickLink, eBay, Bright
-// Data), the Merge gateway, whose only honest probe is a paid completion, and
-// Amazon, whose own job records every call once it is switched on.
+// Data) and Amazon, whose own job records every call once it is switched on.
 const PROBED: Array<{ test: string; service: IntegrationName }> = [
   { test: 'd1', service: 'd1' },
   { test: 'supabase', service: 'supabase' },
   { test: 'google', service: 'google' },
   { test: 'push', service: 'push' },
   { test: 'gemini', service: 'gemini' },
+  { test: 'groq', service: 'groq' },
   { test: 'openai', service: 'openai' },
   { test: 'openrouter', service: 'openrouter' },
   { test: 'opencodex', service: 'opencodex' },

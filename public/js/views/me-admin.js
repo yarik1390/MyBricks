@@ -1,4 +1,4 @@
-import { $, haptic, escapeHtml, toast, fmtMoney } from '../utils.js';
+import { $, haptic, escapeHtml, toast } from '../utils.js';
 import { state } from '../state.js';
 import { api } from '../api.js';
 import { I } from '../icons.js';
@@ -155,7 +155,7 @@ export async function renderMeAdmin() {
 
       <section class="admin-section" id="adminLlm">
         <h2 class="section-title">LLM Routing</h2>
-        <p class="admin-section-intro">Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers should sit above the Merge allowance, and the metered backstop last.</p>
+        <p class="admin-section-intro">Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers go first, the paid backstop last.</p>
         <div id="llmRoutingContainer" class="admin-panel" aria-live="polite">Loading LLM routing...</div>
       </section>
 
@@ -431,7 +431,6 @@ function wireAdminShell() {
   llmEl?.addEventListener('click', (event) => {
     if (event.target.closest('[data-llm-retry]')) return loadLlmRouting();
     if (event.target.closest('[data-llm-save]')) return saveLlmRouting();
-    if (event.target.closest('[data-llm-refresh-models]')) return refreshMergeModels();
     const reset = event.target.closest('[data-llm-reset]');
     if (reset) return resetLlmWorkload(reset.getAttribute('data-llm-reset'));
     const move = event.target.closest('[data-llm-move]');
@@ -1581,7 +1580,7 @@ function recommendedQualityAction(cards) {
 let llmData = null;
 let llmDirty = false;
 const LLM_PROVIDER_LABEL = {
-  gemini: 'Gemini', opencodex: 'OpenCodex', merge: 'Merge', openrouter: 'OpenRouter', openai: 'OpenAI', workersai: 'Workers AI', groq: 'Groq',
+  gemini: 'Gemini', opencodex: 'OpenCodex', openrouter: 'OpenRouter', openai: 'OpenAI', workersai: 'Workers AI', groq: 'Groq',
 };
 const LLM_CUSTOM = '__custom__';
 
@@ -1590,11 +1589,8 @@ async function loadLlmRouting() {
   if (!container) return;
   container.setAttribute('aria-busy', 'true');
   try {
-    const [routing, status] = await Promise.all([
-      api('/api/admin/llm-routing'),
-      api('/api/admin/llm-status'),
-    ]);
-    llmData = { ...routing, status };
+    const routing = await api('/api/admin/llm-routing');
+    llmData = { ...routing };
     llmDirty = false;
     renderLlmRouting();
   } catch (error) {
@@ -1613,12 +1609,12 @@ async function loadLlmRouting() {
 // dropdown is scannable instead of one flat 40-item list.
 function llmModelGroups(provider) {
   const m = llmData?.models || {};
-  const flat = provider === 'merge' ? (m.merge || [])
-    : provider === 'opencodex' ? (m.opencodex || [])
+  const flat = provider === 'opencodex' ? (m.opencodex || [])
     : provider === 'openrouter' ? [...(m.openrouter_vision || []), ...(m.openrouter_text || [])]
     : provider === 'gemini' ? (m.gemini || [])
     : provider === 'openai' ? (m.openai || [])
-    : provider === 'workersai' ? (m.workersai || []) : [];
+    : provider === 'workersai' ? (m.workersai || [])
+    : provider === 'groq' ? (m.groq || []) : [];
   const groups = new Map();
   for (const id of [...new Set(flat)]) {
     const vendor = id.includes('/') ? id.slice(0, id.indexOf('/')) : t('admin.llmModelsOther');
@@ -1718,28 +1714,6 @@ function renderLlmRouting() {
   const container = $('#llmRoutingContainer');
   if (!container || !llmData) return;
   const configuredBy = Object.fromEntries((llmData.providers || []).map(p => [p.name, p.configured]));
-  const merge = llmData.status?.merge || {};
-  const tone = merge.status === 'over' ? 'danger' : merge.status === 'warn' ? 'warn' : 'ok';
-  const pct = Math.min(100, Math.max(0, Number(merge.pct) || 0));
-
-  // The bar fills with SPEND, so an untouched allowance reads as an empty bar
-  // rather than a full one that looks broken. The headline states both numbers
-  // so "remaining" and "spent" can never be read the wrong way round.
-  const balance = `
-    <div class="llm-balance ${tone}">
-      <div class="llm-balance-head">
-        <span class="llm-balance-label">${escapeHtml(t('admin.llmMergeBalance'))}</span>
-        <span class="llm-balance-figure">${fmtMoney(merge.remaining_usd || 0)}</span>
-      </div>
-      <div class="llm-balance-bar" role="img" aria-label="${escapeHtml(t('admin.llmSpentOf', { spent: fmtMoney(merge.spent_usd || 0), budget: fmtMoney(merge.budget_usd || 0) }))}">
-        <span style="width:${pct}%"></span>
-      </div>
-      <div class="llm-balance-foot">
-        <small>${escapeHtml(t('admin.llmSpentOf', { spent: fmtMoney(merge.spent_usd || 0), budget: fmtMoney(merge.budget_usd || 0) }))}</small>
-        <small class="llm-balance-note">${escapeHtml(t('admin.llmMeteredNote'))}</small>
-      </div>
-    </div>`;
-
   const workloads = (llmData.workloads || []).map((workload) => {
     const steps = llmData.routes?.[workload] || [];
     const live = (llmData.effective?.[workload] || [])
@@ -1763,10 +1737,8 @@ function renderLlmRouting() {
   }).join('');
 
   container.innerHTML = `
-    ${balance}
     <div class="llm-workloads">${workloads}</div>
     <div class="llm-actions">
-      <button type="button" class="btn-secondary" data-llm-refresh-models>${escapeHtml(t('admin.llmRefreshModels'))}</button>
       <button type="button" class="btn-secondary" data-llm-retry>${escapeHtml(t('admin.llmReload'))}</button>
     </div>
     ${llmDirty ? `
@@ -1817,16 +1789,6 @@ async function saveLlmRouting() {
     await loadLlmRouting();
   } catch (error) {
     toast(error?.message || t('admin.llmSaveFailed'), 'error');
-  }
-}
-
-async function refreshMergeModels() {
-  try {
-    const res = await api('/api/admin/llm-routing/refresh-models', { method: 'POST' });
-    toast(tPlural('admin.llmModelsRefreshed', res.count || 0), 'success');
-    await loadLlmRouting();
-  } catch (error) {
-    toast(error?.message || t('admin.llmModelsFailed'), 'error');
   }
 }
 

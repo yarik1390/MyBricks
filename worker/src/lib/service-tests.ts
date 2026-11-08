@@ -3,7 +3,6 @@ import { fetchSetPricing } from './bricklink';
 import { fetchEbayActiveListings } from './ebay';
 import { configuredFirecrawlKeys, isCreditExhaustion } from './firecrawl-keys';
 import { configuredBrightDataTokens, brightDataEnabled } from './brightdata-keys';
-import { recordAiUsage } from './ai-usage';
 import { openCodexClient } from './opencodex';
 import { firebasePushConfigured, probeFirebaseAccess } from './firebase-push';
 
@@ -81,43 +80,6 @@ const PROBES: Record<string, Probe> = {
       const j = JSON.parse(r.text) as { status?: string };
       return j.status === 'success' ? ok('checkKey: success') : err(`checkKey: ${j.status ?? r.text.slice(0, 80)}`);
     } catch { return err(`HTTP ${r.status}: ${r.text.slice(0, 100)}`); }
-  },
-
-  // Merge Gateway: a REAL round trip, not a reachability ping. It sends the
-  // cheapest possible completion through the same OpenAI-compatible surface the
-  // cascades use, then reports whether `usage.cost` came back — because that
-  // field is what the whole budget meter is derived from, and a silently
-  // missing cost would leave the console reading $0.00 spent forever.
-  async merge(env) {
-    const key = (env.MERGE_GATEWAY_API_KEY ?? '').trim();
-    if (!key) return configured('MERGE_GATEWAY_API_KEY not set');
-    const r = await http('POST', 'https://api-gateway.merge.dev/v1/openai/chat/completions', {
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'openai/gpt-4o-mini',
-        max_tokens: 1,
-        messages: [{ role: 'user', content: 'ping' }],
-      }),
-    });
-    if (r.status === 402) return err('HTTP 402 — the monthly allowance or a hard budget is exhausted');
-    if (r.status === 401 || r.status === 403) return err(`HTTP ${r.status} — key rejected`);
-    if (r.status !== 200) return err(`HTTP ${r.status}: ${r.text.slice(0, 120)}`);
-    try {
-      const j = JSON.parse(r.text) as {
-        model?: string;
-        usage?: { cost?: number; prompt_tokens?: number; completion_tokens?: number };
-      };
-      const cost = j.usage?.cost;
-      // The probe spends real money, so it must land in the ledger like any
-      // other call. Leaving it out would make the meter quietly under-report
-      // by one call per deploy — small, but the meter's whole value is that it
-      // accounts for everything.
-      await recordAiUsage(env, 'merge', j.model ?? 'openai/gpt-4o-mini', j.usage ?? null, cost ?? null)
-        .catch(() => undefined);
-      return typeof cost === 'number'
-        ? ok(`completion ok via ${j.model ?? 'gpt-4o-mini'}; reported cost $${cost.toFixed(6)}`)
-        : err('completion ok but usage.cost is missing — the budget meter would under-report spend');
-    } catch { return err(`unparseable response: ${r.text.slice(0, 100)}`); }
   },
 
   async brickinsights() {
@@ -227,6 +189,15 @@ const PROBES: Record<string, Probe> = {
   async gemini(env) {
     if (!env.GEMINI_API_KEY) return configured('GEMINI_API_KEY not set');
     const r = await http('GET', `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(String(env.GEMINI_API_KEY))}`, { timeoutMs: 12000 });
+    return r.status === 200 ? ok('key valid, models listed') : err(`HTTP ${r.status}: ${r.text.slice(0, 120)}`);
+  },
+
+  // Groq: free key check (model list, no tokens), so Admin has same-day
+  // evidence for the scan step even on days nobody's scan reaches it.
+  async groq(env) {
+    const key = (env.GROQ_API_KEY ?? '').trim();
+    if (!key) return configured('GROQ_API_KEY not set');
+    const r = await http('GET', 'https://api.groq.com/openai/v1/models', { headers: { Authorization: `Bearer ${key}` }, timeoutMs: 12000 });
     return r.status === 200 ? ok('key valid, models listed') : err(`HTTP ${r.status}: ${r.text.slice(0, 120)}`);
   },
 

@@ -440,7 +440,6 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          MERGE_GATEWAY_API_KEY: ${{ secrets.MERGE_GATEWAY_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           AI_GATEWAY_TOKEN: ${{ secrets.AI_GATEWAY_TOKEN }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
@@ -482,12 +481,6 @@ jobs:
           put_optional GOOGLE_CLIENT_SECRET "${GOOGLE_CLIENT_SECRET}"
           put_optional GEMINI_API_KEY "${GEMINI_API_KEY}"
           put_optional GROQ_API_KEY "${GROQ_API_KEY}"
-          # Merge Gateway: second LLM gateway alongside OpenRouter. Optional —
-          # every workload's route skips an unkeyed provider at runtime.
-          # The monthly allowance is NOT here: it is a plain [vars] entry in
-          # wrangler.toml. As a secret it was masked to `$***` in deploy logs,
-          # and a secret would shadow the var if both existed.
-          put_optional MERGE_GATEWAY_API_KEY "${MERGE_GATEWAY_API_KEY}"
           # NOTE: OPENROUTER_API_KEY is currently set DIRECTLY as a Cloudflare
           # Worker secret, not here. The -n guard makes this line a no-op while
           # the GitHub secret is unset, so a push_secrets run cannot clobber the
@@ -664,30 +657,14 @@ jobs:
           curl -sf "${WORKER_URL}/api/admin/llm-routing" \
             -H "Authorization: Bearer ${ADMIN_JWT}" \
             | jq -e '[.effective[] | length] | min > 0' >/dev/null
-          # Merge: report configured state and month-to-date spend so the deploy
-          # log carries the allowance reading. Never fails the deploy — Merge is
-          # optional and every route skips an unkeyed provider.
-          curl -s "${WORKER_URL}/api/admin/llm-status" \
-            -H "Authorization: Bearer ${ADMIN_JWT}" \
-            | jq -r '"Merge: configured=\(.merge.configured) spent=$\(.merge.spent_usd) of $\(.merge.budget_usd) (\(.merge.calls) calls)"' || true
-          # End-to-end Merge canary: a REAL one-token completion through the same
-          # OpenAI-compatible surface the cascades use. This is the only check
-          # that proves the key works AND that `usage.cost` comes back — the
-          # field the entire budget meter is derived from. It costs a fraction
-          # of a cent against the monthly allowance, which is worth paying to
-          # catch a dead key or a silently missing cost field at deploy time
-          # rather than from a console reading $0.00 forever. Non-fatal: Merge
-          # is optional and every route skips a provider that cannot answer.
-          curl -s -X POST "${WORKER_URL}/api/admin/test/merge" \
-            -H "Authorization: Bearer ${ADMIN_JWT}" \
-            | jq -r '"Merge probe: \(.status // "unknown") — \(.detail // "no detail")"' || true
-          # Refresh Merge's model catalog and report what it actually serves.
-          # /v1/models is undocumented, so this doubles as the standing check
-          # that the console's model picker has real data behind it rather than
-          # a silently empty list. Free (no completion) and non-fatal.
-          curl -s -X POST "${WORKER_URL}/api/admin/llm-routing/refresh-models" \
-            -H "Authorization: Bearer ${ADMIN_JWT}" \
-            | jq -r 'if .ok then "Merge catalog: \(.count) models; gpt-5.6=\([.models[] | select(test("gpt-5\\.6"))] | join(",") // "none")" else "Merge catalog: \(.error)" end' || true
+          # AI key canaries: free key checks (model list, no tokens) for the
+          # scan providers, so a rejected GEMINI_API_KEY or GROQ_API_KEY shows
+          # up in the deploy log instead of only in Admin. Non-fatal.
+          for svc in gemini groq; do
+            curl -s -X POST "${WORKER_URL}/api/admin/test/${svc}" \
+              -H "Authorization: Bearer ${ADMIN_JWT}" \
+              | jq -r --arg s "$svc" '"\($s) probe: \(.status // "unknown") — \(.detail // "no detail")"' || true
+          done
 
       # Population is opt-in: dispatch with populate=true. It used to fire on
       # EVERY workflow_dispatch (so every push_secrets run re-populated), and
