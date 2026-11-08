@@ -19,6 +19,7 @@ import { appIconAvailable, getAppIcon, setAppIcon, syncAppIconWithPro } from '..
 import { openLegalSheet } from '../components/legal-sheet.js';
 import { openFeedbackSheet } from '../components/feedback.js';
 import { canRateApp, rateApp, shareApp } from '../lib/rate-share.js';
+import { openByokSheet, aiTrialLabel } from '../components/byok-sheet.js';
 import { topbar, iconBtn, icon, row, group, sheetBody, btn, toggle, seg, banner } from '../ui/kit.js';
 
 // The picker shows each language in its OWN language — "German" is no help to
@@ -109,6 +110,7 @@ function pageHTML(me) {
     row({ icon: 'lock', title: t('bvAccount.appLock'), trail: t('bvAccount.off'), id: 'appLockRow', attrs: { hidden: true } }),
   ].join('');
   const data = [
+    guest ? '' : row({ icon: 'sparkles', title: t('byok.profileRow'), sub: aiTrialLabel(me), id: 'byokRow' }),
     row({ icon: 'plug', title: t('bvAccount.integrations'), sub: t('bvAccount.integrationsSub'), href: '#/me/integrations' }),
     row({ icon: 'db', title: t('bvAccount.importExport'), sub: t('bvAccount.importExportSub'), href: '#/me/data' }),
     guest ? '' : row({ icon: 'shield', title: t('bvAccount.insurance'), sub: t('bvAccount.insuranceSub'), href: '#/me/insurance' }),
@@ -216,6 +218,7 @@ function wire(me, shelf) {
   }).catch(() => {});
 
   $("#feedbackRow")?.addEventListener("click", () => { haptic("light"); openFeedbackSheet(location.hash); });
+  $("#byokRow")?.addEventListener("click", () => { haptic("light"); openByokSheet({ ended: me.ai_trial?.active === false }); });
   $("#replayTourRow")?.addEventListener("click", () => { haptic("light"); startOnboarding(); });
   $("#rateAppRow")?.addEventListener("click", async () => {
     haptic("light");

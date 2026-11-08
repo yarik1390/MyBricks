@@ -1,3 +1,4 @@
+import { spendQuotaFailClosed } from './api-quota';
 import OpenAI from 'openai';
 import type { Env } from '../types';
 import { MODELS, geminiUrl, openAIServerBaseURL, gatewayHeaders } from './llm';
@@ -103,7 +104,11 @@ export async function gradeBox(
   if (keys.gemini) steps.push(['gemini', () => viaGemini(env, keys.gemini as string, image, prompt, false)]);
   if (keys.openai) steps.push(['openai', () => viaOpenAI(env, keys.openai as string, image, prompt, false)]);
   if (!steps.length) {
-    if (env.GEMINI_API_KEY) steps.push(['gemini', () => viaGemini(env, env.GEMINI_API_KEY as string, image, prompt, true)]);
+    if (env.GEMINI_API_KEY) {
+      steps.push(['gemini', async () => (await spendQuotaFailClosed(env, 'gemini_paid'))
+        ? viaGemini(env, env.GEMINI_API_KEY as string, image, prompt, true)
+        : null]);
+    }
     if (env.OPENAI_API_KEY) steps.push(['openai', () => viaOpenAI(env, env.OPENAI_API_KEY as string, image, prompt, true)]);
   }
   for (const [provider, run] of steps) {

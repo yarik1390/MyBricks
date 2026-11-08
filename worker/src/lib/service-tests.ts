@@ -188,8 +188,16 @@ const PROBES: Record<string, Probe> = {
 
   async gemini(env) {
     if (!env.GEMINI_API_KEY) return configured('GEMINI_API_KEY not set');
-    const r = await http('GET', `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(String(env.GEMINI_API_KEY))}`, { timeoutMs: 12000 });
-    return r.status === 200 ? ok('key valid, models listed') : err(`HTTP ${r.status}: ${r.text.slice(0, 120)}`);
+    // A one-token generation, not just a model list: on 2026-11-07 the key
+    // listed models fine while every real generateContent call got HTTP 401,
+    // so the list check reported healthy and cleared the routing pause. Costs
+    // a few input tokens (well under $0.0001).
+    const r = await http('POST', `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent`, {
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': String(env.GEMINI_API_KEY) },
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'ping' }] }], generationConfig: { maxOutputTokens: 1 } }),
+      timeoutMs: 12000,
+    });
+    return r.status === 200 ? ok('key valid, generation works') : err(`HTTP ${r.status}: ${r.text.slice(0, 160)}`);
   },
 
   // Groq: free key check (model list, no tokens), so Admin has same-day

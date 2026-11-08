@@ -30,6 +30,7 @@ import {
   getFreshAmazonOffer,
 } from '../lib/amazon';
 import { hasProAccess } from '../lib/early-access';
+import { aiAccess, byokRequiredBody } from '../lib/ai-access';
 
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -999,6 +1000,10 @@ app.post('/:setnum/listing-draft', requireMember, async (c) => {
   // Rate limit the SERVER-key path only (BYOK bypasses) so a user can't loop the
   // shared OpenAI key for free — mirrors /advisor, /scan, /revalue. Atomic
   // increment+read (RETURNING) closes the read-after-write race.
+  {
+    const access = await aiAccess(c.env, userId, 'listing', !!(c.req.header('X-Gemini-Key') || c.req.header('X-OpenAI-Key')));
+    if (access.mode === 'blocked') return c.json(byokRequiredBody('listing'), 402);
+  }
   if (!c.req.header('X-Gemini-Key') && !c.req.header('X-OpenAI-Key')) {
     const LISTING_DRAFT_DAILY_LIMIT = 30;
     const dws = new Date(); dws.setHours(0, 0, 0, 0);

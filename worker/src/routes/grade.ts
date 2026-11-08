@@ -3,6 +3,7 @@ import { requireMember } from '../auth';
 import type { Env, Variables } from '../types';
 import { GRADE_PRICE_SHARE, gradeBox } from '../lib/box-grade';
 import { hasProAccess } from '../lib/early-access';
+import { aiAccess, byokRequiredBody } from '../lib/ai-access';
 
 // Box condition grading (mounted at /api/grade).
 //
@@ -24,6 +25,8 @@ app.post('/box', async (c) => {
   const geminiKey = c.req.header('X-Gemini-Key') || null;
   const openaiKey = c.req.header('X-OpenAI-Key') || null;
   if (!geminiKey && !openaiKey) {
+    const access = await aiAccess(c.env, userId, 'grade', false);
+    if (access.mode === 'blocked') return c.json(byokRequiredBody('grade'), 402);
     const pref = await c.env.DB.prepare('SELECT is_supporter FROM user_prefs WHERE user_id = ?')
       .bind(userId).first<{ is_supporter: number }>().catch(() => null);
     if (!hasProAccess(c.env, pref?.is_supporter)) return c.json({ error: 'Box grading comes with Pro.', code: 'pro_required' }, 402);

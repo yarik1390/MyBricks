@@ -7,6 +7,7 @@ import { hashPin, verifyPin } from '../lib/kids-xp';
 import { holdingValueForRollout } from '../lib/market-sources';
 import { leaveHousehold } from './family';
 import { hasProAccess } from '../lib/early-access';
+import { readAiTrial } from '../lib/ai-access';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -81,7 +82,7 @@ app.get('/', async (c) => {
   const userEmail = c.get('userEmail');
   const db = c.env.DB;
 
-  const [prefs, holdings, kidsBadgesRows] = await Promise.all([
+  const [prefs, holdings, kidsBadgesRows, aiTrial] = await Promise.all([
     // Explicit projection (not SELECT *): only the columns this response reads.
     // Deliberately excludes google_refresh_token / google_spreadsheet_id (OAuth
     // credentials) and other columns the client never needs.
@@ -106,6 +107,7 @@ app.get('/', async (c) => {
     `).bind(userId).all<Record<string, unknown>>(),
     db.prepare('SELECT badge_slug FROM kids_badges WHERE user_id=?')
       .bind(userId).all<{ badge_slug: string }>(),
+    readAiTrial(c.env, userId),
   ]);
   const rolloutPercent = Number(c.env.PRICING_V3_READ_PERCENT || 0);
   const holdingRows = holdings.results || [];
@@ -165,6 +167,8 @@ app.get('/', async (c) => {
     // gates features on this and keeps is_supporter for paid-only cosmetics.
     pro_access: hasProAccess(c.env, p.is_supporter === 1),
     early_access_pro: hasProAccess(c.env, false),
+    // BYOK-first AI: the shared-key trial for this account (lib/ai-access.ts).
+    ai_trial: aiTrial,
     has_kids_pin: !!(p.kids_pin_hash),
     kids_xp: Number(p.kids_xp ?? 0),
     kids_level: Number(p.kids_level ?? 1),

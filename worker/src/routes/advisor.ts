@@ -11,6 +11,8 @@ import { openAiCompatibleStep } from '../lib/llm-clients';
 import { recordAiUsage } from '../lib/ai-usage';
 import type { Env, Variables } from '../types';
 import { hasProAccess } from '../lib/early-access';
+import { aiAccess, byokRequiredBody } from '../lib/ai-access';
+import { spendQuotaFailClosed } from '../lib/api-quota';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -110,6 +112,11 @@ app.post('/', async (c) => {
   if (!geminiKey && !openaiKey && !c.env.OPENAI_API_KEY) {
     return c.json({ error: 'OpenAI is not configured. Add your own Gemini or OpenAI key in Settings.' }, 500);
   }
+
+  // BYOK-first: past the new-account trial the shared keys stop answering
+  // the advisor; the app turns this code into the "add your key" sheet.
+  const access = await aiAccess(c.env, userId, 'advisor', !!(geminiKey || openaiKey));
+  if (access.mode === 'blocked') return c.json(byokRequiredBody('advisor'), 402);
 
   // Rate limit for server-key path only (BYOK bypasses it).
   if (!geminiKey && !openaiKey) {
@@ -230,6 +237,8 @@ ${context}`;
           lastProvider = step.provider;
           try {
             if (step.provider === 'gemini') {
+              // Billed server key: shared daily cap across all users.
+              if (!(await spendQuotaFailClosed(c.env, 'gemini_paid'))) continue;
               emitted = await streamGeminiAdvisor(c.env, step.model, systemPrompt, q, send);
             } else {
               const { client, models } = await openAiCompatibleStep(c.env, step, meta, 'text');

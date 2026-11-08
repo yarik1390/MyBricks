@@ -59,6 +59,11 @@ export const QUOTA_CAPS: Record<string, number> = {
   // 10,000 Neurons/day; a Gemma 4 photo scan is ~15-35, a shelf scan more. 250
   // calls keeps the worst case under the free line, so this step never bills.
   workersai: 250,
+  // Shared PAID Gemini key (scans, advisor, listing drafts, past the free
+  // providers). About $0.001 a call, so 1,500 a day caps the bill near $1.50 a
+  // day across ALL users, whatever the per-account limits. Google-side quota
+  // on the key is the hard stop behind this. BYOK calls never count here.
+  gemini_paid: 1500,
 };
 
 // Admin-tunable daily-cap overrides (lib/source-config.ts), keyed by service.

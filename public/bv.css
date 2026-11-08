@@ -2690,3 +2690,18 @@ body.bv-fullscreen #root > .boot-wel ~ .page { display: none; }
 /* Collection room: walking out through the vault door hides the controls. */
 .bv-room.is-leaving .bv-room-bottom,
 .bv-room.is-leaving .showroom-crosshair { opacity: 0; pointer-events: none; transition: opacity .3s ease; }
+
+/* "Add your free Gemini key" sheet (components/byok-sheet.js). */
+.byok-sheet { padding: 0 4px 8px; }
+.byok-status { margin: 0 4px 10px; font-size: 13px; font-weight: 600; color: var(--bv-mute); }
+.byok-lead { margin: 0 4px 12px; line-height: 1.45; }
+.byok-steps { margin: 0 4px 14px; padding-left: 20px; line-height: 1.5; }
+.byok-steps li + li { margin-top: 4px; }
+.byok-open { display: flex; width: 100%; justify-content: center; margin-bottom: 12px; text-decoration: none; }
+.byok-field { display: block; margin-bottom: 10px; }
+.byok-field input { width: 100%; box-sizing: border-box; }
+.byok-remember { display: flex; align-items: center; gap: 8px; margin: 0 4px 12px; font-size: 14px; }
+.byok-error { margin: 0 4px 10px; color: var(--bv-neg, #c0392b); font-size: 14px; }
+.byok-actions { display: flex; flex-direction: column; gap: 8px; }
+.byok-actions .bv-btn { width: 100%; }
+.byok-privacy { margin: 14px 4px 0; font-size: 12px; line-height: 1.45; color: var(--bv-mute); }
