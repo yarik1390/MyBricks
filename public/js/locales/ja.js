@@ -738,6 +738,8 @@ export const ja = {
     nQuietRange: '{start} – {end}',
     nQuiet: 'おやすみ時間',
     nDigestSub: '日曜の朝にメール · 価値の変化と注目の動き',
+    emailAlerts: 'メール通知',
+    emailAlertsSub: 'アラートと週間サマリーをメールで',
     nDigest: '週間サマリー',
     nStockSub: 'LEGO.comで注文可能になったほしい物',
     nStock: '再入荷',

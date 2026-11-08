@@ -738,6 +738,8 @@ export const nl = {
     nQuietRange: '{start} – {end}',
     nQuiet: 'Stille uren',
     nDigestSub: 'Zondagochtend per e-mail · waardeverandering en stijgers',
+    emailAlerts: 'E-mailmeldingen',
+    emailAlertsSub: 'Meldingen en weekoverzicht per e-mail',
     nDigest: 'Weekoverzicht',
     nStockSub: 'Verlanglijstsets te bestellen bij LEGO.com',
     nStock: 'Weer op voorraad',

@@ -66,7 +66,7 @@ describe('runDbHygiene', () => {
     expect(left!.n).toBe(20);
   });
 
-  it('backfills retail_price from brickset_msrp/be_retail and heals formula rows that wildly disagree', async () => {
+  it('backfills retail_price from brickset_msrp only (never be_retail) and heals formula rows that wildly disagree', async () => {
     await db.batch([
       db.prepare(`INSERT INTO lego_sets (set_num, name, retail_price, brickset_msrp, be_retail) VALUES ('A-1','A', NULL, 49.99, NULL)`),
       db.prepare(`INSERT INTO lego_sets (set_num, name, retail_price, brickset_msrp, be_retail) VALUES ('B-1','B', NULL, NULL, 30)`),
@@ -81,11 +81,11 @@ describe('runDbHygiene', () => {
 
     const r = await runDbHygiene(env as any);
 
-    expect(r.retailBackfilled).toBe(3);
+    expect(r.retailBackfilled).toBe(2);
     const rows = await db.prepare(`SELECT set_num, retail_price FROM lego_sets ORDER BY set_num`).all<{ set_num: string; retail_price: number }>();
     expect(rows.results).toEqual([
       { set_num: 'A-1', retail_price: 49.99 }, // from brickset_msrp
-      { set_num: 'B-1', retail_price: 30 },    // from be_retail (COALESCE fallback)
+      { set_num: 'B-1', retail_price: null },  // be_retail is never copied
       { set_num: 'C-1', retail_price: 999 },   // formula placeholder healed from MSRP
       { set_num: 'D-1', retail_price: 10 },    // non-formula valuation — untouched
       { set_num: 'E-1', retail_price: 60 },    // formula but plausible — untouched

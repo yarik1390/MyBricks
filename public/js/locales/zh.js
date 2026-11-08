@@ -738,6 +738,8 @@ export const zh = {
     nQuietRange: '{start} – {end}',
     nQuiet: '免打扰时段',
     nDigestSub: '周日上午邮件 · 价值变化与涨跌榜',
+    emailAlerts: '邮件提醒',
+    emailAlertsSub: '通过邮件接收提醒和每周摘要',
     nDigest: '每周摘要',
     nStockSub: '心愿单套装可在 LEGO.com 下单时',
     nStock: '重新有货',

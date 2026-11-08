@@ -264,7 +264,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         user_id TEXT PRIMARY KEY, handle TEXT, display_name TEXT, currency TEXT DEFAULT 'USD', retail_market TEXT DEFAULT 'FR',
         notify_price_drops INTEGER DEFAULT 1, notify_weekly_digest INTEGER DEFAULT 0, is_public INTEGER NOT NULL DEFAULT 0,
         notify_sell_targets INTEGER, notify_big_moves INTEGER, notify_retiring INTEGER, notify_back_in_stock INTEGER,
-        quiet_hours INTEGER DEFAULT 0, quiet_start INTEGER DEFAULT 22, quiet_end INTEGER DEFAULT 8, timezone TEXT,
+        quiet_hours INTEGER DEFAULT 0, quiet_start INTEGER DEFAULT 22, quiet_end INTEGER DEFAULT 8, timezone TEXT, email_off_at TEXT,
         expose_public_value INTEGER NOT NULL DEFAULT 1,
         google_refresh_token TEXT, google_spreadsheet_id TEXT,
         email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT, rebrickable_user_token TEXT,
@@ -2509,7 +2509,7 @@ describe('DB hygiene job', () => {
     expect(remaining?.n).toBe(20);
   });
 
-  it('backfills retail_price from brickset_msrp / be_retail without clobbering a real retail', async () => {
+  it('backfills retail_price from brickset_msrp (never be_retail) without clobbering a real retail', async () => {
     const db = (env as any).DB as D1Database;
     const { runDbHygiene } = await import('./jobs/db-hygiene');
     await db.batch([
@@ -2520,12 +2520,12 @@ describe('DB hygiene job', () => {
     ]);
 
     const result = await runDbHygiene(env as any);
-    expect(result.retailBackfilled).toBe(2);
+    expect(result.retailBackfilled).toBe(1);
 
     const rows = await db.prepare('SELECT set_num, retail_price FROM lego_sets ORDER BY set_num').all<{ set_num: string; retail_price: number | null }>();
     const byNum = Object.fromEntries(rows.results.map(r => [r.set_num, r.retail_price]));
     expect(byNum['A-1']).toBeCloseTo(49.99, 2);
-    expect(byNum['B-1']).toBeCloseTo(120, 2);
+    expect(byNum['B-1']).toBe(0); // the stored BrickEconomy retail is never copied
     expect(byNum['C-1']).toBeCloseTo(200, 2); // not clobbered
     expect(byNum['D-1']).toBeNull();
   });

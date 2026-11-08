@@ -40,6 +40,8 @@ export interface Env {
    *  move new links to a custom domain. The legacy origin keeps working for
    *  CORS either way — see lib/app-url.ts. */
   APP_BASE_URL?: string;
+  /** Optional override for this Worker's public origin (email unsubscribe links). */
+  API_PUBLIC_URL?: string;
   BRICKSET_API_KEY: string;
   /** Set to "0" for an emergency rollback; enabled for ordinary shared scans by default. */
   BRICKOGNIZE_ENABLED?: string;

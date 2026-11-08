@@ -100,7 +100,8 @@ async function loadAlertPrefs(env: Env, userIds: string[]): Promise<Map<string, 
     if (!chunk.length) continue;
     const ph = chunk.map(() => '?').join(',');
     const { results } = await env.DB.prepare(
-      `SELECT user_id, email, discord_webhook_url, notify_price_drops,
+      // email is NULL once the user unsubscribed from alert emails.
+      `SELECT user_id, CASE WHEN email_off_at IS NULL THEN email END AS email, discord_webhook_url, notify_price_drops,
               notify_sell_targets, notify_big_moves, notify_retiring, notify_back_in_stock,
               quiet_hours, quiet_start, quiet_end, timezone
        FROM user_prefs WHERE user_id IN (${ph})`
@@ -198,7 +199,7 @@ export async function runWishlistAlerts(env: Env) {
     for (const row of rows) {
       if (prefs.email && env.RESEND_API_KEY) {
         const html = alertEmailHTML('drop', emailSet(row, row.current_value), { targetPrice: row.target_price, merchant: row.buy_merchant }, appBaseUrl(env));
-        sendAlertEmail(prefs.email, `${row.set_name} hit your target price`, html, env).catch(() => {});
+        sendAlertEmail(prefs.email, `${row.set_name} hit your target price`, html, env, userId).catch(() => {});
       }
       const at = row.buy_merchant ? ` at ${row.buy_merchant}` : '';
       if (prefs.discord_webhook_url) {
@@ -295,7 +296,7 @@ async function runSpikeAlerts(env: Env): Promise<{ fired: number }> {
     for (const row of rows) {
       if (prefs.email && env.RESEND_API_KEY) {
         const html = alertEmailHTML('spike', emailSet(row, row.current_value), { purchasePrice: row.purchase_price }, appBaseUrl(env));
-        sendAlertEmail(prefs.email, `${row.set_name} is up +30% — spike alert`, html, env).catch(() => {});
+        sendAlertEmail(prefs.email, `${row.set_name} is up +30% — spike alert`, html, env, userId).catch(() => {});
       }
       if (prefs.discord_webhook_url) {
         const fmt = (n: number) => `$${n.toFixed(2)}`;
@@ -467,7 +468,7 @@ async function runRetirementAlerts(env: Env): Promise<{ fired: number }> {
       const cv = Number(row.current_value) || 0;
       if (prefs.email && env.RESEND_API_KEY) {
         const html = alertEmailHTML('retiring', emailSet(row, cv), { exitDate: row.exit_date }, appBaseUrl(env));
-        sendAlertEmail(prefs.email, `${row.set_name} is retiring soon`, html, env).catch(() => {});
+        sendAlertEmail(prefs.email, `${row.set_name} is retiring soon`, html, env, userId).catch(() => {});
       }
       if (prefs.discord_webhook_url) {
         sendDiscordAlert(prefs.discord_webhook_url, {
@@ -540,7 +541,7 @@ async function runDealAlerts(env: Env): Promise<{ fired: number }> {
       const pctStr = Number.isFinite(pct) && pct >= 1 ? `~${Math.round(pct)}% below market` : 'below market';
       if (prefs.email && env.RESEND_API_KEY) {
         const html = alertEmailHTML('deal', emailSet(row, mv), { discountPct: row.deal_discount_pct }, appBaseUrl(env));
-        sendAlertEmail(prefs.email, `Buy window: ${row.set_name}`, html, env).catch(() => {});
+        sendAlertEmail(prefs.email, `Buy window: ${row.set_name}`, html, env, userId).catch(() => {});
       }
       if (prefs.discord_webhook_url) {
         sendDiscordAlert(prefs.discord_webhook_url, {
@@ -611,7 +612,7 @@ async function runPreorderAlerts(env: Env): Promise<{ fired: number }> {
       const label = row.lego_availability === 'coming_soon' ? 'coming soon' : 'available to pre-order';
       if (prefs.email && env.RESEND_API_KEY) {
         const html = alertEmailHTML('preorder', emailSet(row, Number(row.current_value) || 0), { availability: row.lego_availability }, appBaseUrl(env));
-        sendAlertEmail(prefs.email, `${row.set_name} is ${label}`, html, env).catch(() => {});
+        sendAlertEmail(prefs.email, `${row.set_name} is ${label}`, html, env, userId).catch(() => {});
       }
       if (prefs.discord_webhook_url) {
         sendDiscordAlert(prefs.discord_webhook_url, {

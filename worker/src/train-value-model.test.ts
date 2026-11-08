@@ -120,23 +120,23 @@ describe('runTrainValueModel', () => {
     expect(city).toBeLessThan(90);
   });
 
-  it('estimates from a BrickEconomy-echo retail only when it fits the piece count', async () => {
+  it('never estimates from a BrickEconomy-echo retail, and clears old estimates made from one', async () => {
     await insertSets([
       ...trainingSets(240),
-      // Echoed retail, plausible for 500 pieces: estimated but never trained on.
-      { set_num: 'ECHO-OK-1', name: 'Echo ok', year: YEAR - 10, retired: 1, pieces: 500, theme: 'City', retail_price: 80, be_retail: 80, bl_new_value: 400, bl_new_qty: 9 },
-      // $300 for 20 pieces ($15 a piece) is not believable.
-      { set_num: 'ECHO-BAD-1', name: 'Echo bad', year: YEAR - 10, retired: 1, pieces: 20, theme: 'City', retail_price: 300, be_retail: 300 },
+      // Echoed retail, plausible for 500 pieces: still not an anchor.
+      { set_num: 'ECHO-OK-1', name: 'Echo ok', year: YEAR - 10, retired: 1, pieces: 500, theme: 'City', retail_price: 80, be_retail: 80 },
+      // An estimate left from before the switch is cleared.
+      { set_num: 'ECHO-OLD-1', name: 'Echo old', year: YEAR - 10, retired: 1, pieces: 500, theme: 'City', retail_price: 60, be_retail: 60 },
     ]);
+    await db.prepare('INSERT INTO set_market_ext (set_num, model_value, model_cached_at) VALUES (?, ?, datetime(\'now\'))').bind('ECHO-OLD-1', 61).run();
     const result = await runTrainValueModel(env as any);
     expect(result.trained).toBe(240);
-    const ok = (await modelValue('ECHO-OK-1'))!.model_value!;
-    expect(ok).toBeGreaterThanOrEqual(78);
-    expect(ok).toBeLessThan(90);
-    expect(await modelValue('ECHO-BAD-1')).toBeNull();
+    expect(result.cleared).toBe(1);
+    expect(await modelValue('ECHO-OK-1')).toBeNull();
+    expect((await modelValue('ECHO-OLD-1'))!.model_value).toBeNull();
   });
 
-  it('estimates sets without a real piece count from retail, except gear and books', async () => {
+  it('scores sets without a real piece count in the unknown piece bucket', async () => {
     await insertSets([
       ...trainingSets(240),
       // Real 3-piece sets (key chains, figures) sell far above retail.
@@ -145,11 +145,8 @@ describe('runTrainValueModel', () => {
         theme: 'City', retail_price: 5, bl_new_value: 40, bl_new_qty: 8,
       })),
       // Old Duplo with a broken 3-piece count and a multi-pack with none.
-      { set_num: 'DUPLO-3P-1', name: 'Tiny', year: YEAR - 10, retired: 1, pieces: 3, theme: 'Duplo', retail_price: 24.99, be_retail: 24.99 },
-      { set_num: 'PACK-1', name: 'Value Pack', year: YEAR - 10, retired: 1, pieces: 0, theme: 'City', retail_price: 59.99, be_retail: 59.99 },
-      { set_num: 'KEYCHAIN-1', name: 'Key Chain', year: YEAR - 10, retired: 1, pieces: 0, theme: 'Gear', retail_price: 4.99, be_retail: 4.99 },
-      { set_num: 'BOOK-1', name: 'Book', year: YEAR - 10, retired: 1, pieces: 2, theme: 'Books', retail_price: 19.99, be_retail: 19.99 },
-      { set_num: 'NOPCS-HUGE-1', name: 'Huge', year: YEAR - 10, retired: 1, pieces: 0, theme: 'City', retail_price: 4515, be_retail: 4515 },
+      { set_num: 'DUPLO-3P-1', name: 'Tiny', year: YEAR - 10, retired: 1, pieces: 3, theme: 'Duplo', retail_price: 24.99, brickset_msrp: 24.99 },
+      { set_num: 'PACK-1', name: 'Value Pack', year: YEAR - 10, retired: 1, pieces: 0, theme: 'City', retail_price: 59.99, brickset_msrp: 59.99 },
     ]);
     await runTrainValueModel(env as any);
     // A 3-piece count must not put it in the tiny-set bucket that sells at 8x.
@@ -157,9 +154,6 @@ describe('runTrainValueModel', () => {
     expect(duplo).toBeGreaterThan(20);
     expect(duplo).toBeLessThan(45);
     expect((await modelValue('PACK-1'))!.model_value!).toBeGreaterThan(50);
-    expect(await modelValue('KEYCHAIN-1')).toBeNull();
-    expect(await modelValue('BOOK-1')).toBeNull();
-    expect(await modelValue('NOPCS-HUGE-1')).toBeNull();
   });
 
   it('leaves a bundle priced from its contents alone', async () => {

@@ -25,7 +25,7 @@ export async function runWeeklyDigest(env: Env) {
   // Opted-in users with a snapshot this week. week_ago falls back to the
   // OLDEST snapshot in the window so brand-new users still get a sane delta.
   const { results: users } = await env.DB.prepare(`
-    SELECT p.user_id, p.email,
+    SELECT p.user_id, CASE WHEN p.email_off_at IS NULL THEN p.email END AS email,
       (SELECT total_value FROM portfolio_snapshots s WHERE s.user_id = p.user_id ORDER BY snapshot_date DESC LIMIT 1) AS now_value,
       (SELECT set_count  FROM portfolio_snapshots s WHERE s.user_id = p.user_id ORDER BY snapshot_date DESC LIMIT 1) AS set_count,
       (SELECT total_value FROM portfolio_snapshots s WHERE s.user_id = p.user_id AND s.snapshot_date >= date('now','-8 days') ORDER BY snapshot_date ASC LIMIT 1) AS week_ago_value
@@ -85,7 +85,7 @@ export async function runWeeklyDigest(env: Env) {
         mover: mover ? { setNum: mover.set_num, name: mover.name, delta: mover.delta, imageUrl: mover.image_url } : null,
         wishlistDrops: drops?.n ?? 0,
       }, appBaseUrl(env));
-      sendAlertEmail(u.email, 'Your weekly vault digest', html, env).catch(() => {});
+      sendAlertEmail(u.email, 'Your weekly vault digest', html, env, u.user_id).catch(() => {});
     }
     sent++;
   }

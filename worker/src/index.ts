@@ -274,6 +274,8 @@ import { questsRoute } from './routes/quests'; app.route('/api/quests', questsRo
 import { familyRoute } from './routes/family'; app.route('/api/family', familyRoute);
 import { swapsRoute } from './routes/swaps'; app.route('/api/swaps', swapsRoute);
 import { feedbackRoute } from './routes/feedback'; app.route('/api/feedback', feedbackRoute);
+// PUBLIC (signed per-user token, no login): one-click email unsubscribe.
+import { emailRoute } from './routes/email'; app.route('/api/email', emailRoute);
 import { kidsRoute } from './routes/kids'; app.route('/api/kids', kidsRoute);
 app.route('/api/game', gameRoute);
 app.route('/api/contributions', contributionsRoute);

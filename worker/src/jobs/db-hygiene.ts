@@ -61,21 +61,23 @@ export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, 
   // already have but never copied into it — the brickset-enrich cron historically
   // wrote brickset_msrp only, leaving retail_price null so ROI/discount math fell
   // back to estimates. Pure D1, idempotent, bounded (drains over a few nights).
+  // Brickset MSRP only: the stored BrickEconomy retail (be_retail) is unlicensed
+  // and no longer copied into retail_price (legal review, 2026-11-08).
   let retailBackfilled = 0;
   try {
     const fix = await env.DB.prepare(`
-      UPDATE lego_sets SET retail_price = COALESCE(brickset_msrp, be_retail)
+      UPDATE lego_sets SET retail_price = brickset_msrp
       WHERE set_num IN (
         SELECT set_num FROM lego_sets
-        WHERE COALESCE(brickset_msrp, be_retail) > 0
+        WHERE brickset_msrp > 0
           AND (
             retail_price IS NULL OR retail_price <= 0
             -- Formula-valued rows (imported with pieces=0 etc.) can carry a
             -- nonsense retail like $9.90 on an $800 set; when an authoritative
             -- MSRP disagrees by more than 2x either way, the MSRP wins.
             OR (valuation_method LIKE 'formula%' AND (
-                 retail_price * 2 < COALESCE(brickset_msrp, be_retail)
-              OR retail_price > COALESCE(brickset_msrp, be_retail) * 2))
+                 retail_price * 2 < brickset_msrp
+              OR retail_price > brickset_msrp * 2))
           )
         LIMIT 5000
       )

@@ -334,8 +334,9 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
       const f = formulaValuation({
         pieces: set.pieces, year: set.year, theme: set.theme, retired: !!set.retired, minifigs: set.minifigs,
         // Real RRP drives the empirical age curve; far better than the synthesised
-        // piece-count MSRP, and available for ~99.99% of formula-priced sets.
-        retailPrice: set.retail_price || set.brickset_msrp || null,
+        // piece-count MSRP. A retail that only echoes the stored BrickEconomy
+        // scrape is not used (unlicensed, legal review 2026-11-08).
+        retailPrice: independentRetailAnchor(set),
       });
       pricing = { current_value: f.current_value };
       valMethod = 'formula_bulk';

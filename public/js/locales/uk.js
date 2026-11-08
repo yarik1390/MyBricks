@@ -836,6 +836,8 @@ export const uk = {
     nQuietRange: '{start} – {end}',
     nQuiet: 'Тихі години',
     nDigestSub: 'Лист у неділю зранку · зміна вартості та лідери',
+    emailAlerts: 'Сповіщення поштою',
+    emailAlertsSub: 'Сповіщення і щотижневий підсумок на пошту',
     nDigest: 'Щотижневий огляд',
     nStockSub: 'Набори з бажаного, доступні до замовлення на LEGO.com',
     nStock: 'Знову в наявності',

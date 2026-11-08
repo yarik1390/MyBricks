@@ -42,14 +42,14 @@
       if (sk) sk.href = '/skin-' + activeSkin + '.css';
     }
 
-    // Google Fonts, loaded NON-render-blocking (media="print" → "all" once loaded).
-    // The font CSS already uses display=swap, so text paints immediately in a
-    // fallback and swaps in when the web fonts arrive — no FCP/LCP hit from the
-    // cross-origin font chain. Programmatic listener (no inline handler) keeps it
-    // CSP-compliant.
+    // Web fonts, self-hosted under /fonts (no request to Google, so no visitor
+    // IP goes to a third party; legal review 2026-11-08). Loaded NON-render-
+    // blocking (media="print" → "all" once loaded); the @font-face rules use
+    // font-display: swap, so text paints at once in a fallback face. The
+    // programmatic listener (no inline handler) keeps it CSP-compliant.
     var f = document.createElement('link');
     f.rel = 'stylesheet';
-    f.href = 'https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Geist:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Spectral:wght@400;500;600&family=Baloo+2:wght@500;600;700;800&display=swap';
+    f.href = '/fonts/fonts-v1.css';
     f.media = 'print';
     f.addEventListener('load', function () { this.media = 'all'; });
     document.head.appendChild(f);

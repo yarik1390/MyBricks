@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = "v644";
+const VERSION = "v645";
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 // Cross-origin product images live in their own UNVERSIONED, bounded cache:
@@ -16,6 +16,9 @@ const IMG_CACHE_MAX = 1800;
 // force web users to re-download it. Filled on-demand (cache-first), not
 // precached. The native app serves it straight from the APK bundle regardless.
 const DATA_CACHE = 'brickvault-data-v1';
+// Self-hosted web fonts (/fonts/*) never change in place, so they live in their
+// own UNVERSIONED cache, served cache-first: a VERSION bump doesn't refetch them.
+const FONT_CACHE = 'brickvault-fonts-v1';
 const STATIC_ASSETS = [
   '/',
   '/app.css',
@@ -256,7 +259,7 @@ self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
       .then(keys => Promise.all(
-        keys.filter(k => k !== STATIC_CACHE && k !== API_CACHE && k !== IMG_CACHE && k !== DATA_CACHE).map(k => caches.delete(k))
+        keys.filter(k => k !== STATIC_CACHE && k !== API_CACHE && k !== IMG_CACHE && k !== DATA_CACHE && k !== FONT_CACHE).map(k => caches.delete(k))
       ))
       .then(() => self.clients.claim())
   );
@@ -321,6 +324,12 @@ self.addEventListener('fetch', e => {
     return;
   }
 
+  // Self-hosted fonts: immutable files (a changed stylesheet gets a new name,
+  // fonts-v2.css), cache-first in their own unversioned cache.
+  if (url.origin === self.location.origin && url.pathname.startsWith('/fonts/')) {
+    e.respondWith(cacheFirst(request, FONT_CACHE));
+    return;
+  }
   // Bundled offline seed catalog — large + rarely-changing, so cache-first in
   // its own unversioned cache (never re-downloaded on a VERSION bump).
   if (url.origin === self.location.origin && url.pathname === '/data/seed-catalog.json') {
@@ -334,11 +343,8 @@ self.addEventListener('fetch', e => {
   // natively so no cache/SW state can serve stale data or break a request.
   if (url.pathname.startsWith('/api/')) return;
 
-  // Cross-origin (e.g. Rebrickable CDN images, fonts) — cache-first, opaque OK.
+  // Cross-origin (e.g. Rebrickable CDN images) — cache-first, opaque OK.
   if (url.origin !== self.location.origin) {
-    if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
-      return;
-    }
     // AI model downloads are multi-GB — cloning them into Cache Storage OOMs
     // mobile devices (they stream straight to OPFS instead). Let the browser
     // fetch natively, bypassing the SW cache entirely.
