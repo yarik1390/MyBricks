@@ -74,6 +74,12 @@ const NEWS_QUERIES = [
   'new LEGO sets officially revealed',
   'upcoming LEGO sets announced with release date and price',
   'LEGO sets leaving LEGO.com, last chance to buy',
+  // Added 2026-11-09 (credits moved from the per-set lookups, which found 1 date in 60).
+  'LEGO retiring sets list by theme: Star Wars, Technic, Icons, Ideas, Harry Potter',
+  'LEGO sets confirmed retiring next year',
+  'LEGO new sets January 2027 first look',
+  'LEGO new sets revealed this week with set numbers and prices',
+  'LEGO sets discontinued, final months on sale',
 ];
 
 const NEWS_SCHEMA = {

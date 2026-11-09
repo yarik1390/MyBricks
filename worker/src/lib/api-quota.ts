@@ -39,7 +39,7 @@ export const QUOTA_CAPS: Record<string, number> = {
   decodo: 300,
   // ZenRows requests (free plan 5,000 credits/month, 1 per plain request).
   zenrows: 150,
-  // Exa searches (lib/exa.ts): ~5 news searches + ~20 per-set lookups a day,
+  // Exa searches (lib/exa.ts): 10 news searches + 3 per-set lookups a day,
   // about $0.01 each, so a month stays inside the free $10 of credits.
   exa: 30,
   // Amazon Creators API searchItems calls (plus ~1 token mint/hour). The API is
