@@ -82,7 +82,7 @@ describe('Exa jobs', () => {
       .mockImplementation(async () => empty());
 
     const r = await runExaNewsScan(withKey, { now: new Date() }) as unknown as Record<string, number>;
-    expect(r.searches).toBe(5);
+    expect(r.searches).toBe(10);
     expect(r.rescored).toBe(1);
     const set = await db.prepare(`SELECT retirement_risk_score AS risk FROM lego_sets WHERE set_num='75301-1'`).first<{ risk: number }>();
     expect(set?.risk).toBe(70); // two sites (40) + a retirement date within 6 months (30)

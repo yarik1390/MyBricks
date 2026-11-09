@@ -558,8 +558,9 @@ export default {
       // scrapes don't share the :15 image-prewarm invocation's subrequests.
       case '20 * * * *': await run('set-image-backfill', () => runSetImageBackfill(env, { probeLimit: 150, resolveLimit: 40, scrapeLimit: 12 })); break;
       case '0 22 * * *':
-        // Exa: expected retirement dates for active sets that have none.
-        await run('exa-retirement-lookups', () => runExaRetirementLookups(env, { limit: 20 }));
+        // Exa: expected retirement dates for active sets that have none. Kept
+        // small (1 hit in 60 tries, 2026-11-09); the news scan gets the credits.
+        await run('exa-retirement-lookups', () => runExaRetirementLookups(env, { limit: 3 }));
         await run('community-comps', () => runCommunityComps(env));
         // Second LEGO.com stock pass, Bright Data first: uses the monthly
         // Bright Data allowance that otherwise expires (2026-10-27).
