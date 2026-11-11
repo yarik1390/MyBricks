@@ -1,4 +1,4 @@
-// bricksvault.app/s/:set: link preview for a set (see og/og-page.js).
-import { handleShareLink } from '../../og/og-page.js';
+// bricksvault.app/s/:set: crawlable set page for everyone (see og/set-page.js).
+import { handleSetPage } from '../../og/set-page.js';
 
-export const onRequestGet = (context) => handleShareLink('s', context);
+export const onRequestGet = (context) => handleSetPage(context);
