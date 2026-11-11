@@ -3,7 +3,7 @@
 // code. Data: /api/family (worker/src/routes/family.ts).
 import { $, escapeHtml, fmtMoney, toast, haptic, proxyImg, setBtnLoading } from '../utils.js';
 import { api } from '../api.js';
-import { t } from '../lib/i18n.js';
+import { t, tPlural } from '../lib/i18n.js';
 import { topbar, btn, pill, field, card, skeletonRows } from '../ui/kit.js';
 import { confirmSheet } from '../components/sheet.js';
 import { shareContent } from '../lib/native-share.js';
@@ -26,10 +26,13 @@ function setupHTML() {
       ${btn('Join', { kind: 'tonal', id: 'famJoin', full: true })}`, { cls: 'bv-family__card' })}`;
 }
 
-function memberHTML(m, owner) {
+function memberHTML(m, owner, i) {
+  const initial = String(m.name || '?').trim().charAt(0).toUpperCase() || '?';
   return `<li class="bv-family__member">
-    <span class="bv-family__who">${escapeHtml(m.name)} ${m.role === 'owner' ? pill('Owner', 'info') : ''}</span>
-    <span class="bv-family__stat bv-num">${escapeHtml(t('family.memberStat', { sets: m.sets, value: fmtMoney(m.value) }))}</span>
+    <span class="dp-av${i % 2 ? ' b' : ''}" aria-hidden="true">${escapeHtml(initial)}</span>
+    <span class="dp-famwho"><span class="bv-family__who">${escapeHtml(m.name)} ${m.role === 'owner' ? pill('Owner', 'info') : ''}</span>
+    <span class="bv-family__stat">${escapeHtml(tPlural('bvVault.footSets', Number(m.sets) || 0))}</span></span>
+    <span class="dp-famval bv-num">${escapeHtml(fmtMoney(m.value, { cents: 0 }))}</span>
     ${owner && !m.is_me ? `<button type="button" class="bv-btn bv-btn--text bv-btn--sm" data-fam-remove="${Number(m.member_id)}" aria-label="${escapeHtml(t('family.removeMember', { name: m.name }))}">Remove</button>` : ''}
   </li>`;
 }
@@ -42,7 +45,7 @@ function setHTML(s) {
         <span class="bv-family__setname">${escapeHtml(s.name || s.set_num)}</span>
         <span class="bv-family__owners">${s.owners.map((o) => escapeHtml(o.quantity > 1 ? `${o.name} ×${o.quantity}` : o.name)).join(', ')}</span>
       </span>
-      <span class="bv-family__value bv-num">${escapeHtml(fmtMoney(s.value))}</span>
+      <span class="bv-family__value bv-num">${escapeHtml(fmtMoney(s.value, { cents: 0 }))}</span>
     </a>
   </li>`;
 }
@@ -52,11 +55,11 @@ function familyHTML(data) {
   const owner = h.role === 'owner';
   const sets = filter === 'shared' ? data.vault.sets.filter((s) => s.owners.length > 1) : data.vault.sets;
   return `${card(`<div class="bv-family__totals">
-        <div><span class="bv-family__label">Family value</span><span class="bv-family__big bv-num">${escapeHtml(fmtMoney(data.vault.total_value))}</span></div>
+        <div><span class="bv-family__label">Family value</span><span class="bv-family__big bv-num">${escapeHtml(fmtMoney(data.vault.total_value, { cents: 0 }))}</span></div>
         <div><span class="bv-family__label">Sets</span><span class="bv-family__big bv-num">${Number(data.vault.total_sets)}</span></div>
       </div>`, { cls: 'bv-family__card' })}
     <h2 class="bv-h2">Members</h2>
-    <ul class="bv-family__members">${data.members.map((m) => memberHTML(m, owner)).join('')}</ul>
+    <ul class="bv-family__members">${data.members.map((m, i) => memberHTML(m, owner, i)).join('')}</ul>
     ${card(`<span class="bv-family__label">Invite code</span>
       <div class="bv-family__code"><span class="bv-num" id="famInvite">${escapeHtml(h.invite_code)}</span>
         ${btn('Share', { kind: 'tonal', size: 'sm', icon: 'share', id: 'famShare' })}</div>

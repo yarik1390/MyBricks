@@ -70,7 +70,7 @@ function leaderRow(l, sort, mine) {
     : `<span class="bv-lbrow__val">${escapeHtml(sort === 'sets' ? num(l.set_count) : value)}</span>`;
   const star = l.is_supporter ? `<span class="bv-lbrow__pro" title="${escapeHtml(t('bvCommunity.pro'))}">${icon('star', { size: 14, stroke: 2.4 })}<span class="bv-sr">${escapeHtml(t('bvCommunity.pro'))}</span></span>` : '';
   return `<a class="bv-lbrow lb-row${mine ? ' is-me' : ''}" href="#/u/${encodeURIComponent(l.handle)}">
-    <span class="bv-lbrow__rank${top ? ' is-top' : ''}">${l.rank}</span>
+    <span class="bv-lbrow__rank${top ? ' is-top' : ''}" data-rank="${Number(l.rank)}">${l.rank}</span>
     <span class="bv-avatar" aria-hidden="true">${escapeHtml(initial(l.handle))}</span>
     <span class="bv-lbrow__text"><span class="bv-lbrow__handle">@${escapeHtml(l.handle)}${star}${mine ? ` ${pill(t('bvCommunity.you'), 'acc')}` : ''}</span><span class="bv-lbrow__sub">${escapeHtml(sub)}</span></span>
     ${trail}

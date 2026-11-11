@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg, capturedMoneyContext, advisorEnabled } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtShortDate, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg, capturedMoneyContext, advisorEnabled } from '../utils.js';
 import { goBackOr } from '../lib/nav-history.js';
 import { installHeroScrim } from '../lib/hero-scrim.js';
 import { icon as kitIcon, iconBtn as kitIconBtn, row as kitRow, seg as kitSeg, field as kitField, pill as kitPill, delta as kitDelta, topbar as kitTopbar, emptyState as kitEmptyState, sheetBody as kitSheetBody, brickSvg as kitBrick } from '../ui/kit.js';
@@ -1575,6 +1575,7 @@ function historyTabHTML(set) {
       <div class="bv-histcard__head"><span class="bv-num bv-histcard__value">${v > 0 ? escapeHtml(money0(v)) : "—"}</span><span id="histDelta"></span></div>
       <p class="bv-label spark-movement" id="setMovementSummary" hidden></p>
       <div class="bv-chart no-tab-swipe"><div class="spark-wrap" id="setSpark"></div><span class="bv-chart__mark" id="histBought" hidden><span class="bv-chart__marklabel"></span></span></div>
+      <div class="dp-xlab" id="setSparkAxis" aria-hidden="true" hidden></div>
       <div class="spark-legend" id="setSparkLegend"></div>
     </section>
     ${isKidsMode() ? "" : whatIfHTML(set, v, forecastProjection(set))}
@@ -2511,6 +2512,8 @@ async function loadSetHistory(setNum, days = 365, entry = null) {
     el.style.height = "";
     if (markEl) markEl.hidden = true;
     if (movementEl) movementEl.hidden = true;
+    const axisReset = $("#setSparkAxis");
+    if (axisReset) axisReset.hidden = true;
     if (hist.length >= 2) {
       const movement = priceMovementSummary(hist);
       if (movement && movementEl) {
@@ -2530,6 +2533,19 @@ async function loadSetHistory(setNum, days = 365, entry = null) {
         { key: "ebay_value", color: "var(--bv-yellow-dark)", dash: "5 4", label: t('detail.historyResale') },
       ].filter(s => hasPts(s.key));
       drawSparkline(el, hist, { up, series });
+      // Axis labels: the plotted high and low, and the dates the chart spans.
+      const plotted = hist.flatMap(h => ["current_value", ...series.map(x => x.key)].map(k => Number(h?.[k]))).filter(v => v > 0);
+      if (plotted.length) {
+        el.classList.add("dp-axis");
+        el.insertAdjacentHTML("beforeend", `<span class="dp-ylab dp-ylab--hi" aria-hidden="true">${escapeHtml(money0(Math.max(...plotted)))}</span><span class="dp-ylab dp-ylab--lo" aria-hidden="true">${escapeHtml(money0(Math.min(...plotted)))}</span>`);
+      }
+      const axisEl = $("#setSparkAxis");
+      if (axisEl) {
+        const mid = hist[Math.floor((hist.length - 1) / 2)];
+        const day = (h) => escapeHtml(fmtShortDate(String(h.snapshot_date || "")));
+        axisEl.innerHTML = `<span>${day(hist[0])}</span>${hist.length > 2 ? `<span>${day(mid)}</span>` : ""}<span>${escapeHtml(t("dp.today"))}</span>`;
+        axisEl.hidden = false;
+      }
       const legendEl = $("#setSparkLegend");
       if (legendEl) {
         legendEl.innerHTML = [{ color: up ? "var(--up)" : "var(--down)", dash: "", label: t('detail.historyValue') }, ...series]
