@@ -126,5 +126,7 @@ describe('Crack the Brickvault mini-game', () => {
       (/const STATIC_PREFIX\s*=\s*['"]\/js['"]/.test(sw) && /\$\{STATIC_PREFIX\}\/vendor\/three-0\.185\.1\.min\.js/.test(sw)),
       'the local Three.js module must be represented in STATIC_ASSETS',
     );
+    // three-0.185.1.min.js imports ./three.core.min.js — without it the 3D scene breaks offline.
+    assert.ok(sw.includes("'/js/vendor/three.core.min.js'"), 'three.core.min.js must be precached alongside three.min.js');
   });
 });

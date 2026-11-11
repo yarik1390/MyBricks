@@ -104,22 +104,18 @@ From the repo root (frontend pure helpers):
 node --test public/js/__tests__/pure.test.js   # node:test — must pass
 ```
 
-**Backend tests** (`worker/src/*.test.ts`): 3 files, 48 tests.
-- `index.test.ts` — CORS, OAuth, rate limits, validation, ETag, collection CRUD
-- `routes.test.ts` — me, wishlist, profile, collection export/history, admin health
-- `lib.test.ts` — `computeRetirementRisk`, `formulaValuation` pure logic
+**Backend tests** (`worker/src/**/*.test.ts`): ~115 Vitest files (cloudflare pool).
+Each suite builds its own D1 schema (see `worker/src/test-schema.ts` and the
+`beforeEach` setups) — the test schema is hand-maintained, so update it when a
+route needs a new column. Mock `openai` and supply a mock `ExecutionContext`
+(so `waitUntil` background tasks don't throw); existing suites show the pattern.
 
-Each suite builds its own D1 schema in `beforeEach` — the test schema is
-hand-maintained, so update it when a route needs a new column. Mock `openai`
-and supply a mock `ExecutionContext` (so `waitUntil` background tasks don't
-throw) — all three test files show the pattern.
-
-**Frontend tests** (`public/js/__tests__/pure.test.js`): 36 tests.
-- Covers: `escapeHtml`, `fmtPct`, `clamp`, `themeHue`, `bricklinkBuyURL`,
-  `computeDealScore`, `annualizedROI`, `parseMarkdown` from `public/js/lib/pure.js`.
-- Uses Node's built-in `node:test` runner — no extra dependencies.
-- To add more: put new pure (no-DOM, no-state) helpers in `public/js/lib/pure.js`
-  and test them in `pure.test.js`.
+**Frontend tests:** `npm test` from the repo root runs the UI string checks,
+`scripts/__tests__/*.test.js` (static contracts: service worker precache, cron
+parity, Android, i18n…) and `public/js/__tests__/` (pure helpers, `node:test`).
+Put new pure (no-DOM, no-state) helpers in `public/js/lib/pure.js` and test
+them there. `scripts/__tests__/sw-asset-coverage.test.js` fails if a module
+under `public/js` is missing from `STATIC_ASSETS` in `public/sw.js`.
 
 ## Token-efficient command output (rtk)
 

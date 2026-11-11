@@ -1,5 +1,5 @@
 // Bump VERSION on every deploy that changes cached assets.
-const VERSION = "v646";
+const VERSION = "v647";
 const STATIC_CACHE = `brickvault-static-${VERSION}`;
 const API_CACHE = `brickvault-api-${VERSION}`;
 // Cross-origin product images live in their own UNVERSIONED, bounded cache:
@@ -82,6 +82,7 @@ const STATIC_ASSETS = [
   '/js/components/legal-sheet.js',
   '/js/components/empty-vault-brick-3d.js',
   '/js/vendor/three-0.185.1.min.js',
+  '/js/vendor/three.core.min.js',
   '/js/lib/pure-core.js',
   '/js/lib/pure.js',
   '/js/lib/money-input.js',
@@ -147,6 +148,7 @@ const STATIC_ASSETS = [
   '/js/lib/morphdom.js',
   '/js/lib/local-ai.js',
   '/js/lib/scan-ocr.js',
+  '/js/lib/sales-report.js',
   '/js/lib/advisor-local-ai.js',
   '/js/lib/provider-credentials.js',
   '/js/components/sheet.js',

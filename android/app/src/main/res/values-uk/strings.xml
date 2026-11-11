@@ -4,6 +4,12 @@
     <string name="widget_label">Вартість сховища</string>
     <string name="widget_open_app">Відкрийте застосунок</string>
     <string name="widget_open_to_sync">Відкрийте застосунок для синхронізації</string>
+    <plurals name="widget_sets_updated">
+        <item quantity="one">%1$d набір · оновлено %2$s</item>
+        <item quantity="few">%1$d набори · оновлено %2$s</item>
+        <item quantity="many">%1$d наборів · оновлено %2$s</item>
+        <item quantity="other">%1$d набору · оновлено %2$s</item>
+    </plurals>
     <string name="widget_scan">Сканувати</string>
     <string name="widget_search">Пошук</string>
     <string name="shortcut_scan_short">Сканувати набір</string>

@@ -17,6 +17,9 @@ import com.google.mlkit.vision.text.TextRecognition;
 import com.google.mlkit.vision.text.TextRecognizer;
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -29,6 +32,16 @@ import java.util.concurrent.TimeUnit;
 public class TextOcrPlugin extends Plugin {
     private static final int MAX_IMAGE_BYTES = 2_000_000;
     private static final long TIMEOUT_SECONDS = 3;
+    /** Longest side of the bitmap handed to ML Kit; larger stills are subsampled. */
+    static final int MAX_DECODE_SIDE = 2048;
+
+    // One OCR worker with a short queue: rapid retries can't spawn a thread
+    // each, and extra requests beyond the queue resolve empty right away.
+    private final ThreadPoolExecutor executor = new ThreadPoolExecutor(
+            1, 1, 30, TimeUnit.SECONDS, new ArrayBlockingQueue<>(2),
+            r -> new Thread(r, "bv-text-ocr"));
+    // Created lazily and only touched on the OCR worker thread.
+    private TextRecognizer recognizer;
 
     @PluginMethod
     public void isSupported(PluginCall call) {
@@ -40,7 +53,48 @@ public class TextOcrPlugin extends Plugin {
     @PluginMethod
     public void recognize(PluginCall call) {
         String image = call.getString("image", "");
-        new Thread(() -> recognizeBlocking(call, image == null ? "" : image), "bv-text-ocr").start();
+        try {
+            executor.execute(() -> recognizeBlocking(call, image == null ? "" : image));
+        } catch (RejectedExecutionException busy) {
+            call.resolve(emptyResult());
+        }
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        try {
+            executor.execute(() -> {
+                if (recognizer != null) {
+                    recognizer.close();
+                    recognizer = null;
+                }
+            });
+        } catch (RejectedExecutionException ignored) {
+            // Queue full: the process is going away; ML Kit is released with it.
+        }
+        executor.shutdown();
+        super.handleOnDestroy();
+    }
+
+    private static JSObject emptyResult() {
+        JSObject ret = new JSObject();
+        ret.put("texts", new JSArray());
+        ret.put("fullText", "");
+        return ret;
+    }
+
+    /**
+     * Power-of-two sample size so the decoded bitmap's longest side stays at
+     * or under maxSide. Returns 0 for invalid or absurd dimensions.
+     */
+    static int sampleSizeFor(int width, int height, int maxSide) {
+        if (width <= 0 || height <= 0) return 0;
+        long longSide = Math.max(width, height);
+        long shortSide = Math.min(width, height);
+        if (longSide / shortSide > 20) return 0; // not a photo of a box
+        int sample = 1;
+        while (longSide / sample > maxSide) sample *= 2;
+        return sample;
     }
 
     private void recognizeBlocking(PluginCall call, String image) {
@@ -55,7 +109,6 @@ public class TextOcrPlugin extends Plugin {
         }
 
         Bitmap bitmap = null;
-        TextRecognizer recognizer = null;
         try {
             int comma = image.indexOf(',');
             String base64 = comma >= 0 ? image.substring(comma + 1) : image;
@@ -72,13 +125,28 @@ public class TextOcrPlugin extends Plugin {
                 call.resolve(ret);
                 return;
             }
-            bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+            // A small JPEG can still declare huge dimensions; read the bounds
+            // first and subsample so decoding can never exhaust the heap.
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.length, bounds);
+            int sample = sampleSizeFor(bounds.outWidth, bounds.outHeight, MAX_DECODE_SIDE);
+            if (sample == 0) {
+                call.resolve(ret);
+                return;
+            }
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inSampleSize = sample;
+            opts.inPreferredConfig = Bitmap.Config.RGB_565;
+            bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, opts);
             if (bitmap == null) {
                 call.resolve(ret);
                 return;
             }
 
-            recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+            if (recognizer == null) {
+                recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+            }
             Text result = Tasks.await(
                     recognizer.process(InputImage.fromBitmap(bitmap, 0)),
                     TIMEOUT_SECONDS,
@@ -96,11 +164,10 @@ public class TextOcrPlugin extends Plugin {
             ret.put("texts", texts);
             ret.put("fullText", fullText);
             call.resolve(ret);
-        } catch (Exception ignored) {
+        } catch (Exception | OutOfMemoryError ignored) {
             call.resolve(ret);
         } finally {
             if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
-            if (recognizer != null) recognizer.close();
         }
     }
 }

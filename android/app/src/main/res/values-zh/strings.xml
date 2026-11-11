@@ -4,6 +4,9 @@
     <string name="widget_label">收藏总值</string>
     <string name="widget_open_app">打开应用</string>
     <string name="widget_open_to_sync">打开应用以同步</string>
+    <plurals name="widget_sets_updated">
+        <item quantity="other">%1$d 套 · %2$s 更新</item>
+    </plurals>
     <string name="widget_scan">扫描</string>
     <string name="widget_search">搜索</string>
     <string name="shortcut_scan_short">扫描套装</string>

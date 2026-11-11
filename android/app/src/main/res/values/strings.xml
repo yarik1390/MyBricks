@@ -9,6 +9,10 @@
     <string name="widget_label">Vault value</string>
     <string name="widget_open_app">Open the app</string>
     <string name="widget_open_to_sync">Open the app to sync</string>
+    <plurals name="widget_sets_updated">
+        <item quantity="one">%1$d set · updated %2$s</item>
+        <item quantity="other">%1$d sets · updated %2$s</item>
+    </plurals>
     <string name="widget_scan">Scan</string>
     <string name="widget_search">Search</string>
     <!-- Launcher shortcuts (long-press the app icon). -->

@@ -1,0 +1,54 @@
+name: Android unit tests
+
+# Runs the JVM/Robolectric tests under android/app/src/test on every PR and
+# push that touches native code. No secrets needed: without google-services.json
+# the push plugin is simply not applied.
+on:
+  pull_request:
+    paths:
+      - "android/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/android-unit-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - ".github/workflows/android-unit-tests.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: android-unit-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install workspace deps (Capacitor platform + plugins)
+        run: npm ci
+      - name: Sync Capacitor plugins into the Android project
+        run: npx cap sync android
+      - name: Unit tests
+        working-directory: android
+        run: ./gradlew testDebugUnitTest --no-daemon
+      - name: Upload test report
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-unit-test-report
+          path: android/app/build/reports/tests/
+          retention-days: 7

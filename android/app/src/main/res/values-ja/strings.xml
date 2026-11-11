@@ -4,6 +4,9 @@
     <string name="widget_label">コレクションの価値</string>
     <string name="widget_open_app">アプリを開く</string>
     <string name="widget_open_to_sync">アプリを開いて同期</string>
+    <plurals name="widget_sets_updated">
+        <item quantity="other">%1$d セット · %2$s 更新</item>
+    </plurals>
     <string name="widget_scan">スキャン</string>
     <string name="widget_search">検索</string>
     <string name="shortcut_scan_short">セットをスキャン</string>

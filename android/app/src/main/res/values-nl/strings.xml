@@ -4,6 +4,10 @@
     <string name="widget_label">Kluiswaarde</string>
     <string name="widget_open_app">Open de app</string>
     <string name="widget_open_to_sync">Open de app om te synchroniseren</string>
+    <plurals name="widget_sets_updated">
+        <item quantity="one">%1$d set · bijgewerkt %2$s</item>
+        <item quantity="other">%1$d sets · bijgewerkt %2$s</item>
+    </plurals>
     <string name="widget_scan">Scannen</string>
     <string name="widget_search">Zoeken</string>
     <string name="shortcut_scan_short">Set scannen</string>

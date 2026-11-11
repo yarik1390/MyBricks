@@ -1,5 +1,6 @@
 package app.bricksvault;
 
+import android.app.Activity;
 import android.graphics.Color;
 import android.content.Context;
 import android.view.Window;
@@ -28,8 +29,17 @@ public class SystemBarsPlugin extends Plugin {
         Context context = getContext();
         context.getSharedPreferences(PRIVACY_PREFS, Context.MODE_PRIVATE)
                 .edit().putBoolean(KEY_APP_LOCK, enabled).apply();
-        getActivity().runOnUiThread(() -> {
-            Window window = getActivity().getWindow();
+        Activity activity = getActivity();
+        if (activity == null) {
+            call.reject("No activity");
+            return;
+        }
+        activity.runOnUiThread(() -> {
+            Window window = usableWindow(activity);
+            if (window == null) {
+                call.reject("Activity unavailable");
+                return;
+            }
             if (enabled) {
                 window.addFlags(WindowManager.LayoutParams.FLAG_SECURE);
             } else {
@@ -53,8 +63,17 @@ public class SystemBarsPlugin extends Plugin {
             return;
         }
 
-        getActivity().runOnUiThread(() -> {
-            Window window = getActivity().getWindow();
+        Activity activity = getActivity();
+        if (activity == null) {
+            call.reject("No activity");
+            return;
+        }
+        activity.runOnUiThread(() -> {
+            Window window = usableWindow(activity);
+            if (window == null) {
+                call.reject("Activity unavailable");
+                return;
+            }
             // The app is edge-to-edge (MainActivity): the bars are transparent
             // and the strip behind them is the WINDOW background (OS DayNight
             // colors, not app theme). Paint it to match the app. No deprecated
@@ -74,5 +93,12 @@ public class SystemBarsPlugin extends Plugin {
             controller.setAppearanceLightNavigationBars(!lightIcons);
             call.resolve();
         });
+    }
+
+    /** The activity's window, or null once it is finishing/destroyed (theme
+     *  changes can race an app close; touching a dead window crashes). */
+    static Window usableWindow(Activity activity) {
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) return null;
+        return activity.getWindow();
     }
 }

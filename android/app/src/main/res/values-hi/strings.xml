@@ -4,6 +4,10 @@
     <string name="widget_label">तिजोरी का मूल्य</string>
     <string name="widget_open_app">ऐप खोलें</string>
     <string name="widget_open_to_sync">सिंक करने के लिए ऐप खोलें</string>
+    <plurals name="widget_sets_updated">
+        <item quantity="one">%1$d सेट · %2$s पर अपडेट</item>
+        <item quantity="other">%1$d सेट · %2$s पर अपडेट</item>
+    </plurals>
     <string name="widget_scan">स्कैन</string>
     <string name="widget_search">खोजें</string>
     <string name="shortcut_scan_short">सेट स्कैन करें</string>
