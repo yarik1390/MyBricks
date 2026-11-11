@@ -135,11 +135,11 @@ function scanOverlayHTML(mode, shelf = false) {
       <div class="bv-scan__hint" id="scanHint" role="status" aria-live="polite">${escapeHtml(picking ? t("bvAdd.howIdentify") : nativeHandoff ? t("bvAdd.opening") : scanHintText(mode, shelf))}</div>
       <div class="bv-scan__bottom">
         ${mode === "image" ? `
-          <button type="button" class="bv-scan__round" id="scanGalleryBtn" aria-label="${escapeHtml(t("bvAdd.gallery"))}">${kitIcon("photo")}</button>
+          <button type="button" class="bv-scan__round dp-tool" id="scanGalleryBtn" data-l="${escapeHtml(t("dp.gallery"))}" aria-label="${escapeHtml(t("bvAdd.gallery"))}">${kitIcon("photo")}</button>
           <button type="button" class="bv-scan__shutter" id="scanCapture" aria-label="${escapeHtml(t(shelf ? "bvAdd.captureShelf" : "bvAdd.capture"))}"></button>
           <input type="file" id="scanGalleryInput" accept="image/*"${shelf ? "" : " multiple"} hidden>`
         : `<span class="bv-scan__spacer"></span><span class="bv-scan__spacer bv-scan__spacer--wide"></span>`}
-        <button type="button" class="bv-scan__round" id="scanTypeBtn" aria-label="${escapeHtml(t("bvAdd.typeNumber"))}">${kitIcon("kbd")}</button>
+        <button type="button" class="bv-scan__round dp-tool" id="scanTypeBtn" data-l="${escapeHtml(t("dp.typeNumber"))}" aria-label="${escapeHtml(t("bvAdd.typeNumber"))}">${kitIcon("kbd")}</button>
       </div>
       <div class="bv-scan__fly" id="scanFly" aria-hidden="true"></div>
       <div class="bv-scan__sheet" id="scanResult" role="status" aria-live="polite"></div>
@@ -950,7 +950,7 @@ function clearScanResult({ restartCamera = false } = {}) {
     el.innerHTML = "";
   }
   const wrap = document.querySelector(".bv-scan");
-  wrap?.classList.remove("has-result", "has-captured-photo");
+  wrap?.classList.remove("has-result", "has-captured-photo", "dp-shelf-fit");
   clearSeekMarks(wrap);
   const preview = $("#scanPhotoPreview");
   if (preview) {
@@ -1643,10 +1643,11 @@ function showTeachBarcode(el, code) {
 function priceChipsHTML(set) {
   const rrp = Number(set.retail_price) || 0;
   const market = Number(displayValueOf(set)) || 0;
+  const chip = (price, amount, label, aria) => `<button type="button" class="bv-chip dp-pricechip" data-price="${price}" aria-pressed="false" aria-label="${escapeHtml(aria)}"><span>${escapeHtml(amount)}</span><small>${escapeHtml(label)}</small></button>`;
   const chips = [
-    rrp > 0 ? `<button type="button" class="bv-chip" data-price="${rrp}" aria-pressed="false">${escapeHtml(t("bvAdd.chipRrp", { price: fmtMoney(rrp) }))}</button>` : "",
-    market > 0 ? `<button type="button" class="bv-chip" data-price="${market}" aria-pressed="false">${escapeHtml(t("bvAdd.chipMarket", { price: fmtMoney(market, { cents: 0 }) }))}</button>` : "",
-    `<button type="button" class="bv-chip" data-price="other" aria-pressed="false">${escapeHtml(t("bvAdd.chipOther"))}</button>`,
+    rrp > 0 ? chip(rrp, fmtMoney(rrp), t("dp.retailPrice"), t("bvAdd.chipRrp", { price: fmtMoney(rrp) })) : "",
+    market > 0 ? chip(market, fmtMoney(market, { cents: 0 }), t("dp.marketValue"), t("bvAdd.chipMarket", { price: fmtMoney(market, { cents: 0 }) })) : "",
+    chip("other", t("dp.other"), t("dp.typeAmount"), t("bvAdd.chipOther")),
   ].join("");
   const ctx = capturedMoneyContext();
   return `<div class="bv-scanres__price">
@@ -1682,10 +1683,11 @@ function showSingleSet(el, set) {
   const value = Number(displayValueOf(set)) || 0;
   el.innerHTML = `${sheetTop()}
     <div class="bv-scanres">
+      <span class="dp-found">${kitIcon("check", { size: 14, stroke: 3 })}${escapeHtml(t("dp.setFound"))}</span>
       <button type="button" class="bv-scanres__set" id="scanDetails" aria-label="${escapeHtml(t("bvAdd.openSet", { name: set.name || set.set_num }))}">
         ${setThumbHTML(set)}
         <span class="bv-scanres__text"><span class="bv-scanres__name">${escapeHtml(set.name || set.set_num)}</span><span class="bv-scanres__meta">${setMetaLine(set)}</span></span>
-        <span class="bv-scanres__value"><span class="bv-num" data-countup="${value}">${value > 0 ? `${estMark(set)}${escapeHtml(fmtMoney(value, { cents: 0 }))}` : "—"}</span><small>${escapeHtml(t("bvAdd.market"))}</small></span>
+        <span class="bv-scanres__value"><span class="bv-num" data-countup="${value}">${value > 0 ? `${estMark(set)}${escapeHtml(fmtMoney(value, { cents: 0 }))}` : "—"}</span><small>${escapeHtml(t("dp.marketValueLower"))}</small></span>
       </button>
       <div id="scanOwned">${wishlistNoteHTML(set)}</div>
       ${priceChipsHTML(set)}
@@ -1845,6 +1847,34 @@ function showCandidates(el, sets, minifigs, res) {
   });
 }
 
+// Shelf results: shrink the photo so every numbered frame stays visible above
+// the sheet, and light up a set's frame when its row is touched or focused.
+function wireShelfFrames(el, sets) {
+  const wrap = document.querySelector(".bv-scan");
+  const marks = [...document.querySelectorAll(".bv-seek .bv-seek__mark")];
+  if (!wrap || !marks.length) return;
+  requestAnimationFrame(() => {
+    if (!el.isConnected || !wrap.classList.contains("has-result")) return;
+    const box = wrap.getBoundingClientRect();
+    const chip = $("#scanChip");
+    const bars = [wrap.querySelector(".bv-scan__top"), chip && !chip.hidden ? chip : null].filter(Boolean).map((n) => n.getBoundingClientRect().bottom - box.top);
+    const top = Math.max(0, ...bars) + 8;
+    const scale = Math.max(0.3, Math.min(1, (box.height - el.offsetHeight - top - 12) / box.height));
+    if (scale > 0.97) return;
+    wrap.style.setProperty("--dp-shelf-s", scale.toFixed(3));
+    wrap.style.setProperty("--dp-shelf-y", `${Math.round(top)}px`);
+    wrap.classList.add("dp-shelf-fit");
+  });
+  const boxed = sets.map((set, i) => (Array.isArray(set.scan_box) && set.scan_box.length === 4 ? i : -1)).filter((i) => i >= 0);
+  if (marks.length !== boxed.length) return;
+  const light = (idx) => marks.forEach((m, k) => m.classList.toggle("is-hot", boxed[k] === idx));
+  el.querySelectorAll("[data-shelf-row]").forEach((row) => {
+    const idx = Number(row.dataset.shelfRow);
+    row.addEventListener("pointerdown", () => { light(idx); haptic("light"); });
+    row.addEventListener("focusin", () => light(idx));
+  });
+}
+
 // Shelf Snap: every set the photo shows, numbered, pre-checked unless you
 // already own it. The service returns sets without positions in the photo,
 // so the numbers live on the checklist.
@@ -1853,9 +1883,10 @@ function showShelfChecklist(el, sets, minifigs) {
   const rows = sets.map((set, idx) => {
     const isOwned = owned.has(set.set_num);
     const value = Number(displayValueOf(set)) || 0;
-    return `<label class="bv-scanres__row">
-        <span class="bv-scanres__num">${idx + 1}</span>
-        <span class="bv-scanres__text"><span class="bv-scanres__name">${escapeHtml(set.name)}</span><span class="bv-scanres__meta"><span class="bv-num">${escapeHtml(set.set_num)}</span>${isOwned ? ` · ${escapeHtml(t("bvAdd.alreadyOwned"))}` : ""}</span></span>
+    const unsure = ["medium", "low"].includes(String(set.match_confidence || "").toLowerCase());
+    return `<label class="bv-scanres__row" data-shelf-row="${idx}" style="--i:${idx}">
+        <span class="dp-shot">${setThumbHTML(set)}<i>${idx + 1}</i></span>
+        <span class="bv-scanres__text"><span class="bv-scanres__name">${escapeHtml(set.name)}</span><span class="bv-scanres__meta"><span class="dp-setnum">${escapeHtml(String(set.set_num || "").replace(/-1$/, ""))}</span>${isOwned ? ` · ${escapeHtml(t("bvAdd.alreadyOwned"))}` : ""}${unsure ? ` <span class="dp-sure">${escapeHtml(t("dp.checkThis"))}</span>` : ""}</span></span>
         ${value > 0 ? `<span class="bv-num">${escapeHtml(fmtMoney(value, { cents: 0 }))}</span>` : ""}
         <input type="checkbox" class="scan-select-check" data-idx="${idx}" data-value="${value}"${isOwned ? "" : " checked"}>
       </label>`;
@@ -1881,6 +1912,7 @@ function showShelfChecklist(el, sets, minifigs) {
   };
   summarize();
   $$(".scan-select-check").forEach((c) => c.addEventListener("change", summarize));
+  wireShelfFrames(el, sets);
   $("#scanRetake")?.addEventListener("click", () => clearScanResult({ restartCamera: true }));
   $("#shelfQuotaPro")?.addEventListener("click", () => closeScan());
   $("#scanAdd")?.addEventListener("click", async () => {

@@ -1,4 +1,5 @@
 import { $, $$, haptic, escapeHtml, fmtShortDate, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg, capturedMoneyContext, advisorEnabled } from '../utils.js';
+import { slidePanel, syncTabInk } from '../lib/motion.js';
 import { goBackOr } from '../lib/nav-history.js';
 import { installHeroScrim } from '../lib/hero-scrim.js';
 import { icon as kitIcon, iconBtn as kitIconBtn, row as kitRow, seg as kitSeg, field as kitField, pill as kitPill, delta as kitDelta, topbar as kitTopbar, emptyState as kitEmptyState, sheetBody as kitSheetBody, brickSvg as kitBrick } from '../ui/kit.js';
@@ -222,6 +223,7 @@ function paintSetDetail(set, entry, { background = false } = {}) {
   wireAnniversary(set, entry, setDisplayValue(set));
   wireSetHero(set, entry);
   setupTabSwipe(set, entry);
+  syncTabInk($("#detailTabs"));
   if (sheet) openSetSheet(sheet, set, entry);
 }
 
@@ -2179,6 +2181,8 @@ function switchDetailTab(tab, set, entry) {
   // Fresh markup per tab (not a morph): each tab wires its own listeners.
   panel.innerHTML = panelHTML(tab, set, entry);
   wirePanel(tab, set, entry);
+  slidePanel(panel, detailTabs().indexOf(tab) - detailTabs().indexOf(prev));
+  syncTabInk($("#detailTabs"));
   if ((prev === "community") !== (tab === "community")) paintSetBar(set, entry, tab);
   // Switched from the stuck tab bar: start the new tab at its top, not
   // wherever the old tab's scroll position lands in it.

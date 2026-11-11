@@ -272,21 +272,24 @@
 .bv-scanres__value .bv-num { font-size: 20px !important; letter-spacing: -.03em; }
 .dp-found { align-self: flex-start; width: max-content; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 13px; background: var(--bv-gain-bg); color: var(--bv-gain); font: 600 12px/1 var(--bv-sans); margin-bottom: 10px; }
 #scanPriceChips .bv-chip { flex: 1 1 0; justify-content: center; flex-direction: column; gap: 1px; min-height: 52px !important; padding: 6px 8px !important; font: 600 15px/18px var(--bv-mono) !important; }
+#scanPriceChips .bv-chip > span { font: inherit; }
 #scanPriceChips .bv-chip small { font: 500 11px/14px var(--bv-sans); color: var(--bv-mute); }
 
 /* Shelf result: photos instead of numbered dots, real checkboxes */
 .bv-scanres__row { gap: 12px !important; padding-block: 8px !important; }
-.bv-scanres__num { display: none !important; }
 .dp-shot { position: relative; flex-shrink: 0; }
-.dp-shot img { width: 52px; height: 52px; border-radius: 12px; background: #fff; object-fit: contain; padding: 2px; box-shadow: 0 0 0 1px var(--bv-line); display: block; }
+.dp-shot .bv-thumb { --size: 52px; width: 52px; height: 52px; border-radius: 12px; }
 .dp-shot i { position: absolute; left: -6px; top: -6px; width: 20px; height: 20px; border-radius: 50%; background: #ffda47; color: #252820; font: 700 11px/20px var(--bv-sans); text-align: center; font-style: normal; box-shadow: 0 0 0 2px var(--bv-s); }
-.bv-scanres__row .bv-scanres__meta .bv-num { font: 400 13px/18px var(--bv-sans) !important; color: var(--bv-mute); }
+.dp-setnum { font: 400 13px/18px var(--bv-sans); color: var(--bv-mute); }
 .dp-sure { margin-left: 6px; font: 600 11px/1 var(--bv-sans); color: #8a4b00; background: #fdecd2; padding: 3px 7px; border-radius: 8px; }
 .scan-select-check { appearance: none; -webkit-appearance: none; width: 26px !important; height: 26px !important; border-radius: 9px; border: 2px solid var(--bv-line); background: var(--bv-s); display: grid; place-items: center; flex-shrink: 0; margin: 0 !important; }
 .scan-select-check:checked { background: #ffda47; border-color: #ffda47; }
 .scan-select-check:checked::after { content: ""; width: 11px; height: 6px; border-left: 2.5px solid #252820; border-bottom: 2.5px solid #252820; transform: rotate(-45deg) translate(1px, -1px); }
-/* numbered pins on the photo */
-.dp-pin { position: absolute; z-index: 3; width: 28px; height: 28px; border-radius: 50%; background: #ffda47; color: #252820; font: 700 14px/28px var(--bv-sans); text-align: center; box-shadow: 0 0 0 3px rgba(255, 255, 255, .9), 0 4px 10px rgba(0, 0, 0, .45); }
+/* Shelf results: the photo shrinks to sit above the sheet with every frame in view */
+.bv-scan.dp-shelf-fit :is(.bv-scan__photo, .bv-seek) { transform-origin: 50% 0; transform: translateY(var(--dp-shelf-y, 0px)) scale(var(--dp-shelf-s, 1)); transition: transform .38s var(--bv-ease-emph); }
+.bv-scan.dp-shelf-fit .bv-scan__photo { border-radius: 28px; }
+.bv-seek__mark.is-hot { border-width: 4px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .4); z-index: 2; }
+@media (prefers-reduced-motion: reduce) { .bv-scan.dp-shelf-fit :is(.bv-scan__photo, .bv-seek) { transition: none; } }
 
 /* Start page: three tiles */
 .scan-method-list { display: grid !important; grid-template-columns: repeat(3, 1fr); gap: 10px; background: none !important; border: 0 !important; box-shadow: none !important; overflow: visible !important; }
@@ -313,7 +316,7 @@
   .bv-scan__chip.is-lock { animation: dpPop .34s var(--bv-spring) both; }
   /* 3. Photo: shutter press + white capture flash */
   .bv-scan__shutter { transition: transform .12s var(--bv-ease); }
-  .bv-scan__shutter:active, .bv-scan__shutter.dp-press { transform: scale(.88); }
+  .bv-scan__shutter:active { transform: scale(.88); }
   .bv-scan.has-captured-photo::after { content: ""; position: absolute; inset: 0; z-index: 6; background: #fff; pointer-events: none; animation: dpFlash .32s ease-out both; }
   /* 4. Result sheet: content arrives in order instead of all at once */
   .bv-scan__sheet.show .dp-found { animation: dpPopL .36s var(--bv-spring) .18s both; }
@@ -323,7 +326,7 @@
   .bv-scan__sheet.show #scanPriceChips .bv-chip:nth-child(1) { animation-delay: .36s; }
   .bv-scan__sheet.show #scanPriceChips .bv-chip:nth-child(2) { animation-delay: .42s; }
   .bv-scan__sheet.show #scanPriceChips .bv-chip:nth-child(3) { animation-delay: .48s; }
-  .bv-scan__sheet.show .dp-late { animation: dpUp .32s var(--bv-ease-emph) .54s both; }
+  .bv-scan__sheet.show .bv-scanres__price ~ * { animation: dpUp .32s var(--bv-ease-emph) .54s both; }
   /* 5. Shelf results: rows drop in one by one, number badges pop */
   .bv-scan__sheet.show .bv-scanres__row { animation: dpUp .34s var(--bv-ease-emph) both; animation-delay: calc(.16s + var(--i, 0) * 70ms); }
   .bv-scan__sheet.show .dp-shot i { animation: dpPop .3s var(--bv-spring) both; animation-delay: calc(.3s + var(--i, 0) * 70ms); }
@@ -350,28 +353,25 @@
 @keyframes dpFlash { from { opacity: .85; } to { opacity: 0; } }
 @keyframes dpTick { from { opacity: 0; transform: rotate(-45deg) translate(1px, -1px) scale(.4); } to { opacity: 1; transform: rotate(-45deg) translate(1px, -1px) scale(1); } }
 .bv-scan__frame.is-lock .bv-scan__corner { border-color: #ffda47 !important; }
-.bv-scan__sheet.loading .dp-found { display: none; }
 
 /* ---- proposal8.css ---- */
 /* ===== Part 8: app-wide motion ===== */
 @media (prefers-reduced-motion: no-preference) {
   /* 1. Page changes know their direction */
-  html[data-dp-nav="fwd"] #root.route-fade > .page { animation: dpNavFwd .3s cubic-bezier(.05, .7, .1, 1) both; }
-  html[data-dp-nav="back"] #root.route-fade > .page { animation: dpNavBack .3s cubic-bezier(.05, .7, .1, 1) both; }
-  html[data-dp-nav="tab-r"] #root.route-fade > .page { animation: dpTabR .22s cubic-bezier(.05, .7, .1, 1) both; }
-  html[data-dp-nav="tab-l"] #root.route-fade > .page { animation: dpTabL .22s cubic-bezier(.05, .7, .1, 1) both; }
+  html[data-nav="fwd"] #root.route-fade > .page { animation: dpNavFwd .3s cubic-bezier(.05, .7, .1, 1) both; }
+  html[data-nav="back"] #root.route-fade > .page { animation: dpNavBack .3s cubic-bezier(.05, .7, .1, 1) both; }
+  html[data-nav="tab-r"] #root.route-fade > .page { animation: dpTabR .22s cubic-bezier(.05, .7, .1, 1) both; }
+  html[data-nav="tab-l"] #root.route-fade > .page { animation: dpTabL .22s cubic-bezier(.05, .7, .1, 1) both; }
   /* 2. Set page sections slide the way you swiped, underline glides */
-  #tabPanels.dp-tab-r > * { animation: dpNavFwd .26s cubic-bezier(.05, .7, .1, 1) both; }
-  #tabPanels.dp-tab-l > * { animation: dpNavBack .26s cubic-bezier(.05, .7, .1, 1) both; }
+  .detail-tab-panel.dp-tab-r { animation: dpNavFwd .26s cubic-bezier(.05, .7, .1, 1) both; }
+  .detail-tab-panel.dp-tab-l { animation: dpNavBack .26s cubic-bezier(.05, .7, .1, 1) both; }
   .dp-ink { transition: left .26s cubic-bezier(.2, 0, 0, 1), width .26s cubic-bezier(.2, 0, 0, 1); }
   /* 3. Swipe back: page follows the finger */
   #root.dp-drag-end { transition: transform .22s cubic-bezier(.2, 0, 0, 1), opacity .22s linear; }
-  /* 4. Bottom bar: icon pill slides between tabs */
-  .dp-navpill { transition: transform .28s cubic-bezier(.2, 0, 0, 1); }
 }
 #root.dp-drag { will-change: transform; box-shadow: -18px 0 40px rgba(37, 40, 32, .16); }
 .dp-edge { position: fixed; left: 0; top: 0; bottom: 0; width: 100%; z-index: 0; pointer-events: none; display: grid; align-items: center; padding-left: 18px; opacity: 0; }
-.dp-edge span { width: 40px; height: 40px; border-radius: 50%; background: #ffda47; display: grid; place-items: center; font: 700 20px/1 var(--bv-sans); color: #252820; transform: scale(var(--s, .6)); }
+.dp-edge span { width: 40px; height: 40px; border-radius: 50%; background: #ffda47; display: grid; place-items: center; color: #252820; transform: scale(var(--s, .6)); }
 #detailTabs { position: relative; }
 #detailTabs.dp-hasink > [aria-selected="true"] { border-bottom-color: transparent !important; }
 .dp-ink { position: absolute; bottom: 0; height: 2px; background: var(--bv-ink); border-radius: 2px; pointer-events: none; }

@@ -7,6 +7,7 @@ import { icon as kitIcon } from './ui/kit.js';
 import { paintNavBadges } from './components/collector-shell.js';
 import { route } from './router.js';
 import { installNavHistory, canGoBackInApp } from './lib/nav-history.js';
+import { installNavDirection, backDragStart, backDragMove, backDragEnd, BACK_COMMIT_PX } from './lib/motion.js';
 import { getThemePref, applyTheme, getModePref, applyMode } from './theme.js';
 import { initLocale, t as translate, tPlural, onLocaleChange, applyUiDictionary, startAutoTranslate } from './lib/i18n.js';
 import { toggleAdvisor } from './components/advisor-lazy.js';
@@ -20,6 +21,9 @@ import { installPasswordToggles } from './lib/password-toggle.js';
 // Number history entries before anything pushes or replaces one (OAuth
 // cleanup, the first route) so back arrows know what is behind them.
 installNavHistory();
+// Registered before the router's own hashchange listener so each page change
+// is tagged with its direction (deeper, back, sideways between tabs) first.
+installNavDirection();
 // onboarding (welcome carousel) is lazy-loaded at the end of boot (see below).
 
 // The visible button is the sole keyboard stop; its click forwards to a native
@@ -59,20 +63,28 @@ function setupGestures() {
     const touch = Array.from(e.touches).find(t => t.identifier === edgeTouch.id);
     if (e.touches.length !== 1 || !touch || overlayOpen()
       || Math.abs(touch.clientY - edgeTouch.y) > Math.max(12, Math.abs(touch.clientX - edgeTouch.x))) {
+      if (edgeTouch.follow === 1) backDragEnd(false);
       edgeTouch = null;
     } else if (touch.clientX - edgeTouch.x > 12 && e.cancelable) {
       // Claim only a recognized horizontal swipe, never a tap or vertical drag.
       e.preventDefault();
+      // The page follows the finger when there is a screen to go back to.
+      if (!edgeTouch.follow && canGoBackInApp()) edgeTouch.follow = backDragStart() ? 1 : -1;
+      if (edgeTouch.follow === 1) backDragMove(touch.clientX - edgeTouch.x, () => haptic("light"));
     }
   };
-  const onCancel = () => { edgeTouch = null; };
+  const onCancel = () => { if (edgeTouch?.follow === 1) backDragEnd(false); edgeTouch = null; };
   const onEnd = e => {
     const start = edgeTouch;
     edgeTouch = null;
-    if (!start || e.touches.length || overlayOpen()) return;
+    const following = start?.follow === 1;
+    if (!start || e.touches.length || overlayOpen()) { if (following) backDragEnd(false); return; }
     const touch = Array.from(e.changedTouches).find(t => t.identifier === start.id);
-    if (!touch) return;
+    if (!touch) { if (following) backDragEnd(false); return; }
     const dx = touch.clientX - start.x;
+    // With the page under the finger, going back needs a deliberate pull;
+    // letting go early springs the page back (the swipe can be cancelled).
+    if (following) { backDragEnd(dx > BACK_COMMIT_PX && canGoBackInApp(), () => history.back()); return; }
     if (dx > 60 && dx > Math.abs(touch.clientY - start.y) && canGoBackInApp()) history.back();
   };
   document.addEventListener("touchstart", e => {

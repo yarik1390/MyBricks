@@ -4,7 +4,7 @@ import { icon as kitIcon, iconBtn as kitIconBtn, row as kitRow, sectionTitle as 
 import { setRow as kitSetRow, money0 } from '../ui/set-ui.js';
 import { t, tPlural, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 import { state, invalidatePortfolio } from '../state.js';
-import { api, getSessionUserId, photoScanNeedsSetup, outboxEnqueue } from '../api.js';
+import { api, getSessionUserId, isGuestMode, photoScanNeedsSetup, outboxEnqueue } from '../api.js';
 import { getModePref } from '../theme.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { openScan, lookupScanInput } from '../components/scanner-lazy.js';
@@ -963,12 +963,13 @@ export function renderPile() {
     <main class="bv-page no-nav scan-page bv-pile">
       ${kitTopbar({ title: t("bvAdd.scanASet"), sub: t("bvAdd.pileSub"), back: "history" })}
       <section class="bv-group scan-choice" aria-labelledby="scanChoiceTitle">
-        <h2 class="bv-h2" id="scanChoiceTitle">${escapeHtml(t("bvAdd.howIdentify"))}</h2>
+        <h2 class="bv-h2" id="scanChoiceTitle">${escapeHtml(t("dp.pointAt"))}</h2>
         <div class="bv-group__box scan-method-list" role="group" aria-label="${escapeHtml(t("bvAdd.scanMode"))}">
-          <button type="button" class="bv-row scan-method" id="pileScanBarcode">${kitIcon("scan", { size: 22 })}<span class="bv-row__text scan-method-copy"><span class="bv-row__title">${escapeHtml(t("bvAdd.scanBarcode"))}</span><span class="bv-row__sub">${escapeHtml(t("bvAdd.scanBarcodeSub"))}</span></span><span class="bv-row__trail scan-method-arrow" aria-hidden="true">${kitIcon("chev", { size: 20 })}</span></button>
-          <button type="button" class="bv-row scan-method${photoNeedsSetup ? " needs-setup" : ""}" id="pileScanPhoto"${photoNeedsSetup ? ' aria-describedby="photoScanAvailability"' : ""}>${kitIcon("camera", { size: 22 })}<span class="bv-row__text scan-method-copy"><span class="bv-row__title">${escapeHtml(t("bvAdd.identifyPhoto"))}</span><span class="bv-row__sub" id="photoScanAvailability">${escapeHtml(t(photoNeedsSetup ? "bvAdd.photoNeedsSetup" : "bvAdd.identifyPhotoSub"))}</span></span><span class="bv-row__trail scan-method-arrow" aria-hidden="true">${kitIcon("chev", { size: 20 })}</span></button>
-          <button type="button" class="bv-row scan-method" id="pileScanShelf"${photoNeedsSetup ? ' aria-describedby="photoScanAvailability"' : ""}>${kitIcon("grid", { size: 22 })}<span class="bv-row__text scan-method-copy"><span class="bv-row__title">${escapeHtml(t("bvAdd.shelfSnap"))}</span><span class="bv-row__sub">${escapeHtml(t("bvAdd.shelfSnapSub"))}</span></span><span class="bv-row__trail scan-method-arrow" aria-hidden="true">${kitIcon("chev", { size: 20 })}</span></button>
+          <button type="button" class="bv-row scan-method" id="pileScanBarcode">${kitIcon("scan", { size: 22 })}<span class="bv-row__text scan-method-copy"><span class="bv-row__title">${escapeHtml(t("bvAdd.modeBarcode"))}</span><span class="bv-row__sub">${escapeHtml(t("dp.tileBarcode"))}</span></span><span class="bv-row__trail scan-method-arrow" aria-hidden="true">${kitIcon("chev", { size: 20 })}</span></button>
+          <button type="button" class="bv-row scan-method${photoNeedsSetup ? " needs-setup" : ""}" id="pileScanPhoto"${photoNeedsSetup ? ' aria-describedby="photoScanAvailability"' : ""}>${kitIcon("camera", { size: 22 })}<span class="bv-row__text scan-method-copy"><span class="bv-row__title">${escapeHtml(t("bvAdd.modePhoto"))}</span><span class="bv-row__sub" id="photoScanAvailability">${escapeHtml(t(photoNeedsSetup ? "bvAdd.photoNeedsSetup" : "dp.tilePhoto"))}</span></span><span class="bv-row__trail scan-method-arrow" aria-hidden="true">${kitIcon("chev", { size: 20 })}</span></button>
+          <button type="button" class="bv-row scan-method" id="pileScanShelf"${photoNeedsSetup ? ' aria-describedby="photoScanAvailability"' : ""}>${kitIcon("grid", { size: 22 })}<span class="bv-row__text scan-method-copy"><span class="bv-row__title">${escapeHtml(t("bvAdd.modeShelf"))}</span><span class="bv-row__sub">${escapeHtml(t("dp.tileShelf"))}</span></span><span class="bv-row__trail scan-method-arrow" aria-hidden="true">${kitIcon("chev", { size: 20 })}</span></button>
         </div>
+        <p class="dp-quota" id="scanQuotaLine" hidden></p>
       </section>
       <form class="bv-card bv-form" id="pileManualForm" novalidate>
         ${kitField({ id: "pileManualInput", name: "set_identifier", label: t("bvAdd.typeLabel"), placeholder: t("bvAdd.typePlaceholder"), mono: true, inputmode: "search", autocomplete: "off", attrs: { spellcheck: "false" } })}
@@ -978,6 +979,15 @@ export function renderPile() {
       <p class="bv-foot scan-privacy-note">${escapeHtml(t(photoNeedsSetup ? "bvAdd.pilePrivacyGuest" : "bvAdd.pilePrivacy"))}</p>
     </main>`;
 
+  // How many photo and shelf scans are left (signed-in members only).
+  if (getSessionUserId() && !isGuestMode()) {
+    api("/api/scan/quota", { retry: false }).then((q) => {
+      const line = $("#scanQuotaLine");
+      if (!line || !q?.photo || !q?.shelf) return;
+      line.textContent = t(q.shelf.period === "month" ? "dp.quotaMonth" : "dp.quotaDay", { photo: q.photo.remaining, shelf: q.shelf.remaining });
+      line.hidden = false;
+    }).catch(() => {});
+  }
   $("#pileScanBarcode")?.addEventListener("click", () => openScan("barcode"));
   $("#pileScanPhoto")?.addEventListener("click", () => openScan("image"));
   $("#pileScanShelf")?.addEventListener("click", () => openScan("image", { shelf: true }));
