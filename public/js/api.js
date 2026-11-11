@@ -51,7 +51,8 @@ export const OUTBOX_KEY = 'bv_outbox';
 let outboxDrainActive = false;
 let outboxSequence = 0;
 function outboxItemId() {
-  return `${Date.now()}-${++outboxSequence}-${crypto.randomUUID()}`;
+  const rand = globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
+  return `${Date.now()}-${++outboxSequence}-${rand}`;
 }
 
 const OUTBOX_REPLAY_HEADERS = new Set(['idempotency-key', 'x-request-id']);
@@ -69,7 +70,9 @@ export function outboxEnqueue(item) {
     const q = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]');
     q.push({ ...item, id: outboxItemId() });
     localStorage.setItem(OUTBOX_KEY, JSON.stringify(q));
-  } catch {}
+  } catch (err) {
+    console.warn('[outbox] enqueue failed:', err);
+  }
   outboxChanged();
 }
 
