@@ -113,6 +113,14 @@ export interface Env {
   // notifications. Keep the complete JSON in a Worker secret; never expose it
   // through /api/config or logs.
   FIREBASE_SERVICE_ACCOUNT_JSON?: string;
+  // Google Play Integrity (lib/play-integrity.ts). Service account with the
+  // Play Integrity API enabled, in the Cloud project linked in Play Console.
+  // Unset = attestation off (the app skips it). PLAY_INTEGRITY_ENFORCED='1'
+  // makes Android scans without a valid attestation take the Turnstile path.
+  PLAY_INTEGRITY_SERVICE_ACCOUNT_JSON?: string;
+  PLAY_INTEGRITY_ENFORCED?: string;
+  // HMAC key for attestation nonces/tokens; falls back to SUPABASE_JWT_SECRET.
+  ATTESTATION_SECRET?: string;
   // Firecrawl web-scraping API (lego.com stock, eBay sold comps, Brickset enrichment).
   // On by default once the key is set. Set FIRECRAWL_ENABLED=0 to pause without removing the key.
   FIRECRAWL_API_KEY?: string;

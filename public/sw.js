@@ -126,6 +126,7 @@ const STATIC_ASSETS = [
   '/js/lib/seed-catalog.js',
   '/js/lib/seed-catalog-core.js',
   '/js/lib/seed-catalog-worker.js',
+  '/js/lib/play-attest.js',
   '/js/lib/image-prewarm.js',
   '/js/lib/native-auth.js',
   '/js/lib/native-ocr.js',

@@ -13,6 +13,7 @@ import { identifySetWithBrickognize } from '../lib/brickognize';
 import { parseOcrSetNumbers, resolveOcrSetNum } from '../lib/scan-ocr';
 import { callRecognitionValidation } from '../lib/recognition-client';
 import { verifyTurnstileToken } from '../lib/turnstile';
+import { attestationValid, playIntegrityEnforced } from '../lib/play-integrity';
 import { matchSetsToCatalog, matchMinifigsToCatalog, type DescribedSet, type DescribedMinifig } from '../lib/scan-match';
 import { CATALOG_COLS, MARKET_EXT_JOIN } from './sets';
 import { findSetByBarcodeLocal, findSetByBarcodeRemote } from '../lib/barcodes';
@@ -727,7 +728,13 @@ app.post('/identify', async (c) => {
   // Android scans remain cost-bounded by the per-user quota below. The platform
   // header is not an auth boundary; a spoofed caller still needs a valid member
   // JWT and remains capped to the same daily quota.
-  const authenticatedAndroid = c.req.header('X-Brickvault-Platform')?.toLowerCase() === 'android' && !!userId;
+  // Once Play Integrity enforcement is on, the Android skip also needs a valid
+  // attestation (lib/play-integrity.ts); otherwise the request takes the
+  // Turnstile path like the web.
+  const claimsAndroid = c.req.header('X-Brickvault-Platform')?.toLowerCase() === 'android' && !!userId;
+  const authenticatedAndroid = claimsAndroid && (!playIntegrityEnforced(c.env)
+    || await attestationValid(c.env, userId, c.req.header('X-Brickvault-Attestation')));
+  if (claimsAndroid && !authenticatedAndroid) console.warn('[scan] android scan without a valid attestation');
   if (c.env.TURNSTILE_SECRET_KEY && !authenticatedAndroid) {
     const token = c.req.header('cf-turnstile-token');
     const verified = await verifyTurnstileToken(
