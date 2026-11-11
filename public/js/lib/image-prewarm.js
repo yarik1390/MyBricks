@@ -25,17 +25,17 @@ export async function prewarmTopImages() {
     const { isUnmetered } = await import('./native-net.js');
     if (!(await isUnmetered())) return;
 
-    const [{ loadSeedCatalog }, { thumbImg }] = await Promise.all([
+    const [{ seedCatalogHead }, { thumbImg }] = await Promise.all([
       import('./seed-catalog.js'),
       import('../utils.js'),
     ]);
-    const seed = await loadSeedCatalog();
-    if (!seed?.sets?.length) return;
+    // Read in the seed catalog's background worker; only these rows come back.
+    const head = await seedCatalogHead(MAX_IMAGES);
+    if (!head.length) return;
 
     // Seed is already ordered by value DESC, so the head is the iconic set list.
     // Warm the thumbnail variant the grid actually shows.
-    const urls = seed.sets
-      .slice(0, MAX_IMAGES)
+    const urls = head
       .map((s) => thumbImg(s.image_url))
       .filter((u) => typeof u === 'string' && u.includes('/api/img'));
 
