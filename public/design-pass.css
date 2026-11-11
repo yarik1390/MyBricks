@@ -368,7 +368,6 @@
 #root.dp-drag { will-change: transform; box-shadow: -18px 0 40px rgba(37, 40, 32, .16); }
 .dp-edge { position: fixed; left: 0; top: 0; bottom: 0; width: 100%; z-index: 0; pointer-events: none; display: grid; align-items: center; padding-left: 18px; opacity: 0; }
 .dp-edge span { width: 40px; height: 40px; border-radius: 50%; background: #ffda47; display: grid; place-items: center; color: #252820; transform: scale(var(--s, .6)); }
-#detailTabs { position: relative; }
 #detailTabs.dp-hasink > [aria-selected="true"] { border-bottom-color: transparent !important; }
 .dp-ink { position: absolute; bottom: 0; height: 2px; background: var(--bv-ink); border-radius: 2px; pointer-events: none; }
 @keyframes dpNavFwd { from { opacity: 0; transform: translateX(36px); } to { opacity: 1; transform: none; } }

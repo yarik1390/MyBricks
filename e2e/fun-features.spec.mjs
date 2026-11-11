@@ -82,7 +82,7 @@ test.describe('quests', () => {
     await teaser.click();
     await expect(page).toHaveURL(/#\/quests$/);
     await expect(page.locator('.bv-quest')).toHaveCount(2);
-    await page.locator('.bv-quest__missing summary').first().click();
+    await page.locator('[data-quest-toggle]').first().click();
     await expect(page.locator('.bv-quest__set').first()).toContainText('Boutique Hotel');
     await page.screenshot({ path: `${SHOTS}/quests-phone.png` });
   });

@@ -281,8 +281,12 @@ test('the Android app scans live: our brackets lock onto the barcode over the ca
   }
   const frame = await overlay.locator('#scanFrame').boundingBox();
   const cx = Math.round(frame.x + frame.width / 2), cy = Math.round(frame.y + frame.height / 2);
+  // The only thing drawn inside the frame is the thin scan line through its
+  // middle (it sweeps unless reduced motion is on), so sample clear of it.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   const png = await page.screenshot({ omitBackground: true });
-  expect(await alphaAt(page, png, [[cx, cy], [cx, Math.round(frame.y + 4)]])).toEqual([0, 0]);
+  expect(await alphaAt(page, png, [[cx, cy - 24], [cx, Math.round(frame.y + 4)]])).toEqual([0, 0]);
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
 
   // A barcode in view: the brackets snap onto it and the lookup runs.
   await page.evaluate(({ cx, cy }) => window.__bs.listeners.barcodesScanned({ barcodes: [{
