@@ -91,8 +91,12 @@ function footLine(results) {
 }
 
 // Log-scale slider: equal thumb travel per "times as much", so $40 and $400
-// sets are equally easy to dial in. Range is anchored on the retail price.
+// sets are equally easy to dial in. The server sends bounds that always
+// contain the real value (with the value at a random point inside); the
+// retail-anchored range is only a fallback for an older server response.
 function sliderRange(round, rate) {
+  const gMin = Number(round.guess_min), gMax = Number(round.guess_max);
+  if (gMin > 0 && gMax > gMin) return { lo: gMin * rate, hi: gMax * rate };
   const retail = Number(round.retail_price) * rate;
   if (retail > 0) return { lo: Math.max(5, retail * 0.25), hi: Math.max(retail * 6, 100) };
   return { lo: 10 * rate, hi: 4000 * rate };

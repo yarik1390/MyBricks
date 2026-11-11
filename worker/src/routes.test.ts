@@ -2368,6 +2368,17 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       }
     });
 
+    it('sends slider bounds that always contain the real value', async () => {
+      // A vintage set worth ~15x retail must still be reachable on the slider.
+      await db.prepare(`UPDATE lego_sets SET retail_price = 27, blended_value = 450, current_value = 450`).run();
+      const daily = await (await app.fetch(new Request('http://localhost/api/game/daily'), env)).json<any>();
+      for (const r of daily.rounds) {
+        expect(r.guess_min).toBeGreaterThan(0);
+        expect(r.guess_max).toBeGreaterThanOrEqual(450 * 2);
+        expect(r.guess_min).toBeLessThanOrEqual(450 / 2);
+      }
+    });
+
     it('scores a guess within ±20% as correct and records it for members', async () => {
       const daily = await (await app.fetch(new Request('http://localhost/api/game/daily'), env)).json<any>();
       const setNum = daily.rounds[0].set_num;
