@@ -528,16 +528,25 @@ jobs:
       - name: Verify immutable Worker revision after secret updates
         run: |
           set -euo pipefail
-          deployment=$(curl -fsS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/brickvault-api/deployments" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
-          version=$(jq -r '.result.deployments[0].versions[]? | select(.percentage == 100) | .version_id' <<< "$deployment")
-          [ -n "$version" ] || { echo '::error::No active Worker version'; exit 1; }
-          detail=$(curl -fsS "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/brickvault-api/versions/${version}" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
           # Each `wrangler secret put` creates a new Worker version on top of the
           # code just deployed, annotated workers/triggered_by=secret (no message),
           # so a push_secrets run must accept that as well as this run's SHA.
-          jq -e --arg sha "$GITHUB_SHA" '.success == true and (.result.annotations["workers/message"] == $sha or .result.annotations["workers/tag"] == $sha or .result.annotations["workers/triggered_by"] == "secret")' <<< "$detail" >/dev/null || {
-            echo '::error::Worker version changed after secret updates'; exit 1;
-          }
+          # Cloudflare's deployments list is eventually consistent right after a
+          # deploy (deployments[0] can briefly be the previous one), so retry like
+          # the first verify step instead of failing on a single read.
+          for attempt in 1 2 3 4 5 6; do
+            deployment=$(curl -fsS --retry 2 --max-time 25 "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/brickvault-api/deployments" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+            version=$(jq -r '.result.deployments[0].versions[]? | select(.percentage == 100) | .version_id' <<< "$deployment")
+            if [ -n "$version" ]; then
+              detail=$(curl -fsS --retry 2 --max-time 25 "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/brickvault-api/versions/${version}" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+              if jq -e --arg sha "$GITHUB_SHA" '.success == true and (.result.annotations["workers/message"] == $sha or .result.annotations["workers/tag"] == $sha or .result.annotations["workers/triggered_by"] == "secret")' <<< "$detail" >/dev/null; then
+                echo "Active Worker version still belongs to this run"
+                exit 0
+              fi
+            fi
+            sleep 5
+          done
+          echo '::error::Worker version changed after secret updates'; exit 1
 
       - name: Inject Worker URL into Pages env.js
         env:
