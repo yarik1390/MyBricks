@@ -88,10 +88,11 @@ export function setRow(set = {}, {
 }
 
 /** Grid tile for a set (photo on top, name, meta, value). */
-export function setTile(set = {}, { href = `#/set/${encodeURIComponent(set.set_num || '')}`, value = setValue(set), tagHtml = '', actionHtml = '', meta = setMeta(set, { retired: false }) } = {}) {
+export function setTile(set = {}, { href = `#/set/${encodeURIComponent(set.set_num || '')}`, value = setValue(set), tagHtml = '', actionHtml = '', footHtml = '', meta = setMeta(set, { retired: false }) } = {}) {
+  const valueLine = `<span class="bv-tile__value">${escapeHtml(money0(value))}</span>`;
   return `<div class="bv-tile" data-set-num="${escapeHtml(set.set_num || '')}"><a class="bv-tile__link" href="${escapeHtml(href)}" aria-label="${escapeHtml(set.name || set.set_num || '')}"></a>`
     + `<span class="bv-tile__media">${`<svg class="bv-brick" viewBox="0 0 40 32" aria-hidden="true" style="width:56%;height:44%"><rect x="7" y="0" width="9" height="7" rx="2" fill="${setColor(set)}"/><rect x="24" y="0" width="9" height="7" rx="2" fill="${setColor(set)}"/><rect x="0" y="5" width="40" height="27" rx="4" fill="${setColor(set)}"/></svg>`}${setImg(set, 300)}${tagHtml ? `<span class="bv-tile__tag">${tagHtml}</span>` : ''}</span>`
-    + `<span class="bv-tile__body"><span class="bv-tile__name">${escapeHtml(set.name || '')}</span><span class="bv-tile__meta">${escapeHtml(meta)}</span><span class="bv-tile__value">${escapeHtml(money0(value))}</span></span>${actionHtml}</div>`;
+    + `<span class="bv-tile__body"><span class="bv-tile__name">${escapeHtml(set.name || '')}</span><span class="bv-tile__meta">${escapeHtml(meta)}</span>${footHtml ? `<span class="dp-tilefoot">${valueLine}${footHtml}</span>` : valueLine}</span>${actionHtml}</div>`;
 }
 
 /** Minifigure placeholder colours when no photo exists. */

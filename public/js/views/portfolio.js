@@ -2,7 +2,7 @@ import { markValuesFresh, setSyncState, syncSlotHTML, reachErrorHTML } from '../
 import { vaultNavigation, setNavBadge, resetPageFab, syncCollectorChrome } from '../components/collector-shell.js';
 import { routeMetaFor } from '../route-meta.js';
 import { $, $$, haptic, escapeHtml, toast, undoToast, fmtMoney, daysAgo, prefersReducedMotion, themeHue, getExchangeRate, CURRENCY_SYMBOLS, ratesUnavailable, bvIDB, SEARCH_DEBOUNCE_MS, recordPortfolioMilestone, publicOrigin, celebrate, fmtPct, advisorEnabled, fmtDateUpdated, parseUTCDate } from '../utils.js';
-import { displayValueOf, nextRetiring, formatMoneyIn } from '../lib/pure.js';
+import { displayValueOf, nextRetiring, formatMoneyIn, distinctHues } from '../lib/pure.js';
 import { state, invalidatePortfolio, markSetOwned } from '../state.js';
 import { api, getSessionUserId, isGuestMode, getSessionOwnerSnapshot } from '../api.js';
 import { shareContent } from '../lib/native-share.js';
@@ -13,10 +13,9 @@ import { getModePref } from '../theme.js';
 import { t, tPlural, getLocale, intlLocale } from '../lib/i18n.js';
 import { pricechartingSourceLinkLabel } from '../lib/partner-attribution.js';
 import { readCollectorPreferences, writeCollectorPreferences } from '../lib/collector-preferences.js';
-import { vaultTotals, changesWindowDays, changeSinceFromSnapshots, changeItems, clipHistory } from '../lib/vault-insights.js';
+import { vaultTotals, changesWindowDays, changeSinceFromSnapshots, changeItems, clipHistory, themeAllocation, gainersAndLosers } from '../lib/vault-insights.js';
 import { icon, sparkline, delta as deltaChip, emptyState, btn, banner, skeletonRows, chip } from '../ui/kit.js';
-import { setTile, gainPct } from '../ui/set-ui.js';
-import { vaultTowerHTML } from '../ui/vault-tower.js';
+import { setTile, gainPct, setThumb, setColor } from '../ui/set-ui.js';
 import { emptyShelfHTML, wireEmptyShelf } from '../ui/empty-shelf.js';
 import { questTeaserHTML, cachedQuests, loadQuestTeaser } from './quests.js';
 import { vaultTopbar, vaultSearchRow, sortButton, layoutSeg, vaultToolbar, openChoiceSheet, openActionSheet, vaultSetRow, vaultListHead, moneyWhole, moneyWholeSigned, holdingValue } from '../ui/vault-ui.js';
@@ -303,7 +302,13 @@ function rowHTML(item) {
 
 function tileHTML(item) {
   const qty = Number(item.quantity) || 1;
-  return setTile(item, { value: pval(item), tagHtml: qty > 1 ? `<span class="bv-pill bv-pill--ink">×${qty}</span>` : '' });
+  const value = pval(item);
+  const known = item.purchase_price != null && item.purchase_price !== '' && Number(item.purchase_price) >= 0;
+  const pct = known ? gainPct(value, item.purchase_price) : null;
+  const footHtml = pct != null && Number.isFinite(Number(pct))
+    ? deltaChip(Number(pct), { srUp: t('bvCommon.upPct', { pct: Math.abs(pct).toFixed(1) }), srDown: t('bvCommon.downPct', { pct: Math.abs(pct).toFixed(1) }) })
+    : '';
+  return setTile(item, { value, footHtml, tagHtml: qty > 1 ? `<span class="bv-pill bv-pill--ink">×${qty}</span>` : '' });
 }
 
 /* ---------------------------------------------------------------- list rendering */
@@ -418,12 +423,23 @@ function heroValueText(n) {
 }
 
 function heroSubHTML(totals) {
-  const parts = [];
-  if (totals.paid > 0 || totals.pricedValue > 0) parts.push(t('bvVault.onPaper', { amount: moneyWholeSigned(totals.paperGain) }));
   const realized = state.vaultChanges?.data?.realized || (state.portfolio?.realized_gain != null ? { gain: state.portfolio.realized_gain, sales: state.portfolio.realized_sales ?? 1 } : null);
-  if (realized && Number(realized.sales) > 0) parts.push(tPlural('bvVault.realizedFrom', Number(realized.sales), { amount: moneyWholeSigned(Number(realized.gain) || 0) }));
-  if (!parts.length) return escapeHtml(t('bvVault.addPricesForGain'));
-  return escapeHtml(parts.join(' · '));
+  const note = realized && Number(realized.sales) > 0
+    ? tPlural('bvVault.realizedFrom', Number(realized.sales), { amount: moneyWholeSigned(Number(realized.gain) || 0) })
+    : (!(totals.paid > 0 || totals.pricedValue > 0) ? t('bvVault.addPricesForGain') : '');
+  const priced = totals.paid > 0;
+  const gainCls = priced && totals.paperGain !== 0 ? (totals.paperGain > 0 ? 'up' : 'down') : '';
+  const stat = (label, value, cls = '') => `<span>${escapeHtml(label)}<b${cls ? ` class="${cls}"` : ''}>${escapeHtml(value)}</b></span>`;
+  return `<span class="dp-hero-stats">${stat(t('dp.paid'), priced ? moneyWhole(totals.paid) : '—')}${stat(t('dp.gain'), priced ? moneyWholeSigned(totals.paperGain) : '—', gainCls)}${stat(t('dp.sets'), String(totals.holdings || 0))}</span>`
+    + (note ? `<span class="dp-hero-note">${escapeHtml(note)}</span>` : '');
+}
+
+// "90 days ago … Today" under the hero trend, from the real first snapshot.
+function heroSparkCaption(history) {
+  const first = history.find(s => Number.isFinite(Number(s.total_value)));
+  const stamp = first && parseUTCDate(first.snapshot_date || first.date || first.created_at);
+  const days = stamp ? Math.max(1, Math.round((Date.now() - stamp.getTime()) / 86400000)) : 90;
+  return `<span class="dp-spark-cap" aria-hidden="true"><span>${escapeHtml(tPlural('dp.daysAgo', days, { n: days }))}</span><span>${escapeHtml(t('dp.today'))}</span></span>`;
 }
 
 function heroStatusHTML(p) {
@@ -435,7 +451,8 @@ function heroStatusHTML(p) {
 }
 
 function heroHTML(p, totals) {
-  const hist = clipHistory(state.portfolioHistory || [], 90).map(s => Number(s.total_value)).filter(v => Number.isFinite(v));
+  const clipped = clipHistory(state.portfolioHistory || [], 90);
+  const hist = clipped.map(s => Number(s.total_value)).filter(v => Number.isFinite(v));
   const spark = sparkline(hist, { width: 340, height: 40 });
   const chip = totals.gainPct != null
     ? deltaChip(totals.gainPct, { srUp: t('bvCommon.upPct', { pct: Math.abs(totals.gainPct).toFixed(1) }), srDown: t('bvCommon.downPct', { pct: Math.abs(totals.gainPct).toFixed(1) }) })
@@ -443,12 +460,28 @@ function heroHTML(p, totals) {
   const value = p.total_value ?? totals.value;
   return `<a class="bv-card bv-hero vault-hero" href="#/insights" id="vaultHero">
     <span class="vault-hero__head"><span class="vault-hero__label">${escapeHtml(t('bvVault.collectionValue'))}</span><span class="bv-card__link">${escapeHtml(t('bvVault.insights'))}${icon('chev', { size: 16 })}</span></span>
-    <span class="vault-hero__row"><span class="bv-hero__line"><span class="bv-hero__value" id="heroValue" aria-label="${escapeHtml(heroValueText(value))}" aria-live="off">${escapeHtml(heroValueText(value))}</span>${chip}</span>${vaultTowerHTML(p.items || [], pval, totals.holdings)}</span>
+    <span class="vault-hero__row"><span class="bv-hero__line"><span class="bv-hero__value" id="heroValue" aria-label="${escapeHtml(heroValueText(value))}" aria-live="off">${escapeHtml(heroValueText(value))}</span>${chip}</span></span>
+    ${spark ? spark + heroSparkCaption(clipped) : (hist.length ? `<span class="vault-hero__note">${escapeHtml(t('bvVault.trendSoon'))}</span>` : '')}
     <span class="vault-hero__sub" id="vaultHeroSub">${heroSubHTML(totals)}</span>
-    ${spark || (hist.length ? `<span class="vault-hero__note">${escapeHtml(t('bvVault.trendSoon'))}</span>` : '')}
     ${heroStatusHTML(p)}
     ${syncSlotHTML()}
   </a>`;
+}
+
+// Desktop-only cards under the hero (desktop.css shows them): where the value
+// sits by theme, and the holdings that moved most against what was paid.
+function asideCardsHTML(items) {
+  const alloc = themeAllocation(items, pval, { limit: 5, otherLabel: t('room.otherTheme') });
+  if (!alloc.rows.length) return '';
+  const hues = distinctHues(alloc.rows.map(r => themeHue(r.theme)));
+  const colors = hues.map(hue => setColor({ hue }));
+  const barHtml = alloc.rows.map((r, i) => `<i style="width:${Math.max(1, r.share).toFixed(1)}%;background:${escapeHtml(colors[i])}"></i>`).join('');
+  const legend = alloc.rows.map((r, i) => `<div><i style="background:${escapeHtml(colors[i])}"></i><span>${escapeHtml(r.theme)}</span><b>${escapeHtml(moneyWhole(r.value))}</b><em>${Math.round(r.share)}%</em></div>`).join('');
+  const { gainers, losers } = gainersAndLosers(items, pval, { limit: 2 });
+  const movers = [...gainers, ...losers.slice(0, 1)];
+  const moverRow = (g) => `<a class="dp-mover" href="#/set/${encodeURIComponent(g.row.set_num)}">${setThumb(g.row, { size: 40 })}<span>${escapeHtml(g.row.name || g.row.set_num)}<small>${escapeHtml(g.row.theme || '')}</small></span>${deltaChip(g.pct)}</a>`;
+  return `<section class="bv-card dp-card dp-vault-card"><h3><span>${escapeHtml(t('bvVault.byTheme'))}</span><a href="#/insights">${escapeHtml(t('bvVault.insights'))}</a></h3><div class="dp-bar" aria-hidden="true">${barHtml}</div><div class="dp-legend">${legend}</div></section>`
+    + (movers.length ? `<section class="bv-card dp-card dp-vault-card"><h3><span>${escapeHtml(t('dp.biggestMovers'))}</span><small>${escapeHtml(t('dp.sinceBought'))}</small></h3>${movers.map(moverRow).join('')}</section>` : '');
 }
 
 function saveStatusHTML() {
@@ -527,7 +560,7 @@ function paintPortfolio() {
       ${showSearch ? '' : `<div class="vault-aside">${heroHTML(p, totals)}
       <div id="vaultQuestSlot">${isGuestMode() ? '' : questTeaserHTML(cachedQuests())}</div>
       <div id="vaultSinceSlot">${state.vaultChanges?.owner === getSessionUserId() ? sinceCardHTML(state.vaultChanges.data) : ''}</div>
-      <div id="collectorPinned"></div></div>`}
+      <div id="collectorPinned"></div>${asideCardsHTML(p.items || [])}</div>`}
       <div class="vault-main">
       ${vaultNavigation('sets')}
       ${vaultToolbar(sortButton(sortLabel(state.filter.sort)), layoutSeg(layout))}

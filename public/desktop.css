@@ -365,3 +365,44 @@
   body.collector-ui:not(.bv-two-pane) .bv-setpage > .bv-sethero { height: 680px; }
   body.collector-ui:not(.bv-two-pane) .bv-setpage > #setBar { top: 720px; }
 }
+
+/* ============================================================
+   Design pass 2026-11: desktop layouts (phone rules: design-pass.css)
+   ============================================================ */
+@media (min-width: 1024px) {
+  .vault-list-head, .vault-page .vault-list:not(.bv-grid) .vault-row { grid-template-columns: 52px minmax(0, 1fr) 56px 72px 80px 150px !important; }
+  .vault-list-head { grid-template-columns: minmax(0, 1fr) 56px 72px 80px 150px !important; }
+  .vault-hero .bv-hero__value { letter-spacing: -.06em !important; }
+  .dp-hero-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--bv-line); }
+  .dp-hero-stats span { display: flex; flex-direction: column; font: 500 12px/16px var(--bv-sans); color: var(--bv-mute); }
+  .dp-hero-stats b { font: 600 15px/20px var(--bv-mono); color: var(--bv-ink); }
+  .dp-hero-stats b.up { color: var(--bv-gain); }
+  .dp-spark-cap { display: flex; justify-content: space-between; font: 500 11px/14px var(--bv-sans); color: var(--bv-mute); margin-top: 2px; }
+  .dp-card { margin-top: 16px; background: var(--bv-s); border: 1px solid var(--bv-line); border-radius: 24px; padding: 18px 20px; }
+  .dp-card h3 { margin: 0 0 12px; font: 600 15px/20px var(--bv-sans); display: flex; justify-content: space-between; }
+  .dp-card h3 small { font: 500 13px/20px var(--bv-sans); color: var(--bv-acct); }
+  .dp-bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; gap: 2px; }
+  .dp-bar i { display: block; height: 100%; }
+  .dp-legend { display: grid; gap: 8px; margin-top: 12px; }
+  .dp-legend div { display: grid; grid-template-columns: 10px 1fr auto auto; gap: 8px; align-items: center; font-size: 13px; }
+  .dp-legend i { width: 10px; height: 10px; border-radius: 3px; }
+  .dp-legend b { font: 600 13px var(--bv-mono); }
+  .dp-legend em { font-style: normal; color: var(--bv-mute); width: 40px; text-align: right; font: 500 12px var(--bv-mono); }
+  .dp-mover { display: grid; grid-template-columns: 40px 1fr auto; gap: 10px; align-items: center; padding: 6px 0; font-size: 14px; }
+  .dp-mover img { width: 40px; height: 40px; object-fit: contain; background: #fff; border-radius: 10px; padding: 2px; }
+  .dp-mover small { display: block; color: var(--bv-mute); font-size: 12px; }
+  .dp-mover b { font: 600 13px var(--bv-mono); }
+  .dp-mover b.up { color: var(--bv-gain); } .dp-mover b.down { color: var(--bv-loss); }
+ .vault-aside > div:empty { display: none !important; } .vault-aside .dp-card { margin-top: 0; } .vault-aside { gap: 16px !important; display: flex; flex-direction: column; } 
+  .bv-probenefits { grid-template-columns: repeat(3, 1fr); }
+  .dp-prohero { margin-inline: 0; }
+  .scan-page { max-width: 760px; }
+  /* Desktop scanner: a camera window with the result beside it, not a stretched phone view */
+  #scanOverlay.open { background: rgba(20, 22, 18, .72) !important; display: grid !important; place-items: center; }
+  #scanOverlay .bv-scan { width: min(1040px, calc(100vw - 96px)) !important; height: min(680px, calc(100vh - 96px)) !important; border-radius: 28px; overflow: hidden; position: relative !important; inset: auto !important; box-shadow: 0 30px 80px rgba(0, 0, 0, .5); }
+  #scanOverlay .bv-scan.has-result .bv-scan__video, #scanOverlay .bv-scan.has-result .bv-scan__photo { width: calc(100% - 420px) !important; }
+  #scanOverlay .bv-scan__sheet.show { left: auto !important; right: 0 !important; top: 0 !important; bottom: 0 !important; width: 420px !important; max-height: none !important; height: 100% !important; border-radius: 0 !important; transform: none !important; overflow-y: auto; }
+  #scanOverlay .bv-scan__handle { display: none; }
+  #scanOverlay .bv-scan__top { right: auto !important; width: calc(100% - 0px); }
+  #scanOverlay .bv-scan.has-result .bv-scan__top { width: calc(100% - 420px) !important; }
+}

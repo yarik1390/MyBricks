@@ -2187,3 +2187,6 @@ en.byok = {"title": "Add your free Gemini key", "profileRow": "AI features", "le
 
 // Honest accuracy note under model estimates (backtest 2026-11-08, see methodology.html#estimate-accuracy).
 Object.assign(en.detail, {"estimateAccNew": "Our model's estimate, worked out from sales of similar sets, not this one. For sets this new it lands within about 20% of real sale prices roughly 6 times in 10.", "estimateAccMid": "Our model's estimate, worked out from sales of similar sets, not this one. For sets this age it lands within about 20% of real sale prices only about half the time.", "estimateAccOld": "Our model's estimate, worked out from sales of similar sets, not this one. For older sets it lands within about 20% of real sale prices only about 4 times in 10, and it tends to come in low. Treat it as a rough guide.", "estimateAccLink": "How we measured this"});
+
+// Design pass 2026-11 (design-pass.css): labels for the refreshed layouts.
+en.dp = {"paid": "Paid", "gain": "Gain", "sets": "Sets", "today": "Today", "daysAgoOne": "{n} day ago", "daysAgoOther": "{n} days ago", "biggestMovers": "Biggest movers", "sinceBought": "Since you bought", "radarRetiredOne": "set already retired", "radarRetiredOther": "sets already retired", "radarRetiringOne": "retires soon on LEGO.com", "radarRetiringOther": "retire soon on LEGO.com"};
