@@ -69,13 +69,40 @@ async function dailyRounds(env: Env, day: string): Promise<GameSet[]> {
 
 const utcDay = () => new Date().toISOString().slice(0, 10);
 
+// Round a slider bound to a friendly 1-2-5 step (…, 100, 200, 500, 1000, …).
+function niceUp(v: number): number {
+  const mag = 10 ** Math.floor(Math.log10(v));
+  for (const m of [1, 2, 5, 10]) if (mag * m >= v) return mag * m;
+  return mag * 10;
+}
+function niceDown(v: number): number {
+  const mag = 10 ** Math.floor(Math.log10(v));
+  for (const m of [5, 2, 1]) if (mag * m <= v) return mag * m;
+  return mag;
+}
+
+// Slider bounds (USD) for one round. They must always contain the real value
+// with room to spare (a vintage set can be worth 15x retail), but must not
+// give it away: the value lands at a random point inside, seeded per day and
+// set so the bounds stay stable across reloads.
+export function guessBounds(day: string, set: Pick<GameSet, 'set_num' | 'retail_price' | 'value'>): { guess_min: number; guess_max: number } {
+  const actual = Number(set.value) || 0;
+  const retail = Number(set.retail_price) || 0;
+  const rand = mulberry32(daySeed(`${day}:${set.set_num}`));
+  let hi = Math.max(retail > 0 ? retail * 6 : 0, 100, actual * (2 + rand() * 2));
+  let lo = Math.min(retail > 0 ? retail * 0.25 : 10, actual / (2 + rand() * 2));
+  hi = niceUp(hi);
+  lo = Math.max(1, niceDown(Math.max(lo, 1)));
+  return { guess_min: lo, guess_max: hi };
+}
+
 // GET /api/game/daily — today's five sets, values withheld (that's the game).
 app.get('/daily', async (c) => {
   const day = utcDay();
   const rounds = await dailyRounds(c.env, day);
   return c.json({
     day,
-    rounds: rounds.map(({ value: _value, ...pub }) => pub),
+    rounds: rounds.map(({ value: _value, ...pub }) => ({ ...pub, ...guessBounds(day, { ...pub, value: _value }) })),
   });
 });
 
