@@ -74,7 +74,7 @@ alerts, and share a public profile. Live: https://bricksvault.app
 ## Conventions
 
 - **Every route** goes through `requireMember` (sets `c.get('userId')`) **except**
-  public ones: `GET /api/config`, `GET /api/geo`, `GET /api/users/:handle/profile`. Be deliberate
+  public ones: `GET /api/config`, `GET /api/geo`, `GET /api/users/:handle/profile`, `GET /api/seo/sitemap-sets` (set list for the sitemap). Be deliberate
   about which middleware a new route gets.
 - **BYOK (bring your own key):** `X-Gemini-Key` / `X-OpenAI-Key` request headers
   let users bypass rate limits. Rate limits live in the `rate_limits` table
