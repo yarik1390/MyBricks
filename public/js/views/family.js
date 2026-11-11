@@ -54,7 +54,7 @@ function familyHTML(data) {
   const h = data.household;
   const owner = h.role === 'owner';
   const sets = filter === 'shared' ? data.vault.sets.filter((s) => s.owners.length > 1) : data.vault.sets;
-  return `${card(`<div class="bv-family__totals">
+  return `<div class="dp-col">${card(`<div class="bv-family__totals">
         <div><span class="bv-family__label">Family value</span><span class="bv-family__big bv-num">${escapeHtml(fmtMoney(data.vault.total_value, { cents: 0 }))}</span></div>
         <div><span class="bv-family__label">Sets</span><span class="bv-family__big bv-num">${Number(data.vault.total_sets)}</span></div>
       </div>`, { cls: 'bv-family__card' })}
@@ -65,19 +65,19 @@ function familyHTML(data) {
         ${btn('Share', { kind: 'tonal', size: 'sm', icon: 'share', id: 'famShare' })}</div>
       <p class="bv-field__help">Anyone with this code can join and see the family vault, including values.</p>
       ${owner ? btn('New code', { kind: 'text', size: 'sm', id: 'famRotate' }) : ''}`, { cls: 'bv-family__card' })}
-    <h2 class="bv-h2">Family vault</h2>
+    </div><div class="dp-col"><h2 class="bv-h2">Family vault</h2>
     <div class="bv-family__filters" role="group" aria-label="Filter">
       <button type="button" class="bv-chip${filter === 'all' ? ' is-on' : ''}" data-fam-filter="all" aria-pressed="${filter === 'all'}">All sets</button>
       <button type="button" class="bv-chip${filter === 'shared' ? ' is-on' : ''}" data-fam-filter="shared" aria-pressed="${filter === 'shared'}">Owned by more than one of you</button>
     </div>
     ${sets.length ? `<ul class="bv-family__sets">${sets.map(setHTML).join('')}</ul>` : '<p class="bv-field__help">No sets here yet.</p>'}
-    ${btn('Leave family vault', { kind: 'danger', id: 'famLeave', full: true })}`;
+    ${btn('Leave family vault', { kind: 'danger', id: 'famLeave', full: true })}</div>`;
 }
 
 function paint(data) {
   const root = $('#root');
   if (!root || !onScreen()) return;
-  root.innerHTML = `<main class="bv-page no-nav bv-family" id="familyPage">
+  root.innerHTML = `<main class="bv-page no-nav bv-family${data.household ? ' dp2' : ''}" id="familyPage">
     ${topbar({ title: data.household ? data.household.name : 'Family vault', sub: data.household ? 'Family vault' : '', back: '#/me' })}
     ${data.household ? familyHTML(data) : setupHTML()}
   </main>`;

@@ -64,6 +64,16 @@ public class MainActivity extends BridgeActivity {
                 || getBridge().getWebView().getProgress() < 100;
             return elapsed < 900 || (elapsed < 5000 && webViewLoading);
         });
+
+        // Hand over to the app with a short fade instead of a hard cut. The
+        // system's animator scale applies, so "Remove animations" makes this
+        // instant; remove() always runs, so the splash can never linger.
+        splashScreen.setOnExitAnimationListener(provider ->
+            provider.getView().animate()
+                .alpha(0f)
+                .setDuration(220)
+                .withEndAction(provider::remove)
+                .start());
     }
 
     @Override

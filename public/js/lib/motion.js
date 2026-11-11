@@ -21,10 +21,10 @@ const routeOf = (hash = location.hash) => (String(hash).replace(/^#/, '') || '/'
 /** Direction of a navigation: 'fwd' | 'back' | 'tab-l' | 'tab-r' | ''. */
 export function navDirection({ fromRoute, toRoute, fromDepth, toDepth, tabs = [] }) {
   const a = tabs.indexOf(fromRoute), b = tabs.indexOf(toRoute);
-  if (a >= 0 && b >= 0 && a !== b) return b > a ? 'tab-r' : 'tab-l';
-  if (toDepth < fromDepth) return 'back';
-  if (toDepth > fromDepth) return 'fwd';
-  return '';
+  const side = Math.sign(b - a);
+  if (a !== -1 && b !== -1 && side) return side === 1 ? 'tab-r' : 'tab-l';
+  const depth = Math.sign(toDepth - fromDepth);
+  return depth === 1 ? 'fwd' : depth === -1 ? 'back' : '';
 }
 
 function bottomTabs() {

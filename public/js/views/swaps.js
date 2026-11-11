@@ -122,15 +122,15 @@ function paint(data) {
   if (!root || !onScreen()) return;
   const incoming = data.requests.filter((r) => r.direction === 'incoming');
   const outgoing = data.requests.filter((r) => r.direction === 'outgoing');
-  root.innerHTML = `<main class="bv-page no-nav bv-swaps" id="swapsPage">
+  root.innerHTML = `<main class="bv-page no-nav bv-swaps dp2" id="swapsPage">
     ${topbar({ title: 'Swaps', sub: 'Trade sets with other collectors', back: '#/me' })}
-    ${card(`<label class="bv-swaps__switch"><span><span class="bv-swaps__switchtitle">Open to swaps</span>
+    <div class="dp-col">${card(`<label class="bv-swaps__switch"><span><span class="bv-swaps__switchtitle">Open to swaps</span>
         <span class="bv-field__help">Collectors who are also open see your handle and the sets you offer when they match your wishlist. Nothing else is shared.</span></span>
         <input type="checkbox" role="switch" id="swapOpen" ${data.open ? 'checked' : ''}></label>
       ${!data.has_handle ? '<p class="bv-field__help">You need a public handle first. Set it in <a href="#/me">your profile</a>.</p>' : ''}`, { cls: 'bv-swaps__card' })}
     ${tradeHTML(data)}
     ${incoming.length ? `<h2 class="bv-h2">Requests for you</h2><ul class="bv-swaps__list">${incoming.map(requestHTML).join('')}</ul>` : ''}
-    <h2 class="bv-h2">Matches</h2>
+    </div><div class="dp-col"><h2 class="bv-h2">Matches</h2>
     ${!data.open
       ? '<p class="bv-field__help">Turn on Open to swaps to see matches.</p>'
       : data.matches.length
@@ -138,7 +138,7 @@ function paint(data) {
         : '<p class="bv-field__help">No matches yet. Add sets you would swap away and keep your wishlist up to date. We match you as more collectors join.</p>'}
     ${outgoing.length ? `<h2 class="bv-h2">Your requests</h2><ul class="bv-swaps__list">${outgoing.map(requestHTML).join('')}</ul>` : ''}
     ${hiddenHTML(data)}
-    ${SAFETY}
+    ${SAFETY}</div>
   </main>`;
   wire(data);
   const chatId = new URLSearchParams(location.hash.split('?')[1] || '').get('chat');
