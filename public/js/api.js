@@ -1374,6 +1374,17 @@ export async function api(path, opts = {}) {
   const geminiKey = getProviderCredential('gemini');
   const openaiKey = getProviderCredential('openai');
   const platform = globalThis.window?.Capacitor?.isNativePlatform?.() ? 'android' : 'web';
+  // Android scans carry a Play Integrity attestation (lib/play-attest.js).
+  let attestation = '';
+  if (platform === 'android' && token && String(path).startsWith('/api/scan')) {
+    try {
+      const [{ ensureAttestation }, { getCapacitorPlugin }] = await Promise.all([
+        import('./lib/play-attest.js'),
+        import('./lib/native-auth.js'),
+      ]);
+      attestation = await ensureAttestation(requestOwner.userId, api, getCapacitorPlugin('PlayIntegrity'));
+    } catch { /* best-effort: scan without it */ }
+  }
   // rawBody sends a plain-text body verbatim (e.g. a tab-separated upload) — the
   // server reads it via req.text(); JSON.stringify would escape tabs and break it.
   const isRaw = typeof opts.rawBody === 'string';
@@ -1386,6 +1397,7 @@ export async function api(path, opts = {}) {
       ...(geminiKey ? { "X-Gemini-Key": geminiKey } : {}),
       ...(openaiKey ? { "X-OpenAI-Key": openaiKey } : {}),
       "X-Brickvault-Platform": platform,
+      ...(attestation ? { "X-Brickvault-Attestation": attestation } : {}),
       ...(opts.headers || {}),
     },
     body: isRaw ? opts.rawBody : (opts.body ? JSON.stringify(opts.body) : undefined),

@@ -83,7 +83,7 @@ export const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 app.use('*', cors({
   origin: (origin, c) => (origin && isAllowedOrigin(origin, c.env) ? origin : appBaseUrl(c.env)),
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Gemini-Key', 'X-OpenAI-Key', 'X-Brickvault-Platform', 'Idempotency-Key', 'X-Request-Id', 'cf-turnstile-token', 'X-Turnstile-Reason'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Gemini-Key', 'X-OpenAI-Key', 'X-Brickvault-Platform', 'X-Brickvault-Attestation', 'Idempotency-Key', 'X-Request-Id', 'cf-turnstile-token', 'X-Turnstile-Reason'],
 }));
 
 // Hono's CORS middleware adds response headers after `next()`. An unhandled
@@ -290,6 +290,7 @@ app.route('/api/img', imgRoute);
 // Public coming-soon release feed (G2b).
 app.route('/api/upcoming', upcomingRoute);
 import { seoRoute } from './routes/seo'; app.route('/api/seo', seoRoute);
+import { attestRoute } from './routes/attest'; app.route('/api/attest', attestRoute);
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
 
