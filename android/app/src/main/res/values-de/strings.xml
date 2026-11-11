@@ -4,6 +4,10 @@
     <string name="widget_label">Tresorwert</string>
     <string name="widget_open_app">App öffnen</string>
     <string name="widget_open_to_sync">Zum Synchronisieren App öffnen</string>
+    <plurals name="widget_sets_updated">
+        <item quantity="one">%1$d Set · aktualisiert %2$s</item>
+        <item quantity="other">%1$d Sets · aktualisiert %2$s</item>
+    </plurals>
     <string name="widget_scan">Scannen</string>
     <string name="widget_search">Suchen</string>
     <string name="shortcut_scan_short">Set scannen</string>

@@ -289,6 +289,7 @@ app.route('/api/revenuecat', revenuecatRoute);
 app.route('/api/img', imgRoute);
 // Public coming-soon release feed (G2b).
 app.route('/api/upcoming', upcomingRoute);
+import { seoRoute } from './routes/seo'; app.route('/api/seo', seoRoute);
 
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
 

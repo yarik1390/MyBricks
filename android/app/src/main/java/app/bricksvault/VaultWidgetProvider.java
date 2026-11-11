@@ -39,7 +39,7 @@ public class VaultWidgetProvider extends AppWidgetProvider {
             meta = retiring;
         } else if (updatedAt > 0) {
             String time = DateFormat.getTimeFormat(context).format(new Date(updatedAt));
-            meta = sets + (sets == 1 ? " set · " : " sets · ") + "updated " + time;
+            meta = context.getResources().getQuantityString(R.plurals.widget_sets_updated, sets, sets, time);
         } else {
             meta = context.getString(R.string.widget_open_to_sync);
         }

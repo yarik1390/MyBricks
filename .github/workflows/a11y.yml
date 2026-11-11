@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '22'
       - name: Install dependencies
         run: npm ci
       - name: Cache Playwright browsers
@@ -35,7 +35,7 @@ jobs:
         run: npx playwright test --config=a11y/playwright.config.mjs
       - name: Lighthouse accessibility (report-only)
         continue-on-error: true
-        run: npx --yes @lhci/cli@0.15.1 autorun --config=a11y/lighthouserc.json
+        run: npx --yes @lhci/cli@0.15.1 autorun --config=a11y/lighthouserc.cjs
       - name: Upload axe report
         if: always()
         # Report-only: a full Actions artifact quota must not fail the check.

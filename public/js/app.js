@@ -689,6 +689,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       offlineShowTimer = null;
     }
     document.body.classList.toggle("offline", offlineUiState === "offline");
+    const offlineBannerEl = document.getElementById("offlineBanner");
+    if (offlineBannerEl) offlineBannerEl.hidden = offlineUiState !== "offline";
     // Presentation only: say when the values are from and what will sync.
     if (offlineUiState === "offline" && prev !== "offline") {
       import('./ui/first-ui.js').then(m => m.paintOfflineBanner()).catch(() => {});
