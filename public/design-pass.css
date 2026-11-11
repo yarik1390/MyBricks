@@ -58,10 +58,11 @@
   .dp-theme-ico { width: 22px; height: 22px; border-radius: 6px; margin: 0 8px 0 -6px; object-fit: contain; background: #fff; }
 
   /* Set page: facts as a stat strip, smaller trust chip */
-  .dp-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin: 12px 0 2px; border: 1px solid var(--bv-line); border-radius: 16px; background: var(--bv-s); overflow: hidden; }
+  .dp-stats { display: grid; grid-template-columns: repeat(var(--dp-cols, 4), minmax(0, 1fr)); gap: 0; margin: 12px 0 2px; border: 1px solid var(--bv-line); border-radius: 16px; background: var(--bv-s); overflow: hidden; }
   .dp-stats > span { display: flex; flex-direction: column; align-items: center; padding: 10px 4px; font: 500 11px/14px var(--bv-sans); color: var(--bv-mute); }
   .dp-stats > span + span { border-left: 1px solid var(--bv-line); }
-  .dp-stats b { font: 600 15px/20px var(--bv-mono); color: var(--bv-ink); letter-spacing: -.02em; }
+  .dp-stats b { font: 600 15px/20px var(--bv-mono); color: var(--bv-ink); letter-spacing: -.02em; text-align: center; }
+.dp-stats__status b { font: 600 13px/20px var(--bv-sans); letter-spacing: 0; }
   .bv-valuecard .bv-conf { min-height: 30px !important; padding: 0 10px !important; font-size: 13px !important; border-radius: 10px !important; }
   .bv-valuecard .bv-conf svg { width: 14px !important; height: 14px !important; }
   .bv-valuecard__value { letter-spacing: -.06em !important; }
@@ -77,10 +78,11 @@
   .bv-shortcut__sub { white-space: nowrap !important; }
 }
 
-.dp-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin: 12px 0 2px; border: 1px solid var(--bv-line); border-radius: 16px; background: var(--bv-s); overflow: hidden; }
+.dp-stats { display: grid; grid-template-columns: repeat(var(--dp-cols, 4), minmax(0, 1fr)); gap: 0; margin: 12px 0 2px; border: 1px solid var(--bv-line); border-radius: 16px; background: var(--bv-s); overflow: hidden; }
 .dp-stats > span { display: flex; flex-direction: column; align-items: center; padding: 10px 4px; font: 500 11px/14px var(--bv-sans); color: var(--bv-mute); }
 .dp-stats > span + span { border-left: 1px solid var(--bv-line); }
-.dp-stats b { font: 600 15px/20px var(--bv-mono); color: var(--bv-ink); letter-spacing: -.02em; }
+.dp-stats b { font: 600 15px/20px var(--bv-mono); color: var(--bv-ink); letter-spacing: -.02em; text-align: center; }
+.dp-stats__status b { font: 600 13px/20px var(--bv-sans); letter-spacing: 0; }
 
 /* ---- proposal2.css ---- */
 @media (max-width: 1023px) {

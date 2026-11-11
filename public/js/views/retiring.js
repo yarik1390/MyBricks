@@ -6,7 +6,7 @@ import { $, $$, escapeHtml, haptic } from '../utils.js';
 import { t, tPlural, intlLocale } from '../lib/i18n.js';
 import { state } from '../state.js';
 import { api } from '../api.js';
-import { topbar, iconBtn, tabs, pill, chip, emptyState, skeletonRows, btn } from '../ui/kit.js';
+import { topbar, iconBtn, tabs, pill, chip, emptyState, skeletonRows, btn, icon } from '../ui/kit.js';
 import { setRow, money0, setValue } from '../ui/set-ui.js';
 
 const TABS = ['yours', 'wishlist', 'all'];
@@ -26,7 +26,7 @@ function exitLabel(s) {
 // Owned → Hold (retirement usually lifts value); wanted and at/under target or
 // a live buy signal → Buy window; wanted otherwise → Fair price.
 function pillFor(s, kind) {
-  if (kind === 'yours') return pill(t('bvAdd.pillHold'));
+  if (kind === 'yours') return pill(t('bvAdd.pillHold'), 'gain');
   const target = Number(s.target_price);
   const value = setValue(s);
   if (s.deal_signal === 'buy' || (target > 0 && value > 0 && value <= target)) return pill(t('bvAdd.pillBuyWindow'), 'acc');
@@ -76,7 +76,11 @@ function listHTML(lists) {
         actionsHtml: btn(t('bvAdd.seeAllRetiring'), { kind: 'tonal', full: true, id: 'retiringSeeAll' }),
       });
     }
-    return `<h2 class="bv-h2">${escapeHtml(t(_tab === 'yours' ? 'bvAdd.youOwnHeading' : 'bvAdd.onWishlistHeading'))}</h2><div class="bv-group__box bv-gap">${items.map((s) => rowFor(s, _tab)).join('')}</div>`;
+    const worth = items.reduce((sum, s) => sum + setValue(s) * (Number(s.quantity) || 1), 0);
+    const bannerHtml = _tab === 'yours'
+      ? `<div class="dp-retbanner"><span class="ic" aria-hidden="true">${icon('clock', { size: 22 })}</span><span><b>${escapeHtml(tPlural('dp.retBanner', items.length, { n: items.length }))}</b><small>${escapeHtml(t('dp.retBannerSub', { amount: money0(worth) }))}</small></span></div>`
+      : '';
+    return `${bannerHtml}<h2 class="bv-h2">${escapeHtml(t(_tab === 'yours' ? 'bvAdd.youOwnHeading' : 'bvAdd.onWishlistHeading'))}</h2><div class="bv-group__box bv-gap">${items.map((s) => rowFor(s, _tab)).join('')}</div>`;
   }
   if (!lists.all.length) return emptyState({ icon: 'clock', title: t('bvAdd.noneRetiringAll') });
   const total = Math.max(lists.allTotal, lists.all.length);

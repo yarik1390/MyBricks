@@ -305,18 +305,25 @@ function titleBlockHTML(set) {
   const bits = [
     `<span class="bv-num bv-settitle__num">${escapeHtml(set.set_num)}</span>`,
     escapeHtml(themeLine(set)),
-    set.year ? escapeHtml(String(set.year)) : "",
-    Number(set.pieces) > 0 ? escapeHtml(t("bvSet.pcs", { count: Number(set.pieces).toLocaleString(getLocale()) })) : "",
   ].filter(Boolean);
   // An exit date still ahead means the set hasn't retired yet, whatever the
   // retired flag says (75192 read "Retired" months before its Dec 2026 exit).
   const exitAhead = Date.parse(set.exit_date) > Date.now();
   const status = set.coming_soon ? t("bvCommon.comingSoon")
     : (set.lego_retiring_soon && !set.retired) || exitAhead ? t("bvSet.retiringSoon")
-    : set.retired ? t("bvCommon.retired") : "";
+    : set.retired ? t("bvCommon.retired") : t("dp.available");
+  const figs = Number(set.minifigs) > 0 ? Number(set.minifigs) : (Array.isArray(set.set_minifigs) ? set.set_minifigs.reduce((n, f) => n + (Number(f.quantity) || 1), 0) : 0);
+  const fact = (label, value, cls = "") => `<span${cls ? ` class="${cls}"` : ""}>${escapeHtml(label)}<b>${escapeHtml(String(value))}</b></span>`;
+  const facts = [
+    set.year ? fact(t("desktop.colYear"), set.year) : "",
+    Number(set.pieces) > 0 ? fact(t("desktop.colPieces"), Number(set.pieces).toLocaleString(getLocale())) : "",
+    figs > 0 ? fact(t("nav.minifigs"), figs) : "",
+    fact(t("dp.status"), status, "dp-stats__status"),
+  ].filter(Boolean);
   return `<div class="bv-settitle detail-identity-block" aria-label="${escapeHtml(t("bvSet.identity"))}">
     <h1 class="bv-settitle__name${size}">${escapeHtml(set.name || set.set_num)}</h1>
-    <p class="bv-settitle__meta">${bits.join(" · ")}${status ? ` · <strong>${escapeHtml(status)}</strong>` : ""}</p>
+    <p class="bv-settitle__meta">${bits.join(" · ")}</p>
+    <div class="dp-stats" style="--dp-cols:${facts.length}">${facts.join("")}</div>
   </div>`;
 }
 

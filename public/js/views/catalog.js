@@ -271,11 +271,22 @@ function shortcutsHTML() {
     </nav>`;
 }
 
+// A small set photo on each theme chip, taken from sets already on screen
+// (catalogue page, the user's vault, upcoming). No match, no photo.
+function themeChipPhoto(theme) {
+  const pools = [state.catalog.items || [], state.portfolio?.items || [], state.catalog.upcoming || []];
+  for (const pool of pools) {
+    const hit = pool.find((s) => s && s.theme === theme && typeof s.image_url === "string" && s.image_url && !s.image_url.startsWith("data:"));
+    if (hit) return `<img class="dp-theme-ico" src="${escapeHtml(thumbImg(hit.image_url, 80))}" alt="" loading="lazy" decoding="async">`;
+  }
+  return "";
+}
+
 function themeBrowseHTML() {
   if (!isCatalogDefault() || !state.themes.length) return "";
   return `<section class="bv-discover__section" aria-labelledby="browseThemesTitle">
       ${kitSectionTitle(t("bvAdd.browseThemes"), { id: "browseThemesTitle" })}
-      <div class="bv-chips bv-discover__themes">${popularThemes(state.themes, 8).map((th) => `<button type="button" class="bv-chip" data-cat-theme="${escapeHtml(th)}">${escapeHtml(th)}</button>`).join("")}
+      <div class="bv-chips bv-discover__themes">${popularThemes(state.themes, 8).map((th) => `<button type="button" class="bv-chip" data-cat-theme="${escapeHtml(th)}">${themeChipPhoto(th)}${escapeHtml(th)}</button>`).join("")}
         ${state.themes.length > 8 ? `<button type="button" class="bv-chip" id="moreThemesChip">${kitIcon("filter", { size: 18 })}<span>${escapeHtml(t("bvAdd.moreThemes"))}</span></button>` : ""}</div>
     </section>`;
 }

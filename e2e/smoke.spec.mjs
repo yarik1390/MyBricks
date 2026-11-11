@@ -460,7 +460,7 @@ test('upcoming sets show announced retail instead of stale market estimates', as
   await expect(summary.locator('.detail-summary-val')).toHaveText('$300');
   await expect(summary).not.toContainText('$849.99');
   await expect(summary).not.toContainText('$11');
-  await expect(page.locator('.bv-settitle__meta')).toContainText('Coming soon');
+  await expect(page.locator('.dp-stats')).toContainText('Coming soon');
   // No confidence chip or range for an unreleased set — just the retail note
   // and "Why $300?", which explains it is retail, not resale.
   await expect(summary.locator('.bv-conf')).toHaveCount(0);
