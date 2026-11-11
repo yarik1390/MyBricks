@@ -458,5 +458,5 @@
   .dp-radar { grid-template-columns: 1fr !important; }
   .insights-theme .dp-tval { display: none; }
   /* Scan start page sits centred instead of hugging the left edge. */
-  .bv-pile > :not(.bv-top) { max-width: 560px; margin-inline: auto; }
+  .bv-pile > :not(.bv-top) { max-width: 560px; margin-inline: auto !important; }
 }

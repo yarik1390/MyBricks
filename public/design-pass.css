@@ -294,6 +294,7 @@
 .scan-method .bv-row__title { font-size: 15px !important; line-height: 19px !important; }
 .scan-method .bv-row__sub { font-size: 12px !important; line-height: 16px !important; }
 .scan-method#pileScanBarcode { background: #ffda47 !important; border-color: #ffda47 !important; }
+.scan-method#pileScanBarcode, .scan-method#pileScanBarcode .bv-row__title { color: #252820 !important; }
 .scan-method#pileScanBarcode > svg { background: rgba(37, 40, 32, .12); }
 .scan-method#pileScanBarcode .bv-row__sub { color: #4a3d10 !important; }
 .dp-quota { margin: 10px var(--bv-gutter) 0; font: 500 13px/18px var(--bv-sans); color: var(--bv-mute); }
@@ -382,3 +383,14 @@
 .dp-col { display: contents; }
 .dp-loginart { display: none; }
 .dp-theme-ico { width: 22px; height: 22px; border-radius: 6px; margin: 0 8px 0 -6px; object-fit: contain; background: #fff; }
+
+/* Dark theme: the amber notice surfaces swap to a deep amber so text keeps its contrast. */
+:root[data-theme="dark"] .dp-sum b.warn { color: #ffcf7a; }
+:root[data-theme="dark"] :is(.dp-retpill, .dp-sure) { background: #3a2c10; color: #ffcf7a; }
+:root[data-theme="dark"] .dp-retbanner { background: #3a2c10; }
+:root[data-theme="dark"] .dp-retbanner .ic { background: #5c4718; color: #ffcf7a; }
+:root[data-theme="dark"] .dp-retbanner b { color: #ffe3ad; }
+:root[data-theme="dark"] .dp-retbanner small { color: #d9bd85; }
+:root[data-theme="dark"] .dp-av.b { background: #2c3f57; color: #dbe8f8; }
+:root[data-theme="dark"] .bv-lbrow__rank[data-rank="2"] { background: #4a4f57; color: #f1f3f5; }
+:root[data-theme="dark"] .bv-lbrow__rank[data-rank="3"] { background: #6b4526; color: #ffe1c4; }
