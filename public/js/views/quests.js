@@ -79,13 +79,14 @@ function questHTML(q, i) {
   const left = Math.max(0, q.total - q.owned);
   return `<li class="bv-card bv-quest" data-quest="${i}">
     <div class="bv-quest__head">
-      ${ringSVG(q.owned, q.total, 52)}
+      <span class="dp-ring">${ringSVG(q.owned, q.total, 56)}<span class="dp-ring__l bv-num" aria-hidden="true">${q.owned}/${q.total}</span></span>
       <span class="bv-quest__body">
         <span class="bv-quest__name">${escapeHtml(q.subtheme)}</span>
         <span class="bv-quest__theme">${escapeHtml(q.theme)} · ${escapeHtml(progressText(q))}</span>
         ${nextHTML(q)}
       </span>
     </div>
+    ${q.missing?.length ? `<div class="dp-queststrip"><span class="dp-thumbs">${q.missing.filter(m => m.image_url).slice(0, 4).map(m => `<img src="${escapeHtml(proxyImg(m.image_url))}" alt="" loading="lazy" decoding="async">`).join('')}<span class="more">${escapeHtml(tPlural('fun.questMissing', left))}</span></span><button type="button" class="bv-btn bv-btn--text bv-btn--sm" data-quest-toggle aria-expanded="false">${escapeHtml(t('dp.seeAll'))}</button></div>` : ''}
     ${q.missing?.length ? `<details class="bv-quest__missing"><summary>${escapeHtml(tPlural('fun.questMissing', left))}</summary><ul>${q.missing.map(missingHTML).join('')}</ul></details>` : ''}
   </li>`;
 }
@@ -102,4 +103,11 @@ export async function renderQuests() {
       ? emptyState({ icon: 'box', title: t('fun.questsEmptyTitle'), body: t('fun.questsEmptyBody') })
       : `<p class="bv-quests__intro">${escapeHtml(t('fun.questsIntro'))}</p><ul class="bv-quests__list">${quests.map(questHTML).join('')}</ul>`;
   root.innerHTML = `<main class="bv-page bv-quests">${head}${body}</main>`;
+  root.querySelectorAll('[data-quest-toggle]').forEach((btn) => btn.addEventListener('click', () => {
+    const details = btn.closest('.bv-quest')?.querySelector('.bv-quest__missing');
+    if (!details) return;
+    details.open = !details.open;
+    btn.setAttribute('aria-expanded', String(details.open));
+    btn.textContent = t(details.open ? 'dp.hide' : 'dp.seeAll');
+  }));
 }

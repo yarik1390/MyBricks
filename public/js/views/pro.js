@@ -86,9 +86,10 @@ export async function renderPro() {
   if (location.hash.split('?')[0] !== '#/pro') return;
 
   let actions;
+  let heroHtml = '';
   if (early) {
-    actions = `<div class="bv-proactive" role="status" id="proEarly">${icon('star', { size: 22 })}<span><span class="bv-probenefits__title">${escapeHtml(t('bvAccount.proEarlyTitle'))}</span><span class="bv-probenefits__sub">${escapeHtml(t('bvAccount.proEarlyBody'))}</span></span></div>
-      ${getSessionUserId() ? '' : btn(t('bvAccount.signIn'), { full: true, size: 'lg', href: '#/login', id: 'proEarlySignIn' })}`;
+    heroHtml = `<section class="dp-prohero" role="status" id="proEarly"><span class="tag">${escapeHtml(t('dp.earlyAccess'))}</span><h2>${escapeHtml(t('bvAccount.proEarlyTitle'))}</h2><p>${escapeHtml(t('bvAccount.proEarlyBody'))}</p></section>`;
+    actions = getSessionUserId() ? '' : btn(t('bvAccount.signIn'), { full: true, size: 'lg', href: '#/login', id: 'proEarlySignIn' });
   } else if (active) {
     actions = `<div class="bv-proactive" role="status">${icon('star', { size: 22 })}<span><span class="bv-probenefits__title">${escapeHtml(t('bvAccount.proYouHave'))}</span><span class="bv-probenefits__sub">${escapeHtml(t('bvAccount.proThanks'))}</span></span></div>
       ${native ? btn(t('bvAccount.proManage'), { kind: 'outline', full: true, id: 'rcManageBtn' }) : patreon ? btn(t('bvAccount.proManagePatreon'), { kind: 'outline', full: true, href: patreon, attrs: { target: '_blank', rel: 'noopener' } }) : ''}`;
@@ -106,8 +107,9 @@ export async function renderPro() {
 
   root.innerHTML = `<main class="bv-page no-nav bv-pro" id="proPage">
       ${topbar({ title: t('bvAccount.proTitle'), sub: t('bvAccount.proSub'), back: '#/me' })}
+      ${heroHtml}
       <section class="bv-procard" aria-label="${escapeHtml(t('bvAccount.proWhat'))}">${benefitsHTML(early)}</section>
-      <div class="bv-proactions">${actions}</div>
+      ${actions ? `<div class="bv-proactions">${actions}</div>` : ''}
       ${wallHTML(supporters)}
     </main>`;
 

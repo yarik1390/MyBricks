@@ -36,10 +36,10 @@ function rowHTML(u, wish) {
   // Every row here is coming soon; only a different status (pre-order, a
   // date) is worth the space the theme would otherwise lose to truncation.
   const status = u.availability && !/^coming soon$/i.test(String(u.availability).trim()) ? u.availability : '';
-  const meta = [num.replace(/-\d+$/, ''), u.theme, status].filter(Boolean).join(' · ');
+  const meta = [num.replace(/-\d+$/, ''), u.theme].filter(Boolean).join(' · ');
   return `<div class="bv-setrow bv-comingsoon__row" data-cs-open="${escapeHtml(num)}" role="link" tabindex="0">
       ${setThumb(u)}
-      <span class="bv-setrow__body"><span class="bv-setrow__name">${escapeHtml(String(u.name || num))}</span><span class="bv-setrow__meta">${escapeHtml(meta)}</span></span>
+      <span class="bv-setrow__body"><span class="bv-setrow__name">${escapeHtml(String(u.name || num))}</span><span class="bv-setrow__meta">${escapeHtml(meta)}</span>${status ? `<span class="dp-pre">${escapeHtml(status)}</span>` : ''}</span>
       <span class="bv-setrow__end bv-comingsoon__end">${u.price_usd ? `<span class="bv-setrow__value">${escapeHtml(money0(u.price_usd))}</span>` : ''}
         <button type="button" class="bv-iconbtn bv-notify" data-cs-wish="${escapeHtml(num)}" data-cs-name="${escapeHtml(String(u.name || ''))}" aria-pressed="${on}" aria-label="${escapeHtml(notifyLabel(on))}" title="${escapeHtml(notifyLabel(on))}">${icon('bell', { size: 20 })}</button></span>
     </div>`;

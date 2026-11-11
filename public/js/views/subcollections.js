@@ -10,7 +10,8 @@ import { subcollectionRequest } from '../lib/subcollection-storage.js';
 import { exportBlob } from '../lib/native-file-export.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
 import { icon, card, bar, pill, btn, banner, emptyState, sheetBody, skeletonRows } from '../ui/kit.js';
-import { vaultTopbar, vaultSearchRow, openActionSheet, countRow } from '../ui/vault-ui.js';
+import { vaultTopbar, vaultSearchRow, openActionSheet, countRow, moneyWhole, holdingValue } from '../ui/vault-ui.js';
+import { setThumb } from '../ui/set-ui.js';
 
 // Vault → Lists (#/collections): collection-record gaps, then named lists
 // ("Display shelf", "UCS to complete") with progress, pins and a sheet per list.
@@ -83,6 +84,20 @@ export async function renderSubcollections() {
     return `${ownedNames.slice(0, 3).join(', ')} · ${tPlural('bvVault.listNotOwned', progress.missing.length)}`;
   };
 
+  // Photos of the sets you own from this list, with what they are worth.
+  const owned = new Map();
+  for (const row of items) { const num = canonicalSetNum(row.set_num); if (!owned.has(num)) owned.set(num, []); owned.get(num).push(row); }
+  const listFoot = list => {
+    const rows = list.set_nums.map(canonicalSetNum).flatMap(num => owned.get(num) || []);
+    if (!rows.length) return '';
+    const seen = new Set();
+    const firsts = rows.filter(row => !seen.has(row.set_num) && seen.add(row.set_num));
+    const worth = rows.reduce((sum, row) => sum + (Number(holdingValue(row)) || 0) * (Number(row.quantity) || 1), 0);
+    const extra = firsts.length - 4;
+    return `<div class="dp-listfoot"><span class="dp-thumbs">${firsts.slice(0, 4).map(row => setThumb(row, { size: 44 })).join('')}${extra > 0 ? `<span class="more">+${extra}</span>` : ''}</span>`
+      + `<span class="val">${worth > 0 ? `<b>${esc(moneyWhole(worth))}</b>` : ''}${esc(tPlural('bvVault.footSets', firsts.length))}</span></div>`;
+  };
+
   const listHTML = list => {
     const progress = collectionProgress(list, items);
     const pinned = pins().includes(list.id);
@@ -96,6 +111,7 @@ export async function renderSubcollections() {
       </div>
       ${bar(progress.total ? (progress.owned / progress.total) * 100 : 0, { label, acc: false })}
       <p class="vault-list-card__sub">${esc(listSub(list, progress))}</p>
+      ${listFoot(list)}
     </article>`;
   };
 

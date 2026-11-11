@@ -36,12 +36,19 @@ const chipList = (sets) => `<ul class="bv-swaps__sets">${sets.map((s) => `<li>
   ${s.image_url ? `<img src="${escapeHtml(proxyImg(s.image_url))}" alt="" loading="lazy" decoding="async">` : ''}
   <span><span class="bv-num">${escapeHtml(s.set_num)}</span> ${escapeHtml(s.name || '')}</span></li>`).join('')}</ul>`;
 
+// One side of a match: the sets that would change hands, photo first.
+function swapSide(title, sets) {
+  const rows = sets.slice(0, 3).map((s) => `<span class="dp-swapset">${s.image_url ? `<img class="dp-t40" src="${escapeHtml(proxyImg(s.image_url))}" alt="" loading="lazy" decoding="async">` : ''}<b>${escapeHtml(s.name || s.set_num)}</b></span>`).join('');
+  const more = sets.length > 3 ? `<small>+${sets.length - 3}</small>` : '';
+  return `<div class="side"><small>${title}</small>${sets.length ? rows + more : `<span class="empty">${escapeHtml(t('dp.swapEmpty'))}</span>`}</div>`;
+}
+
 const reputation = (n) => (n > 0 ? pill(tPlural('swaps.swapsDone', n, { n }), 'gain') : pill('New to swaps', 'neutral'));
 
 function tradeHTML(data) {
   return card(`<h2 class="bv-h3">Up for swap</h2>
     ${data.for_trade.length
-      ? `<ul class="bv-swaps__trade">${data.for_trade.map((s) => `<li><span><span class="bv-num">${escapeHtml(s.set_num)}</span> ${escapeHtml(s.name || '')}</span>
+      ? `<ul class="bv-swaps__trade">${data.for_trade.map((s) => `<li><span class="dp-swapset">${s.image_url ? `<img class="dp-t40" src="${escapeHtml(proxyImg(s.image_url))}" alt="" loading="lazy" decoding="async">` : ''}<span>${escapeHtml(s.name || s.set_num)}<span class="dp-sub">${escapeHtml(String(s.set_num || '').replace(/-1$/, ''))}</span></span></span>
           <button type="button" class="bv-btn bv-btn--text bv-btn--sm" data-untrade="${escapeHtml(s.set_num)}" aria-label="${escapeHtml(t('swaps.stopOffering', { name: s.name || s.set_num }))}">Remove</button></li>`).join('')}</ul>`
       : '<p class="bv-field__help">Nothing offered yet. Pick sets from your vault you would swap away.</p>'}
     ${btn('Add from your vault', { kind: 'tonal', icon: 'plus', id: 'swapAddTrade', full: true })}`, { cls: 'bv-swaps__card' });
@@ -51,8 +58,7 @@ function matchHTML(m, i) {
   return `<li class="bv-swaps__match">
     <div class="bv-swaps__who"><a href="#/u/${encodeURIComponent(m.handle)}">${escapeHtml(m.name || m.handle)}</a>
       ${m.they_have.length && m.they_want.length ? pill('Both ways', 'gain') : ''}${reputation(m.swaps_done || 0)}</div>
-    ${m.they_have.length ? `<p class="bv-swaps__label">Has sets on your wishlist</p>${chipList(m.they_have)}` : ''}
-    ${m.they_want.length ? `<p class="bv-swaps__label">Wants sets you offer</p>${chipList(m.they_want)}` : ''}
+    <div class="dp-swapgrid">${swapSide('You get', m.they_have)}<span class="arr" aria-hidden="true">⇄</span>${swapSide('You give', m.they_want)}</div>
     <div class="bv-btn-row">
       ${btn('Hide', { kind: 'text', attrs: { 'data-hide': m.handle, 'aria-label': t('swaps.hideMatch', { name: m.name || m.handle }) } })}
       ${btn('Propose a swap', { kind: 'outline', id: `swapPropose${i}`, attrs: { 'data-propose': String(i) } })}
@@ -116,15 +122,15 @@ function paint(data) {
   if (!root || !onScreen()) return;
   const incoming = data.requests.filter((r) => r.direction === 'incoming');
   const outgoing = data.requests.filter((r) => r.direction === 'outgoing');
-  root.innerHTML = `<main class="bv-page no-nav bv-swaps" id="swapsPage">
+  root.innerHTML = `<main class="bv-page no-nav bv-swaps dp2" id="swapsPage">
     ${topbar({ title: 'Swaps', sub: 'Trade sets with other collectors', back: '#/me' })}
-    ${card(`<label class="bv-swaps__switch"><span><span class="bv-swaps__switchtitle">Open to swaps</span>
+    <div class="dp-col">${card(`<label class="bv-swaps__switch"><span><span class="bv-swaps__switchtitle">Open to swaps</span>
         <span class="bv-field__help">Collectors who are also open see your handle and the sets you offer when they match your wishlist. Nothing else is shared.</span></span>
         <input type="checkbox" role="switch" id="swapOpen" ${data.open ? 'checked' : ''}></label>
       ${!data.has_handle ? '<p class="bv-field__help">You need a public handle first. Set it in <a href="#/me">your profile</a>.</p>' : ''}`, { cls: 'bv-swaps__card' })}
     ${tradeHTML(data)}
     ${incoming.length ? `<h2 class="bv-h2">Requests for you</h2><ul class="bv-swaps__list">${incoming.map(requestHTML).join('')}</ul>` : ''}
-    <h2 class="bv-h2">Matches</h2>
+    </div><div class="dp-col"><h2 class="bv-h2">Matches</h2>
     ${!data.open
       ? '<p class="bv-field__help">Turn on Open to swaps to see matches.</p>'
       : data.matches.length
@@ -132,7 +138,7 @@ function paint(data) {
         : '<p class="bv-field__help">No matches yet. Add sets you would swap away and keep your wishlist up to date. We match you as more collectors join.</p>'}
     ${outgoing.length ? `<h2 class="bv-h2">Your requests</h2><ul class="bv-swaps__list">${outgoing.map(requestHTML).join('')}</ul>` : ''}
     ${hiddenHTML(data)}
-    ${SAFETY}
+    ${SAFETY}</div>
   </main>`;
   wire(data);
   const chatId = new URLSearchParams(location.hash.split('?')[1] || '').get('chat');

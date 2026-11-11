@@ -114,14 +114,14 @@ test('guest photo scan asks for setup before mounting the camera', async ({ page
   await expect(page.locator('#pileScanPhoto')).toContainText('Sign in or add an AI key first');
   const scanLayout = await page.locator('#pileScanPhoto').evaluate((row) => {
     const copy = row.querySelector('.scan-method-copy').getBoundingClientRect();
-    const arrow = row.querySelector('.scan-method-arrow').getBoundingClientRect();
+    const box = row.getBoundingClientRect();
     return {
       fits: row.scrollWidth <= row.clientWidth + 1,
-      arrowAligned: Math.abs((copy.top + copy.height / 2) - (arrow.top + arrow.height / 2)) < 12,
+      copyInside: copy.left >= box.left && copy.right <= box.right + 1 && copy.bottom <= box.bottom + 1,
     };
   });
   expect(scanLayout.fits).toBe(true);
-  expect(scanLayout.arrowAligned).toBe(true);
+  expect(scanLayout.copyInside).toBe(true);
   await page.locator('#pileScanPhoto').click();
   await expect(page.locator('#sheet')).toHaveClass(/show/);
   await expect(page.getByRole('heading', { name: 'Set up photo scanning' })).toBeVisible();
@@ -460,7 +460,7 @@ test('upcoming sets show announced retail instead of stale market estimates', as
   await expect(summary.locator('.detail-summary-val')).toHaveText('$300');
   await expect(summary).not.toContainText('$849.99');
   await expect(summary).not.toContainText('$11');
-  await expect(page.locator('.bv-settitle__meta')).toContainText('Coming soon');
+  await expect(page.locator('.dp-stats')).toContainText('Coming soon');
   // No confidence chip or range for an unreleased set — just the retail note
   // and "Why $300?", which explains it is retail, not resale.
   await expect(summary.locator('.bv-conf')).toHaveCount(0);

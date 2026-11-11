@@ -62,9 +62,16 @@ function sinceDate(data) {
   return iso;
 }
 
+// The set's own photo beats a generic icon when we already hold one.
+function eventPhoto(setNum) {
+  if (!setNum) return '';
+  const hit = [...(state.portfolio?.items || []), ...(state.wishlist || [])].find(r => r && r.set_num === setNum && r.image_url);
+  return hit ? `<span class="changes-event__icon dp-has" aria-hidden="true">${setThumb(hit, { size: 44 })}</span>` : '';
+}
+
 function eventCard({ kind, iconName, title, sub, action, href, accent = false, setNum }) {
   return `<div class="changes-event${accent ? ' is-accent' : ''}"${setNum ? ` data-set-num="${esc(setNum)}"` : ''} data-kind="${esc(kind)}">
-    <span class="changes-event__icon" aria-hidden="true">${icon(iconName, { size: 20 })}</span>
+    ${eventPhoto(setNum) || `<span class="changes-event__icon" aria-hidden="true">${icon(iconName, { size: 20 })}</span>`}
     <span class="changes-event__text"><span class="changes-event__title">${esc(title)}</span><span class="changes-event__sub">${esc(sub)}</span></span>
     ${btn(action, { kind: 'tonal', size: 'sm', href })}
   </div>`;

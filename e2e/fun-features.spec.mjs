@@ -14,27 +14,25 @@ async function mockVault(page, items = ITEMS) {
 test.describe('phone', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test('Vault hero shows a brick tower, one layer per theme, largest at the bottom', async ({ page }) => {
+  test('Vault hero shows paid, gain and set count as three labelled figures', async ({ page }) => {
     await mockVault(page);
     await page.goto('/#/');
-    const tower = page.locator('#vaultHero .vault-tower');
-    await expect(tower).toBeVisible();
-    // 5 themes + "Other" for the tail.
-    const layers = await tower.evaluate(svg => [...svg.querySelectorAll('.vault-tower__layer')].map(r => Number(r.getAttribute('height'))));
-    expect(layers.length).toBe(6);
-    expect(layers[0]).toBeGreaterThan(layers[3]);
+    const stats = page.locator('#vaultHero .dp-hero-stats');
+    await expect(stats).toBeVisible();
+    await expect(stats.locator('> span')).toHaveCount(3);
+    await expect(stats).toContainText('Paid');
+    await expect(stats).toContainText('Gain');
+    await expect(page.locator('#vaultHero .vault-tower')).toHaveCount(0);
     const hero = await page.locator('#vaultHero').boundingBox();
-    const box = await tower.boundingBox();
+    const box = await stats.boundingBox();
     expect(box.x + box.width).toBeLessThanOrEqual(hero.x + hero.width);
-    await page.locator('#vaultHero').screenshot({ path: `${SHOTS}/tower-phone.png` });
+    await page.locator('#vaultHero').screenshot({ path: `${SHOTS}/hero-phone.png` });
   });
 
-  test('a one-set vault gets a short one-layer tower', async ({ page }) => {
+  test('a one-set vault still gets the three hero figures', async ({ page }) => {
     await mockVault(page, [{ ...ITEMS[0], quantity: 1 }]);
     await page.goto('/#/');
-    const tower = page.locator('#vaultHero .vault-tower');
-    await expect(tower).toBeVisible();
-    expect((await tower.boundingBox()).height).toBeLessThanOrEqual(24);
+    await expect(page.locator('#vaultHero .dp-hero-stats > span')).toHaveCount(3);
   });
 });
 
@@ -84,7 +82,7 @@ test.describe('quests', () => {
     await teaser.click();
     await expect(page).toHaveURL(/#\/quests$/);
     await expect(page.locator('.bv-quest')).toHaveCount(2);
-    await page.locator('.bv-quest__missing summary').first().click();
+    await page.locator('[data-quest-toggle]').first().click();
     await expect(page.locator('.bv-quest__set').first()).toContainText('Boutique Hotel');
     await page.screenshot({ path: `${SHOTS}/quests-phone.png` });
   });
@@ -134,14 +132,17 @@ test.describe('anniversary', () => {
 test.describe('desktop and dark', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
-  test('tower and quest card fit the desktop Vault aside', async ({ page }) => {
+  test('theme split, movers and quest card fit the desktop Vault aside', async ({ page }) => {
     await page.route('**/api/quests', route => route.fulfill({ json: QUESTS }));
     await mockVault(page);
     await page.goto('/#/');
     await expect(page.locator('#vaultQuest')).toBeVisible();
     const aside = await page.locator('.vault-aside').boundingBox();
-    const tower = await page.locator('.vault-tower').boundingBox();
-    expect(tower.x + tower.width).toBeLessThanOrEqual(aside.x + aside.width);
+    const cards = page.locator('.vault-aside .dp-vault-card');
+    await expect(cards.first()).toBeVisible();
+    for (const box of await cards.evaluateAll(els => els.map(el => el.getBoundingClientRect().right))) {
+      expect(box).toBeLessThanOrEqual(aside.x + aside.width + 1);
+    }
     await page.screenshot({ path: `${SHOTS}/vault-desktop.png` });
   });
 
@@ -163,11 +164,12 @@ test.describe('desktop and dark', () => {
     await page.setViewportSize({ width: 320, height: 700 });
     await mockVault(page);
     await page.goto('/#/');
-    await expect(page.locator('.vault-tower')).toBeVisible();
+    const stats = page.locator('#vaultHero .dp-hero-stats');
+    await expect(stats).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const hero = await page.locator('#vaultHero').boundingBox();
-    const tower = await page.locator('.vault-tower').boundingBox();
-    expect(tower.x + tower.width).toBeLessThanOrEqual(hero.x + hero.width);
-    await page.locator('#vaultHero').screenshot({ path: `${SHOTS}/tower-320.png` });
+    const box = await stats.boundingBox();
+    expect(box.x + box.width).toBeLessThanOrEqual(hero.x + hero.width);
+    await page.locator('#vaultHero').screenshot({ path: `${SHOTS}/hero-320.png` });
   });
 });

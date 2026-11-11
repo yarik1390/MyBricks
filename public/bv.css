@@ -594,7 +594,6 @@ body.collector-ui :is(.bv-btn, .bv-iconbtn, .bv-chip, .bv-row, .bv-setrow, .bv-t
 .vault-hero .bv-hero__value { white-space: nowrap; }
 .vault-hero__row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
 .vault-hero__row .bv-hero__line { flex: 1; min-width: 0; }
-.vault-tower { flex-shrink: 0; display: block; }
 .vault-hero__sub, .vault-hero__note { font-size: 13px; line-height: 17px; color: var(--bv-mute); }
 .vault-hero .bv-spark { margin-top: 0; }
 .vault-hero__status { display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 18px; color: var(--bv-mute); }

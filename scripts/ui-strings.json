@@ -3847,12 +3847,6 @@
     ]
   },
   {
-    "text": "Has sets on your wishlist",
-    "files": [
-      "views/swaps.js"
-    ]
-  },
-  {
     "text": "Heartbeat:",
     "files": [
       "runtime-exact"
@@ -10320,12 +10314,6 @@
     ]
   },
   {
-    "text": "Wants sets you offer",
-    "files": [
-      "views/swaps.js"
-    ]
-  },
-  {
     "text": "Watch the combination…",
     "files": [
       "components/empty-vault-brick-3d.js"
@@ -11015,12 +11003,6 @@
     ]
   },
   {
-    "text": "bv-family__stat bv-num",
-    "files": [
-      "views/family.js"
-    ]
-  },
-  {
     "text": "bv-family__value bv-num",
     "files": [
       "views/family.js"
@@ -11288,6 +11270,12 @@
     "text": "bv-row__trail scan-method-arrow",
     "files": [
       "views/catalog.js"
+    ]
+  },
+  {
+    "text": "bv-scan__round dp-tool",
+    "files": [
+      "components/scanner.js"
     ]
   },
   {
@@ -11606,12 +11594,6 @@
     "text": "bvAdd.deniedPhoto",
     "files": [
       "components/scanner.js"
-    ]
-  },
-  {
-    "text": "bvAdd.identifyPhotoSub",
-    "files": [
-      "views/catalog.js"
     ]
   },
   {
@@ -12150,6 +12132,12 @@
     ]
   },
   {
+    "text": "changes-event__icon dp-has",
+    "files": [
+      "views/changes.js"
+    ]
+  },
+  {
     "text": "changes-hero__value bv-num",
     "files": [
       "views/changes.js"
@@ -12183,6 +12171,12 @@
     "text": "display_name max 40 chars",
     "files": [
       "api.js"
+    ]
+  },
+  {
+    "text": "dp-ring__l bv-num",
+    "files": [
+      "views/quests.js"
     ]
   },
   {
@@ -12297,6 +12291,12 @@
     "text": "img.set-photo, img.fig-photo",
     "files": [
       "app.js"
+    ]
+  },
+  {
+    "text": "insights-chart__plot dp-axis",
+    "files": [
+      "views/insights.js"
     ]
   },
   {

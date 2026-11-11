@@ -115,9 +115,21 @@ function chartCard() {
   const soldLegend = sales.length === 1 ? t('bvVault.legendSold', { name: sales[0].name }) : sales.length > 1 ? tPlural('bvVault.legendSales', sales.length) : '';
   return `<section class="bv-card insights-chart" aria-labelledby="insightsChartSummary">
     <p class="insights-chart__summary" id="insightsChartSummary"><span>${esc(summary)}</span>${pct != null ? deltaChip(pct, { srUp: t('bvCommon.upPct', { pct: Math.abs(pct).toFixed(1) }), srDown: t('bvCommon.downPct', { pct: Math.abs(pct).toFixed(1) }) }) : ''}</p>
-    <div class="insights-chart__plot" id="insightsChart">${chartSvg(series, sales)}</div>
+    <div class="insights-chart__plot dp-axis" id="insightsChart">${chartSvg(series, sales)}${axisY(series)}</div>
+    ${axisX(series)}
     <p class="insights-legend"><span class="insights-legend__value">${esc(t('bvVault.legendValue'))}</span><span class="insights-legend__paid">${esc(t('bvVault.legendPaid'))}</span>${soldLegend ? `<span class="insights-legend__sold">${esc(soldLegend)}</span>` : ''}</p>
   </section>`;
+}
+
+// Plain axis labels: the high and low of the plotted range, and its dates.
+function axisY(series) {
+  const nums = series.flatMap(s => [s.value, s.paid]).filter(v => Number.isFinite(v) && v > 0);
+  if (!nums.length) return '';
+  return `<span class="dp-ylab dp-ylab--hi" aria-hidden="true">${esc(moneyWhole(Math.max(...nums)))}</span><span class="dp-ylab dp-ylab--lo" aria-hidden="true">${esc(moneyWhole(Math.min(...nums)))}</span>`;
+}
+function axisX(series) {
+  const mid = series[Math.floor((series.length - 1) / 2)];
+  return `<div class="dp-xlab" aria-hidden="true"><span>${esc(fmtShortDate(series[0].date))}</span>${series.length > 2 ? `<span>${esc(fmtShortDate(mid.date))}</span>` : ''}<span>${esc(t('dp.today'))}</span></div>`;
 }
 
 const W = 340, H = 130, PAD_Y = 12;
@@ -180,11 +192,12 @@ function statsGrid(totals) {
   const r = realized();
   const stat = (label, value, cls = '') => `<div class="insights-stat"><span class="bv-label">${esc(label)}</span><span class="bv-num insights-stat__value${cls ? ` ${cls}` : ''}">${esc(value)}</span></div>`;
   const tone = (v) => (v > 0.5 ? 'bv-up' : v < -0.5 ? 'bv-down' : '');
-  return `<div class="insights-stats">
+  const hasSales = !!(r && r.sales);
+  return `<div class="insights-stats${hasSales ? '' : ' insights-stats--3'}">
     ${stat(t('bvVault.statValue'), moneyWhole(state.portfolio?.total_value ?? totals.value))}
     ${stat(t('bvVault.statPaid'), totals.paid > 0 || totals.pricedValue > 0 ? moneyWhole(totals.paid) : '—')}
     ${stat(t('bvVault.statPaper'), totals.paid > 0 || totals.pricedValue > 0 ? moneyWholeSigned(totals.paperGain) : '—', tone(totals.paperGain))}
-    ${stat(r && r.sales ? tPlural('bvVault.statRealized', Number(r.sales)) : t('bvVault.statRealizedNone'), r && r.sales ? moneyWholeSigned(Number(r.gain) || 0) : '—', r ? tone(Number(r.gain)) : '')}
+    ${hasSales ? stat(tPlural('bvVault.statRealized', Number(r.sales)), moneyWholeSigned(Number(r.gain) || 0), tone(Number(r.gain))) : ''}
   </div>`;
 }
 
@@ -195,7 +208,7 @@ function themeCard(items, pval) {
   const rows = alloc.rows.map((r, i) => {
     const color = setColor({ hue: hues[i] });
     const pct = Math.round(r.share);
-    return `<div class="insights-theme"><span class="insights-theme__dot" style="background:${esc(color)}"></span><span class="insights-theme__name">${esc(r.theme)}</span><span class="bv-num insights-theme__pct">${pct}%</span>
+    return `<div class="insights-theme"><span class="insights-theme__dot" style="background:${esc(color)}"></span><span class="insights-theme__name">${esc(r.theme)}</span><span class="bv-num dp-tval">${esc(moneyWhole(r.value))}</span><span class="bv-num insights-theme__pct">${pct}%</span>
       <span class="bv-bar insights-theme__bar" role="img" aria-label="${esc(t('bvVault.themeShare', { theme: r.theme, pct }))}"><span style="width:${Math.max(2, r.share).toFixed(1)}%;background:${esc(color)}"></span></span></div>`;
   }).join('');
   return `${sectionTitle(t('bvVault.byTheme'))}${card(`${rows}${alloc.rest ? `<p class="insights-note">${esc(tPlural('portfolio.moreThemes', alloc.rest))}</p>` : ''}`, { cls: 'insights-themes' })}`;
@@ -204,9 +217,9 @@ function themeCard(items, pval) {
 function radarCard(items) {
   const r = retirementRadar(items);
   if (!r.total) return '';
-  const retired = tPlural('bvVault.radarRetired', r.total, { retired: r.retired });
-  const retiring = tPlural('bvVault.radarRetiring', r.retiring);
-  return `${sectionTitle(t('bvVault.radarTitle'))}<a class="bv-card insights-radar" href="#/retiring">${icon('clock', { size: 22 })}<span class="insights-radar__text">${esc(retired)}; ${esc(retiring)}</span>${icon('chev', { size: 20 })}</a>`;
+  const sr = `${tPlural('bvVault.radarRetired', r.total, { retired: r.retired })}; ${tPlural('bvVault.radarRetiring', r.retiring)}`;
+  const tile = (count, label, warn) => `<a class="dp-radar__tile${warn ? ' warn' : ''}" href="#/retiring"><b class="bv-num">${count}</b><span>${esc(label)}</span></a>`;
+  return `${sectionTitle(t('bvVault.radarTitle'))}<div class="dp-radar" role="group" aria-label="${esc(sr)}">${tile(r.retired, tPlural('dp.radarRetired', r.retired), false)}${tile(r.retiring, tPlural('dp.radarRetiring', r.retiring), r.retiring > 0)}</div>`;
 }
 
 function gainersCard(items, pval) {

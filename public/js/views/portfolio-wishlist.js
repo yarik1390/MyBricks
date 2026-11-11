@@ -114,7 +114,7 @@ function wishRowHTML(w) {
   const pct = hit ? 100 : (target > 0 && now > 0 ? Math.max(8, Math.min(100, (target / now) * 100)) : 0);
   const name = w.name || w.set_num;
   const status = !target
-    ? `<span class="bv-wlrow__lbl">${escapeHtml(t('bvAlerts.noTarget'))}</span><span class="bv-wlrow__set">${escapeHtml(t('bvAlerts.setTarget'))}</span>`
+    ? `<span class="bv-wlrow__meta">${escapeHtml([w.theme, w.year].filter(Boolean).join(' · ') || t('bvAlerts.noTarget'))}</span><span class="dp-alert">${icon('bell', { size: 13 })}${escapeHtml(t('dp.setAlert'))}</span>`
     : `${hit ? `<span class="bv-wlrow__hit">${escapeHtml(t('bvAlerts.atTarget'))}</span>` : `<span class="bv-wlrow__lbl">${escapeHtml(t('bvAlerts.toGo', { amount: money0(now - target) }))}</span>`}<span class="bv-wlrow__lbl">${escapeHtml(t('bvAlerts.target', { price: money0(target) }))}</span>`;
   return `<button type="button" class="bv-wlrow${hit ? ' is-hit' : ''}" data-wl-set="${escapeHtml(w.set_num)}" aria-label="${escapeHtml(t('bvAlerts.rowLabel', { name }))}">
       ${setThumb(w, { size: 52 })}
@@ -125,6 +125,16 @@ function wishRowHTML(w) {
         ${rowTagsHTML(w)}
       </span>
     </button>`;
+}
+
+// What the whole list costs today, how many price alerts are armed and how many
+// sets are about to leave LEGO.com.
+function summaryHTML(items) {
+  const total = items.reduce((sum, w) => sum + (Number(w.current_value) || 0), 0);
+  const alerts = items.filter(w => Number(w.target_price) > 0).length;
+  const retiring = items.filter(w => !w.retired && (Number(w.lego_retiring_soon) === 1 || w.lego_retiring_soon === true || Number(w.retirement_risk_score) >= 70)).length;
+  const cell = (label, value, cls = '') => `<span>${escapeHtml(label)}<b${cls ? ` class="${cls}"` : ''}>${escapeHtml(String(value))}</b></span>`;
+  return `<div class="dp-sum" id="wlSummary">${cell(t('dp.toBuyAll'), total > 0 ? money0(total) : '—')}${cell(t('dp.priceAlerts'), alerts)}${cell(t('bvAlerts.tagRetiring'), retiring, retiring > 0 ? 'warn' : '')}</div>`;
 }
 
 // ------------------------------------------------------------------ screen
@@ -147,7 +157,7 @@ function pageHTML({ loading = false } = {}) {
       actionsHtml: btn(t('bvAlerts.browse'), { href: '#/add', icon: 'search', full: true }) + btn(t('bvAlerts.scan'), { href: '#/pile', icon: 'scan', kind: 'tonal', full: true }),
     });
   } else {
-    body = `<div class="bv-wllist">${items.map(wishRowHTML).join('')}</div>`;
+    body = `${summaryHTML(items)}<div class="bv-wllist">${items.map(wishRowHTML).join('')}</div>`;
   }
   return `<main class="bv-page has-fab bv-wishlist" id="wishlistPage">
       ${topbar({ title: t('bvAlerts.wishlist'), sub, actionsHtml: actions })}

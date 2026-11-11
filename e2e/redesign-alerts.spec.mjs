@@ -45,7 +45,7 @@ test('wishlist shows target progress and the alert card; Dismiss marks it read',
   await expect(rows.nth(0)).toContainText('At target');
   await expect(rows.nth(1)).toContainText('$60 to go');
   await expect(rows.nth(1)).toContainText('Target $480');
-  await expect(rows.nth(2)).toContainText('No target yet');
+  await expect(rows.nth(2)).toContainText('Set alert');
   await expect(page.locator('#bvFab')).toHaveAttribute('aria-label', 'Add');
 
   await card.getByRole('button', { name: 'Dismiss' }).click();

@@ -183,6 +183,7 @@ export function renderLogin() {
   const paint = () => {
     document.getElementById("root").innerHTML = `
       <main class="bv-login login-view" aria-labelledby="loginTitle">
+        <aside class="dp-loginart" aria-hidden="true"><h2>${escapeHtml(t('dp.loginHead'))}</h2><p>${escapeHtml(t('dp.loginBody'))}</p><div class="shots"><img src="/screenshots/vault-narrow.png" alt="" loading="lazy" decoding="async"><img src="/screenshots/detail-narrow.png" alt="" loading="lazy" decoding="async"></div></aside>
         <div class="bv-login__hero">
           <span class="bv-login__mark" aria-hidden="true">${vaultMark(72)}</span>
           <h1 class="bv-login__title" id="loginTitle">${escapeHtml(t('bvFirst.loginTitle'))}</h1>
