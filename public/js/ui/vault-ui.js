@@ -22,6 +22,10 @@ const esc = escapeHtml;
  * catalog and set page show ONE number.
  */
 export function holdingValue(x) {
+  // The server values the holding on the raw BrickLink columns (the payload
+  // drops them outside BrickLink's 24h display window), the same basis as the
+  // vault total and the daily value chart. Prefer it so all three agree.
+  if (Number(x?.holding_market_value) > 0) return Number(x.holding_market_value);
   if (String(x?.condition || '').startsWith('used')) {
     // v3 used fair value first, exactly as the server's vault total does.
     if (x?.valuation?.read_enabled && Number(x.valuation?.used?.fair_value)) return Number(x.valuation.used.fair_value);
