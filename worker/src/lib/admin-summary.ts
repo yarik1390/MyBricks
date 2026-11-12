@@ -7,6 +7,8 @@ export interface AdminSummary {
   generated_at: string;
   users: { total: number; new_7d: number; new_30d: number; with_sets: number; sets_logged: number; wishlist_items: number };
   events_7d: Record<string, number>;
+  /** Finished server-side scans by outcome, e.g. "image:hit:brickognize" (last 7 days). */
+  scan_outcomes_7d: Array<{ detail: string; n: number }>;
   quota_yesterday: Array<{ service: string; used: number; cap: number }>;
   held_sets: { total: number; market_priced: number };
   catalog: { total: number; market_priced: number };
@@ -29,7 +31,7 @@ const n = (v: unknown) => Number(v || 0);
 const MARKET_METHODS = `('market','ebay_sold')`;
 
 export async function getAdminSummary(env: Env): Promise<AdminSummary> {
-  const [users, coll, wish, events, quota, held, catalog, feedback, contribs] = await Promise.all([
+  const [users, coll, wish, events, outcomes, quota, held, catalog, feedback, contribs] = await Promise.all([
     first<{ total: number; new7: number; new30: number }>(env, `
       SELECT COUNT(*) AS total,
              SUM(CASE WHEN created_at > datetime('now','-7 days') THEN 1 ELSE 0 END) AS new7,
@@ -40,6 +42,9 @@ export async function getAdminSummary(env: Env): Promise<AdminSummary> {
     first<{ items: number }>(env, `SELECT COUNT(*) AS items FROM user_wishlist`),
     all<{ event: string; n: number }>(env, `
       SELECT event, SUM(count) AS n FROM client_metrics_daily WHERE day >= date('now','-6 days') GROUP BY event`),
+    all<{ detail: string; n: number }>(env, `
+      SELECT detail, SUM(count) AS n FROM client_metrics_daily
+       WHERE day >= date('now','-6 days') AND event = 'scan_outcome' GROUP BY detail ORDER BY n DESC LIMIT 40`),
     all<{ service: string; used: number; cap: number }>(env, `
       SELECT service, used, cap FROM api_quota WHERE day = date('now','-1 day') ORDER BY service`),
     first<{ total: number; priced: number }>(env, `
@@ -66,6 +71,7 @@ export async function getAdminSummary(env: Env): Promise<AdminSummary> {
       with_sets: n(coll?.users), sets_logged: n(coll?.items), wishlist_items: n(wish?.items),
     },
     events_7d,
+    scan_outcomes_7d: outcomes.map((o) => ({ detail: String(o.detail || ''), n: n(o.n) })),
     quota_yesterday: quota.map((q) => ({ service: q.service, used: n(q.used), cap: n(q.cap) })),
     held_sets: { total: n(held?.total), market_priced: n(held?.priced) },
     catalog: { total: n(catalog?.total), market_priced: n(catalog?.priced) },

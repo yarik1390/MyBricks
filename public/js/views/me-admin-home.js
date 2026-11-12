@@ -6,7 +6,7 @@ import { formatRelativeTime } from '../lib/pure.js';
 import { getLocale } from '../lib/i18n.js';
 import {
   processHealth, summarizeJobHealth, sortProcesses, processProblemLine, runDots,
-  quotaRows, scanFunnel, aiTotals, pct,
+  quotaRows, scanFunnel, scanOutcomes, aiTotals, pct,
 } from '../lib/admin-home.js';
 
 const fmt = (v) => Number(v || 0).toLocaleString();
@@ -278,6 +278,25 @@ export function pricingKeysHTML(summary, quality) {
   ${quality && onHold ? `<p class="adm-note">${fmt(onHold)} PriceCharting matches are on hold. They never feed a price; the hourly triage settles what it can.</p>` : ''}`;
 }
 
+const SCAN_MODE_LABEL = { image: 'Photo scans', shelf: 'Shelf scans', barcode: 'Barcode lookups' };
+const topList = (obj) => Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => `${k} ${fmt(v)}`).join(' · ');
+
+const scanOutcomeTitle = (m) => `${SCAN_MODE_LABEL[m.mode] || m.mode}: a set was identified in ${fmt(m.hits)} of ${fmt(m.total)} (${m.rate}%)`;
+const scanAnsweredLine = (m) => `Answered by: ${topList(m.steps)}`;
+const scanMissedLine = (m) => `Not found: ${topList(m.reasons)}`;
+
+/** What happened to scans that reached the server (scan_outcome metric). */
+export function scanOutcomesHTML(rows) {
+  const modes = scanOutcomes(rows);
+  if (!modes.length) return '<p class="adm-note">No scans have reached the server since this counter started.</p>';
+  return `<div class="adm-list">${modes.map((m) => `
+    <div class="adm-item"><span class="adm-dot ${m.rate >= 50 ? 'is-ok' : 'is-warn'}"></span><div class="adm-item-body">
+      <strong>${escapeHtml(scanOutcomeTitle(m))}</strong>
+      ${Object.keys(m.steps).length ? `<p>${escapeHtml(scanAnsweredLine(m))}</p>` : ''}
+      ${Object.keys(m.reasons).length ? `<p>${escapeHtml(scanMissedLine(m))}</p>` : ''}
+    </div></div>`).join('')}</div>`;
+}
+
 const scanRateLine = (rate) => `${rate}% of scans ended with the set identified.`;
 
 export function usersStatsHTML(summary) {
@@ -296,5 +315,7 @@ export function usersStatsHTML(summary) {
     <div class="adm-card">
       ${f.attempts ? `<div class="adm-funnel">${bar(f.attempts, 'attempts')}${bar(f.sent, 'sent')}${bar(f.fallback, 'fallback')}${bar(f.success, 'identified', ' is-ok')}</div>
       <p class="adm-note">${escapeHtml(scanRateLine(f.rate))}</p>` : '<p class="adm-note">No scans in the last 7 days.</p>'}
-    </div>`;
+    </div>
+    <div class="adm-h"><h3>Scans that reached the server</h3><span>last 7 days</span></div>
+    <div class="adm-card">${scanOutcomesHTML(summary.scan_outcomes_7d)}</div>`;
 }

@@ -122,6 +122,30 @@ export function scanFunnel(events = {}) {
   };
 }
 
+/**
+ * Server-side scan results by mode from summary.scan_outcomes_7d
+ * ([{ detail: "image:hit:brickognize", n }]): how many scans actually reached
+ * the server, how many found a set, and which step answered.
+ */
+export function scanOutcomes(rows = []) {
+  const modes = {};
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const [mode, kind, ...rest] = String(row?.detail || '').split(':');
+    const count = n(row?.n);
+    if (!mode || !kind || !count) continue;
+    const m = (modes[mode] ||= { mode, total: 0, hits: 0, misses: 0, errors: 0, steps: {}, reasons: {} });
+    const what = rest.join(':') || 'unknown';
+    m.total += count;
+    if (kind === 'hit') { m.hits += count; m.steps[what] = (m.steps[what] || 0) + count; }
+    else if (kind === 'err') { m.errors += count; m.reasons[what] = (m.reasons[what] || 0) + count; }
+    else { m.misses += count; m.reasons[what] = (m.reasons[what] || 0) + count; }
+  }
+  const order = ['image', 'shelf', 'barcode'];
+  return Object.values(modes)
+    .map((m) => ({ ...m, rate: m.total ? Math.round((m.hits / m.total) * 100) : null }))
+    .sort((a, b) => (order.indexOf(a.mode) + 9) % 9 - (order.indexOf(b.mode) + 9) % 9 || b.total - a.total);
+}
+
 /** Total AI calls and spend over the days in /integrations ai_usage.recent. */
 export function aiTotals(aiUsage = {}) {
   const recent = Array.isArray(aiUsage?.recent) ? aiUsage.recent : [];

@@ -3,12 +3,12 @@ import OpenAI from 'openai';
 import { optionalMember, requireAdmin } from '../auth';
 import { callGeminiScan, callGeminiScanOutcome } from '../lib/gemini';
 import { recordIntegrationAttempt } from '../lib/integration-health';
-import { logEvent } from '../lib/analytics';
+import { logEvent, recordScanOutcome } from '../lib/analytics';
 import { MODELS, gatewayHeaders, gatewayMetadataHeader, SCAN_SYSTEM_PROMPT, SHELF_SCAN_PROMPT } from '../lib/llm';
 import { resolveRoute, type LlmWorkload } from '../lib/llm-routing';
 import { openAiCompatibleStep } from '../lib/llm-clients';
 import { recordAiUsage } from '../lib/ai-usage';
-import { identifySetWithBrickognize } from '../lib/brickognize';
+import { identifySetWithBrickognize, BRICKOGNIZE_SCORE_HIGH } from '../lib/brickognize';
 import { parseOcrSetNumbers, resolveOcrSetNum, sanitizeOcrInput } from '../lib/scan-ocr';
 import { callRecognitionValidation } from '../lib/recognition-client';
 import { verifyTurnstileToken } from '../lib/turnstile';
@@ -549,7 +549,11 @@ app.post('/identify', async (c) => {
       ?? (await findSetByBarcodeRemote(c.env, String(barcode)));
     // Priced exactly like the set page (persisted v3 state), not a recompute.
     const set = match ? await hydrateScanSet(c.env.DB, match.setNum) : null;
-    if (!set) return c.json({ identified: false, reasoning: 'Barcode not in catalog. Try a photo scan instead.' });
+    if (!set) {
+      await recordScanOutcome(c.env, 'barcode', { identified: false, reason: 'not_in_catalog' }, 200);
+      return c.json({ identified: false, reasoning: 'Barcode not in catalog. Try a photo scan instead.' });
+    }
+    await recordScanOutcome(c.env, 'barcode', { identified: true, barcode_source: match!.source }, 200);
     logEvent(c.env, 'scan_used', userId, { setNum: String(set.set_num || '') });
     const reasoning = match!.source === 'taught_by_you'
       ? 'Matched the barcode you taught us.'
@@ -628,6 +632,8 @@ app.post('/identify', async (c) => {
     sharedQuotaSettled = true;
   };
 
+  // Which step answered, for the scan_outcome metric (set by the paths below).
+  let outcomeStep = '';
   const finalizeShared = async (payload: Record<string, unknown>, status: 200 | 202 | 400 | 402 | 409 | 413 | 429 | 500 | 503 = 200) => {
     // Shelf Snap tells the app what is left so it can show "2 of 3 left".
     if (shelfMode && sharedQuotaReserved && status < 500) {
@@ -641,6 +647,8 @@ app.post('/identify', async (c) => {
       };
     }
     const terminal = { payload, status };
+    // Validation / quota denials (4xx) are not recognition outcomes.
+    if (status < 400 || status >= 500) await recordScanOutcome(c.env, shelfMode ? 'shelf' : 'image', { ...payload, provider: payload.provider ?? outcomeStep }, status);
     if (status >= 500) await settleReservedQuota('released', terminal);
     else await settleReservedQuota('consumed', terminal, shelfMode && payload.identified === false ? SHELF_MONTH_ENDPOINT : undefined);
     // A denial has no reservation to settle but is still terminal/replayable.
@@ -675,6 +683,7 @@ app.post('/identify', async (c) => {
 
   // 1. BYOK Gemini — the user's own key, called directly on their quota.
   if (geminiKey) {
+    outcomeStep = 'own-key';
     let res: Awaited<ReturnType<typeof callGeminiScan>> = null;
     try { res = await callGeminiScan(image, geminiKey, c.env, { prompt: promptOpts.prompt }); }
     catch (e) {
@@ -700,6 +709,7 @@ app.post('/identify', async (c) => {
 
   // 2. BYOK OpenAI — the user's own key, called directly.
   if (openaiKey) {
+    outcomeStep = 'own-key';
     const client = new OpenAI({ apiKey: openaiKey, maxRetries: 0 });
     let described: Awaited<ReturnType<typeof openaiVisionDescribe>> = {
       sets: [], minifigs: [], imageClass: 'uncertain', parsed: false,
@@ -912,16 +922,17 @@ app.post('/identify', async (c) => {
       const hydrated = await hydrateScanSets(c.env.DB, [brickognize.top.id, canonicalId, bareId]);
       const set = hydrated?.get(brickognize.top.id) ?? hydrated?.get(canonicalId) ?? hydrated?.get(bareId) ?? null;
       if (set) {
+        const brickognizeConfidence = brickognize.top.score >= BRICKOGNIZE_SCORE_HIGH ? 'high' : 'medium';
         logEvent(c.env, 'scan_used', userId, { setNum: String(set.set_num || '') });
         return finalizeShared({
           identified: true,
           sets: [{
             ...set,
-            match_confidence: 'high',
+            match_confidence: brickognizeConfidence,
             match_reasoning: `Brickognize exact catalog match (${brickognize.top.id}, ${(brickognize.top.score * 100).toFixed(1)}%).`,
           }],
           minifigs: [],
-          confidence: 'high',
+          confidence: brickognizeConfidence,
           reasoning: `Brickognize matched ${brickognize.top.name}.`,
           model: 'brickognize/sets-v1',
           diag: {
@@ -952,6 +963,7 @@ app.post('/identify', async (c) => {
   if (desc.classification === 'not_lego' && !desc.sets.length && !desc.minifigs.length) {
     return finalizeShared({ identified: false, reason: 'not_lego', reasoning: NOT_LEGO_REASON, diag });
   }
+  outcomeStep = timings.filter((t) => t.outcome === 'match' || t.outcome === 'identified').pop()?.provider || 'ai';
   return respondMatched(desc.sets, desc.minifigs, desc.model);
 });
 

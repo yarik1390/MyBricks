@@ -34,10 +34,20 @@ describe('Brickognize recognition gates', () => {
     });
   });
 
+  it('accepts a clear 0.60+ match (threshold tuned on real photos)', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(response([
+      { id: '10294-1', name: 'Titanic', type: 'set', score: 0.62 },
+      { id: '10318-1', name: 'Concorde', type: 'set', score: 0.41 },
+    ])) as typeof fetch;
+    await expect(identifySetWithBrickognize(env as any, IMAGE_D)).resolves.toMatchObject({
+      kind: 'accepted', top: { id: '10294-1' },
+    });
+  });
+
   it('falls back for low-confidence and ambiguous predictions', async () => {
     globalThis.fetch = vi.fn()
       .mockResolvedValueOnce(response([
-        { id: '75192-1', name: 'Millennium Falcon', type: 'set', score: 0.74 },
+        { id: '75192-1', name: 'Millennium Falcon', type: 'set', score: 0.59 },
       ]))
       .mockResolvedValueOnce(response([
         { id: '75192-1', name: 'Millennium Falcon', type: 'set', score: 0.82 },
