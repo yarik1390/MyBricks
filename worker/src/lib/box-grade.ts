@@ -2,6 +2,7 @@ import { spendQuotaFailClosed } from './api-quota';
 import OpenAI from 'openai';
 import type { Env } from '../types';
 import { MODELS, geminiUrl, openAIServerBaseURL, gatewayHeaders } from './llm';
+import { gatewayFallbackFetch } from './ai-gateway';
 import { openAiCompatibleStep } from './llm-clients';
 import type { RouteStep } from './llm-routing';
 import { FREE_FALLBACK_STEPS } from './ai-access';
@@ -63,7 +64,7 @@ function splitDataUrl(image: string): { mime: string; data: string } {
 
 async function viaGemini(env: Env, key: string, image: string, prompt: string, server: boolean): Promise<string | null> {
   const { mime, data } = splitDataUrl(image);
-  const resp = await fetch(geminiUrl(MODELS.scan, { env, routeThroughGateway: server }), {
+  const resp = await gatewayFallbackFetch(geminiUrl(MODELS.scan, { env, routeThroughGateway: server }), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key, ...(server ? gatewayHeaders(env) : {}) },
     body: JSON.stringify({
@@ -95,6 +96,7 @@ async function viaOpenAI(env: Env, key: string, image: string, prompt: string, s
     apiKey: key,
     baseURL: server ? openAIServerBaseURL(env) : undefined,
     defaultHeaders: server ? gatewayHeaders(env) : undefined,
+    fetch: server ? gatewayFallbackFetch : undefined,
   });
   const r = await openai.chat.completions.create({
     model: MODELS.openaiFallback,
@@ -120,6 +122,8 @@ export async function gradeBox(
 ): Promise<BoxGradeResult | null> {
   const prompt = boxGradePrompt(setLabel);
   const steps: Array<[IntegrationName, () => Promise<string | null>]> = [];
+  // A user's own key is not evidence about the server keys: don't record it.
+  const ownKey = !!(keys.gemini || keys.openai);
   if (keys.gemini) steps.push(['gemini', () => viaGemini(env, keys.gemini as string, image, prompt, false)]);
   if (keys.openai) steps.push(['openai', () => viaOpenAI(env, keys.openai as string, image, prompt, false)]);
   if (!steps.length) {
@@ -140,11 +144,11 @@ export async function gradeBox(
     try {
       const parsed = parseBoxGrade(await run());
       if (parsed) {
-        await recordIntegrationAttempt(env, provider, true).catch(() => {});
+        if (!ownKey) await recordIntegrationAttempt(env, provider, true).catch(() => {});
         return parsed;
       }
     } catch (e) {
-      await recordIntegrationAttempt(env, provider, false, e).catch(() => {});
+      if (!ownKey) await recordIntegrationAttempt(env, provider, false, e).catch(() => {});
     }
   }
   return null;

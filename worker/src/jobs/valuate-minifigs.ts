@@ -1,5 +1,6 @@
 import type { Env } from '../types';
-import { fetchMinifigPricing } from '../lib/bricklink';
+import { fetchMinifigPricing, BrickLinkOfflineError } from '../lib/bricklink';
+import { isIntegrationBlocked, setIntegrationBlock } from '../lib/integration-health';
 import { normalizeMinifigName, namePrefixes, matchBlCandidates } from '../lib/bricklink-minifigs';
 import type { BlNameCandidate } from '../lib/bricklink-minifigs';
 import { computeMinifigRarity } from '../lib/minifig-rarity';
@@ -13,7 +14,11 @@ export interface ValuateMinifigsSummary {
   parked: number;     // figs handed to the price-agreement verifier
   missed: number;     // attempted, no value from any source
   failed: number;     // provider failure; observation clocks unchanged
+  /** Set when the run did nothing because BrickLink itself is offline. */
+  skipped?: string;
 }
+
+const OFFLINE_NOTE = 'BrickLink is offline, will retry next run';
 
 export async function runValuateMinifigs(
   env: Env,
@@ -65,6 +70,12 @@ export async function runValuateMinifigs(
   // and rows outside a partial grant must remain immediately eligible.
   if (!(await sourceEnabled(env, 'bricklink'))) {
     return { figs: results.length, priced: 0, bl_matched: 0, parked: 0, missed: 0, failed: 0 };
+  }
+  // BrickLink is the only price source here. While it is offline every call
+  // fails, so the run used to report "failed 200" and burn 200 calls of the
+  // daily budget twice a day. Nothing is wrong on our side: skip, don't fail.
+  if (await isIntegrationBlocked(env, 'bricklink')) {
+    return { figs: results.length, priced: 0, bl_matched: 0, parked: 0, missed: 0, failed: 0, skipped: OFFLINE_NOTE };
   }
   const grants = await reserveQuota(env, { bricklink: results.length });
   const grantedResults = results.slice(0, Math.min(results.length, grants.bricklink ?? 0));
@@ -121,7 +132,13 @@ export async function runValuateMinifigs(
     if (blId) {
       try {
         px = await fetchMinifigPricing(blId, env, { recordHealth: false });
-      } catch {
+      } catch (e) {
+        // The pause lapsed and BrickLink is still offline: pause it again and
+        // stop here. Rows keep their clocks, so they are first in line later.
+        if (e instanceof BrickLinkOfflineError) {
+          await setIntegrationBlock(env, 'bricklink', 1);
+          return { ...summary, failed: 0, skipped: OFFLINE_NOTE };
+        }
         brickLinkFailed = true;
       }
     }

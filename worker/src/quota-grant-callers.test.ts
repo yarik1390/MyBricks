@@ -3,7 +3,10 @@ import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyTestTables } from './test-schema';
 
-vi.mock('./lib/bricklink', () => ({ fetchMinifigPricing: vi.fn() }));
+vi.mock('./lib/bricklink', () => ({
+  fetchMinifigPricing: vi.fn(),
+  BrickLinkOfflineError: class BrickLinkOfflineError extends Error {},
+}));
 vi.mock('./lib/ebay', () => ({
   buildEbayAskUpdate: vi.fn(() => null),
   fetchEbayActiveListings: vi.fn(async () => null),
@@ -11,6 +14,8 @@ vi.mock('./lib/ebay', () => ({
 }));
 vi.mock('./lib/integration-health', () => ({
   recordIntegrationHealth: vi.fn(async () => undefined),
+  isIntegrationBlocked: vi.fn(async () => false),
+  setIntegrationBlock: vi.fn(async () => undefined),
 }));
 vi.mock('./lib/market-sources', () => ({
   recomputeBlendedValues: vi.fn(async () => undefined),

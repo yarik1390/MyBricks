@@ -9597,6 +9597,12 @@
     ]
   },
   {
+    "text": "The provider took its own service down. Nothing to fix here: jobs that need it pause and resume on their own when it is back.",
+    "files": [
+      "lib/admin-issues.js"
+    ]
+  },
+  {
     "text": "The rules behind every number in the app — no black box.",
     "files": [
       "methodology.html"

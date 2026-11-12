@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import type { Env } from '../types';
 import { getOpenRouterPools, openAIServerBaseURL, openRouterBaseURL } from './llm';
+import { gatewayFallbackFetch } from './ai-gateway';
 import { openCodexClient } from './opencodex';
 import { isFreeWorkersAiModel, workersAiClient } from './workers-ai';
 import type { RouteStep } from './llm-routing';
@@ -47,7 +48,7 @@ export async function openAiCompatibleStep(
     case 'openrouter': {
       const apiKey = env.OPENROUTER_API_KEY;
       if (!apiKey) return { client: null, models: [] };
-      const client = new OpenAI({ apiKey, baseURL: openRouterBaseURL(env), defaultHeaders: headers, maxRetries: RETRIES });
+      const client = new OpenAI({ apiKey, baseURL: openRouterBaseURL(env), defaultHeaders: headers, maxRetries: RETRIES, fetch: gatewayFallbackFetch });
       if (step.model) return { client, models: [step.model] };
       const pools = await getOpenRouterPools(env);
       return { client, models: kind === 'vision' ? pools.vision : pools.text };
@@ -56,7 +57,7 @@ export async function openAiCompatibleStep(
       const apiKey = env.OPENAI_API_KEY;
       if (!apiKey || !step.model) return { client: null, models: [] };
       return {
-        client: new OpenAI({ apiKey, baseURL: openAIServerBaseURL(env), defaultHeaders: headers, maxRetries: RETRIES }),
+        client: new OpenAI({ apiKey, baseURL: openAIServerBaseURL(env), defaultHeaders: headers, maxRetries: RETRIES, fetch: gatewayFallbackFetch }),
         models: [step.model],
       };
     }

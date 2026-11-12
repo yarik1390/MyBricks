@@ -189,4 +189,27 @@ describe('buildAdminIssues', () => {
     });
     assert.deepEqual(issues.map((issue) => `${issue.kind}:${issue.service}`), ['access:ebay', 'unknown:d1']);
   });
+
+  it('names a provider that took itself offline as offline, never as an access problem', () => {
+    for (const last_error of [
+      'Provider offline (its front door refuses API calls before any key is checked)',
+      'Planned maintenance (redirected to maintenance.bricklink.com)',
+    ]) {
+      const [issue] = buildAdminIssues({
+        diagnostics: [diagnostic('bricklink', { label: 'BrickLink', reachable: false, status: 'down', last_fail_at: fresh, last_error })],
+        now: NOW,
+      });
+      assert.equal(issue.title, 'BrickLink is offline');
+      assert.match(issue.detail, /Nothing to fix here/);
+      assert.equal(issue.severity, 'warn');
+      assert.notEqual(issue.kind, 'access');
+    }
+    // A real rejected key still reads as an access problem.
+    const [denied] = buildAdminIssues({
+      diagnostics: [diagnostic('bricklink', { label: 'BrickLink', reachable: false, status: 'down', last_fail_at: fresh, last_error: 'HTTP 403' })],
+      now: NOW,
+    });
+    assert.equal(denied.kind, 'access');
+    assert.equal(denied.severity, 'danger');
+  });
 });
