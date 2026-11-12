@@ -612,6 +612,44 @@ export function valuationTrust(set = {}) {
 // Normalize the scanner's manual-entry field without coupling the Scan route
 // to camera/UI code. A bare LEGO number means the standard -1 variant; longer
 // digit-only values are treated as retail barcodes.
+// Every spelling a scanned barcode may be stored under: an EAN-13 with a
+// leading 0 is the same number as a UPC-A, and GTIN-14 pads one more 0.
+// Mirrors barcodeCandidates() in worker/src/lib/barcodes.ts.
+export function barcodeCandidates(raw) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length < 8 || digits.length > 14) return [];
+  const out = new Set([digits]);
+  const stripped = digits.replace(/^0+/, '');
+  if (stripped.length >= 8) {
+    out.add(stripped);
+    if (stripped.length <= 12) out.add(stripped.padStart(12, '0'));
+    if (stripped.length <= 13) out.add(stripped.padStart(13, '0'));
+    if (stripped.length <= 14) out.add(stripped.padStart(14, '0'));
+  }
+  return [...out];
+}
+
+// GS1 check digit (EAN-8 / UPC-A / EAN-13 / GTIN-14). Mirrors the Worker's
+// isValidGtin; an all-zero code is rejected.
+export function isValidGtin(raw) {
+  const d = String(raw || '').replace(/\D/g, '');
+  if (![8, 12, 13, 14].includes(d.length) || /^0+$/.test(d)) return false;
+  let sum = 0;
+  for (let i = d.length - 2, w = 3; i >= 0; i--, w = w === 3 ? 1 : 3) sum += Number(d[i]) * w;
+  return (10 - (sum % 10)) % 10 === Number(d[d.length - 1]);
+}
+
+// Whether a live camera read is trustworthy enough to stop scanning on. A
+// numeric retail code (8/12/13/14 digits) must pass its check digit, so a
+// blurred partial read is skipped and the camera keeps looking. UPC-E (6-8
+// digits, compressed) and other symbologies pass through to the lookup.
+export function acceptScannedBarcode(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return false;
+  if (/^\d{12,14}$/.test(value)) return isValidGtin(value);
+  return true;
+}
+
 export function manualScanTarget(value) {
   const raw = String(value || '').trim().toUpperCase();
   if (/^\d{3,7}-\d+$/.test(raw)) return { kind: 'set', value: raw };

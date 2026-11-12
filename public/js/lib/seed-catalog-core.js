@@ -2,7 +2,7 @@
 // Shared by the background worker (seed-catalog-worker.js) and the in-process
 // fallback in seed-catalog.js. DOM-free and state-free apart from the index.
 
-import { seedFilterSort } from './pure.js';
+import { seedFilterSort, barcodeCandidates } from './pure.js';
 
 /** Build the in-memory index from the parsed JSON. */
 export function indexSeed(json) {
@@ -29,4 +29,26 @@ export function detailFromSeed(seed, setNum) {
 /** The first n rows (the snapshot is ordered by value, highest first). */
 export function headOfSeed(seed, n) {
   return seed.sets.slice(0, Math.max(0, Number(n) || 0));
+}
+
+/**
+ * Offline barcode lookup: the seed row sold under this code (any UPC/EAN
+ * spelling), shaped like a /api/scan/identify barcode hit, or null.
+ * The barcode index is built on first use.
+ */
+export function barcodeFromSeed(seed, code) {
+  if (!seed.byBarcode) {
+    const map = new Map();
+    for (const row of seed.sets) {
+      for (const raw of Array.isArray(row.barcodes) ? row.barcodes : []) {
+        for (const key of barcodeCandidates(raw)) if (!map.has(key)) map.set(key, row);
+      }
+    }
+    seed.byBarcode = map;
+  }
+  for (const key of barcodeCandidates(code)) {
+    const row = seed.byBarcode.get(key);
+    if (row) return { ...row, _seed: true };
+  }
+  return null;
 }

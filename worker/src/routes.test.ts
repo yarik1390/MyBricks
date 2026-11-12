@@ -592,8 +592,8 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
   describe('GET /api/catalog/seed (offline seed)', () => {
     it('returns compact, image-backed top sets ordered by value', async () => {
       await db.batch([
-        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, blended_value, retail_price, retired, image_url)
-          VALUES ('SEED-HI', 'High Value Set', 'Icons', 2021, 3000, 400, 450, 300, 0, 'https://cdn.rebrickable.com/x.jpg')`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, blended_value, retail_price, retired, image_url, upc)
+          VALUES ('SEED-HI', 'High Value Set', 'Icons', 2021, 3000, 400, 450, 300, 0, 'https://cdn.rebrickable.com/x.jpg', '673419356190')`),
         db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, blended_value, retail_price, retired, image_url)
           VALUES ('SEED-LO', 'Low Value Set', 'City', 2021, 200, 20, 25, 20, 0, 'https://cdn.rebrickable.com/y.jpg')`),
         db.prepare(`INSERT INTO lego_sets (
@@ -620,7 +620,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       const res = await app.fetch(new Request('http://localhost/api/catalog/seed?limit=50'), env);
       expect(res.status).toBe(200);
       const data = await res.json<any>();
-      expect(data.model_version).toBe('v4');
+      expect(data.model_version).toBe('v5');
       expect(data.valuation_generation).toMatch(/-1$/);
       const nums = data.sets.map((s: any) => s.set_num);
       expect(nums).toContain('SEED-HI');
@@ -629,6 +629,8 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(nums.indexOf('SEED-HI')).toBeLessThan(nums.indexOf('SEED-LO')); // value DESC
       const hi = data.sets.find((s: any) => s.set_num === 'SEED-HI');
       expect(hi.market_value).toBe(450);                  // shadow rollout keeps the legacy read path
+      expect(hi.barcodes).toEqual(['673419356190']);      // offline barcode lookup
+      expect(data.sets.find((s: any) => s.set_num === 'SEED-LO')).not.toHaveProperty('barcodes');
       const quarantined = data.sets.find((s: any) => s.set_num === 'SEED-PC');
       expect(quarantined.market_value).toBe(280);         // PriceCharting cannot leak into the offline headline
       expect(quarantined.market_value_confidence).toBe('low');

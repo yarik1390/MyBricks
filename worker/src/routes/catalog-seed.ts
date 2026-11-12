@@ -20,11 +20,13 @@ const SEED_FIELDS = [
   'market_value', 'market_value_confidence', 'retail_price',
   'forecast_2y', 'forecast_5y', 'deal_signal', 'deal_strong', 'deal_discount_pct',
 ] as const;
+// Plus `barcodes` (string[]) when the set has any; see seedBarcodes().
 
 const DEFAULT_LIMIT = 2000;
 const MAX_PAGE = 5000; // per-request cap; the generator pages through with offset for the full catalog.
 const KV_TTL = 86_400; // 24h — the catalog head moves slowly; the build snapshot is the real cache.
-const SEED_MODEL_VERSION = 'v4';
+// v5 adds `barcodes` so the scanner can resolve a barcode offline.
+const SEED_MODEL_VERSION = 'v5';
 let generationMemo: { value: string; expiresAt: number } | null = null;
 
 async function valuationGeneration(db: D1Database): Promise<string> {
@@ -51,6 +53,38 @@ function pick(row: Record<string, unknown>): Record<string, unknown> {
   if (out.market_value == null) {
     const fallback = Number(row.blended_value) || Number(row.current_value) || 0;
     if (fallback > 0) out.market_value = fallback;
+  }
+  return out;
+}
+
+const SEED_ORDER = 'ORDER BY COALESCE(NULLIF(s.blended_value, 0), s.current_value, 0) DESC, s.set_num';
+
+// Every barcode a seed set is sold under (its catalog UPC plus the EU/UK/US
+// codes in set_barcodes), for the same page as the main query. Kept out of
+// CATALOG_COLS, which is at the wishlist's 100-column limit. Non-fatal: a
+// failure only means this page ships without offline barcodes.
+async function seedBarcodes(db: D1Database, limit: number, offset: number): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  const page = (codes: string) => db.prepare(
+    `SELECT s.set_num, s.upc, ${codes} AS codes
+     FROM lego_sets s
+     WHERE s.image_url IS NOT NULL
+     ${SEED_ORDER}
+     LIMIT ? OFFSET ?`,
+  ).bind(limit, offset).all<{ set_num: string; upc: string | null; codes: string | null }>();
+  let rows: { set_num: string; upc: string | null; codes: string | null }[] = [];
+  try {
+    rows = (await page('(SELECT group_concat(b.code) FROM set_barcodes b WHERE b.set_num = s.set_num)')).results || [];
+  } catch {
+    // No set_barcodes table (older or test databases): the catalog UPC alone.
+    try { rows = (await page('NULL')).results || []; }
+    catch (e) { console.warn('[catalog-seed] barcodes skipped:', (e as Error).message); }
+  }
+  for (const row of rows) {
+    const list = [...new Set([row.upc, ...String(row.codes || '').split(',')]
+      .map((code) => String(code || '').replace(/\D/g, ''))
+      .filter((code) => code.length >= 8 && code.length <= 14))];
+    if (list.length) out.set(String(row.set_num), list);
   }
   return out;
 }
@@ -93,11 +127,17 @@ app.get('/seed', async (c) => {
   const { results } = await c.env.DB.prepare(
     `SELECT ${CATALOG_COLS} FROM lego_sets s ${MARKET_EXT_JOIN}
      WHERE s.image_url IS NOT NULL
-     ORDER BY COALESCE(NULLIF(s.blended_value, 0), s.current_value, 0) DESC, s.set_num
+     ${SEED_ORDER}
      LIMIT ? OFFSET ?`,
   ).bind(limit, offset).all<Record<string, unknown>>();
 
-  const sets = (results || []).map((r) => pick(enrichSetRecord(attachCatalogValuationState({ ...r, retired: !!r.retired }))));
+  const codes = await seedBarcodes(c.env.DB, limit, offset);
+  const sets = (results || []).map((r) => {
+    const row = pick(enrichSetRecord(attachCatalogValuationState({ ...r, retired: !!r.retired })));
+    const list = codes.get(String(r.set_num));
+    if (list?.length) row.barcodes = list;
+    return row;
+  });
   const body = JSON.stringify({ model_version: SEED_MODEL_VERSION, valuation_generation: generation, generated_at: new Date().toISOString(), count: sets.length, offset, sets });
 
   if (kv) c.executionCtx.waitUntil(kv.put(kvKey, body, { expirationTtl: KV_TTL }));

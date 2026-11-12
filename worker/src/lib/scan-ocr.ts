@@ -9,7 +9,7 @@ const MAX_TOKENS = 12;
 const MAX_LOOKUP_KEYS = 48;
 
 export type OcrResolveResult =
-  | { kind: 'accepted'; setNum: string; token: string; name: string }
+  | { kind: 'accepted'; setNum: string; token: string; name: string; method: 'label' | 'box-front' }
   | { kind: 'ambiguous'; setNums: string[] }
   | { kind: 'unmapped' }
   | { kind: 'empty' };
@@ -75,7 +75,16 @@ function extractSetNumbersFromText(raw: string): string[] {
   return found;
 }
 
-export async function resolveOcrSetNum(db: D1Database, tokens: string[]): Promise<OcrResolveResult> {
+export async function resolveOcrSetNum(db: D1Database, tokens: string[], lines: string[] = []): Promise<OcrResolveResult> {
+  const labelled = await resolveLabelledSetNum(db, tokens);
+  // An explicit label wins; an ambiguous label is not overridden by box text.
+  if (labelled.kind === 'accepted' || labelled.kind === 'ambiguous') return labelled;
+  const boxFront = await resolveBoxFrontSetNum(db, lines);
+  if (boxFront.kind !== 'empty') return boxFront;
+  return labelled;
+}
+
+async function resolveLabelledSetNum(db: D1Database, tokens: string[]): Promise<OcrResolveResult> {
   if (!tokens.length) return { kind: 'empty' };
   const expansions = tokens
     .map((token) => ({ token, ...expandSetNumKeys(token) }))
@@ -127,7 +136,109 @@ export async function resolveOcrSetNum(db: D1Database, tokens: string[]): Promis
   }
 
   const unique = [...matched.values()];
-  if (unique.length === 1) return { kind: 'accepted', ...unique[0] };
+  if (unique.length === 1) return { kind: 'accepted', ...unique[0], method: 'label' };
   if (unique.length > 1) return { kind: 'ambiguous', setNums: unique.map((row) => row.setNum) };
   return { kind: 'unmapped' };
+}
+
+// ---------------------------------------------------------------------------
+// Box-front numbers. Most LEGO boxes print the set number on its own ("75313"
+// in a corner) with no "Set" label, so the label parser above missed them and
+// those scans went on to Brickognize and the AI. A bare number alone is not
+// trusted (a year, piece count or age range can also be a real set number),
+// so it is accepted only when the rest of the box text backs it up: the set's
+// piece count, or words from its name. The theme alone is not enough.
+
+const MAX_BARE_NUMBERS = 12;
+const NAME_STOP = new Set([
+  'lego', 'the', 'and', 'with', 'from', 'set', 'pack', 'edition', 'series', 'building',
+  'toy', 'kit', 'collection', 'new', 'for', 'of', 'build', 'bricks',
+]);
+
+function normalizeOcrWords(value: unknown): string {
+  return String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+/** Bare 4-6 digit numbers that could be a set number printed on a box front. */
+export function extractBoxFrontNumbers(lines: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of lines) {
+    const line = String(raw || '').replace(/[\u2013\u2014\u2212]/g, '-');
+    const re = /\d+(?:[.,]\d+)*/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(line))) {
+      const token = m[0];
+      if (!/^\d{4,6}$/.test(token)) continue; // decimals, 2,316, barcodes, short numbers
+      const before = line.slice(Math.max(0, m.index - 12), m.index).toLowerCase();
+      const after = line.slice(m.index + token.length, m.index + token.length + 10).toLowerCase();
+      if (/[$\u20ac\u00a3]\s*$/.test(before)) continue;             // price
+      if (/(?:\u00a9|\(c\)|copyright)\s*$/.test(before)) continue;    // © 2024
+      if (/\bages?\s*$/.test(before) || /^\s*\+/.test(after)) continue; // ages 18+, 9+
+      if (/-\s*$/.test(before) || /^\s*-\s*\d/.test(after)) continue;  // ranges 8-14
+      if (/^\s*(?:pcs|pc|pieces?|pzs|pz|pi[eè]ces|teile|stk|st\.|el\b|elem|db|kpl|onderdelen|dílků|elementy?|частей|деталей)/i.test(after)) continue; // piece counts
+      if (/^\s*(?:g|kg|ml|cm|mm|in)\b/.test(after)) continue;          // measurements
+      if (seen.has(token)) continue;
+      seen.add(token);
+      out.push(token);
+      if (out.length >= MAX_BARE_NUMBERS) return out;
+    }
+  }
+  return out;
+}
+
+type BoxRow = { set_num: string; name: string; theme?: string | null; pieces?: number | null };
+
+async function boxRows(db: D1Database, keys: string[]): Promise<BoxRow[]> {
+  const placeholders = keys.map(() => '?').join(',');
+  try {
+    const { results } = await db.prepare(
+      `SELECT set_num, name, theme, pieces FROM lego_sets WHERE set_num IN (${placeholders})`,
+    ).bind(...keys).all<BoxRow>();
+    return results || [];
+  } catch {
+    // Minimal schemas (unit tests) have no theme/pieces columns.
+    const { results } = await db.prepare(
+      `SELECT set_num, name FROM lego_sets WHERE set_num IN (${placeholders})`,
+    ).bind(...keys).all<BoxRow>();
+    return results || [];
+  }
+}
+
+/** How well the box text backs up this catalog row (0 = not at all). */
+export function boxFrontEvidence(row: BoxRow, lines: string[], token: string): number {
+  const text = ` ${normalizeOcrWords(lines.join(' '))} `;
+  // Piece counts on boxes may carry a thousands separator ("6,785" / "6.785").
+  const digits = ` ${lines.join(' ').replace(/(\d)[.,](?=\d{3}\b)/g, '$1').replace(/[^0-9]+/g, ' ').trim()} `;
+  let score = 0;
+  const pieces = Number(row.pieces);
+  if (Number.isFinite(pieces) && pieces >= 25 && String(pieces) !== token && digits.includes(` ${pieces} `)) score += 2;
+  const name = normalizeOcrWords(row.name);
+  const words = name.split(' ').filter((w) => w.length >= 4 && !NAME_STOP.has(w) && !/^\d+$/.test(w));
+  const phrase = name.length >= 4 && text.includes(` ${name} `);
+  if (phrase || words.some((w) => text.includes(` ${w} `))) score += 2;
+  const theme = normalizeOcrWords(row.theme);
+  if (theme && theme.length >= 3 && text.includes(` ${theme} `)) score += 1;
+  return score;
+}
+
+async function resolveBoxFrontSetNum(db: D1Database, lines: string[]): Promise<OcrResolveResult> {
+  if (!lines.length) return { kind: 'empty' };
+  const numbers = extractBoxFrontNumbers(lines);
+  if (!numbers.length) return { kind: 'empty' };
+  const keys = [...new Set(numbers.flatMap((n) => [n, `${n}-1`]))];
+  const rows = await boxRows(db, keys);
+  const scored = rows.map((row) => {
+    const token = String(row.set_num).split('-', 1)[0];
+    return { row, token, score: boxFrontEvidence(row, lines, token) };
+  }).filter((r) => r.score >= 2);
+  if (!scored.length) return { kind: 'unmapped' };
+  // Strongest evidence first; a modern 5-6 digit number beats a 4-digit one
+  // that could be a year.
+  scored.sort((a, b) => b.score - a.score || b.token.length - a.token.length);
+  const best = scored[0];
+  const rivals = scored.filter((r) => r.score === best.score && r.token.length === best.token.length
+    && r.row.set_num !== best.row.set_num);
+  if (rivals.length) return { kind: 'ambiguous', setNums: [best.row.set_num, ...rivals.map((r) => r.row.set_num)] };
+  return { kind: 'accepted', setNum: String(best.row.set_num), token: best.token, name: String(best.row.name || ''), method: 'box-front' };
 }

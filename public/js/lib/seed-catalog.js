@@ -9,7 +9,7 @@
 // the small page of results crosses back. Where Worker is unavailable (Node
 // tests, very old WebViews) or the worker fails, it runs in-process instead.
 
-import { indexSeed, querySeed, detailFromSeed, headOfSeed } from './seed-catalog-core.js';
+import { indexSeed, querySeed, detailFromSeed, headOfSeed, barcodeFromSeed } from './seed-catalog-core.js';
 
 let _cache = null;        // in-process index (fallback path)
 let _inflight = null;     // dedupe concurrent in-process loads
@@ -102,6 +102,11 @@ export function searchSeedCatalog(params = {}) {
 // like the /api/sets/:setnum payload ({ set, entry, set_minifigs }).
 export function getSeedSetDetail(setNum) {
   return run('detail', String(setNum), (seed) => detailFromSeed(seed, setNum));
+}
+
+// Offline barcode lookup: the bundled set sold under this UPC/EAN, or null.
+export function lookupSeedByBarcode(code) {
+  return run('barcode', String(code), (seed) => barcodeFromSeed(seed, code));
 }
 
 // The n most valuable sets in the snapshot (first-launch image prewarm).

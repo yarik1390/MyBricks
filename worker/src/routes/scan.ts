@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import OpenAI from 'openai';
 import { optionalMember, requireAdmin } from '../auth';
 import { callGeminiScan, callGeminiScanOutcome } from '../lib/gemini';
-import { enrichSetRecord } from '../lib/market-sources';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { logEvent } from '../lib/analytics';
 import { MODELS, gatewayHeaders, gatewayMetadataHeader, SCAN_SYSTEM_PROMPT, SHELF_SCAN_PROMPT } from '../lib/llm';
@@ -10,12 +9,12 @@ import { resolveRoute, type LlmWorkload } from '../lib/llm-routing';
 import { openAiCompatibleStep } from '../lib/llm-clients';
 import { recordAiUsage } from '../lib/ai-usage';
 import { identifySetWithBrickognize } from '../lib/brickognize';
-import { parseOcrSetNumbers, resolveOcrSetNum } from '../lib/scan-ocr';
+import { parseOcrSetNumbers, resolveOcrSetNum, sanitizeOcrInput } from '../lib/scan-ocr';
 import { callRecognitionValidation } from '../lib/recognition-client';
 import { verifyTurnstileToken } from '../lib/turnstile';
 import { attestationValid, playIntegrityEnforced } from '../lib/play-integrity';
 import { matchSetsToCatalog, matchMinifigsToCatalog, type DescribedSet, type DescribedMinifig } from '../lib/scan-match';
-import { CATALOG_COLS, MARKET_EXT_JOIN } from './sets';
+import { hydrateScanSet, hydrateScanSets } from '../lib/scan-hydrate';
 import { findSetByBarcodeLocal, findSetByBarcodeRemote } from '../lib/barcodes';
 import type { Env, Variables } from '../types';
 import { hasProAccess } from '../lib/early-access';
@@ -535,7 +534,7 @@ app.get('/quota', async (c) => {
 
 app.post('/identify', async (c) => {
   const userId = c.get('userId') || '';
-  const body = await c.req.json<{ mode?: string; image?: string; barcode?: string; ocr_candidates?: unknown }>();
+  const body = await c.req.json<{ mode?: string; image?: string; barcode?: string; ocr_candidates?: unknown; ocr_lines?: unknown }>();
   const { mode, image, barcode } = body;
   const shelfMode = mode === 'shelf';
   // One deadline covers validation, anti-abuse/quota work, provider calls, and
@@ -548,15 +547,14 @@ app.post('/identify', async (c) => {
     // then live lookups (Brickset search, UPCitemdb) that save what they find.
     const match = (await findSetByBarcodeLocal(c.env, String(barcode), userId))
       ?? (await findSetByBarcodeRemote(c.env, String(barcode)));
-    const r = match
-      ? await c.env.DB.prepare(`SELECT ${CATALOG_COLS} FROM lego_sets s ${MARKET_EXT_JOIN} WHERE s.set_num=?`).bind(match.setNum).first()
-      : null;
-    if (!r) return c.json({ identified: false, reasoning: 'Barcode not in catalog. Try a photo scan instead.' });
-    logEvent(c.env, 'scan_used', userId, { setNum: String((r as Record<string, unknown>).set_num || '') });
+    // Priced exactly like the set page (persisted v3 state), not a recompute.
+    const set = match ? await hydrateScanSet(c.env.DB, match.setNum) : null;
+    if (!set) return c.json({ identified: false, reasoning: 'Barcode not in catalog. Try a photo scan instead.' });
+    logEvent(c.env, 'scan_used', userId, { setNum: String(set.set_num || '') });
     const reasoning = match!.source === 'taught_by_you'
       ? 'Matched the barcode you taught us.'
       : 'Barcode matched in catalog.';
-    return c.json({ identified: true, set: enrichSetRecord({ ...(r as Record<string, unknown>), retired: !!(r as Record<string, unknown>).retired }), confidence: 'high', reasoning, barcode_source: match!.source });
+    return c.json({ identified: true, set, confidence: 'high', reasoning, barcode_source: match!.source });
   }
 
   if (mode !== 'image' && mode !== 'shelf') return c.json({ error: 'mode must be image, shelf or barcode' }, 400);
@@ -805,6 +803,47 @@ app.post('/identify', async (c) => {
     sharedRequestClaimed = true;
   }
 
+  // Per-step timings ride along on every non-match reply. Until now a failed
+  // scan said only "no match" or was cut off by the client, so there was no way
+  // to tell a provider that answered "nothing here" from one that burned the
+  // whole budget — the difference between a photo problem and a routing problem.
+  const timings: StepTiming[] = [];
+  const started = Date.now();
+
+  // Text extraction happened locally on the captured still. Resolve only one
+  // catalog identity: an explicit "Set 75313" label, or a bare box-front number
+  // that the rest of the box text corroborates (piece count, name or theme).
+  // Malformed, unmapped, or ambiguous candidates fall through to Brickognize
+  // then AI. This runs BEFORE the quota is reserved: an on-device OCR hit is a
+  // free catalog lookup and must not use up one of the day's photo scans.
+  if (!shelfMode && (body.ocr_candidates != null || body.ocr_lines != null)) {
+    const t0 = Date.now();
+    const ocr = await resolveOcrSetNum(c.env.DB, parseOcrSetNumbers(body.ocr_candidates), sanitizeOcrInput(body.ocr_lines));
+    timings.push({
+      provider: 'local-ocr',
+      model: ocr.kind === 'accepted' ? ocr.method : 'set-number',
+      ms: Date.now() - t0,
+      outcome: ocr.kind,
+    });
+    if (ocr.kind === 'accepted') {
+      const set = await hydrateScanSet(c.env.DB, ocr.setNum);
+      if (set) {
+        logEvent(c.env, 'scan_used', userId, { setNum: ocr.setNum });
+        return finalizeShared({
+          identified: true,
+          sets: [set],
+          minifigs: [],
+          confidence: 'high',
+          reasoning: 'On-device text recognition found an exact catalog match.',
+          model: 'ocr/set-number',
+          source: 'local-ocr',
+          local_recognition: { outcome: 'identified', method: 'ocr', set_num: ocr.setNum },
+          timings,
+        });
+      }
+    }
+  }
+
   {
     // Per-user cap on the shared server quota (BYOK above bypasses this entirely).
     // Single photos use the daily photo bucket (Pro gets 5x). Shelf Snap has its
@@ -843,47 +882,6 @@ app.post('/identify', async (c) => {
     }
   }
 
-  // Per-step timings ride along on every non-match reply. Until now a failed
-  // scan said only "no match" or was cut off by the client, so there was no way
-  // to tell a provider that answered "nothing here" from one that burned the
-  // whole budget — the difference between a photo problem and a routing problem.
-  const timings: StepTiming[] = [];
-  const started = Date.now();
-
-  // Text extraction happened locally on the captured still. Resolve only one
-  // exact catalog identity; malformed, unmapped, or ambiguous candidates leave
-  // production behavior unchanged and fall through to Brickognize then AI.
-  if (!shelfMode && body.ocr_candidates != null) {
-    const t0 = Date.now();
-    const ocr = await resolveOcrSetNum(c.env.DB, parseOcrSetNumbers(body.ocr_candidates));
-    timings.push({
-      provider: 'local-ocr',
-      model: 'set-number',
-      ms: Date.now() - t0,
-      outcome: ocr.kind,
-    });
-    if (ocr.kind === 'accepted') {
-      const exact = await c.env.DB.prepare(
-        `SELECT ${CATALOG_COLS} FROM lego_sets s ${MARKET_EXT_JOIN} WHERE s.set_num=? LIMIT 1`,
-      ).bind(ocr.setNum).first<Record<string, unknown>>();
-      if (exact) {
-        const set = enrichSetRecord({ ...exact, retired: !!exact.retired });
-        logEvent(c.env, 'scan_used', userId, { setNum: ocr.setNum });
-        return finalizeShared({
-          identified: true,
-          sets: [set],
-          minifigs: [],
-          confidence: 'high',
-          reasoning: 'On-device text recognition found an exact catalog match.',
-          model: 'ocr/set-number',
-          source: 'local-ocr',
-          local_recognition: { outcome: 'identified', method: 'ocr', set_num: ocr.setNum },
-          timings,
-        });
-      }
-    }
-  }
-
   // Brickognize is the first recognizer for ordinary shared single-set photos.
   // Shelf Snap needs multi-object recognition, and BYOK calls promise to use the
   // member's selected provider. Acceptance requires score + result-margin gates
@@ -909,15 +907,12 @@ app.post('/identify', async (c) => {
     if (brickognize.kind === 'accepted') {
       const bareId = brickognize.top.id.replace(/-\d+$/, '');
       const canonicalId = /-\d+$/.test(brickognize.top.id) ? brickognize.top.id : `${brickognize.top.id}-1`;
-      const exact = await c.env.DB.prepare(
-        `SELECT ${CATALOG_COLS} FROM lego_sets s ${MARKET_EXT_JOIN}
-         WHERE s.set_num IN (?, ?, ?)
-         ORDER BY CASE s.set_num WHEN ? THEN 0 WHEN ? THEN 1 ELSE 2 END
-         LIMIT 1`,
-      ).bind(brickognize.top.id, canonicalId, bareId, brickognize.top.id, canonicalId).first<Record<string, unknown>>();
-      if (exact) {
-        const set = enrichSetRecord({ ...exact, retired: !!exact.retired });
-        logEvent(c.env, 'scan_used', userId, { setNum: String(exact.set_num || '') });
+      // Prefer the id as returned, then its "-1" form, then the bare number;
+      // priced exactly like the set page.
+      const hydrated = await hydrateScanSets(c.env.DB, [brickognize.top.id, canonicalId, bareId]);
+      const set = hydrated?.get(brickognize.top.id) ?? hydrated?.get(canonicalId) ?? hydrated?.get(bareId) ?? null;
+      if (set) {
+        logEvent(c.env, 'scan_used', userId, { setNum: String(set.set_num || '') });
         return finalizeShared({
           identified: true,
           sets: [{

@@ -1986,6 +1986,7 @@ Object.assign(en.data, {
   csvImportMore: ' and {count} more', csvImportConfirmMessage: 'Starting with: {sample}{more}. Existing sets are kept.', importConfirm: 'Import',
 });
 Object.assign(en.scanner, { setNumberMatched: 'Set number matched in catalog.' });
+Object.assign(en.scanner, { offlineBarcodeMatch: 'Found in the catalog saved on this device. Prices may be a few days old.' });
 Object.assign(en.portfolio, { insightHeadlineOne: '≈ {value} upside across 1 set if sold now', insightHeadlineOther: '≈ {value} upside across {count} sets if sold now' });
 Object.assign(en.market, {
   goodTimeToSell: 'Good time to sell', goodTimeToBuy: 'Good time to buy', onlyForSale: 'Only {count} for sale right now',
