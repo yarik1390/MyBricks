@@ -460,3 +460,11 @@
   /* Scan start page sits centred instead of hugging the left edge. */
   .bv-pile > :not(.bv-top) { max-width: 560px; margin-inline: auto !important; }
 }
+
+/* Admin console (desktop): Today in two columns, tiles in a wider grid. */
+@media (min-width: 1024px) {
+  .admin-dashboard-page .adm-today-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+  .admin-dashboard-page .admin-segments-sticky { max-width: 640px; }
+  .admin-dashboard-page #adminUsersStats .adm-tiles { grid-template-columns: repeat(3, minmax(0, 220px)); }
+  .admin-dashboard-page #adminPricingKeys .adm-tiles-2 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}

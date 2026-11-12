@@ -230,9 +230,8 @@ test.describe(() => {
       return route.fallback();
     });
     await page.goto('/#/me/admin', { waitUntil: 'domcontentloaded' });
-    await page.locator('[data-admin-section-link="adminOverview"]').evaluate((button) => button.click());
-    await expect(page.locator('.admin-process-meta')).toContainText('останній запуск');
-    await expect(page.locator('.admin-process-meta')).toContainText('хв');
+    await page.locator('[data-admin-section-link="adminJobs"]').evaluate((button) => button.click());
+    await expect(page.locator('.adm-job-when').first()).toContainText('хв');
   });
 
   test('renders driven Brickset failure and admin success through locale keys', async ({ page }) => {
@@ -365,6 +364,7 @@ test.describe(() => {
     });
     await page.goto('/#/me/admin', { waitUntil: 'commit' });
     await expect(page.getByText('Консоль адміністратора')).toBeVisible();
+    await page.locator('[data-admin-section-link="adminServices"]').evaluate((button) => button.click());
     await page.locator('[data-service-tab="Pricing"]').evaluate((button) => button.click());
     await page.locator('details[data-svc="ebay"] > summary').evaluate((summary) => summary.click());
     await expect(page.getByText('дані запитуваних цін доступні')).toBeVisible();
@@ -381,8 +381,7 @@ test.describe(() => {
       return route.fallback();
     });
     await page.goto('/#/me/admin', { waitUntil: 'commit' });
-    await page.locator('[data-admin-section-link="adminGovernance"]').evaluate((button) => button.click());
-    await page.locator('[data-target="govToolsPanel"]').click();
+    await page.locator('[data-admin-section-link="adminUsers"]').evaluate((button) => button.click());
     const control = page.locator('[data-file-input="blMinifigFile"]');
     const input = page.locator('#blMinifigFile');
     await expect(control).toBeVisible();

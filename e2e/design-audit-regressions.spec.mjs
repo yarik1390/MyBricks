@@ -80,13 +80,14 @@ test.describe('design audit regressions', () => {
     await page.goto('/#/me/admin', { waitUntil: 'domcontentloaded' });
 
     const sections = page.getByRole('tablist', { name: 'Admin sections' });
-    const services = sections.getByRole('tab', { name: 'Overview' });
-    const populate = sections.getByRole('tab', { name: 'Pricing' });
-    await services.focus();
+    const today = sections.getByRole('tab', { name: 'Today' });
+    const jobs = sections.getByRole('tab', { name: 'Jobs' });
+    const services = sections.getByRole('tab', { name: 'Services' });
+    await today.focus();
     await page.keyboard.press('ArrowRight');
-    await expect(populate).toBeFocused();
-    await expect(populate).toHaveAttribute('aria-selected', 'true');
-    await expect(services).toHaveAttribute('tabindex', '-1');
+    await expect(jobs).toBeFocused();
+    await expect(jobs).toHaveAttribute('aria-selected', 'true');
+    await expect(today).toHaveAttribute('tabindex', '-1');
 
     await services.click();
     const categories = page.getByRole('tablist', { name: 'Service categories' });

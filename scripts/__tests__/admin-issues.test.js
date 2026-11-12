@@ -117,7 +117,7 @@ describe('buildAdminIssues', () => {
       { service: 'bricklink', kind: 'stale', evidenceAt: stale },
       { service: 'd1', kind: 'unknown', evidenceAt: null },
     ]);
-    assert.equal(issues[0].href, '#/me/admin?hub=pricing&view=center');
+    assert.equal(issues[0].href, '#/me/admin?hub=services');
   });
 
   it('returns an unknown issue instead of claiming health when evidence is missing', () => {
@@ -147,7 +147,8 @@ describe('buildAdminIssues', () => {
       'error:ebay',
       'degraded:openai',
     ]);
-    assert.equal(issues[3].href, '#/me/admin?hub=ai');
+    assert.equal(issues[3].href, '#/me/admin?hub=services');
+    assert.equal(issues[3].label, 'Open AI services');
     assert.ok(issues.every((issue) => !JSON.stringify(issue).includes('secret detail')));
   });
 

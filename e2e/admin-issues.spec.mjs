@@ -73,13 +73,13 @@ async function mockAdmin(page, { integrations, integrationStatus = 200, flags = 
 }
 
 async function openOverview(page) {
-  await page.goto('/#/me/admin?hub=overview', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#adminOverview')).toBeVisible();
+  await page.goto('/#/me/admin', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#adminToday')).toBeVisible();
 }
 
 async function expectIssuesSettled(page, text) {
-  await expect(page.locator('#adminIssuesContainer')).toContainText(text);
-  await expect(page.locator('#adminIssuesContainer')).not.toContainText('Loading issue evidence');
+  await expect(page.locator('#adminTodayContainer')).toContainText(text);
+  await expect(page.locator('#adminTodayContainer')).not.toContainText('Loading issue evidence');
 }
 
 test('Overview Issues distinguishes fresh errors from stale unknown evidence and excludes disabled services', async ({ page }) => {
@@ -110,7 +110,7 @@ test('Overview Issues distinguishes fresh errors from stale unknown evidence and
 
   await openOverview(page);
   await expectIssuesSettled(page, 'BrickLink needs access');
-  const issues = page.locator('#adminIssuesContainer');
+  const issues = page.locator('#adminTodayContainer');
   await expect(issues).toContainText('Access');
   await expect(issues).toContainText('Rebrickable evidence is stale');
   await expect(issues).toContainText('Stale evidence');
@@ -129,14 +129,13 @@ test('an issue remedy navigates to the real target hub and panel', async ({ page
 
   await openOverview(page);
   await expectIssuesSettled(page, 'Rebrickable health is unknown');
-  const remedy = page.locator('#adminIssuesContainer a', { hasText: 'Review catalog sources' });
-  await expect(remedy).toHaveAttribute('href', '#/me/admin?hub=pricing&view=populate');
+  const remedy = page.locator('#adminTodayContainer a', { hasText: 'Open in Services' });
+  await expect(remedy).toHaveAttribute('href', '#/me/admin?hub=services');
   await remedy.click();
 
-  await expect(page).toHaveURL(/#\/me\/admin\?hub=pricing&view=populate$/);
-  await expect(page.locator('#adminPricing')).toBeVisible();
-  await expect(page.locator('#pricingPopulatePanel')).toBeVisible();
-  await expect(page.locator('#pricingCenterPanel')).toBeHidden();
+  await expect(page).toHaveURL(/#\/me\/admin\?hub=services$/);
+  await expect(page.locator('#adminServices')).toBeVisible();
+  await expect(page.locator('#adminToday')).toBeHidden();
 });
 
 test('failed diagnostics render explicit unknown evidence rather than false healthy state', async ({ page }) => {
@@ -144,9 +143,9 @@ test('failed diagnostics render explicit unknown evidence rather than false heal
 
   await openOverview(page);
   await expectIssuesSettled(page, 'Service evidence is unavailable');
-  const issues = page.locator('#adminIssuesContainer');
+  const issues = page.locator('#adminTodayContainer');
   await expect(issues).toContainText('Unknown');
-  await expect(issues).toContainText('Overview could not confirm current service health.');
+  await expect(issues).toContainText('The admin console could not confirm current service health.');
   await expect(issues).not.toContainText('No current issues found');
   await expect(issues).not.toContainText('Healthy');
 });

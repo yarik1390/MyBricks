@@ -26,7 +26,7 @@ describe('admin usability controls', () => {
   it('links rendered guidance to real sections and subtabs', () => {
     assert.doesNotMatch(adminView, /(?:the |from |through |→ )Activity tab/i);
     assert.doesNotMatch(adminView, /(?:the |from |through |→ )Populate tab/i);
-    assert.match(adminView, /data-admin-section-jump="adminOverview" data-scroll-target="adminActivityHeading"/);
+    assert.match(adminView, /data-admin-section-jump="adminJobs" data-scroll-target="adminActivityHeading"/);
     assert.match(adminView, /data-admin-section-jump="adminPricing" data-open-subtab="pricingPopulatePanel"/);
     assert.match(adminView, /function jumpToAdminSection\(btn\)/);
     assert.match(adminView, /function activateAdminSubtab\(btn(?:,|\))/);

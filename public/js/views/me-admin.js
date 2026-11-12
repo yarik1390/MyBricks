@@ -10,7 +10,6 @@ import {
   classifyProviderHealth,
   validateSourceTuningInput,
   formatRelativeTime,
-  processRunBadge,
   adminJobStartFeedback,
 } from '../lib/pure.js';
 import { go } from '../router.js';
@@ -20,6 +19,8 @@ import { t, tPlural, getLocale } from '../lib/i18n.js';
 import { wireHorizontalRail } from '../lib/horizontal-rail.js';
 import { buildAdminIssues } from '../lib/admin-issues.js';
 import { loadAdminFeedback } from './me-admin-feedback.js';
+import { todayHTML, jobFiltersHTML, jobsListHTML, pricingKeysHTML, usersStatsHTML } from './me-admin-home.js';
+import { summarizeJobHealth } from '../lib/admin-home.js';
 
 let activeAdminRunId = null;
 let activeAdminTool = null;
@@ -56,6 +57,9 @@ let activityData = null;
 let activityPollTimer = null;
 let featureFlags = { flags: [], overrides: {}, effective: {} };
 let pricingCenterData = null;
+let summaryData = null;
+let jobFilter = 'problems';
+let issuesLoaded = false;
 // Active Services tab: 'attention' (triage across all categories) or a
 // PROVIDER_GROUPS category label ('Core', 'Pricing', …). Category-per-tab keeps
 // the mobile view short — one category on screen at a time.
@@ -64,13 +68,13 @@ let serviceTab = 'attention';
 const ADMIN_ROUTE = '#/me/admin';
 const ADMIN_HUBS = new Map(ADMIN_SECTIONS.map(([id, , slug]) => [slug, id]));
 const ADMIN_HUB_SLUGS = new Map(ADMIN_SECTIONS.map(([id, , slug]) => [id, slug]));
-const ADMIN_DEFAULT_SUBVIEW = { pricing: 'center', governance: 'contributions' };
+const ADMIN_DEFAULT_SUBVIEW = { pricing: 'center' };
 
 function readAdminNavigation() {
   const query = location.hash.split('?')[1] || '';
   const params = new URLSearchParams(query);
   const requestedHub = params.get('hub');
-  const hub = ADMIN_HUBS.has(requestedHub) ? requestedHub : 'overview';
+  const hub = ADMIN_HUBS.has(requestedHub) ? requestedHub : 'today';
   const requestedView = params.get('view');
   const views = ADMIN_SUBVIEWS[hub];
   const view = views && Object.hasOwn(views, requestedView)
@@ -80,7 +84,7 @@ function readAdminNavigation() {
 }
 
 function adminNavigationHash(hub, view = null) {
-  if (hub === 'overview') return ADMIN_ROUTE;
+  if (hub === 'today') return ADMIN_ROUTE;
   const params = new URLSearchParams({ hub });
   if (view && view !== ADMIN_DEFAULT_SUBVIEW[hub]) params.set('view', view);
   return `${ADMIN_ROUTE}?${params}`;
@@ -117,146 +121,153 @@ export async function renderMeAdmin() {
   $('#root').innerHTML = `
     <div class="page admin-page admin-dashboard-page">
       ${subpageTopbarHTML('Admin console', 'Admin')}
+      <p class="adm-updated" id="adminUpdatedAt" aria-live="polite">Live while this page is open</p>
       <nav class="admin-segments admin-segments-sticky" role="tablist" aria-label="Admin sections">
-        ${ADMIN_SECTIONS.map(([id, label, slug], i) => `<button type="button" id="${id}Tab" role="tab" aria-selected="${i === 0}" aria-controls="${id}" tabindex="${i === 0 ? '0' : '-1'}" class="${i === 0 ? 'active' : ''}" data-admin-section-link="${id}" data-admin-hub="${slug}">${escapeHtml(label)}</button>`).join('')}
+        ${ADMIN_SECTIONS.map(([id, label, slug], i) => `<button type="button" id="${id}Tab" role="tab" aria-selected="${i === 0}" aria-controls="${id}" tabindex="${i === 0 ? '0' : '-1'}" class="${i === 0 ? 'active' : ''}" data-admin-section-link="${id}" data-admin-hub="${slug}">${escapeHtml(label)}<span class="adm-tab-count" data-admin-tab-count="${slug}" hidden></span></button>`).join('')}
       </nav>
 
-      <section class="admin-section" id="adminOverview">
-        <h2 class="section-title">Overview & Services</h2>
-        <p class="admin-section-intro">Operational triage and background activity. Start with services that need action, or choose a category.</p>
-        <div id="adminIssuesContainer" class="admin-panel" aria-live="polite">Loading issue evidence...</div>
-        <div id="adminFeedbackContainer" class="admin-panel" aria-live="polite">Loading feedback...</div>
+      <section class="admin-section" id="adminToday">
+        <h2 class="u-sr-only">Today</h2>
+        <div id="adminTodayContainer" aria-live="polite"></div>
+      </section>
+
+      <section class="admin-section" id="adminJobs">
+        <h2 class="u-sr-only">Jobs</h2>
+        <div class="adm-filters" id="adminJobFilters" role="group" aria-label="Filter jobs"></div>
+        <div id="processesContainer" class="admin-process-wrap" aria-live="polite">Loading jobs...</div>
+        <div class="adm-h" id="adminActivityHeading" tabindex="-1"><h3>Batch jobs you started</h3><span>imports and data passes</span></div>
+        <div id="jobsStatusContainer" class="admin-panel" aria-live="polite">Loading jobs...</div>
+      </section>
+
+      <section class="admin-section" id="adminServices">
+        <h2 class="u-sr-only">Services</h2>
         <div class="admin-service-filters" role="tablist" aria-label="Service categories">
           ${serviceTabs().map(([id, label]) => serviceTabButtonHTML(id, label)).join('')}
         </div>
         <div id="servicesContainer" class="admin-service-wrap" aria-live="polite">Loading services...</div>
-
-        <h3 class="section-subtitle" id="adminActivityHeading" tabindex="-1" style="margin-top: 24px; font-size: 14px; font-weight: 700;">Background Activity & Jobs</h3>
-        <p class="admin-section-intro">Every background process and admin job, updated live while this page is open.</p>
-        <div id="jobsStatusContainer" class="admin-panel" aria-live="polite">Loading jobs...</div>
-        <div id="processesContainer" class="admin-process-wrap" aria-live="polite">Loading processes...</div>
+        <details class="adm-fold" id="adminAiRoutingFold">
+          <summary><span><strong>AI routing</strong><small id="adminAiRoutingSummary">Which provider each AI feature tries first. The first one that answers wins.</small></span></summary>
+          <div id="llmRoutingContainer" class="admin-panel" aria-live="polite">Loading LLM routing...</div>
+        </details>
       </section>
 
       <section class="admin-section" id="adminPricing">
-        <h2 class="section-title">Pipeline & Pricing</h2>
-        <p class="admin-section-intro">Multi-source valuation pipeline, catalog coverage, quarantined matches, and batch population tools.</p>
+        <h2 class="u-sr-only">Pricing</h2>
         <div class="admin-subtabs" role="tablist" aria-label="Pricing subtabs">
-          <button type="button" class="chip active" data-admin-subtab="pricing" data-target="pricingCenterPanel">Pricing Center & Quality</button>
-          <button type="button" class="chip" data-admin-subtab="pricing" data-target="pricingPopulatePanel">Populate & Batch</button>
+          <button type="button" class="chip active" data-admin-subtab="pricing" data-target="pricingCenterPanel">Overview</button>
+          <button type="button" class="chip" data-admin-subtab="pricing" data-target="pricingPopulatePanel">Bulk data passes</button>
         </div>
         <div id="pricingCenterPanel" class="admin-subtab-panel active">
-          <div id="qualityContainer" class="admin-panel" style="margin-bottom: 16px;">Loading coverage...</div>
+          <div id="adminPricingKeys"></div>
           <div id="pricingCenterContainer" class="admin-pricing-center" aria-live="polite">Loading pricing controls...</div>
+          <details class="adm-fold">
+            <summary><span><strong>Catalog coverage</strong><small>Missing prices, barcodes and retail prices across the catalog</small></span></summary>
+            <div id="qualityContainer" class="admin-panel">Loading coverage...</div>
+          </details>
         </div>
         <div id="pricingPopulatePanel" class="admin-subtab-panel" hidden>
           ${populateSectionHTML()}
         </div>
       </section>
 
-      <section class="admin-section" id="adminLlm">
-        <h2 class="section-title">LLM Routing</h2>
-        <p class="admin-section-intro">Order the providers each AI workload tries. Steps run top to bottom; the first one that answers wins. Free tiers go first, the paid backstop last.</p>
-        <div id="llmRoutingContainer" class="admin-panel" aria-live="polite">Loading LLM routing...</div>
-      </section>
-
-      <section class="admin-section" id="adminGovernance">
-        <h2 class="section-title">Governance & Operations</h2>
-        <p class="admin-section-intro">Community moderation queue, supporter account permissions, and system maintenance utilities.</p>
-        <div class="admin-subtabs" role="tablist" aria-label="Governance subtabs">
-          <button type="button" class="chip active" data-admin-subtab="gov" data-target="govContribPanel">Contributions <span id="contribCount" class="contrib-count"></span></button>
-          <button type="button" class="chip" data-admin-subtab="gov" data-target="govUsersPanel">Users & Supporters</button>
-          <button type="button" class="chip" data-admin-subtab="gov" data-target="govToolsPanel">System Maintenance</button>
-        </div>
-        <div id="govContribPanel" class="admin-subtab-panel active">
-          <div class="admin-panel">
-            <div class="admin-contrib-tabs" role="tablist" aria-label="Contribution type">
-              ${contribTabButtonHTML('all', 'All')}
-              ${contribTabButtonHTML('review', 'Reviews')}
-              ${contribTabButtonHTML('photo', 'Photos')}
-              ${contribTabButtonHTML('data', 'Data fixes')}
-            </div>
-            <div id="contribQueue">Loading queue...</div>
+      <section class="admin-section" id="adminUsers">
+        <h2 class="u-sr-only">Users</h2>
+        <div id="adminUsersStats"></div>
+        <div class="adm-h"><h3>Inbox</h3><span>feedback and contributions</span></div>
+        <div id="adminFeedbackContainer" class="admin-panel" aria-live="polite">Loading feedback...</div>
+        <div class="admin-panel" id="govContribPanel">
+          <div class="admin-supporters-head"><div><strong>Reviews, photos and data fixes <span id="contribCount" class="contrib-count"></span></strong><span>Approved items appear on set pages.</span></div></div>
+          <div class="admin-contrib-tabs" role="tablist" aria-label="Contribution type">
+            ${contribTabButtonHTML('all', 'All')}
+            ${contribTabButtonHTML('review', 'Reviews')}
+            ${contribTabButtonHTML('photo', 'Photos')}
+            ${contribTabButtonHTML('data', 'Data fixes')}
           </div>
+          <div id="contribQueue">Loading queue...</div>
         </div>
-        <div id="govUsersPanel" class="admin-subtab-panel" hidden>
-          <div class="admin-panel admin-user-panel">
+
+        <div class="adm-h"><h3>Find a user</h3><span>supporter status</span></div>
+        <div class="admin-panel admin-user-panel" id="govUsersPanel">
+          <div class="admin-user-search">
+            <label class="admin-field">
+              <span class="u-sr-only">Find a user</span>
+              <input id="adminUserSearchInput" class="input" placeholder="Handle, email, or user ID" autocomplete="off">
+            </label>
+            <button class="btn-secondary" id="adminUserSearchBtn">${I.search()}<span>Search</span></button>
+          </div>
+          <div id="adminUserSearchResults" class="admin-search-results"></div>
+          <details class="adm-fold adm-fold-inner">
+            <summary><span><strong>Change by user ID</strong><small>Paste a Supabase user UUID</small></span></summary>
             <label class="admin-field">
               <span>User ID</span>
               <input id="supporterUserIdInput" class="input" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" spellcheck="false">
-              <small>Paste the Supabase user UUID. This changes supporter status for exactly that account.</small>
             </label>
             <div class="admin-user-actions">
               <button class="btn-primary" id="grantSupporterBtn">${I.star()}<span>Grant supporter</span></button>
               <button class="btn-secondary" id="revokeSupporterBtn">${I.minus()}<span>Revoke</span></button>
             </div>
-            <div class="admin-user-search">
-              <label class="admin-field">
-                <span>Find a user</span>
-                <input id="adminUserSearchInput" class="input" placeholder="Handle, email, or user ID" autocomplete="off">
-                <small>Search helps confirm the UUID before changing supporter status.</small>
-              </label>
-              <button class="btn-secondary" id="adminUserSearchBtn">${I.search()}<span>Search</span></button>
-            </div>
-            <div id="adminUserSearchResults" class="admin-search-results"></div>
-            <div id="supporterResult" class="admin-status-panel" hidden></div>
-            <div class="admin-supporters">
-              <div class="admin-supporters-head">
-                <div>
-                  <strong>Current supporters</strong>
-                  <span>Live accounts with supporter access enabled.</span>
-                </div>
-                <button class="btn-secondary" id="refreshSupportersBtn">${I.refresh({ w: 16 })}<span>Refresh</span></button>
-              </div>
-              <div id="supportersList" class="admin-supporter-list">Loading supporters...</div>
-            </div>
-          </div>
-        </div>
-        <div id="govToolsPanel" class="admin-subtab-panel" hidden>
-          <div class="admin-panel">
+          </details>
+          <div id="supporterResult" class="admin-status-panel" hidden></div>
+          <div class="admin-supporters">
             <div class="admin-supporters-head">
               <div>
-                <strong>Onboarding wizard</strong>
-                <span>Replay the first-run setup (mode, appearance, extras, Pro) to review it.</span>
+                <strong>Current supporters</strong>
+                <span>Accounts with supporter access.</span>
               </div>
-              <button class="btn-secondary" id="previewSetupBtn">${I.sparkles({ w: 16 })}<span>Preview</span></button>
+              <button class="btn-secondary" id="refreshSupportersBtn">${I.refresh({ w: 16 })}<span>Refresh</span></button>
             </div>
-            <div class="admin-supporters-head" style="margin-top:10px;">
-              <div>
-                <strong>Guided tour</strong>
-                <span>Replay the coach-mark tour that spotlights the nav.</span>
-              </div>
-              <button class="btn-secondary" id="previewTourBtn">${I.info({ w: 16 })}<span>Preview</span></button>
-            </div>
-            <div class="admin-tool-grid" style="margin-top:16px;">
-              ${maintenanceCardHTML('expire')}
-              ${maintenanceCardHTML('repair')}
-              ${maintenanceCardHTML('resetFirecrawlPool')}
-            </div>
-            <article class="admin-tool-card admin-upload-card">
-              <div class="admin-tool-icon">${I.download()}</div>
-              <div>
-                <h3>Import BrickLink minifig catalog</h3>
-                <p class="admin-tool-desc">Upload BrickLink's Minifigures export (the tab-separated file) to map minifig IDs so BrickLink minifig prices resolve.</p>
-                <small id="blMinifigUploadResult">Choose the exported Minifigures file (tab format).</small>
-              </div>
-              <span class="csv-file-picker"><button type="button" class="btn-secondary admin-upload-btn csv-file-label" data-file-picker data-file-input="blMinifigFile">
-                ${I.upload ? I.upload({ w: 16 }) : I.download({ w: 16 })}<span>Upload</span>
-              </button><input type="file" id="blMinifigFile" accept=".txt,.xml,.tsv,.csv,text/plain,text/xml,text/tab-separated-values" tabindex="-1" aria-hidden="true"></span>
-            </article>
-            <article class="admin-tool-card">
-              <div class="admin-tool-icon">${I.gear()}</div>
-              <div>
-                <h3>Copy admin token</h3>
-                <p class="admin-tool-desc">Copies your active session JWT to the clipboard for API debugging.</p>
-              </div>
-              <button type="button" class="btn-secondary" id="copyAdminTokenBtn">${I.copy ? I.copy({ w: 16 }) : I.check({ w: 16 })}<span>Copy token</span></button>
-            </article>
+            <div id="supportersList" class="admin-supporter-list">Loading supporters...</div>
           </div>
+        </div>
+
+        <div class="adm-h"><h3>Tools</h3><span>rarely needed</span></div>
+        <div class="admin-panel" id="govToolsPanel">
+          <div class="admin-supporters-head">
+            <div>
+              <strong>Onboarding wizard</strong>
+              <span>Replay the first-run setup (mode, appearance, extras, Pro) to review it.</span>
+            </div>
+            <button class="btn-secondary" id="previewSetupBtn">${I.sparkles({ w: 16 })}<span>Preview</span></button>
+          </div>
+          <div class="admin-supporters-head" style="margin-top:10px;">
+            <div>
+              <strong>Guided tour</strong>
+              <span>Replay the coach-mark tour that spotlights the nav.</span>
+            </div>
+            <button class="btn-secondary" id="previewTourBtn">${I.info({ w: 16 })}<span>Preview</span></button>
+          </div>
+          <div class="admin-tool-grid" style="margin-top:16px;">
+            ${maintenanceCardHTML('expire')}
+            ${maintenanceCardHTML('repair')}
+            ${maintenanceCardHTML('resetFirecrawlPool')}
+          </div>
+          <article class="admin-tool-card admin-upload-card">
+            <div class="admin-tool-icon">${I.download()}</div>
+            <div>
+              <h3>Import BrickLink minifig catalog</h3>
+              <p class="admin-tool-desc">Upload BrickLink's Minifigures export (the tab-separated file) to map minifig IDs so BrickLink minifig prices resolve.</p>
+              <small id="blMinifigUploadResult">Choose the exported Minifigures file (tab format).</small>
+            </div>
+            <span class="csv-file-picker"><button type="button" class="btn-secondary admin-upload-btn csv-file-label" data-file-picker data-file-input="blMinifigFile">
+              ${I.upload ? I.upload({ w: 16 }) : I.download({ w: 16 })}<span>Upload</span>
+            </button><input type="file" id="blMinifigFile" accept=".txt,.xml,.tsv,.csv,text/plain,text/xml,text/tab-separated-values" tabindex="-1" aria-hidden="true"></span>
+          </article>
+          <article class="admin-tool-card">
+            <div class="admin-tool-icon">${I.gear()}</div>
+            <div>
+              <h3>Copy admin token</h3>
+              <p class="admin-tool-desc">Copies your active session JWT to the clipboard for API debugging.</p>
+              <small id="copyAdminTokenResult"></small>
+            </div>
+            <button type="button" class="btn-secondary" id="copyAdminTokenBtn">${I.copy ? I.copy({ w: 16 }) : I.check({ w: 16 })}<span>Copy token</span></button>
+          </article>
         </div>
       </section>
     </div>`;
 
   wireAdminShell();
+  renderToday();
+  loadSummary();
   updateJobsStatus();
   loadActivity();
   updateIntegrationsHealth();
@@ -285,8 +296,8 @@ function populateSectionHTML() {
       </div>
       <button class="btn-primary admin-primary-action" data-admin-tool="everything">${I.refresh()}<span>Run safe slice</span></button>
     </div>
-    <p class="admin-section-note">To run one job on its own — catalog imports or PriceCharting bulk — use its <strong>Run now</strong> button in Background Activity & Jobs.</p>
-    <button type="button" class="btn-secondary" data-admin-section-jump="adminOverview" data-scroll-target="adminActivityHeading">Go to Background Activity & Jobs</button>
+    <p class="admin-section-note">To run one job on its own — catalog imports or PriceCharting bulk — use its <strong>Run now</strong> button in the Jobs tab.</p>
+    <button type="button" class="btn-secondary" data-admin-section-jump="adminJobs" data-scroll-target="adminActivityHeading">Go to Jobs</button>
 `;
 }
 
@@ -426,6 +437,27 @@ function wireAdminShell() {
   processesEl?.addEventListener('click', (e) => {
     const runBtn = e.target.closest('[data-process-run]');
     if (runBtn) runProcess(runBtn.getAttribute('data-process-run'), runBtn);
+  });
+  $('#adminJobFilters')?.addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-job-filter]');
+    if (!chip) return;
+    haptic('light');
+    jobFilter = chip.getAttribute('data-job-filter') || 'problems';
+    renderProcesses();
+  });
+  $('#adminTodayContainer')?.addEventListener('click', (e) => {
+    const runBtn = e.target.closest('[data-process-run]');
+    if (runBtn) { runProcess(runBtn.getAttribute('data-process-run'), runBtn); return; }
+    const jumpBtn = e.target.closest('[data-admin-section-jump]');
+    if (!jumpBtn) return;
+    const focus = jumpBtn.getAttribute('data-job-focus');
+    jumpToAdminSection(jumpBtn);
+    if (focus) {
+      jobFilter = 'all';
+      renderProcesses();
+      const row = document.querySelector(`details.adm-job[data-job="${CSS.escape(focus)}"]`);
+      if (row) { row.open = true; row.scrollIntoView({ block: 'center' }); }
+    }
   });
   const llmEl = document.getElementById('llmRoutingContainer');
   llmEl?.addEventListener('click', (event) => {
@@ -775,46 +807,79 @@ function scheduleActivityPoll() {
 function renderProcesses() {
   const c = $('#processesContainer');
   if (!c || !activityData) return;
-  const procs = activityData.processes || [];
-  const order = activityData.group_order || [];
-  const counts = { ok: 0, failed: 0, running: 0, idle: 0 };
-  for (const p of procs) counts[p.status === 'ok' ? 'ok' : p.status === 'failed' ? 'failed' : p.status === 'running' ? 'running' : 'idle']++;
-  const byGroup = new Map();
-  for (const p of procs) {
-    if (!byGroup.has(p.group)) byGroup.set(p.group, []);
-    byGroup.get(p.group).push(p);
+  const filters = $('#adminJobFilters');
+  if (filters) filters.innerHTML = jobFiltersHTML(activityData.processes || [], jobFilter);
+  // Keep rows the admin expanded open across the live re-render poll.
+  const openSet = new Set(Array.from(c.querySelectorAll('details.adm-job[open]')).map(d => d.getAttribute('data-job')));
+  c.innerHTML = jobsListHTML(activityData, { filter: jobFilter, canRun: canRunProcess, openSet });
+  const counts = summarizeJobHealth(activityData.processes || []);
+  setTabCount('jobs', counts.problems);
+  renderToday();
+}
+
+function setTabCount(slug, count) {
+  const el = document.querySelector(`[data-admin-tab-count="${slug}"]`);
+  if (!el) return;
+  el.hidden = !count;
+  el.textContent = count ? String(count) : '';
+}
+
+function canRunProcess(name) {
+  const tool = PROCESS_TRIGGER[name];
+  return !!tool && !ADMIN_JOB_TOOLS[tool]?.disabled;
+}
+
+function currentIssues() {
+  if (!issuesLoaded) return [];
+  return buildAdminIssues({
+    diagnostics: Array.isArray(adminHealth?.integrations) ? adminHealth.integrations : null,
+    featureFlags: featureFlags?.effective || {},
+    sourceConfig,
+  }).map(issue => ({ ...issue, kindLabel: adminIssueKindLabel(issue.kind) }));
+}
+
+function renderToday() {
+  const container = $('#adminTodayContainer');
+  if (!container) return;
+  const issues = currentIssues();
+  setTabCount('services', issues.length);
+  container.innerHTML = todayHTML({
+    processes: activityData?.processes || [],
+    issues,
+    canRun: canRunProcess,
+    quotaToday: adminHealth?.quota || [],
+    quotaYesterday: summaryData?.quota_yesterday || [],
+    summary: summaryData,
+    aiUsage: adminHealth?.ai_usage,
+    loaded: !!activityData && issuesLoaded,
+  });
+  const stamp = $('#adminUpdatedAt');
+  if (stamp && activityData?.generated_at) {
+    const time = new Date(activityData.generated_at).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' });
+    const line = 'Updated ' + time + ' · live while this page is open';
+    stamp.textContent = line;
   }
-  const groups = order.filter(g => byGroup.has(g));
-  // Preserve which groups the admin expanded across the live re-render poll. On
-  // first paint (no groups in the DOM yet), open only groups that have a running
-  // or failed process so problems surface without expanding everything.
-  const existing = c.querySelectorAll('details.admin-process-group');
-  const firstPaint = existing.length === 0;
-  const openGroups = new Set(Array.from(existing).filter(d => d.open).map(d => d.getAttribute('data-group')));
-  c.innerHTML = `
-    <div class="admin-activity-summary">
-      ${counts.running ? `<span class="admin-pill admin-pill--running">${escapeHtml(tPlural('admin.countRunning', counts.running))}</span>` : ''}
-      <span class="admin-pill admin-pill--ok">${escapeHtml(tPlural('admin.countHealthy', counts.ok))}</span>
-      ${counts.failed ? `<span class="admin-pill admin-pill--danger">${escapeHtml(tPlural('admin.countFailed', counts.failed))}</span>` : ''}
-      ${counts.idle ? `<span class="admin-pill admin-pill--idle">${escapeHtml(tPlural('admin.countNotRun', counts.idle))}</span>` : ''}
-    </div>
-    ${groups.map(g => {
-      const items = byGroup.get(g);
-      const gRunning = items.filter(p => p.status === 'running').length;
-      const gFailed = items.filter(p => p.status === 'failed').length;
-      const open = firstPaint ? (gRunning > 0 || gFailed > 0) : openGroups.has(g);
-      const meta = [gRunning ? tPlural('admin.countRunning', gRunning) : '', gFailed ? tPlural('admin.countFailed', gFailed) : '']
-        .filter(Boolean).join(' · ') || `${items.length}`;
-      const metaTone = gFailed ? ' is-error' : gRunning ? ' is-running' : '';
-      return `
-      <details class="admin-process-group" data-group="${escapeHtml(g)}"${open ? ' open' : ''}>
-        <summary class="admin-process-group-title">
-          <span>${escapeHtml(g)}</span>
-          <span class="admin-process-group-count${metaTone}">${escapeHtml(meta)}</span>
-        </summary>
-        <div class="admin-process-list">${items.map(processRowHTML).join('')}</div>
-      </details>`;
-    }).join('')}`;
+}
+
+async function loadSummary() {
+  try {
+    summaryData = await api('/api/admin/summary');
+  } catch {
+    summaryData = null;
+  }
+  renderToday();
+  renderPricingKeys();
+  renderUsersStats();
+}
+
+function renderPricingKeys() {
+  const el = $('#adminPricingKeys');
+  if (el) el.innerHTML = pricingKeysHTML(summaryData, pricingCenterData?.quality || null);
+}
+
+function renderUsersStats() {
+  const el = $('#adminUsersStats');
+  if (el) el.innerHTML = usersStatsHTML(summaryData);
 }
 
 // Background processes an admin can trigger on demand, mapped to their job tool.
@@ -829,33 +894,6 @@ const PROCESS_TRIGGER = {
   'pricecharting-enrich': 'pricecharting',
   'pricecharting-link-backfill': 'pricechartingLinks',
 };
-
-function processRowHTML(p) {
-  const badge = processRunBadge(p);
-  const when = formatRelativeTime(p.finished_at || p.started_at, Date.now(), getLocale());
-  const dur = p.duration_ms ? ` · ${(p.duration_ms / 1000).toFixed(1)}s` : '';
-  const result = p.status === 'failed'
-    ? `<span class="admin-process-result is-error">${escapeHtml(p.error || 'failed')}</span>`
-    : (p.summary ? `<span class="admin-process-result">${escapeHtml(p.summary)}</span>` : '');
-  const trigger = PROCESS_TRIGGER[p.name];
-  const disabledReason = trigger ? ADMIN_JOB_TOOLS[trigger]?.disabledReason : '';
-  const canRun = !!trigger && !ADMIN_JOB_TOOLS[trigger]?.disabled && p.status !== 'running';
-  return `
-    <div class="admin-process-row${p.status === 'running' ? ' is-running' : ''}">
-      <div class="admin-process-head">
-        <span class="admin-process-label">${escapeHtml(p.label)}</span>
-        <span class="badge badge--${badge.tone}">${escapeHtml(badge.label)}</span>
-      </div>
-      <p class="admin-process-desc">${escapeHtml(p.description)}</p>
-      <div class="admin-process-meta">
-        ${p.schedule ? `<span class="admin-process-sched">${escapeHtml(p.schedule)}</span>` : ''}
-        ${p.status === 'idle' ? '' : `<span>${escapeHtml(t('admin.lastRun', { when, duration: dur }))}</span>`}
-        ${result}
-      </div>
-      ${canRun ? `<div class="admin-process-actions"><button type="button" class="btn-secondary admin-proc-run" data-process-run="${escapeHtml(p.name)}">${I.refresh({ w: 14 })}<span>Run now</span></button></div>` : ''}
-      ${disabledReason ? `<p class="admin-process-disabled">${escapeHtml(disabledReason)}</p>` : ''}
-    </div>`;
-}
 
 // Trigger a background process from its Activity row, reusing the same job
 // pipeline the Populate buttons used. PriceCharting jobs run synchronously; the
@@ -877,14 +915,14 @@ function runProcess(name, btn) {
 
 function renderJobs(container) {
   if (!adminRuns.length) {
-    container.innerHTML = `<div class="admin-empty-state">${I.info()}<strong>No jobs have run yet.</strong><span>Open Pricing → Populate & Batch to start a controlled data pass.</span><button type="button" class="btn-secondary" data-admin-section-jump="adminPricing" data-open-subtab="pricingPopulatePanel">Open Populate & Batch</button></div>`;
+    container.innerHTML = `<div class="admin-empty-state">${I.info()}<strong>No jobs have run yet.</strong><span>Open Pricing → Bulk data passes to start a controlled data pass.</span><button type="button" class="btn-secondary" data-admin-section-jump="adminPricing" data-open-subtab="pricingPopulatePanel">Open bulk data passes</button></div>`;
     return;
   }
   const running = adminRuns.find(run => classifyJobRun(run).label === 'Running');
   const activeHTML = running ? activeJobPanelHTML(running) : `
     <div class="admin-job-idle">
-      <div><strong>No active job</strong><span>Start a safe batch from Pricing → Populate & Batch, or use Run now below for one process. Live progress appears here.</span></div>
-      <button type="button" class="btn-secondary" data-admin-section-jump="adminPricing" data-open-subtab="pricingPopulatePanel">Open Populate & Batch</button>
+      <div><strong>No active job</strong><span>Start a safe batch from Pricing → Bulk data passes, or use Run now on a job above. Live progress appears here.</span></div>
+      <button type="button" class="btn-secondary" data-admin-section-jump="adminPricing" data-open-subtab="pricingPopulatePanel">Open bulk data passes</button>
     </div>`;
   const groups = groupAdminJobRuns(adminRuns);
   const visible = showAllJobs ? groups : groups.slice(0, 3);
@@ -984,60 +1022,22 @@ function adminIssueKindLabel(kind) {
   return labels[kind] || labels.unknown;
 }
 
+// Service issues are shown on Today ("Needs you"), merged with job problems.
 function renderAdminIssues() {
-  const container = $('#adminIssuesContainer');
-  if (!container) return;
-  const effectiveFlags = featureFlags?.effective || {};
-  const issues = buildAdminIssues({
-    diagnostics: Array.isArray(adminHealth?.integrations) ? adminHealth.integrations : null,
-    featureFlags: effectiveFlags,
-    sourceConfig,
-  });
-
-  if (!issues.length) {
-    container.innerHTML = `
-      <div class="admin-supporters-head">
-        <div>
-          <strong>${escapeHtml(adminIssuesText('admin.issues.title', 'Issues'))}</strong>
-          <span>${escapeHtml(adminIssuesText('admin.issues.none', 'No current issues found in the available evidence.'))}</span>
-        </div>
-      </div>`;
-    return;
-  }
-
-  container.innerHTML = `
-    <div class="admin-supporters-head">
-      <div>
-        <strong>${escapeHtml(adminIssuesText('admin.issues.title', 'Issues'))}</strong>
-        <span>${escapeHtml(adminIssuesText('admin.issues.intro', 'Evidence-backed service issues. Links only navigate to the relevant controls.'))}</span>
-      </div>
-      <span class="badge">${issues.length}</span>
-    </div>
-    <div class="admin-supporter-list">
-      ${issues.map((issue) => {
-        const checked = issue.evidenceAt
-          ? adminIssuesText('admin.issues.evidenceAt', `Evidence ${formatRelativeTime(issue.evidenceAt)}`, { time: formatRelativeTime(issue.evidenceAt) })
-          : adminIssuesText('admin.issues.noEvidence', 'No evidence timestamp');
-        return `<article class="admin-supporter-row">
-          <div>
-            <strong>${escapeHtml(issue.title)}</strong>
-            <span><span class="badge badge--${escapeHtml(issue.severity)}">${escapeHtml(adminIssueKindLabel(issue.kind))}</span> ${escapeHtml(issue.detail)} · ${escapeHtml(checked)}</span>
-          </div>
-          <a class="btn-secondary" href="${escapeHtml(issue.href)}">${escapeHtml(issue.label)}</a>
-        </article>`;
-      }).join('')}
-    </div>`;
+  renderToday();
 }
 
 async function updateIntegrationsHealth() {
   try {
     adminHealth = await api('/api/admin/integrations');
+    issuesLoaded = true;
     renderAdminIssues();
     renderServices();
     renderCatalogQuality();
     renderPricingCenter();
   } catch (err) {
     adminHealth = null;
+    issuesLoaded = true;
     renderAdminIssues();
     const quality = $('#qualityContainer');
     const services = $('#servicesContainer');
@@ -1150,7 +1150,7 @@ function agoIso(ts) {
 function pcBulkStatusHTML() {
   const lb = adminHealth?.pricecharting_ext?.last_bulk;
   if (!lb || typeof lb !== 'object') {
-    return `<p class="admin-service-action"><strong>Last bulk import:</strong> none recorded yet — the weekly LEGO price-guide download hasn’t run (or isn’t tracked). Use <strong>Run now</strong> on “PriceCharting (bulk fetch)” in Background Activity & Jobs.</p>`;
+    return `<p class="admin-service-action"><strong>Last bulk import:</strong> none recorded yet — the weekly LEGO price-guide download hasn’t run (or isn’t tracked). Use <strong>Run now</strong> on “PriceCharting (bulk fetch)” in the Jobs tab.</p>`;
   }
   const when = agoIso(lb.finished_at);
   // A skip/failure is the important case to surface — usually a non-Legendary
@@ -1567,9 +1567,9 @@ function recommendedQualityAction(cards) {
   const priority = cards
     .filter(c => ['Missing UPC', 'Low-confidence values', 'Expired values'].includes(c.label))
     .sort((a, b) => b.pct - a.pct)[0];
-  if (!priority) return 'Open Pricing → Populate & Batch and run Populate all safe sources to refresh provider coverage.';
-  if (priority.label === 'Missing UPC') return 'Open Pricing → Populate & Batch for Populate all safe sources, or run Barcode backfill in Background Activity & Jobs.';
-  if (priority.label === 'Low-confidence values') return 'Run Populate all safe sources and check provider access under Overview → Pricing before increasing source weights.';
+  if (!priority) return 'Open Pricing → Bulk data passes and run Populate all safe sources to refresh provider coverage.';
+  if (priority.label === 'Missing UPC') return 'Open Pricing → Bulk data passes for Populate all safe sources.';
+  if (priority.label === 'Low-confidence values') return 'Run Populate all safe sources and check provider access under Services before increasing source weights.';
   return 'Run Populate all safe sources to advance the next safe slice.';
 }
 
@@ -1736,6 +1736,13 @@ function renderLlmRouting() {
       </details>`;
   }).join('');
 
+  const summaryEl = $('#adminAiRoutingSummary');
+  if (summaryEl) {
+    summaryEl.innerHTML = (llmData.workloads || []).map((workload) => {
+      const chain = (llmData.effective?.[workload] || []).map(s => LLM_PROVIDER_LABEL[s.provider] || s.provider);
+      return `<span class="adm-route"><b>${escapeHtml(t(`admin.llmWorkload_${workload}`))}</b> ${escapeHtml(chain.length ? chain.join(' → ') : t('admin.llmEffectiveNone'))}</span>`;
+    }).join('');
+  }
   container.innerHTML = `
     <div class="llm-workloads">${workloads}</div>
     <div class="llm-actions">
@@ -1807,6 +1814,7 @@ async function loadPricingCenter() {
     ]);
     pricingCenterData = { quality, budget, anomalies, matches, backtest };
     renderPricingCenter();
+    renderPricingKeys();
   } catch (error) {
     container.innerHTML = `
       <div class="admin-status-panel error">
@@ -1887,12 +1895,26 @@ function renderPricingCenter() {
   const limit = Number(budget.limits?.operational_30d || 10_000_000);
   const budgetPct = limit ? Math.min(100, (Number(budget.rolling_30d || 0) / limit) * 100) : 0;
 
+  const foldHTML = (title, sub, inner, side = '', open = false) => `
+    <details class="adm-fold"${open ? ' open' : ''}>
+      <summary><span><strong>${escapeHtml(title)}</strong>${sub ? `<small>${escapeHtml(sub)}</small>` : ''}</span>${side}</summary>
+      ${inner}
+    </details>`;
   container.innerHTML = `
-    <div class="admin-recommendation">
-      <strong>Recommended next action</strong>
-      <span>${escapeHtml(quality.recommended_action || 'Continue valuation v3 shadow checks.')}</span>
-    </div>
-    ${backtest || revenue ? `
+    ${foldHTML('Price warnings', 'Big day-to-day jumps and sources that disagree. The value stays hidden until resolved or a real sale confirms it.',
+      anomalyRows.length ? `<div class="admin-pricing-anomaly-list">${anomalyRows.map(pricingAnomalyHTML).join('')}</div>` : '<div class="admin-empty-state"><strong>No open price warnings.</strong></div>',
+      `<span class="adm-count">${escapeHtml(subsetLabel(anomalyRows.length, totalAnomalies))}</span>`)}
+    ${foldHTML('PriceCharting matches on hold', 'Products we could not tie to exactly one set. They never feed a price; verify only when number, title, barcode and variant all match.',
+      matchRows.length ? `<div class="admin-pricing-review-list">${matchRows.map(pricingMatchHTML).join('')}</div>` : '<div class="admin-empty-state"><strong>No matches on hold.</strong></div>',
+      `<span class="adm-count">${escapeHtml(subsetLabel(matchRows.length, totalQuarantined))}</span>`)}
+    ${foldHTML('D1 write budget', 'Pricing target is below 2M writes a month; the ceiling is 10M.', `
+      <div class="admin-mini-progress"><span style="width:${budgetPct.toFixed(1)}%"></span></div>
+      <div class="admin-pricing-budget-grid">
+        <span>Today <strong>${formatCount(budget.today || 0)}</strong></span>
+        <span>Rolling 30d <strong>${formatCount(budget.rolling_30d || 0)}</strong></span>
+        <span>Projected 30d <strong>${formatCount(budget.projected_30d || 0)}</strong></span>
+      </div>`, `<span class="badge badge--${budgetTone}">${escapeHtml(budget.state || 'unknown')}</span>`)}
+    ${backtest || revenue ? foldHTML('Partner licensing', 'PriceCharting: free up to $1,000 a month of app revenue, with direct product links', `
     <div class="admin-partner-panel">
       <h4>Partner licensing</h4>
       <div class="admin-pricing-metrics">
@@ -1924,7 +1946,8 @@ function renderPricingCenter() {
         ) : ''}
       </div>
       ${revenue?.exceeded ? `<p class="admin-partner-warning">App revenue has passed the PriceCharting commercial-agreement threshold — the free-use permission no longer covers this level of revenue.</p>` : ''}
-    </div>` : ''}
+    </div>`, revenue ? `<span class="adm-count">$${revenueCount(Math.round(publicRevenueUsd))}</span>` : '') : ''}
+    ${foldHTML('Pricing model numbers', 'Valuation states, confidence and the minifig identity queue', `
     <div class="admin-pricing-metrics">
       ${pricingMetricHTML('v3 valued states', formatCount(valued), `${quality.model_version || 'v3 shadow'} records`, valued ? 'ok' : 'warn')}
       ${pricingMetricHTML('High confidence', formatCount(high), 'Verified independent sold families', high ? 'ok' : 'warn')}
@@ -1932,50 +1955,6 @@ function renderPricingCenter() {
       ${pricingMetricHTML('Open anomalies', formatCount(totalAnomalies), 'Identity, value, or forecast conflicts', totalAnomalies ? 'danger' : 'ok')}
       ${pricingMetricHTML('Quarantined matches', formatCount(totalQuarantined), 'Excluded from every blend', totalQuarantined ? 'warn' : 'ok')}
       ${pricingMetricHTML('Legacy PriceCharting', formatCount(quality.legacy_pricecharting_rows || 0), 'Legacy pc_* rows; only verified mappings reach a blend', 'neutral')}
-      ${(() => {
-        // The ≥95% target is a BARCODE target — a clean decode should almost
-        // always resolve. Photo identification is inherently lossier, so pooling
-        // the two made the headline unable to reach its own target whenever
-        // image scans dominated the traffic. Score barcode against the target
-        // and report photo alongside it. `detail` carries the scan mode.
-        const slo = quality.scanner_slo || [];
-        const sum = (ev, pred = () => true) =>
-          slo.filter((r) => r.event === ev && pred(String(r.detail || ''))).reduce((s, r) => s + Number(r.n || 0), 0);
-        const isBarcode = (d) => d === 'barcode';
-        const barcodeTries = sum('scan_attempt', isBarcode);
-        const photoTries = sum('scan_attempt', (d) => !isBarcode(d));
-        const rate = barcodeTries ? Math.round((sum('scan_success', isBarcode) / barcodeTries) * 100) : null;
-        const photoRate = photoTries ? Math.round((sum('scan_success', (d) => !isBarcode(d)) / photoTries) * 100) : null;
-        const note = barcodeTries
-          ? `${formatCount(barcodeTries)} barcode attempts · target ≥95%${photoRate == null ? '' : ` · photo ${photoRate}% of ${formatCount(photoTries)}`}`
-          : photoTries ? `No barcode scans yet · photo ${photoRate}% of ${formatCount(photoTries)}` : 'No telemetry yet';
-        return pricingMetricHTML('Scanner success (14d)', rate == null ? '—' : `${rate}%`, note,
-          rate == null ? 'neutral' : rate >= 95 ? 'ok' : 'warn');
-      })()}
-      ${(() => {
-        // Where barcode scans end up: "live" = in-app camera started, "mlkit-*"
-        // = Google's scanner screen, "closed-no-result" = closed without a read.
-        const paths = (quality.scanner_slo || [])
-          .filter((r) => r.event === 'scan_path' && String(r.detail || '').startsWith('barcode:'))
-          .map((r) => [String(r.detail).slice(8), Number(r.n || 0)])
-          .sort((x, y) => y[1] - x[1]);
-        if (!paths.length) return '';
-        const total = paths.reduce((s, [, n]) => s + n, 0);
-        return pricingMetricHTML('Barcode scan routes (14d)', formatCount(total),
-          paths.slice(0, 4).map(([p, n]) => `${escapeHtml(p)} ${formatCount(n)}`).join(' · '), 'neutral');
-      })()}
-      ${(() => {
-        // App crashes, failed API calls (5xx or no response) and server 500s,
-        // each with its busiest location so a spike points at the code.
-        const rows = quality.scanner_slo || [];
-        const card = (event, label) => {
-          const hits = rows.filter((r) => r.event === event).map((r) => [String(r.detail || '—'), Number(r.n || 0)]).sort((x, y) => y[1] - x[1]);
-          const total = hits.reduce((s, [, n]) => s + n, 0);
-          const top = hits.slice(0, 3).map(([d, n]) => `${escapeHtml(d)} ${formatCount(n)}`).join(' · ');
-          return pricingMetricHTML(label, formatCount(total), total ? top : 'None recorded', total ? 'warn' : 'ok');
-        };
-        return card('client_error', 'App errors (14d)') + card('api_error', 'Failed API calls (14d)') + card('server_error', 'Server errors (14d)');
-      })()}
       ${(() => {
         const q = quality.minifig_identity_queue || [];
         const pending = Number((q.find((r) => r.status === 'pending') || {}).figs || 0);
@@ -1985,27 +1964,8 @@ function renderPricingCenter() {
       })()}
     </div>
 
-    <div class="admin-pricing-subsection">
-      <div class="admin-pricing-subhead"><div><h3>D1 write budget</h3><p>Pricing target is below 2M writes/month; operational ceiling is 10M.</p></div><span class="badge badge--${budgetTone}">${escapeHtml(budget.state || 'unknown')}</span></div>
-      <div class="admin-mini-progress"><span style="width:${budgetPct.toFixed(1)}%"></span></div>
-      <div class="admin-pricing-budget-grid">
-        <span>Today <strong>${formatCount(budget.today || 0)}</strong></span>
-        <span>Rolling 30d <strong>${formatCount(budget.rolling_30d || 0)}</strong></span>
-        <span>Projected 30d <strong>${formatCount(budget.projected_30d || 0)}</strong></span>
-      </div>
-    </div>
-
-    ${amazonAdminStateHTML()}
-
-    <div class="admin-pricing-subsection">
-      <div class="admin-pricing-subhead"><div><h3>Quarantined source matches</h3><p>Verify only when set number, title, UPC, and variant all describe the same product.</p></div><span>${escapeHtml(subsetLabel(matchRows.length, totalQuarantined))}</span></div>
-      ${matchRows.length ? `<div class="admin-pricing-review-list">${matchRows.map(pricingMatchHTML).join('')}</div>` : '<div class="admin-empty-state"><strong>No quarantined matches.</strong><span>Verified sources can proceed to shadow valuation.</span></div>'}
-    </div>
-
-    <div class="admin-pricing-subsection">
-      <div class="admin-pricing-subhead"><div><h3>Open anomalies</h3><p>Extreme jumps and source conflicts remain low confidence until resolved.</p></div><span>${escapeHtml(subsetLabel(anomalyRows.length, totalAnomalies))}</span></div>
-      ${anomalyRows.length ? `<div class="admin-pricing-anomaly-list">${anomalyRows.map(pricingAnomalyHTML).join('')}</div>` : '<div class="admin-empty-state"><strong>No open pricing anomalies.</strong><span>The current shadow set has no unresolved extreme conflicts.</span></div>'}
-    </div>`;
+`)}
+    ${foldHTML('Amazon channel', 'Affiliate links only; never part of values', amazonAdminStateHTML())}`;
 }
 
 function pricingMatchHTML(match) {
