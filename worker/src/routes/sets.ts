@@ -141,7 +141,18 @@ const searchHandler = async (c: Context<{ Bindings: Env; Variables: Variables }>
   if (sort === 'trending') {
     fromSQL += " JOIN set_value_history svh30 ON svh30.set_num = s.set_num AND svh30.snapshot_date = date('now','-30 days')";
     where.push('svh30.current_value > 0');
-    where.push('s.current_value > 0');
+    // The snapshot stores the SHOWN value (blend first, see
+    // snapshot-set-values), so today's side must be the shown value too.
+    // Comparing raw current_value put "Han Solo on His Tauntaun +372%" on top
+    // of Trending when its shown $2,400 had not moved (2026-11-12).
+    where.push('COALESCE(NULLIF(s.blended_value, 0), s.current_value) > 0');
+  }
+
+  // Biggest upside ranks by the persisted v3 forecast (see SORTS.upside_desc).
+  // Like trending, the join lives in fromSQL only; the FTS fallback below uses
+  // value order for this sort.
+  if (sort === 'upside_desc') {
+    fromSQL += " LEFT JOIN set_valuation_state svf ON svf.set_num = s.set_num AND svf.condition = 'new_sealed'";
   }
 
   const addFilter = (sql: string, ...values: unknown[]) => {
@@ -154,7 +165,10 @@ const searchHandler = async (c: Context<{ Bindings: Env; Variables: Variables }>
   if (q) {
     const cleanedQ = toFtsPrefixQuery(q);
     if (cleanedQ) {
-      fromSQL = 'lego_sets s JOIN lego_sets_fts f ON s.rowid = f.rowid';
+      // Keep any sort join added above (trending's snapshot, upside's
+      // forecast): replacing fromSQL wholesale dropped them and the query
+      // failed with "no such column" for a keyword search with those sorts.
+      fromSQL = fromSQL.replace(/^lego_sets s/, 'lego_sets s JOIN lego_sets_fts f ON s.rowid = f.rowid');
       where.push(`f.lego_sets_fts MATCH ?`);
       params.push(cleanedQ);
       // Keyword-search relevance ordering:
@@ -183,7 +197,15 @@ const searchHandler = async (c: Context<{ Bindings: Env; Variables: Variables }>
   if (retiring === '1' || retiring === 'true') {
     // A set that hasn't released yet (LEGO.com coming-soon feed, or a coming
     // soon / pre-order status) can't be retiring, whatever a scrape flagged.
+    // Nor is a set whose LEGO exit date passed 90+ days ago with no live
+    // LEGO.com signal (not flagged retiring, not in stock): 255 such sets, some
+    // with 2023 exit dates, filled the list (2026-11-12). Their retired flag is
+    // left alone: flipping it measurably hurt the value model's 0-3 year fit
+    // (64.5% -> 61.6% within band in a held-out backtest), because freshly
+    // retired sets still trade like shop stock.
     addFilter(`s.retired = 0 AND (s.lego_retiring_soon = 1 OR s.retirement_risk_score >= 70)
+      AND NOT (s.exit_date IS NOT NULL AND date(s.exit_date) <= date('now', '-90 days')
+        AND COALESCE(s.lego_retiring_soon, 0) = 0 AND COALESCE(s.lego_in_stock, 0) = 0)
       AND COALESCE(s.lego_availability, '') NOT IN ('coming_soon', 'pre_order')
       AND NOT EXISTS (SELECT 1 FROM upcoming_sets up WHERE up.set_num = s.set_num)`);
   }
@@ -268,7 +290,7 @@ const searchHandler = async (c: Context<{ Bindings: Env; Variables: Variables }>
     // the trending snapshot join — that would throw "no such column: svh30..."
     // and turn a degraded search into a 500. Momentum is meaningless on a
     // keyword-search fallback anyway; rank by value instead.
-    const fallbackOrderBy = sort === 'trending' ? SORTS.value_desc : orderBy;
+    const fallbackOrderBy = sort === 'trending' || sort === 'upside_desc' ? SORTS.value_desc : orderBy;
     [pageRes, countRes] = await Promise.all([
       c.env.DB.prepare(
         `SELECT ${CATALOG_COLS} FROM lego_sets s ${MARKET_EXT_JOIN} ${fallbackWhereSQL} ORDER BY ${NON_SET_DEMOTION}, ${fallbackOrderBy}, s.set_num LIMIT ? OFFSET ?`

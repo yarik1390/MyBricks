@@ -3,11 +3,12 @@ import { sweepStaleCronRuns } from '../lib/cron-runs';
 import { runOpsHealthCheck } from '../lib/ops-alerts';
 import { formulaValuation, valuationExpiryModifier } from '../lib/valuation';
 import { recomputeBlendedValues } from '../lib/market-sources';
+import { sourceEnabled } from '../lib/source-config';
 
 // Daily cleanup of unbounded tables. Each table accumulates rows that are only
 // useful for a short window: rate-limit counters, short-lived OAuth nonces, and
 // import job history. Without this, they grow forever on a busy deployment.
-export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, number>; retailBackfilled: number; comingSoonHealed: number; futureRetiredHealed: number; retailEchoScrubbed: number; beValuesHealed: number; giftRetailScrubbed: number; oldSetsRetired: number; staleCronRuns: number; opsAlerts: number }> {
+export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, number>; retailBackfilled: number; comingSoonHealed: number; futureRetiredHealed: number; retailEchoScrubbed: number; beValuesHealed: number; giftRetailScrubbed: number; brickEconomyScrubbed: number; oldSetsRetired: number; staleCronRuns: number; opsAlerts: number }> {
   // Close out cron_runs rows orphaned at 'running' by a killed invocation, so the
   // admin Activity view doesn't show dead jobs as live indefinitely.
   const staleCronRuns = await sweepStaleCronRuns(env);
@@ -153,6 +154,7 @@ export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, 
 
   const beValuesHealed = await healImplausibleBeValues(env);
   const giftRetailScrubbed = await scrubGiftRetail(env);
+  const brickEconomyScrubbed = await scrubBrickEconomyHeadlines(env);
 
   // Decades-old sets still flagged in production: no exit date, not on sale,
   // released 12+ years ago (the Brickset-dated heal above can't reach them).
@@ -178,7 +180,7 @@ export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, 
     console.warn('[db-hygiene] old-set retire failed:', (e as Error).message);
   }
 
-  return { deleted, retailBackfilled, comingSoonHealed, futureRetiredHealed, retailEchoScrubbed, beValuesHealed, giftRetailScrubbed, oldSetsRetired, staleCronRuns, opsAlerts: ops.alerts.length };
+  return { deleted, retailBackfilled, comingSoonHealed, futureRetiredHealed, retailEchoScrubbed, beValuesHealed, giftRetailScrubbed, brickEconomyScrubbed, oldSetsRetired, staleCronRuns, opsAlerts: ops.alerts.length };
 }
 
 // Rows whose current_value came from an UNCORROBORATED BrickEconomy scrape that
@@ -238,6 +240,33 @@ async function healImplausibleBeValues(env: Env): Promise<number> {
 // 14-piece polybag), which showed up as a -85% loss on every one of them. Clear
 // it unless Brickset has a real MSRP; formula rows lose their synthetic
 // piece-count retail too (the catalog import no longer seeds one for gifts).
+// Rows still headed by a BrickEconomy figure while that source is off
+// (unlicensed for display; Iaroslav's legal call, 2026-11-08). Their
+// current_value IS the scrape and forecast_2y/5y are BrickEconomy's own
+// forecasts: 5,536 rows on 2026-11-12, and for the 210 with no blend of our
+// own the app showed the scraped number as the set's value. The headline
+// becomes our blend (or nothing, which reads "No market price"), and the
+// forecasts go. valuation_method stays put so the valuation job still
+// re-prices these rows (staleBrickEconomy in jobs/valuate-sets.ts).
+// Idempotent: a cleaned row no longer matches.
+export async function scrubBrickEconomyHeadlines(env: Env): Promise<number> {
+  try {
+    if (await sourceEnabled(env, 'brickeconomy')) return 0;
+    const fix = await env.DB.prepare(`
+      UPDATE lego_sets SET
+        current_value = CASE WHEN blended_value > 0 THEN blended_value END,
+        forecast_2y = NULL, forecast_5y = NULL
+      WHERE valuation_method = 'brickeconomy'
+        AND (forecast_2y IS NOT NULL OR forecast_5y IS NOT NULL
+          OR current_value IS NOT (CASE WHEN blended_value > 0 THEN blended_value END))
+    `).run();
+    return (fix.meta?.changes as number | undefined) ?? 0;
+  } catch (e) {
+    console.warn('[db-hygiene] BrickEconomy headline scrub failed:', (e as Error).message);
+    return 0;
+  }
+}
+
 async function scrubGiftRetail(env: Env): Promise<number> {
   try {
     const { results } = await env.DB.prepare(`

@@ -1058,6 +1058,12 @@ CREATE TABLE IF NOT EXISTS integration_health (
 CREATE INDEX IF NOT EXISTS idx_svh_set ON set_value_history(set_num, snapshot_date);
 CREATE INDEX IF NOT EXISTS idx_uc_user ON user_collection(user_id, deleted_at);
 CREATE INDEX IF NOT EXISTS idx_wl_user ON user_wishlist(user_id);
+-- "Is anyone holding / wanting this set?" probes. Eight catalog jobs ask it per
+-- candidate row (EXISTS ... WHERE uc.set_num = ls.set_num); with only the
+-- user_id indexes each probe scanned the whole table. part-out-compute's
+-- candidate query read 91 million rows (15.5 s) per run on 2026-11-12.
+CREATE INDEX IF NOT EXISTS idx_uc_set ON user_collection(set_num, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_wl_set ON user_wishlist(set_num);
 CREATE INDEX IF NOT EXISTS idx_ps_user ON portfolio_snapshots(user_id);
 CREATE INDEX IF NOT EXISTS idx_rl_user ON rate_limits(user_id, endpoint);
 CREATE INDEX IF NOT EXISTS idx_sets_theme ON lego_sets(theme);
