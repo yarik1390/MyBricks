@@ -1110,7 +1110,7 @@ function firecrawlPoolHTML() {
     const tag = e.exhausted ? ' — spent' : (e.active ? ' — in use' : ' — queued');
     return `<div>#${Number(e.index) + 1} …${escapeHtml(String(e.key_hash || '').slice(0, 8))} — ${escapeHtml(budget)}${escapeHtml(tag)}</div>`;
   }).join('');
-  return `<details class="admin-job-details" open><summary>Key pool — drains in order: ${escapeHtml(head)}</summary><div class="admin-bd-pool">${rows}</div></details>${warn}`;
+  return `<details class="admin-job-details" open><summary>${escapeHtml('Key pool — drains in order: ' + head)}</summary><div class="admin-bd-pool">${rows}</div></details>${warn}`;
 }
 
 // Bright Data token pool. Every configured token is used: each call goes to the
@@ -1130,7 +1130,7 @@ function brightdataPoolHTML() {
     const tag = e.exhausted ? ' — spent' : '';
     return `<div>#${Number(e.index) + 1} …${escapeHtml(String(e.key_hash || '').slice(0, 8))} — ${escapeHtml(`${used.toLocaleString()}/${cap.toLocaleString()} calls${last}${tag}`)}</div>`;
   }).join('');
-  return `<details class="admin-job-details" open><summary>Key pool — rotates by least use: ${escapeHtml(head)}</summary><div class="admin-bd-pool">${rows}</div></details>`;
+  return `<details class="admin-job-details" open><summary>${escapeHtml('Key pool — rotates by least use: ' + head)}</summary><div class="admin-bd-pool">${rows}</div></details>`;
 }
 
 // Relative age for an ISO-8601 timestamp (e.g. new Date().toISOString()). The

@@ -4458,13 +4458,20 @@
   {
     "text": "Key pool — drains in order:",
     "files": [
-      "runtime-exact"
+      "runtime-exact",
+      "views/me-admin.js"
     ]
   },
   {
     "text": "Key pool — monthly spend:",
     "files": [
       "runtime-exact"
+    ]
+  },
+  {
+    "text": "Key pool — rotates by least use:",
+    "files": [
+      "views/me-admin.js"
     ]
   },
   {
