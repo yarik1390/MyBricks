@@ -362,8 +362,12 @@ test('mobile joystick and look accept simultaneous touches without scrolling', a
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`http://localhost:${process.env.PORT || 4321}/#/add`);
   await expect(page.locator('body')).toHaveAttribute('data-route', 'catalog');
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 24, y: 420, id: 1 }] });
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 150, y: 420, id: 1 }] });
+  // Start the swipe on the "All sets" heading: the theme strip above it scrolls
+  // sideways, and a swipe that begins on a sideways scroller is left to it.
+  const heading = await page.locator('#allSetsTitle').boundingBox();
+  const swipeY = Math.round(heading.y + heading.height / 2);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 24, y: swipeY, id: 1 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 150, y: swipeY, id: 1 }] });
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await expect(page).toHaveURL(/#\/$/);
   await context.close();

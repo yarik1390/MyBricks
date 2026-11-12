@@ -142,6 +142,9 @@ test.describe('design audit regressions', () => {
   test('mobile interactive controls meet the 44px target floor on priority routes', async ({ page }) => {
     for (const route of ['/', '/#/add', '/#/pile', '/#/me', '/#/me/integrations']) {
       await page.goto(route, { waitUntil: 'domcontentloaded' });
+      // Discover paints its theme and filter chips after the catalog loads;
+      // measuring before that skipped them on some runs and caught them on others.
+      if (route === '/#/add') await expect(page.locator('#filterChip')).toBeVisible();
       const undersized = await page.locator('button:visible, input:visible, select:visible, a.setting-row:visible').evaluateAll(elements => elements
         .map(element => ({
           label: element.getAttribute('aria-label') || element.textContent?.trim().slice(0, 40) || element.id,
