@@ -4,8 +4,14 @@ const BRICKOGNIZE_SETS_URL = 'https://api.brickognize.com/predict/sets/?top_k_it
 const BRICKOGNIZE_TIMEOUT_MS = 3_000;
 const BRICKOGNIZE_ACCEPTED_CACHE_SECONDS = 30 * 24 * 60 * 60;
 const BRICKOGNIZE_FALLBACK_CACHE_SECONDS = 24 * 60 * 60;
-const BRICKOGNIZE_SCORE_MIN = 0.75;
+// Tuned 2026-11-12 on 78 real-world photos of 40 sets (scripts/scan-eval/
+// test-photos.json): at 0.75 only 28 were accepted (28 right); at 0.60 with the
+// same margin 55 were accepted and all 55 were right. Below 0.60 wrong answers
+// start to appear (0.55: 1 wrong in 60), so those still go to the AI steps.
+const BRICKOGNIZE_SCORE_MIN = 0.60;
 const BRICKOGNIZE_MARGIN_MIN = 0.10;
+/** At or above this score the match is labelled high confidence, below it medium. */
+export const BRICKOGNIZE_SCORE_HIGH = 0.75;
 const CIRCUIT_FAILURE_LIMIT = 3;
 const CIRCUIT_OPEN_MS = 60_000;
 const MAX_IMAGE_BYTES = 1_500_000;

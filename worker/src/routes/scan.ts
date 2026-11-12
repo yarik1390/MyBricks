@@ -8,7 +8,7 @@ import { MODELS, gatewayHeaders, gatewayMetadataHeader, SCAN_SYSTEM_PROMPT, SHEL
 import { resolveRoute, type LlmWorkload } from '../lib/llm-routing';
 import { openAiCompatibleStep } from '../lib/llm-clients';
 import { recordAiUsage } from '../lib/ai-usage';
-import { identifySetWithBrickognize } from '../lib/brickognize';
+import { identifySetWithBrickognize, BRICKOGNIZE_SCORE_HIGH } from '../lib/brickognize';
 import { parseOcrSetNumbers, resolveOcrSetNum, sanitizeOcrInput } from '../lib/scan-ocr';
 import { callRecognitionValidation } from '../lib/recognition-client';
 import { verifyTurnstileToken } from '../lib/turnstile';
@@ -922,16 +922,17 @@ app.post('/identify', async (c) => {
       const hydrated = await hydrateScanSets(c.env.DB, [brickognize.top.id, canonicalId, bareId]);
       const set = hydrated?.get(brickognize.top.id) ?? hydrated?.get(canonicalId) ?? hydrated?.get(bareId) ?? null;
       if (set) {
+        const brickognizeConfidence = brickognize.top.score >= BRICKOGNIZE_SCORE_HIGH ? 'high' : 'medium';
         logEvent(c.env, 'scan_used', userId, { setNum: String(set.set_num || '') });
         return finalizeShared({
           identified: true,
           sets: [{
             ...set,
-            match_confidence: 'high',
+            match_confidence: brickognizeConfidence,
             match_reasoning: `Brickognize exact catalog match (${brickognize.top.id}, ${(brickognize.top.score * 100).toFixed(1)}%).`,
           }],
           minifigs: [],
-          confidence: 'high',
+          confidence: brickognizeConfidence,
           reasoning: `Brickognize matched ${brickognize.top.name}.`,
           model: 'brickognize/sets-v1',
           diag: {
