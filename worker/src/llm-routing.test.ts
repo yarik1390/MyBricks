@@ -21,7 +21,7 @@ async function freshSchema() {
   clearLlmRoutesCache();
 }
 
-const withKeys = (extra: Record<string, string> = {}) => ({
+const withKeys = (extra: Record<string, unknown> = {}) => ({
   ...(env as any),
   GEMINI_API_KEY: 'g', OPENROUTER_API_KEY: 'or', OPENAI_API_KEY: 'oa',
   OPENCODEX_API_KEY: 'oc_test', GROQ_API_KEY: 'gq_test', ...extra,
@@ -73,7 +73,39 @@ describe('llm-routing', () => {
     // Every stored scan step is excluded, so scan falls back to the defaults.
     expect(routes.scan).toEqual(DEFAULT_LLM_ROUTES.scan);
     expect(routes.shelf.map((s) => s.provider)).toEqual(['workersai']);
-    expect(routes.advisor.map((s) => s.provider)).toEqual(['openai']);
+    // Server OpenAI is stripped from every workload; the advisor falls back to
+    // its defaults (Gemini, then the free Groq and Workers AI steps).
+    expect(routes.advisor).toEqual(DEFAULT_LLM_ROUTES.advisor);
+  });
+
+  it('never routes to the paid server OpenAI key, even from stale stored routing', async () => {
+    for (const w of LLM_WORKLOADS) {
+      expect(DEFAULT_LLM_ROUTES[w].map((s) => s.provider as string)).not.toContain('openai');
+    }
+    // Production routing saved 2026-08-19: advisor/listing were Gemini -> Merge -> OpenAI.
+    await db.prepare(`INSERT INTO app_settings (key, value) VALUES ('llm_routing', ?)`)
+      .bind(JSON.stringify({
+        advisor: [
+          { provider: 'gemini', model: 'gemini-3.5-flash-lite', enabled: true },
+          { provider: 'merge', model: 'openai/gpt-5.6-luna', enabled: true },
+          { provider: 'openai', model: 'gpt-4o-mini', enabled: true },
+        ],
+        listing: [
+          { provider: 'gemini', model: 'gemini-3.5-flash-lite', enabled: true },
+          { provider: 'openai', model: 'gpt-4o-mini', enabled: true },
+        ],
+        valuation: [
+          { provider: 'gemini', model: 'gemini-3.5-flash-lite', enabled: true },
+          { provider: 'openai', model: 'gpt-4o-mini', enabled: true },
+        ],
+      })).run();
+    clearLlmRoutesCache();
+    const routes = await getLlmRoutes(env as any);
+    for (const w of LLM_WORKLOADS) expect(routes[w].map((s) => s.provider as string)).not.toContain('openai');
+    // The stale advisor/listing routes gain the free backstop they never had.
+    expect(routes.advisor.map((s) => s.provider)).toEqual(['gemini', 'groq', 'workersai']);
+    expect(routes.listing.map((s) => s.provider)).toEqual(['gemini', 'groq', 'workersai']);
+    expect(routes.valuation.map((s) => s.provider)).toEqual(['gemini']);
   });
 
   it('drops stored Merge steps from every workload (provider removed)', async () => {
@@ -116,13 +148,13 @@ describe('llm-routing', () => {
     await saveLlmRoutes(env as any, {
       advisor: [
         { provider: 'groq', model: 'llama-3.3-70b-versatile', enabled: true },
-        { provider: 'openai', model: 'gpt-4o-mini', enabled: false },
+        { provider: 'workersai', model: '@cf/google/gemma-4-26b-a4b-it', enabled: false },
       ],
     });
     const routes = await getLlmRoutes(env as any);
     expect(routes.advisor).toEqual([
       { provider: 'groq', model: 'llama-3.3-70b-versatile', enabled: true },
-      { provider: 'openai', model: 'gpt-4o-mini', enabled: false },
+      { provider: 'workersai', model: '@cf/google/gemma-4-26b-a4b-it', enabled: false },
     ]);
     // Untouched workloads keep their defaults.
     expect(routes.scan).toEqual(DEFAULT_LLM_ROUTES.scan);
@@ -235,7 +267,11 @@ describe('llm-routing', () => {
       ],
     });
     const routes = await getLlmRoutes(env as any);
-    expect(routes.listing).toEqual([{ provider: 'groq', model: 'llama-3.3-70b-versatile', enabled: true }]);
+    expect(routes.listing).toEqual([
+      { provider: 'groq', model: 'llama-3.3-70b-versatile', enabled: true },
+      // A text route always keeps its free backstop.
+      { provider: 'workersai', model: '@cf/google/gemma-4-26b-a4b-it', enabled: true },
+    ]);
   });
 
   it('treats an empty model as a live-pool marker for OpenRouter only', async () => {
@@ -266,11 +302,11 @@ describe('llm-routing', () => {
       advisor: [
         { provider: 'gemini', model: 'gemini-2.5-flash', enabled: true },
         { provider: 'groq', model: 'llama-3.3-70b-versatile', enabled: false },
-        { provider: 'openai', model: 'gpt-4o-mini', enabled: true },
+        { provider: 'workersai', model: '@cf/google/gemma-4-26b-a4b-it', enabled: true },
       ],
     });
-    // Only Gemini has a key here, so the OpenAI step is not a real fallback.
-    const onlyGemini = { ...(env as any), GEMINI_API_KEY: 'g', OPENAI_API_KEY: '', GROQ_API_KEY: '' };
+    // Only Gemini is configured here, so the Workers AI step is not a real fallback.
+    const onlyGemini = { ...(env as any), GEMINI_API_KEY: 'g', GROQ_API_KEY: '', AI: undefined };
     const steps = await resolveRoute(onlyGemini, 'advisor');
     expect(steps.map((s) => s.provider)).toEqual(['gemini']);
   });
@@ -282,14 +318,14 @@ describe('llm-routing', () => {
     await saveLlmRoutes(env as any, {
       advisor: [
         { provider: 'gemini', model: 'gemini-2.5-flash', enabled: true },
-        { provider: 'openai', model: 'gpt-4o-mini', enabled: true },
+        { provider: 'groq', model: 'qwen/qwen3.8-27b', enabled: true },
       ],
     });
     const { recordIntegrationAttempt } = await import('./lib/integration-health');
     await recordIntegrationAttempt(withKeys() as any, 'gemini', false, 'HTTP 401');
-    expect((await resolveRoute(withKeys() as any, 'advisor')).map((s) => s.provider)).toEqual(['openai']);
+    expect((await resolveRoute(withKeys({ AI: undefined }) as any, 'advisor')).map((s) => s.provider)).toEqual(['groq']);
     // Only the paused provider left: keep it rather than return no route.
-    expect((await resolveRoute(withKeys({ OPENAI_API_KEY: '' }) as any, 'advisor')).map((s) => s.provider)).toEqual(['gemini']);
+    expect((await resolveRoute(withKeys({ GROQ_API_KEY: '', AI: undefined }) as any, 'advisor')).map((s) => s.provider)).toEqual(['gemini']);
     await db.prepare('DROP TABLE integration_health').run();
   });
 

@@ -204,7 +204,12 @@ export async function llmExtractJson<T = Record<string, unknown>>(
         await recordAiUsage(env, step.provider, model, res.usage ?? null, null);
         const content = res.choices[0]?.message?.content ?? '';
         try {
-          const parsed = JSON.parse(content.replace(/^```(?:json)?\s*|\s*```$/g, ''));
+          // Free models (Groq Qwen, Workers AI Gemma) may wrap the object in
+          // thinking text or fences; take the outermost {...}.
+          const cleaned = content.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/```(?:json)?/g, '');
+          const start = cleaned.indexOf('{');
+          const end = cleaned.lastIndexOf('}');
+          const parsed = JSON.parse(start >= 0 && end > start ? cleaned.slice(start, end + 1) : cleaned);
           if (parsed && typeof parsed === 'object') {
             await recordIntegrationAttempt(env, step.provider, true);
             return parsed as T;

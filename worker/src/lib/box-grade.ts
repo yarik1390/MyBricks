@@ -108,7 +108,7 @@ async function viaOpenAI(env: Env, key: string, image: string, prompt: string, s
 
 /**
  * Grade the box in `image` (a data URL). BYOK keys are used directly and only
- * them; otherwise the server Gemini key, then the server OpenAI key.
+ * them; otherwise free models, then (trial only) the server Gemini key.
  */
 export async function gradeBox(
   env: Env,
@@ -135,7 +135,6 @@ export async function gradeBox(
         ? viaGemini(env, env.GEMINI_API_KEY as string, image, prompt, true)
         : null]);
     }
-    if (env.OPENAI_API_KEY) steps.push(['openai', () => viaOpenAI(env, env.OPENAI_API_KEY as string, image, prompt, true)]);
   }
   for (const [provider, run] of steps) {
     try {

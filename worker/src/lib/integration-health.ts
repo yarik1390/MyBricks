@@ -214,9 +214,9 @@ export const INTEGRATION_DEFINITIONS: Record<IntegrationName, IntegrationDefinit
     label: 'OpenAI',
     configured: (env) => !!env.OPENAI_API_KEY,
     required_secrets: ['OPENAI_API_KEY'],
-    used_by: ['photo scan', 'advisor', 'listing draft'],
-    notes: 'Server key is rate-limited; users can bring their own key for scans, advisor, and listing drafts.',
-    recommended_action: 'Add OPENAI_API_KEY for shared scan, advisor, and listing features.',
+    used_by: ['health check only'],
+    notes: 'No AI route uses the server OpenAI key (removed 2026-11-12). Users can still bring their own OpenAI key for scans, advisor, listing drafts and box grading.',
+    recommended_action: 'Optional. The server key can be deleted; users\' own OpenAI keys do not need it.',
   },
   openrouter: {
     on_demand: true,

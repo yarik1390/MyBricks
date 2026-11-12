@@ -87,19 +87,16 @@ export const DEFAULT_LLM_ROUTES: Record<LlmWorkload, RouteStep[]> = {
     { provider: 'gemini', model: MODELS.advisor, enabled: true },
     { provider: 'groq', model: GROQ_SCAN_MODEL, enabled: true },
     { provider: 'workersai', model: WORKERS_AI_SCAN_MODEL, enabled: true },
-    { provider: 'openai', model: MODELS.openaiFallback, enabled: true },
   ],
   valuation: [
     { provider: 'gemini', model: MODELS.valuation, enabled: true },
     { provider: 'openrouter', model: '', enabled: true },
     { provider: 'openrouter', model: MODELS.openrouterPaid, enabled: true },
-    { provider: 'openai', model: MODELS.openaiFallback, enabled: true },
   ],
   listing: [
     { provider: 'gemini', model: MODELS.listing, enabled: true },
     { provider: 'groq', model: GROQ_SCAN_MODEL, enabled: true },
     { provider: 'workersai', model: WORKERS_AI_SCAN_MODEL, enabled: true },
-    { provider: 'openai', model: MODELS.openaiFallback, enabled: true },
   ],
 };
 
@@ -213,13 +210,35 @@ function removeActiveRetiredScanModels(stored: unknown): unknown {
   });
 }
 
+/**
+ * The paid server OpenAI key is not part of any route (2026-11-12, Iaroslav):
+ * the plan is the paid Gemini key during the trial plus free models (Groq,
+ * Workers AI). Users' own OpenAI keys (X-OpenAI-Key) are untouched; they never
+ * go through routing. Stored admin routing from before this still names
+ * `openai`, so it is stripped at read time for every workload.
+ */
+function stripServerOpenAi(stored: unknown): unknown {
+  if (!Array.isArray(stored)) return stored;
+  return stored.filter((raw) => !(raw && typeof raw === 'object' && (raw as Record<string, unknown>).provider === 'openai'));
+}
+
+/** Free providers every text route keeps, so a stale stored route still has a free backstop. */
+const FREE_TEXT_PROVIDERS = new Set<LlmProvider>(['groq', 'workersai']);
+
+function ensureFreeSteps(name: LlmWorkload, steps: RouteStep[]): RouteStep[] {
+  if (name !== 'advisor' && name !== 'listing') return steps;
+  const present = new Set(steps.map((s) => s.provider));
+  const missing = DEFAULT_LLM_ROUTES[name].filter((s) => FREE_TEXT_PROVIDERS.has(s.provider) && !present.has(s.provider));
+  return [...steps, ...missing.map((s) => ({ ...s }))].slice(0, MAX_STEPS);
+}
+
 function mergeAll(stored: Record<string, unknown> | null): Record<LlmWorkload, RouteStep[]> {
   const out = {} as Record<LlmWorkload, RouteStep[]>;
   for (const name of LLM_WORKLOADS) {
     const saved = (name === 'scan' || name === 'shelf')
       ? stripExcludedScanProviders(removeActiveRetiredScanModels(stored?.[name]))
-      : stored?.[name];
-    out[name] = mergeSteps(name, saved);
+      : stripServerOpenAi(stored?.[name]);
+    out[name] = ensureFreeSteps(name, mergeSteps(name, saved));
   }
   return out;
 }
