@@ -109,10 +109,6 @@ app.post('/', async (c) => {
 
   const geminiKey = c.req.header('X-Gemini-Key');
   const openaiKey = c.req.header('X-OpenAI-Key');
-  if (!geminiKey && !openaiKey && !c.env.OPENAI_API_KEY) {
-    return c.json({ error: 'OpenAI is not configured. Add your own Gemini or OpenAI key in Settings.' }, 500);
-  }
-
   // BYOK-first: past the new-account trial the advisor runs on the free
   // models only (Workers AI, Groq); paid server keys are skipped.
   const access = await aiAccess(c.env, userId, 'advisor', !!(geminiKey || openaiKey));
