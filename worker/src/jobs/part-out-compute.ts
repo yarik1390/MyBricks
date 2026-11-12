@@ -36,12 +36,15 @@ export async function runPartOutCompute(env: Env, options: { limit?: number } = 
   if (!sets.length) return { processed: 0, valued: 0, limit };
 
   const ids = sets.map((s) => s.set_num);
-  const partsBySet = new Map<string, PartLot[]>();
-  const priceMap = new Map<string, number>();
 
-  // Load parts + cached prices in bounded chunks (one read per chunk), grouping
-  // by set. priceMap is shared across chunks since parts recur across sets.
-  const CHUNK = 30;
+  // Load, value and SAVE one chunk of sets at a time. The job used to hold
+  // every set's parts in memory and write only at the very end, so a run that
+  // was cut short saved nothing and retried the same sets the next day (it
+  // made no progress from 2026-11-04 to 11-12). Now each chunk is durable and
+  // the next run continues behind it.
+  const CHUNK = 20;
+  let processed = 0;
+  let valued = 0;
   for (let i = 0; i < ids.length; i += CHUNK) {
     const chunk = ids.slice(i, i + CHUNK);
     const ph = chunk.map(() => '?').join(',');
@@ -53,26 +56,24 @@ export async function runPartOutCompute(env: Env, options: { limit?: number } = 
     `).bind(...chunk).all<{
       set_num: string; part_num: string; color_id: number; quantity: number; is_spare: number; price_new: number | null;
     }>();
+    const partsBySet = new Map<string, PartLot[]>();
+    const priceMap = new Map<string, number>();
     for (const r of results) {
       let arr = partsBySet.get(r.set_num);
       if (!arr) { arr = []; partsBySet.set(r.set_num, arr); }
       arr.push({ part_num: r.part_num, color_id: r.color_id, quantity: r.quantity, is_spare: r.is_spare });
       if (r.price_new != null && r.price_new > 0) priceMap.set(partKey(r.part_num, r.color_id), r.price_new);
     }
+    const updates: D1PreparedStatement[] = [];
+    for (const set_num of chunk) {
+      processed++;
+      const po = computePartOutValue(partsBySet.get(set_num) || [], priceMap);
+      if (po.value != null) valued++;
+      updates.push(env.DB.prepare(
+        `UPDATE lego_sets SET part_out_value=?, part_out_coverage=?, part_out_cached_at=datetime('now') WHERE set_num=?`,
+      ).bind(po.value, po.coverage, set_num));
+    }
+    await env.DB.batch(updates);
   }
-
-  let processed = 0;
-  let valued = 0;
-  const updates: D1PreparedStatement[] = [];
-  for (const set_num of ids) {
-    processed++;
-    const po = computePartOutValue(partsBySet.get(set_num) || [], priceMap);
-    if (po.value != null) valued++;
-    updates.push(env.DB.prepare(
-      `UPDATE lego_sets SET part_out_value=?, part_out_coverage=?, part_out_cached_at=datetime('now') WHERE set_num=?`,
-    ).bind(po.value, po.coverage, set_num));
-  }
-
-  for (let i = 0; i < updates.length; i += 90) await env.DB.batch(updates.slice(i, i + 90));
   return { processed, valued, limit };
 }
