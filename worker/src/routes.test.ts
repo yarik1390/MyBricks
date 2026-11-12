@@ -1986,6 +1986,18 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(data.total_value).toBeCloseTo(data.items[0].market_value, 1);
     });
 
+    it('values an opened copy on BrickLink even outside its 24h display window, like the daily snapshot', async () => {
+      await addSet(); // condition 'new' = opened box
+      await db.prepare(
+        "UPDATE lego_sets SET current_value=900, blended_value=900, bl_new_value=700, bl_new_qty=8, bl_cached_at=datetime('now','-3 days') WHERE set_num='75192'"
+      ).run();
+      const res = await app.fetch(new Request('http://localhost/api/collection', { headers: auth() }), env);
+      const data = await res.json<any>();
+      expect(data.items[0].bl_new_value).toBeUndefined(); // still hidden from the payload
+      expect(data.items[0].holding_market_value).toBeCloseTo(700, 1);
+      expect(data.total_value).toBeCloseTo(700, 1);
+    });
+
     it('records condition when adding a set as Used (drives used-vs-new valuation)', async () => {
       const add = await app.fetch(new Request('http://localhost/api/collection', {
         method: 'POST', headers: auth(),

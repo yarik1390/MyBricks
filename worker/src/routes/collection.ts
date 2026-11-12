@@ -179,7 +179,13 @@ app.get('/', async (c) => {
       trend: t.trend,
       slope_90d: t.slope
     } as Record<string, unknown>);
-    const marketVal = conditionValue(enriched);
+    // The payload's 24h BrickLink display gate strips bl_new_value / used_value
+    // from `enriched`; the holding's worth must not change with that display
+    // window (the daily snapshot reads the raw columns), so value it on them.
+    const marketVal = conditionValue({
+      ...enriched,
+      bl_new_value: row.bl_new_value, bl_new_qty: row.bl_new_qty, used_value: row.used_value,
+    });
     let annualizedRoi = null;
     if (row.purchased_at && Number(row.purchase_price) > 0 && marketVal > 0) {
       const years = (Date.now() - new Date(row.purchased_at as string).getTime()) / (365.25 * 24 * 3600 * 1000);
@@ -190,7 +196,8 @@ app.get('/', async (c) => {
     return { ...enriched, holding_market_value: marketVal, annualized_roi: annualizedRoi } as Record<string, unknown>;
   });
 
-  const totalValue = items.reduce((s, r) => s + conditionValue(r as Record<string, unknown>) * Number(r.quantity), 0);
+  const holdingValue = (r: Record<string, unknown>): number => Number(r.holding_market_value) || 0;
+  const totalValue = items.reduce((s, r) => s + holdingValue(r) * Number(r.quantity), 0);
   const totalPaid  = items.reduce((s, r) => s + (Number(r.purchase_price) || 0) * Number(r.quantity), 0);
   const minifigCount = items.reduce((s, r) => s + (Number(r.minifigs) || 0) * Number(r.quantity), 0);
   const count = items.length;
@@ -215,7 +222,7 @@ app.get('/', async (c) => {
   // Portfolio-level pricing trust: what share of priced holdings rests on a
   // high/medium-confidence market value (vs. a thin/estimated one). Uses the
   // anomaly-aware blend confidence, falling back to the trust-panel confidence.
-  const priced = items.filter(r => conditionValue(r as Record<string, unknown>) > 0);
+  const priced = items.filter(r => holdingValue(r) > 0);
   const confOf = (r: Record<string, unknown>) => String(r.market_value_confidence || r.confidence || '');
   const highMed = priced.filter(r => {
     const cf = confOf(r as Record<string, unknown>);
@@ -231,8 +238,8 @@ app.get('/', async (c) => {
   };
   const quantityDenom = priced.reduce((sum, r) => sum + Number(r.quantity || 1), 0);
   const quantityNumer = priced.reduce((sum, r) => sum + Number(r.quantity || 1) * confidenceWeight(r), 0);
-  const valueDenom = priced.reduce((sum, r) => sum + conditionValue(r) * Number(r.quantity || 1), 0);
-  const valueNumer = priced.reduce((sum, r) => sum + conditionValue(r) * Number(r.quantity || 1) * confidenceWeight(r), 0);
+  const valueDenom = priced.reduce((sum, r) => sum + holdingValue(r) * Number(r.quantity || 1), 0);
+  const valueNumer = priced.reduce((sum, r) => sum + holdingValue(r) * Number(r.quantity || 1) * confidenceWeight(r), 0);
   const pricingConfidence = {
     priced: priced.length,
     high_medium: highMed,

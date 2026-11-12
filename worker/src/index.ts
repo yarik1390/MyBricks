@@ -50,6 +50,7 @@ import { runSetAnniversaries } from './jobs/set-anniversaries';
 import { runCollectionBackups } from './jobs/collection-backups';
 import { runDailyCatalogMaintenance } from './jobs/catalog-maintenance';
 import { runDbHygiene } from './jobs/db-hygiene';
+import { runReblendAfterModel } from './jobs/reblend-after-model';
 import { runAmazonOffers } from './jobs/amazon-offers';
 import { runPriceChartingVerify } from './jobs/pricecharting-verify';
 import { runPriceChartingEnrich } from './jobs/pricecharting-enrich';
@@ -524,6 +525,9 @@ export default {
         // Bundles (multi-packs, complete minifigure series, sealed boxes):
         // the sum of the sets inside, from Rebrickable's inventory files.
         await run('bundle-values', () => runBundleValues(env));
+        // Push the new estimates into owned/wishlisted sets' shown value today,
+        // not after the ~6-day recompute-blends rotation.
+        await run('reblend-after-model', () => runReblendAfterModel(env));
         // Part-out (sum of parts): display-only, so it goes last.
         await run('part-out-compute', () => runPartOutCompute(env, { limit: 120 }));
         break;

@@ -31,10 +31,12 @@ describe('PriceCharting bulk identity verification', () => {
     await db.prepare(`CREATE TABLE lego_sets (
       set_num TEXT PRIMARY KEY, name TEXT, upc TEXT, category TEXT, pc_id TEXT,
       pc_new_value REAL, pc_complete_value REAL, pc_cached_at TEXT,
-      blended_value REAL, current_value REAL
+      blended_value REAL, current_value REAL,
+      pieces INTEGER, retail_price REAL, brickset_msrp REAL, be_retail REAL,
+      bl_new_value REAL, ebay_new_value REAL, used_value REAL, ebay_used_value REAL
     )`).run();
     await db.prepare(`CREATE TABLE set_market_ext (
-      set_num TEXT PRIMARY KEY, pc_loose_value REAL, pc_sales_volume INTEGER,
+      set_num TEXT PRIMARY KEY, pc_loose_value REAL, pc_sales_volume INTEGER, bs_retail_alt REAL,
       pa_retail_value REAL, pa_lowest_offer REAL, pa_in_stock INTEGER,
       pa_best_merchant TEXT, pa_offer_count INTEGER, pa_market TEXT, pa_cached_at TEXT
     )`).run();
@@ -165,6 +167,28 @@ describe('PriceCharting bulk identity verification', () => {
     const [recomputeDb, recomputeSetNums] = vi.mocked(recomputeBlendedValues).mock.calls[0];
     expect(recomputeDb).toBe(db);
     expect(recomputeSetNums).toEqual(['10001-1']);
+  });
+
+  it('keeps a corroborated four-figure price and drops an implausible one for a small set', async () => {
+    await db.batch([
+      db.prepare(`INSERT INTO lego_sets (set_num,name,category,pieces,brickset_msrp,bl_new_value)
+                  VALUES ('75192-1','Millennium Falcon','Normal',7541,849.99,3000)`),
+      db.prepare(`INSERT INTO lego_sets (set_num,name,category,pieces,brickset_msrp)
+                  VALUES ('30654-1','Polybag','Normal',40,4.99)`),
+    ]);
+    const result = await importRows([
+      '111,LEGO Star Wars,,Millennium Falcon #75192-1,$1500,$2400,$3200,40',
+      '222,LEGO Sets,,Polybag #30654-1,$3.00,$1700,$1800,2',
+    ]);
+    expect(result).toMatchObject({ matched: 2 });
+    expect(await db.prepare(`SELECT pc_new_value,pc_complete_value FROM lego_sets WHERE set_num='75192-1'`).first<any>())
+      .toMatchObject({ pc_new_value: 3200, pc_complete_value: 2400 });
+    const falcon = await db.prepare(`SELECT condition,value FROM pricing_signals WHERE set_num='75192-1' ORDER BY condition`).all<any>();
+    expect(falcon.results.map((r: any) => [r.condition, r.value])).toEqual([['loose', 1500], ['new_sealed', 3200], ['used_complete', 2400]]);
+    expect(await db.prepare(`SELECT pc_new_value,pc_complete_value FROM lego_sets WHERE set_num='30654-1'`).first<any>())
+      .toMatchObject({ pc_new_value: null, pc_complete_value: null });
+    const bag = await db.prepare(`SELECT condition,value FROM pricing_signals WHERE set_num='30654-1'`).all<any>();
+    expect(bag.results.map((r: any) => [r.condition, r.value])).toEqual([['loose', 3]]);
   });
 
   it.each([

@@ -32,10 +32,12 @@ describe('PriceCharting bulk import at catalog scale', () => {
     await db.prepare(`CREATE TABLE lego_sets (
       set_num TEXT PRIMARY KEY, name TEXT, upc TEXT, category TEXT, pc_id TEXT,
       pc_new_value REAL, pc_complete_value REAL, pc_cached_at TEXT,
-      blended_value REAL, current_value REAL
+      blended_value REAL, current_value REAL,
+      pieces INTEGER, retail_price REAL, brickset_msrp REAL, be_retail REAL,
+      bl_new_value REAL, ebay_new_value REAL, used_value REAL, ebay_used_value REAL
     )`).run();
     await db.prepare(`CREATE TABLE set_market_ext (
-      set_num TEXT PRIMARY KEY, pc_loose_value REAL, pc_sales_volume INTEGER
+      set_num TEXT PRIMARY KEY, pc_loose_value REAL, pc_sales_volume INTEGER, bs_retail_alt REAL
     )`).run();
     await db.prepare(`CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)`).run();
     await db.prepare(`CREATE TABLE pricing_source_map (

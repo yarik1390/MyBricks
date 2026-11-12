@@ -50,6 +50,7 @@ export const PROCESS_REGISTRY: Record<string, ProcessInfo> = {
   'part-price-backfill': { label: 'Part prices', description: 'Caches individual part prices used to compute part-out values.', schedule: 'Daily 12:00 UTC', group: 'Enrichment' },
   'train-value-model': { label: 'Value model', description: 'Retrains the BricksVault value model on BrickLink-priced sets and stores each set’s estimate (the fallback when no market source prices a set).', schedule: 'Daily 13:00 UTC', group: 'Pricing' },
   'bundle-values': { label: 'Bundle values', description: 'Prices multi-packs, complete minifigure series and sealed boxes as the sum of the sets inside (Rebrickable inventory files), and random boxes as their series’ average figure.', schedule: 'Daily 13:00 UTC', group: 'Pricing' },
+  'reblend-after-model': { label: 'Refresh shown values', description: 'Right after the model retrains, refreshes the shown value of owned and wishlisted sets whose estimate changed, so they update the same day.', schedule: 'Daily 13:00 UTC', group: 'Pricing' },
   'part-out-compute': { label: 'Part-out value', description: 'Computes each set’s sum-of-parts (part-out) floor value.', schedule: 'Daily 13:00 UTC', group: 'Enrichment' },
 
   // --- Snapshots & Alerts ---
