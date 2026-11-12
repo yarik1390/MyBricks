@@ -139,7 +139,15 @@ export async function recordCronFinish(
          VALUES (?1, datetime('now'), datetime('now'), ?2, ?3, ?4, ?5)`,
       ).bind(name, opts.ok ? 'ok' : 'failed', opts.summary ?? null, opts.error ? String(opts.error).slice(0, 300) : null, opts.durationMs ?? null).run();
     }
-    // Keep only the most recent KEEP_PER_NAME rows for this process.
+    await pruneCronRuns(env, name);
+  } catch {
+    /* fail-open */
+  }
+}
+
+/** Keep only the most recent KEEP_PER_NAME rows for this process. Fails open. */
+export async function pruneCronRuns(env: Env, name: string): Promise<void> {
+  try {
     await env.DB.prepare(
       `DELETE FROM cron_runs WHERE name=?1 AND id NOT IN
          (SELECT id FROM cron_runs WHERE name=?1 ORDER BY id DESC LIMIT ?2)`,

@@ -68,7 +68,7 @@ import { runBlendRecomputeBackfill } from './jobs/recompute-blends';
 import { runHealthProbes } from './jobs/health-probes';
 import { loadWithheldValues } from './lib/value-withheld';
 import { applySourceConfig } from './lib/source-config';
-import { recordCronFinish, summarizeResult, resultFailed } from './lib/cron-runs';
+import { createCronRunner, runMissedJobs } from './lib/cron-runner';
 import { CLIENT_EVENTS, logClientEvent, mirrorClientMetric } from './lib/analytics';
 import { setPricingV3ReadPercent } from './lib/market-sources';
 
@@ -299,41 +299,28 @@ export default {
   fetch: app.fetch,
 
   async scheduled(event: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
+    // Jobs are isolated from each other, raced against a deadline, and the
+    // first error is rethrown once the slot is done (lib/cron-runner.ts).
     // High-frequency temporary jobs may pass a shorter stale-lease window.
-    const run = async (name: string, fn: () => Promise<unknown>, maxAgeMinutes = 30) => {
-      const startedMs = Date.now();
-      // A single SQLite statement serializes the lease check and acquisition.
-      // Storage failures must reject the invocation, not run an unguarded job.
-      const lease = await env.DB.prepare(`
-        INSERT INTO cron_runs (name, started_at, status)
-        SELECT ?1, datetime('now'), 'running'
-        WHERE NOT EXISTS (
-          SELECT 1 FROM cron_runs WHERE name=?1 AND status='running'
-          AND started_at >= datetime('now', ?2)
-        ) RETURNING id
-      `).bind(name, `-${maxAgeMinutes} minutes`).first<{ id: number }>();
-      if (!lease) {
-        console.warn(`[cron] ${name} skipped: previous run still active`);
-        return;
-      }
-      const runId = lease.id;
-      try {
-        const res = await fn();
-        const summary = summarizeResult(res);
-        const failed = resultFailed(res);
-        await recordCronFinish(env, runId, name, { ok: !failed, summary,
-          error: failed ? `Provider/item failures: ${summary}` : null,
-          durationMs: Date.now() - startedMs }).catch(() => {});
-      } catch (e) {
-        console.error(`[cron] ${name} failed:`, e);
-        await recordCronFinish(env, runId, name, { ok: false, error: (e as Error).message, durationMs: Date.now() - startedMs }).catch(() => {});
-        throw e;
-      }
-    };
+    const runner = createCronRunner(env);
+    const run = runner.run;
     // Apply admin source-tuning (blend weights + daily-cap overrides) for this
     // cron invocation before any job runs. Fail-open to code defaults.
     await applySourceConfig(env).catch(() => {});
     await loadWithheldValues(env);
+    // Daily jobs that only touch D1, safe to run at any hour: the hourly :45
+    // slot re-runs whichever of them has no successful run in the last day.
+    // Order is priority (what users see first).
+    const QUICK = { timeoutMs: 4 * 60_000 };
+    const dailyCatchUp: Record<string, () => Promise<unknown>> = {
+      'snapshot-set-values': () => runSnapshotSetValues(env),
+      'train-value-model': () => runTrainValueModel(env),
+      'bundle-values': () => runBundleValues(env),
+      'reblend-after-model': () => runReblendAfterModel(env),
+      'pricing-movers': () => detectValueMovers(env),
+      'model-refresh': () => runModelRefresh(env),
+      'part-out-compute': () => runPartOutCompute(env, { limit: 120 }),
+    };
     switch (event.cron) {
       // Hourly: BrickLink-primary catalog sweep. scope:'all' so idle capacity
       // (once owned/wishlisted are fresh) steadily converts the formula_bulk
@@ -393,12 +380,12 @@ export default {
       }
       case '0 2 * * *': await run('snapshot-portfolios', () => runSnapshotPortfolios(env)); break;
       case '0 3 * * *':
-        await run('snapshot-set-values', () => runSnapshotSetValues(env));
+        await run('snapshot-set-values', () => runSnapshotSetValues(env), QUICK);
         // Day-over-day movers read today's snapshot, so they run right after it.
-        await run('pricing-movers', () => detectValueMovers(env));
+        await run('pricing-movers', () => detectValueMovers(env), QUICK);
         // Revalidate the OpenRouter free-model pools against the live catalog
         // so the AI cascades stay on free models as availability churns.
-        await run('model-refresh', () => runModelRefresh(env));
+        await run('model-refresh', () => runModelRefresh(env), QUICK);
         break;
       case '0 8 * * *':
         await run('wishlist-alerts', () => runWishlistAlerts(env));
@@ -462,6 +449,10 @@ export default {
           // (360 - 20 overhead) / 7 per BrickLink-only set fits all 28.
           subrequestBudget: 360,
         }));
+        // Catch-up: re-run daily D1 jobs that have no successful run in the
+        // last day (their own slot threw, hung or was cut short). At most two
+        // per hour, three attempts a day each.
+        await runMissedJobs(env, runner, dailyCatchUp);
         break;
       case '15 * * * *':
         await run('valuate-formula-head', () => runValuateSets(env, {
@@ -521,15 +512,15 @@ export default {
         // day before it finished, so the model (and bundles) behind it never
         // ran and every estimate froze at the Nov 3 fit, missing the new-
         // release retail floor and the Nov 8 model changes.
-        await run('train-value-model', () => runTrainValueModel(env));
+        await run('train-value-model', () => runTrainValueModel(env), QUICK);
         // Bundles (multi-packs, complete minifigure series, sealed boxes):
         // the sum of the sets inside, from Rebrickable's inventory files.
-        await run('bundle-values', () => runBundleValues(env));
+        await run('bundle-values', () => runBundleValues(env), QUICK);
         // Push the new estimates into owned/wishlisted sets' shown value today,
         // not after the ~6-day recompute-blends rotation.
-        await run('reblend-after-model', () => runReblendAfterModel(env));
+        await run('reblend-after-model', () => runReblendAfterModel(env), QUICK);
         // Part-out (sum of parts): display-only, so it goes last.
-        await run('part-out-compute', () => runPartOutCompute(env, { limit: 120 }));
+        await run('part-out-compute', () => runPartOutCompute(env, { limit: 120 }), QUICK);
         break;
       // Image pre-warm: pull Rebrickable set images into the R2 cache so first
       // views are instant. Gentle (limit 100, concurrency 3) to respect
@@ -603,5 +594,7 @@ export default {
         await run('pricecharting-bulk-fetch', () => runPriceChartingBulkFetch(env));
         break;
     }
+    // Every job in the slot had its turn; now surface the first failure.
+    runner.throwIfFailed();
   },
 };
