@@ -1184,7 +1184,7 @@
     ]
   },
   {
-    "text": "BricksVault collectors can log what they actually paid for a set and what it actually sold for. We aggregate those real transactions into a community price signal — published only when",
+    "text": "BricksVault collectors can log what they actually paid for a set and what it actually sold for. Collectors who turn on Share prices, which is off by default, allow us to aggregate those real transactions into a community price signal — published only when",
     "files": [
       "methodology.html"
     ]

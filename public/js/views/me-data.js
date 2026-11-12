@@ -1,7 +1,7 @@
 import { $, haptic, toast, setBtnLoading, escapeHtml } from '../utils.js';
 import { invalidatePortfolio } from '../state.js';
 import { api, _authSession, isGuestMode, guestCollectionCSVBlob } from '../api.js';
-import { icon as kitIcon, row as kitRow } from '../ui/kit.js';
+import { icon as kitIcon, row as kitRow, toggle } from '../ui/kit.js';
 import { confirmSheet } from '../components/sheet.js';
 import { parseCollectionCSV } from '../lib/pure.js';
 import { subpageTopbarHTML, loadMe } from './me-shared.js';
@@ -46,6 +46,14 @@ export async function renderMeData() {
           ${fileRow({ icon: 'file', title: 'Import collection', sub: 'Upload a CSV to add sets in bulk — works with Brickset and BrickEconomy exports too. Existing sets are skipped.', inputId: 'csvFile', pickLabel: 'Choose CSV file', nameId: 'csvFileName', importId: 'csvImportBtn', importLabel: 'Import', resultId: 'csvImportResult' })}
         </div>
       </section>
+
+      ${guest ? '' : `
+      <section class="bv-group">
+        <h2 class="bv-h2">${escapeHtml(t('data.shareTitle'))}</h2>
+        <div class="bv-group__box">
+          <div class="bv-prefrow"><span class="bv-prefrow__text"><span class="bv-prefrow__title">${escapeHtml(t('data.shareLabel'))}</span><span class="bv-prefrow__sub">${escapeHtml(t('data.shareSub'))}</span></span>${toggle({ id: 'shareCompsToggle', on: !!state.me?.contribute_community_comps, label: t('data.shareLabel') })}</div>
+        </div>
+      </section>`}
 
       <section class="bv-group">
         <h2 class="bv-h2">${escapeHtml(t('bvAccount.takeOut'))}</h2>
@@ -136,6 +144,22 @@ toast(tPlural('data.restoredFromBackup', res.restored, { date }), "success");
       if (out) out.textContent = t('data.retryFailed', { error: e.message || e });
     } finally {
       if (btn) { btn.disabled = false; btn.removeAttribute("aria-busy"); }
+    }
+  });
+
+  // Share prices: opt-in consent for the anonymous k>=5 community medians.
+  const shareEl = document.getElementById('shareCompsToggle');
+  shareEl?.addEventListener('click', async () => {
+    const next = shareEl.getAttribute('aria-checked') !== 'true';
+    shareEl.setAttribute('aria-checked', String(next));
+    haptic('medium');
+    try {
+      await api('/api/me', { method: 'PATCH', body: { contribute_community_comps: next } });
+      if (state.me) state.me.contribute_community_comps = next;
+      toast(t(next ? 'data.shareOn' : 'data.shareOff'), 'info');
+    } catch (err) {
+      shareEl.setAttribute('aria-checked', String(!next));
+      toast(t('common.errorWithDetails', { error: err.message || err }), 'error');
     }
   });
 

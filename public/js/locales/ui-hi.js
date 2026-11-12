@@ -419,7 +419,7 @@ export const ui = {
   "BricksVault Pro": "BricksVault प्रो",
   "BricksVault Pro ⭐": "BricksVault प्रो ⭐",
   "BricksVault Vault": "BricksVault संग्रह",
-  "BricksVault collectors can log what they actually paid for a set and what it actually sold for. We aggregate those real transactions into a community price signal — published only when": "BricksVault के संग्राहक दर्ज कर सकते हैं कि उन्होंने किसी सेट के लिए वास्तव में कितना चुकाया और वह वास्तव में कितने में बिका। हम इन वास्तविक लेनदेन को एक सामुदायिक मूल्य संकेत में जोड़ते हैं — जो तभी प्रकाशित होता है जब",
+  "BricksVault collectors can log what they actually paid for a set and what it actually sold for. Collectors who turn on Share prices, which is off by default, allow us to aggregate those real transactions into a community price signal — published only when": "BricksVault संग्राहक दर्ज कर सकते हैं कि उन्होंने किसी सेट के लिए असल में कितना चुकाया और वह असल में कितने में बिका। जो संग्राहक “कीमतें साझा करें” चालू करते हैं (डिफ़ॉल्ट रूप से बंद), वे हमें इन असली लेन-देन को एक सामुदायिक मूल्य संकेत में जोड़ने देते हैं — जो तभी प्रकाशित होता है जब",
   "Brickset / barcode": "Brickset / बारकोड",
   "Brickset account connected": "Brickset खाता कनेक्ट हो गया",
   "Brickset disconnected": "Brickset डिस्कनेक्ट हो गया",

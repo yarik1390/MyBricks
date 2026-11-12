@@ -765,6 +765,7 @@ ALTER TABLE user_collection ADD COLUMN for_trade INTEGER DEFAULT 0;
 ALTER TABLE user_prefs ADD COLUMN open_to_swaps INTEGER DEFAULT 0;
 ALTER TABLE user_prefs ADD COLUMN swaps_adult_at TEXT;
 ALTER TABLE user_prefs ADD COLUMN email_off_at TEXT;
+ALTER TABLE user_prefs ADD COLUMN contribute_community_comps INTEGER DEFAULT 0;
 -- BrickLink thin-sold + current-listing fallbacks (discovery lane).
 ALTER TABLE set_market_ext ADD COLUMN bl_thin_value REAL;
 ALTER TABLE set_market_ext ADD COLUMN bl_thin_qty INTEGER;

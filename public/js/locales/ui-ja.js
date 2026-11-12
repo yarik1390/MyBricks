@@ -419,7 +419,7 @@ export const ui = {
   "BricksVault Pro": "BricksVault Pro",
   "BricksVault Pro ⭐": "BricksVault Pro ⭐",
   "BricksVault Vault": "BricksVaultコレクション",
-  "BricksVault collectors can log what they actually paid for a set and what it actually sold for. We aggregate those real transactions into a community price signal — published only when": "BricksVaultのコレクターは、セットに実際に支払った金額と実際に売れた金額を記録できます。こうした実取引をコミュニティの価格シグナルとして集計し、公開するのは",
+  "BricksVault collectors can log what they actually paid for a set and what it actually sold for. Collectors who turn on Share prices, which is off by default, allow us to aggregate those real transactions into a community price signal — published only when": "BricksVaultのコレクターは、セットに実際に支払った金額と実際の売却価格を記録できます。「価格を共有」（初期設定はオフ）をオンにしたコレクターの実際の取引を、コミュニティの価格シグナルとして集計し、公開するのは",
   "Brickset / barcode": "Brickset / バーコード",
   "Brickset account connected": "Bricksetアカウントを連携しました",
   "Brickset disconnected": "Bricksetの連携を解除しました",

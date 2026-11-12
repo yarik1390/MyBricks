@@ -97,7 +97,7 @@ app.get('/', async (c) => {
       `SELECT display_name, handle, is_public, expose_public_value, currency, retail_market,
               notify_price_drops, notify_weekly_digest, discord_webhook_url, brickset_user_hash, rebrickable_user_token, email, is_supporter,
               notify_sell_targets, notify_big_moves, notify_retiring, notify_back_in_stock,
-              quiet_hours, quiet_start, quiet_end, timezone, email_off_at,
+              quiet_hours, quiet_start, quiet_end, timezone, email_off_at, contribute_community_comps,
               kids_pin_hash, kids_xp, kids_level
        FROM user_prefs WHERE user_id=?`
     ).bind(userId).first<Record<string, unknown>>(),
@@ -159,6 +159,8 @@ app.get('/', async (c) => {
     retail_market: (p.retail_market as string) || 'FR',
     notify_price_drops: p.notify_price_drops !== 0,
     notify_weekly_digest: p.notify_weekly_digest === 1,
+    // Opt-in only: purchase/sale prices feed the k>=5 community medians.
+    contribute_community_comps: p.contribute_community_comps === 1,
     ...notificationPrefsOut(p),
     ebay_configured: ebayConfigured,
     bricklink_configured: bricklinkConfigured,
@@ -195,6 +197,7 @@ app.patch('/', async (c) => {
     notify_weekly_digest?: boolean;
     handle?: string; is_public?: boolean; expose_public_value?: boolean;
     discord_webhook_url?: string | null;
+    contribute_community_comps?: boolean;
   } & NotificationPrefsPatch>();
   const { display_name, currency, retail_market, notify_price_drops, notify_weekly_digest, handle, is_public, expose_public_value, discord_webhook_url } = body;
   if (display_name && display_name.length > 40) return c.json({ error: 'display_name max 40 chars' }, 400);
@@ -266,6 +269,11 @@ app.patch('/', async (c) => {
   ).run();
   // Alert categories / quiet hours: the upsert above guarantees the row, so a
   // plain UPDATE of just the provided columns is enough.
+  if (typeof body.contribute_community_comps === 'boolean') {
+    await c.env.DB.prepare(
+      `UPDATE user_prefs SET contribute_community_comps = ?, updated_at = datetime('now') WHERE user_id = ?`,
+    ).bind(body.contribute_community_comps ? 1 : 0, userId).run();
+  }
   const cols = Object.keys(notifyPatch.values);
   if (cols.length) {
     await c.env.DB.prepare(

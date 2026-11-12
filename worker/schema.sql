@@ -804,6 +804,9 @@ CREATE TABLE IF NOT EXISTS user_prefs (
   swaps_adult_at TEXT,
   -- Set by the one-click unsubscribe in alert emails: no alert/digest emails.
   email_off_at TEXT,
+  -- Opt-in: this user's purchase/sale prices may feed the anonymous k>=5
+  -- community medians (jobs/community-comps.ts). Off unless they turn it on.
+  contribute_community_comps INTEGER DEFAULT 0,
   is_supporter INTEGER DEFAULT 0,
   supporter_since TEXT,
   stripe_customer_id TEXT,

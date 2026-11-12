@@ -419,7 +419,7 @@ export const ui = {
   "BricksVault Pro": "BricksVault Pro",
   "BricksVault Pro ⭐": "BricksVault Pro ⭐",
   "BricksVault Vault": "BricksVault Vault",
-  "BricksVault collectors can log what they actually paid for a set and what it actually sold for. We aggregate those real transactions into a community price signal — published only when": "BricksVault 的收藏者可以记录自己实际为一套套装支付的价格，以及实际卖出的价格。我们把这些真实交易汇总成社区价格信号 — 只有当",
+  "BricksVault collectors can log what they actually paid for a set and what it actually sold for. Collectors who turn on Share prices, which is off by default, allow us to aggregate those real transactions into a community price signal — published only when": "BricksVault 收藏者可以记录他们为套装实际支付的价格和实际售出的价格。开启“分享价格”（默认关闭）的收藏者，允许我们把这些真实交易汇总成社区价格信号 — 只有当",
   "Brickset / barcode": "Brickset / 条形码",
   "Brickset account connected": "Brickset 账户已连接",
   "Brickset disconnected": "Brickset 已断开连接",

@@ -476,6 +476,7 @@ export const TABLE_DDL: Record<string, string> = {
   open_to_swaps INTEGER DEFAULT 0,
   swaps_adult_at TEXT,
   email_off_at TEXT,
+  contribute_community_comps INTEGER DEFAULT 0,
   is_supporter INTEGER DEFAULT 0,
   supporter_since TEXT,
   stripe_customer_id TEXT,
