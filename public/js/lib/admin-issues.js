@@ -32,6 +32,7 @@ function remedyFor(service) {
 
 function isAccessFailure(row) {
   if (row.configured === false || row.status === 'unconfigured') return true;
+  if (isProviderOffline(row)) return false;
   const message = typeof row.last_error === 'string' ? row.last_error : '';
   return /\b(?:401|403)\b|unauthori[sz]ed|forbidden|invalid[_ -]?(?:client|key|token)|access denied|credential|permission/i.test(message);
 }
@@ -55,7 +56,18 @@ function isProviderSideFailure(row) {
   return /HTTP 5\d\d|service unavailable|bad gateway|gateway timeout/i.test(message);
 }
 
+// The provider itself is offline (maintenance page, or its front door refusing
+// every call before a key is even checked). Nothing to fix on our side, so it
+// must never read as a key or access problem.
+function isProviderOffline(row) {
+  const message = typeof row.last_error === 'string' ? row.last_error : '';
+  return /provider offline|planned maintenance/i.test(message);
+}
+
 function issueCopy(kind, label, row) {
+  if ((kind === 'error' || kind === 'access' || kind === 'degraded') && isProviderOffline(row)) {
+    return { title: `${label} is offline`, detail: 'The provider took its own service down. Nothing to fix here: jobs that need it pause and resume on their own when it is back.' };
+  }
   if (kind === 'access' && AI_SERVICES.has(String(row.service).toLowerCase())
     && row.configured !== false && row.status !== 'unconfigured') {
     return { title: `${label} needs a new key`, detail: 'The provider rejected the server key. AI routing skips it until the key works again.' };
@@ -142,7 +154,9 @@ export function buildAdminIssues({
       service: row.service,
       label,
       kind,
-      severity: kind === 'access' || kind === 'error' || kind === 'credits' ? 'danger' : kind === 'degraded' || kind === 'stale' ? 'warn' : 'neutral',
+      // An offline provider needs nothing from the owner: amber, never red.
+      severity: isProviderOffline(row) && kind !== 'credits' ? 'warn'
+        : kind === 'access' || kind === 'error' || kind === 'credits' ? 'danger' : kind === 'degraded' || kind === 'stale' ? 'warn' : 'neutral',
       ...issueCopy(kind, label, row),
       evidenceAt,
       ...remedyFor(row.service),

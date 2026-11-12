@@ -362,7 +362,7 @@ function isQuotaIssue(error?: string | null): boolean {
 // advice is just as misleading here as it is for a quota refusal (e.g. Bright
 // Data HTTP 502 or an empty/short body).
 function isProviderOutage(error?: string | null): boolean {
-  return !!error && /(HTTP 5\d\d|unavailable|bad gateway|service unavailable|gateway timeout|empty\/short body|empty body)/i.test(error);
+  return !!error && /(HTTP 5\d\d|unavailable|bad gateway|service unavailable|gateway timeout|empty\/short body|empty body|provider offline|planned maintenance)/i.test(error);
 }
 
 // Every key is out of paid credits (Firecrawl answers 402 and the pool latches).

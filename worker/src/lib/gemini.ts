@@ -49,7 +49,9 @@ export async function callGeminiScanOutcome(
   };
 
   try {
-    const fetcher = env ? fetchTracked.bind(null, env, 'gemini') : fetchWithRetry;
+    // Only server-key calls (the ones routed through the gateway) are health
+    // evidence. A user's own bad key must not mark the server key as rejected.
+    const fetcher = env && opts.routeThroughGateway ? fetchTracked.bind(null, env, 'gemini') : fetchWithRetry;
     const resp = await fetcher(
       // Server-key cascade routes through the gateway when configured; BYOK scans
       // call Google directly (don't proxy the user's key/image through our gateway).

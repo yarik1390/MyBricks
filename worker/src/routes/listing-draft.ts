@@ -122,7 +122,6 @@ price_reasoning: one sentence explaining the price.`;
           { role: 'user', content: prompt },
         ],
       });
-      await recordIntegrationAttempt(c.env, 'openai', true);
       return parseDraft(result.choices[0].message.content);
     }
     // Server keys: the admin listing route (free models after the trial).
@@ -173,7 +172,8 @@ price_reasoning: one sentence explaining the price.`;
     }
     throw lastError;
   } catch (e) {
-    await recordIntegrationAttempt(c.env, geminiKey ? 'gemini' : 'openai', false, e);
+    // No health record here: a user's own key says nothing about the server
+    // keys, and each server step already recorded its own result above.
     console.warn('[listing-draft] AI failed:', (e as Error).message);
     throw e;
   }

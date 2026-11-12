@@ -82,7 +82,8 @@ export async function translateDescription(
         },
         body: JSON.stringify(body),
       },
-      { timeoutMs: 20000, retries: 1 },
+      // A user's own key is not evidence about the server key.
+      { timeoutMs: 20000, retries: 1, record: !!opts.routeThroughGateway },
     );
     if (!resp.ok) {
       console.warn('[describe-i18n] API error:', resp.status);
