@@ -514,13 +514,18 @@ export default {
       // Part-out (E1): recompute sum-of-parts value from the part_prices cache an
       // hour after the price trickle. Pure D1 (no quota); rolling 7-day refresh.
       case '0 13 * * *':
-        await run('part-out-compute', () => runPartOutCompute(env, { limit: 120 }));
         // BricksVault value model: retrain from BrickLink-priced sets and store
-        // each set's estimate (pure D1, one statement).
+        // each set's estimate (pure D1, one statement). It runs FIRST: from
+        // 2026-11-04 to 11-11 part-out-compute's invocation was killed every
+        // day before it finished, so the model (and bundles) behind it never
+        // ran and every estimate froze at the Nov 3 fit, missing the new-
+        // release retail floor and the Nov 8 model changes.
         await run('train-value-model', () => runTrainValueModel(env));
         // Bundles (multi-packs, complete minifigure series, sealed boxes):
         // the sum of the sets inside, from Rebrickable's inventory files.
         await run('bundle-values', () => runBundleValues(env));
+        // Part-out (sum of parts): display-only, so it goes last.
+        await run('part-out-compute', () => runPartOutCompute(env, { limit: 120 }));
         break;
       // Image pre-warm: pull Rebrickable set images into the R2 cache so first
       // views are instant. Gentle (limit 100, concurrency 3) to respect
