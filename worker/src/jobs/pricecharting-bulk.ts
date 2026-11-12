@@ -1,7 +1,6 @@
 import type { Env } from '../types';
 import { appBaseUrl } from '../lib/app-url';
 import { recomputeBlendedValues } from '../lib/market-sources';
-import { isPlausibleMarketValue } from '../lib/valuation';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { sourceEnabled } from '../lib/source-config';
 import { runPriceChartingTriage, type TriageResult } from './pricecharting-triage';
@@ -87,7 +86,33 @@ const money = (v: string | undefined): number | null => {
   const n = parseFloat(String(v).replace(/[$,\s]/g, ''));
   return Number.isFinite(n) && n > 0 ? n : null;
 };
-const gate = (v: number | null): number | null => (v != null && isPlausibleMarketValue(v, {}) ? v : null);
+// Plausibility is NOT judged here: a parsed row has no set context, and the
+// anchorless rule (reject anything over $2,000) silently dropped every genuine
+// four-figure set (UCS Falcon, Titanic, retired modulars). The import gates
+// each staged value against its matched set's own anchors instead; see
+// plausibleSql() below.
+
+// SQL twin of isPlausibleMarketValue (lib/valuation.ts) for one staged value
+// against the matched set `ls` / `ext`: within 0.15x-3x of a real comp when one
+// exists, else within 0.2x-25/40x of a non-echo retail, else <= $20/piece,
+// else <= $2,000. Returns the value or NULL.
+const PC_RETAIL = `COALESCE(NULLIF(ls.brickset_msrp, 0), NULLIF(ext.bs_retail_alt, 0),
+  CASE WHEN ls.retail_price > 0 AND (ls.be_retail IS NULL OR ls.be_retail <= 0
+    OR ls.retail_price <> ls.be_retail) THEN ls.retail_price END)`;
+function plausibleSql(v: string, comps: string[]): string {
+  const pos = (c: string) => `CASE WHEN ${c} > 0 THEN ${c} END`;
+  const anyComp = comps.map((c) => `${c} > 0`).join(' OR ');
+  const maxComp = `MAX(${comps.map((c) => `COALESCE(${pos(c)}, 0)`).join(', ')}, 0)`;
+  const minComp = `MIN(${comps.map((c) => `COALESCE(${pos(c)}, 1e18)`).join(', ')}, 1e18)`;
+  return `CASE
+    WHEN ${v} IS NULL OR ${v} <= 0 THEN NULL
+    WHEN ${anyComp} THEN CASE WHEN ${v} <= 3 * ${maxComp} AND ${v} >= 0.15 * ${minComp} THEN ${v} END
+    WHEN ${PC_RETAIL} > 0 AND ${PC_RETAIL} <> ${v} THEN CASE WHEN ${v} >= 0.2 * ${PC_RETAIL}
+      AND ${v} <= (CASE WHEN ls.pieces > 500 THEN 25 ELSE 40 END) * ${PC_RETAIL} THEN ${v} END
+    WHEN ls.pieces >= 30 THEN CASE WHEN ${v} / ls.pieces <= 20 THEN ${v} END
+    WHEN ${v} <= 2000 THEN ${v}
+  END`;
+}
 
 export function parsePriceChartingCsv(text: string): BulkRow[] {
   const lines = text.split('\n');
@@ -119,9 +144,9 @@ export function parsePriceChartingCsv(text: string): BulkRow[] {
       setBase,
       explicitSetNum,
       identitySafe: tokens.length <= 1,
-      newValue: gate(money(iNew >= 0 ? v[iNew] : undefined)),
-      completeValue: gate(money(iCib >= 0 ? v[iCib] : undefined)),
-      looseValue: gate(money(iLoose >= 0 ? v[iLoose] : undefined)),
+      newValue: money(iNew >= 0 ? v[iNew] : undefined),
+      completeValue: money(iCib >= 0 ? v[iCib] : undefined),
+      looseValue: money(iLoose >= 0 ? v[iLoose] : undefined),
       salesVolume: Number.isFinite(vol) && vol > 0 ? Math.round(vol) : null,
     });
   }
@@ -423,6 +448,22 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
     JOIN lego_sets ls ON ls.set_num=pm.set_num
    AND ${OBSERVATION_IDENTITY_COMPATIBLE}`;
 
+  // Judge every staged price against the set it is now mapped to, before any
+  // write reads it. Unmapped rows are never written, so they are left alone.
+  // Re-run after triage, which can map more products before the signal writes.
+  const gateStagedValues = () => env.DB.prepare(`
+    UPDATE ${STAGE} AS s SET
+      newv = ${plausibleSql('s.newv', ['ls.bl_new_value', 'ls.ebay_new_value'])},
+      cibv = ${plausibleSql('s.cibv', ['ls.used_value', 'ls.ebay_used_value'])},
+      loosev = ${plausibleSql('s.loosev', ['ls.used_value', 'ls.ebay_used_value'])}
+    FROM pricing_source_map pm JOIN lego_sets ls ON ls.set_num = pm.set_num
+      LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
+    WHERE pm.source = 'pricecharting' AND pm.source_item_id = s.pcid
+      AND pm.status IN ('verified', 'manual')
+      AND (s.newv IS NOT NULL OR s.cibv IS NOT NULL OR s.loosev IS NOT NULL)
+  `).run();
+  await gateStagedValues();
+
   // Manual mappings can exist without a UPC. Dual-write the legacy columns for
   // rollback, but only normalized signals participate in pricing v3.
   await env.DB.prepare(`
@@ -553,6 +594,8 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
   } catch (e) {
     console.warn('[pc-bulk] quarantine triage failed:', (e as Error).message);
   }
+
+  await gateStagedValues();
 
   await env.DB.batch([
     signalInsert('new_sealed', 'newv'),
