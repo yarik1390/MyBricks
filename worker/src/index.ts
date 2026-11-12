@@ -257,6 +257,7 @@ app.route('/api/minifigs', minifigsRoute);
 app.route('/api/subcollections', subcollectionsRoute);
 import { changesRoute } from './routes/changes'; app.route('/api/changes', changesRoute);
 app.route('/api/scan', scanRoute);
+import { adminScanVectorsRoute } from './routes/admin-scan-vectors'; app.route('/api/scan-vectors', adminScanVectorsRoute);
 app.route('/api/admin', adminRoute);
 app.route('/api/advisor', advisorRoute);
 app.route('/api/users', profileRoute);
