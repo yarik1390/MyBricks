@@ -31,13 +31,18 @@ export const SORTS: Record<string, string> = {
   // INNER-joins the 30-day snapshot and filters both values > 0, so every row
   // reaching this sort has real momentum; the old CASE/-1 fallback for
   // snapshot-less sets is gone with the LEFT join that produced them.
-  trending:   '((s.current_value - svh30.current_value) / svh30.current_value) DESC',
-  // Biggest upside: 2-year forecast over today's shown value. Formula-valued
-  // sets and rows with no forecast or value sink below real ones, and so do
-  // merchandise (bags, books, no pieces) and low/estimated-confidence prices:
-  // a +1257% backpack on a rough $18-$368 range is noise, not a top pick
-  // (outside review 2026-10-30).
-  upside_desc: "(CASE WHEN valuation_method IN ('formula_bulk', 'local') OR COALESCE(forecast_2y, 0) <= 0 OR COALESCE(NULLIF(blended_value, 0), current_value, 0) <= 0 OR COALESCE(s.theme, '') IN ('Gear', 'Books', 'Promotional') OR COALESCE(s.pieces, 0) < 1 OR COALESCE(s.blended_confidence, '') NOT IN ('medium', 'high') THEN 1 ELSE 0 END), (forecast_2y / COALESCE(NULLIF(blended_value, 0), current_value)) DESC",
+  // Both sides are the shown value (blend first), the same figure the
+  // snapshot job stores; raw current_value is a different number.
+  trending:   '((COALESCE(NULLIF(s.blended_value, 0), s.current_value) - svh30.current_value) / svh30.current_value) DESC',
+  // Biggest upside: 2-year forecast over today's shown value, from the
+  // persisted v3 forecast (svf, joined by the search route for this sort) and
+  // only when it is a real projection (status ready/external). The legacy
+  // forecast_2y column is not one: it holds a fixed +21%/+32% growth rule, or
+  // BrickEconomy's own forecast (unlicensed), so it ranked nothing real
+  // (2026-11-12). Sets without a real forecast follow, most valuable first.
+  // Merchandise (bags, books, no pieces) and low/estimated-confidence prices
+  // still sink: a +1257% backpack on a rough range is noise (review 2026-10-30).
+  upside_desc: "(CASE WHEN json_extract(svf.forecast_json, '$.status') NOT IN ('ready', 'external') OR COALESCE(json_extract(svf.forecast_json, '$.base'), 0) <= 0 OR COALESCE(svf.fair_value, 0) <= 0 OR COALESCE(s.theme, '') IN ('Gear', 'Books', 'Promotional') OR COALESCE(s.pieces, 0) < 1 OR COALESCE(svf.confidence, '') NOT IN ('medium', 'high') THEN 1 ELSE 0 END), (CASE WHEN json_extract(svf.forecast_json, '$.status') IN ('ready', 'external') THEN json_extract(svf.forecast_json, '$.base') / NULLIF(svf.fair_value, 0) END) DESC, COALESCE(NULLIF(blended_value, 0), current_value, 0) DESC",
 };
 
 // Non-building merchandise (bag tags, bags, apparel, stationery, books) is

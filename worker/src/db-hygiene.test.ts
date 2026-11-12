@@ -163,7 +163,7 @@ describe('runDbHygiene', () => {
       // Plausible ultra-rare ($14.3/piece) — kept even without corroboration.
       db.prepare(`INSERT INTO lego_sets (set_num, name, pieces, year, theme, retired, current_value, valuation_method) VALUES ('OK-1','Rare', 910, 2009, 'Promotional', 1, 13037, 'brickeconomy')`),
       // High value but corroborated by a real comp — untouched.
-      db.prepare(`INSERT INTO lego_sets (set_num, name, pieces, year, current_value, bl_new_value, valuation_method) VALUES ('CORR-1','Backed', 5198, 2007, 2983, 2900, 'brickeconomy')`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, pieces, year, current_value, bl_new_value, blended_value, valuation_method) VALUES ('CORR-1','Backed', 5198, 2007, 2983, 2900, 2900, 'brickeconomy')`),
     ]);
 
     const r = await runDbHygiene(env as any);
@@ -174,11 +174,33 @@ describe('runDbHygiene', () => {
     expect(healed!.current_value).toBeLessThan(200); // formula scale, not $15k
     expect(healed!.be_value_new).toBeNull();
     expect(healed!.retail_price).toBeNull(); // scrape-fed retail dropped with it
-    const rare = await db.prepare(`SELECT current_value, valuation_method FROM lego_sets WHERE set_num='OK-1'`).first<{ current_value: number; valuation_method: string }>();
-    expect(rare!.current_value).toBe(13037);
+    // Not re-formula'd; with BrickEconomy off (the default) the BE headline is
+    // then scrubbed: nothing of our own prices the rare set, so it has none.
+    const rare = await db.prepare(`SELECT current_value, valuation_method FROM lego_sets WHERE set_num='OK-1'`).first<{ current_value: number | null; valuation_method: string }>();
     expect(rare!.valuation_method).toBe('brickeconomy');
+    expect(rare!.current_value).toBeNull();
     const backed = await db.prepare(`SELECT current_value FROM lego_sets WHERE set_num='CORR-1'`).first<{ current_value: number }>();
-    expect(backed!.current_value).toBe(2983);
+    expect(backed!.current_value).toBe(2900); // our blend, not the scraped $2,983
+  });
+
+  it('replaces BrickEconomy headlines and forecasts while the source is off', async () => {
+    await db.batch([
+      db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, blended_value, forecast_2y, forecast_5y, valuation_method) VALUES ('BEB-1','Blended', 750, 220, 800, 900, 'brickeconomy')`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, forecast_2y, valuation_method) VALUES ('BEL-1','Lone', 562, 600, 'brickeconomy')`),
+      db.prepare(`INSERT INTO lego_sets (set_num, name, current_value, blended_value, forecast_2y, valuation_method) VALUES ('MKT-1','Market', 200, 210, 264.5, 'market')`),
+    ]);
+
+    const r = await runDbHygiene(env as any);
+
+    expect(r.brickEconomyScrubbed).toBe(2);
+    const rows = await db.prepare(`SELECT set_num, current_value, forecast_2y, forecast_5y FROM lego_sets ORDER BY set_num`).all();
+    expect(rows.results).toEqual([
+      { set_num: 'BEB-1', current_value: 220, forecast_2y: null, forecast_5y: null },
+      { set_num: 'BEL-1', current_value: null, forecast_2y: null, forecast_5y: null },
+      { set_num: 'MKT-1', current_value: 200, forecast_2y: 264.5, forecast_5y: null },
+    ]);
+    // Idempotent.
+    expect((await runDbHygiene(env as any)).brickEconomyScrubbed).toBe(0);
   });
 
   it('sweeps orphaned running cron rows older than the window and reports the count', async () => {

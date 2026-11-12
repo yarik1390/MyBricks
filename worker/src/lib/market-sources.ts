@@ -301,7 +301,8 @@ export function marketConfidence(row: Record<string, unknown>, sources = buildMa
 
 export function primaryValueSource(row: Record<string, unknown>): string {
   switch (String(row.valuation_method || '')) {
-    case 'brickeconomy': return 'brickeconomy';
+    // While the source is off, the headline is our own blend, not its figure.
+    case 'brickeconomy': return brickEconomyOn() ? 'brickeconomy' : 'derived_market';
     // Naming BrickLink as the primary source is itself a display claim, so it
     // follows the same 24h window as the source list. Outside it the value is
     // reported as our own derived market estimate.
@@ -325,6 +326,9 @@ export function valuationExplanation(row: Record<string, unknown>, confidence: M
         : 'Estimated';
   const stale = freshness === 'expired' ? ' The value is due for refresh.' : freshness === 'stale' ? ' The value is older than 60 days.' : '';
   const blNamed = bricklinkDisplayable(row);
+  if (method === 'brickeconomy' && !brickEconomyOn()) {
+    return `${prefix}: our own blended market estimate from sold comps, marketplace guides and similar sets.${stale}`;
+  }
   if (method === 'brickeconomy') {
     return blNamed
       ? `${prefix}: a modeled market guide is primary, with BrickLink/eBay used when available.${stale}`
@@ -444,7 +448,10 @@ export function setSourceWeightMultipliers(m: Record<string, number>): void {
 }
 // BrickEconomy's own forecast and value may only seed the "external" growth
 // scenario while that source is enabled (it is retired in production).
-export const brickEconomyOn = (): boolean => sourceWeightMultipliers.brickeconomy !== 0;
+// Fail-CLOSED: the data is unlicensed for display (legal review 2026-11-08),
+// so an isolate that never loaded the source config (a failed settings read,
+// a code path that skipped applySourceConfig) must treat it as off, not on.
+export const brickEconomyOn = (): boolean => (sourceWeightMultipliers.brickeconomy ?? 0) > 0;
 export function resetSourceWeightMultipliers(): void {
   for (const k of Object.keys(sourceWeightMultipliers)) delete sourceWeightMultipliers[k];
 }
@@ -507,7 +514,10 @@ function effectiveSignals(row: Record<string, unknown>, extraSignals: MarketPric
     // hard exclusion, not just a very small weight — a weighted median with a
     // near-zero-but-present point could still pick it in some distributions.
     .filter((signal) => {
-      const multiplier = sourceWeightMultipliers[sourceOwner(signal)];
+      const owner = sourceOwner(signal);
+      // BrickEconomy only with an explicit positive weight (see brickEconomyOn).
+      if (owner === 'brickeconomy') return brickEconomyOn();
+      const multiplier = sourceWeightMultipliers[owner];
       return multiplier == null || multiplier > 0;
     })
     // Anything above 0 is a genuine scaling factor, not just on/off — attach
@@ -825,9 +835,46 @@ export function computeDealSignal(
 // A figure built from <90% of a set's pieces understates badly, so withhold it.
 const PART_OUT_MIN_COVERAGE = 0.9;
 
+/**
+ * The only outside growth scenario buildForecastV3 may rebase: BrickEconomy's
+ * own forecast, and only while that source is switched on (off in production).
+ * The legacy forecast_2y/forecast_5y columns are NOT one: the valuation jobs
+ * fill them with value x 1.10^2 (still sold) or x 1.15^2 (retired), a fixed
+ * rule rather than a forecast, so reading them as "external" would dress that
+ * rule up as a market projection.
+ */
+export function externalForecastInput(row: Record<string, unknown>): {
+  twoYear: number | null; fiveYear: number | null; sourceBaseline: number | null; asOf: string | null;
+} | undefined {
+  if (!brickEconomyOn()) return undefined;
+  return {
+    twoYear: num(row.be_forecast_2y),
+    fiveYear: num(row.be_forecast_5y),
+    sourceBaseline: num(row.be_value_new),
+    asOf: text(row.be_cached_at),
+  };
+}
+
+/** A 2-year projection that is real (history-based, or an enabled external
+ *  scenario), else null. Everything that shows or ranks by "upside" reads this. */
+export function realForecastBase(forecast: { status?: string; base?: number | null } | null | undefined): number | null {
+  if (!forecast || (forecast.status !== 'ready' && forecast.status !== 'external')) return null;
+  return num(forecast.base);
+}
+
+/** A row whose stored headline (current_value) is a BrickEconomy figure while
+ *  that source is off: the number must not reach a surface. */
+export function isRetiredBrickEconomyHeadline(row: Record<string, unknown>): boolean {
+  return String(row.valuation_method || '') === 'brickeconomy' && !brickEconomyOn();
+}
+
 export function enrichSetRecord<T extends Record<string, unknown>>(row: T, history?: BlendHistory): T {
   const enriched = enrichSetRecordInner(row, history);
   if (isValueWithheld(row.set_num)) return withholdSetValue(enriched);
+  // Only a BrickEconomy scrape stands behind this set's number: show none.
+  if (isRetiredBrickEconomyHeadline(row) && !num((enriched as Record<string, unknown>).market_value)) {
+    return withholdSetValue(enriched, 'No market sales found yet, so no price is shown.');
+  }
   if (isTrivialEstimate(row)) {
     const out = withholdSetValue(enriched, 'No market sales and no real retail price, so no price is shown.');
     if (isPlaceholderRetail(row)) (out as Record<string, unknown>).retail_price = null;
@@ -891,7 +938,8 @@ function enrichSetRecordInner<T extends Record<string, unknown>>(row: T, history
   const publicUsedState = bricklinkDisplayable(row)
     ? usedState
     : { ...usedState, basis: publicBasis(usedState.basis) };
-  const legacyValue = num(row.blended_value) || num(row.current_value);
+  const beHeadline = isRetiredBrickEconomyHeadline(row);
+  const legacyValue = num(row.blended_value) || (beHeadline ? null : num(row.current_value));
   const legacyConfidence = String(row.blended_confidence || '') as MarketConfidence;
   const confidence = v3ReadEnabled && newState.fair_value
     ? publicNewState.confidence
@@ -920,12 +968,7 @@ function enrichSetRecordInner<T extends Record<string, unknown>>(row: T, history
   const partOutCoverage = Number(row.part_out_coverage);
   const partOutValue = num(row.part_out_value);
   const storedForecast = row.__valuation_forecast as ReturnType<typeof buildForecastV3> | undefined;
-  const forecast = storedForecast || buildForecastV3(newState, history, {
-    twoYear: (brickEconomyOn() ? num(row.be_forecast_2y) : null) || num(row.forecast_2y),
-    fiveYear: (brickEconomyOn() ? num(row.be_forecast_5y) : null) || num(row.forecast_5y),
-    sourceBaseline: (brickEconomyOn() ? num(row.be_value_new) : null) || num(row.current_value),
-    asOf: (brickEconomyOn() ? text(row.be_cached_at) : null) || text(row.cached_at),
-  });
+  const forecast = storedForecast || buildForecastV3(newState, history, externalForecastInput(row));
   const acquisitionPrice = num(row.pa_lowest_offer)
     || (Number(row.lego_in_stock) === 1 ? num(row.retail_price) : null);
   const retailOffer = row.__retail_offer as Record<string, unknown> | undefined;
@@ -954,6 +997,13 @@ function enrichSetRecordInner<T extends Record<string, unknown>>(row: T, history
   for (const key of ['pc_new_value', 'pc_complete_value', 'pc_loose_value', 'pc_cached_at', 'pc_id']) {
     delete publicRow[key];
   }
+  // current_value on a BrickEconomy-headed row is the scrape itself; every
+  // client fallback (wishlist targets, scanner, flip calc) reads it, so it
+  // carries our own fair value instead. The legacy forecast columns are a
+  // fixed growth rule or BrickEconomy's forecast; only a real projection ships.
+  if (beHeadline) publicRow.current_value = publicNewState.fair_value ?? num(row.blended_value);
+  publicRow.forecast_2y = realForecastBase(forecast);
+  publicRow.forecast_5y = null;
   return {
     ...publicRow,
     market_sources: sources,
@@ -1223,12 +1273,7 @@ function valuationStateStatement(
   history?: BlendHistory,
 ): D1PreparedStatement {
   const forecast = state.condition === 'new_sealed'
-    ? buildForecastV3(state, history, {
-      twoYear: (brickEconomyOn() ? num(row.be_forecast_2y) : null) || num(row.forecast_2y),
-      fiveYear: (brickEconomyOn() ? num(row.be_forecast_5y) : null) || num(row.forecast_5y),
-      sourceBaseline: (brickEconomyOn() ? num(row.be_value_new) : null) || num(row.current_value),
-      asOf: (brickEconomyOn() ? text(row.be_cached_at) : null) || text(row.cached_at),
-    })
+    ? buildForecastV3(state, history, externalForecastInput(row))
     : null;
   return db.prepare(VALUATION_STATE_UPSERT_SQL).bind(
     setNum,

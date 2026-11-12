@@ -416,6 +416,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
     });
 
     it('Biggest upside puts merchandise and low-confidence forecasts last', async () => {
+      const ready = (base: number) => JSON.stringify({ status: 'ready', base });
       await db.batch([
         db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, forecast_2y, valuation_method, blended_confidence)
                     VALUES ('UP-BAG','Ninja Backpack','Gear',2025,0,28,380,'blend','medium')`),
@@ -423,6 +424,15 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
                     VALUES ('UP-LOW','Rough Ninja Set','UpsideTheme',2025,300,20,200,'blend','low')`),
         db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, forecast_2y, valuation_method, blended_confidence)
                     VALUES ('UP-OK','Solid Ninja Set','UpsideTheme',2025,500,100,180,'blend','medium')`),
+        // A huge legacy forecast_2y (a fixed growth rule or an unlicensed
+        // scrape) with no real projection behind it must not rank.
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, pieces, current_value, forecast_2y, valuation_method, blended_confidence)
+                    VALUES ('UP-FAKE','Ninja Legacy Set','UpsideTheme',2025,500,100,900,'brickeconomy','medium')`),
+        db.prepare(`INSERT INTO set_valuation_state (set_num, condition, fair_value, confidence, forecast_json) VALUES ('UP-BAG','new_sealed',28,'medium',?)`).bind(ready(380)),
+        db.prepare(`INSERT INTO set_valuation_state (set_num, condition, fair_value, confidence, forecast_json) VALUES ('UP-LOW','new_sealed',20,'low',?)`).bind(ready(200)),
+        db.prepare(`INSERT INTO set_valuation_state (set_num, condition, fair_value, confidence, forecast_json) VALUES ('UP-OK','new_sealed',100,'medium',?)`).bind(ready(180)),
+        db.prepare(`INSERT INTO set_valuation_state (set_num, condition, fair_value, confidence, forecast_json) VALUES ('UP-FAKE','new_sealed',100,'medium',?)`)
+          .bind(JSON.stringify({ status: 'insufficient_history', base: null })),
       ]);
       await db.prepare(`INSERT INTO lego_sets_fts(rowid, set_num, name, theme)
         SELECT rowid, set_num, name, theme FROM lego_sets WHERE set_num LIKE 'UP-%'`).run();
@@ -431,6 +441,10 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect((await nums('sort=upside_desc&limit=100'))[0]).toBe('UP-OK');
       // Keyword search joins the FTS table, which also has a theme column.
       expect((await nums('q=ninja&sort=upside_desc&limit=100'))[0]).toBe('UP-OK');
+      // The payload carries only the real projection as forecast_2y.
+      const rows = (await (await app.fetch(new Request('http://localhost/api/sets/search?theme=UpsideTheme&sort=upside_desc&limit=100'), env)).json<any>()).sets;
+      expect(rows.find((r: any) => r.set_num === 'UP-OK').forecast_2y).toBe(180);
+      expect(rows.find((r: any) => r.set_num === 'UP-FAKE').forecast_2y).toBeNull();
     });
 
     it('search results omit raw per-source inputs the client never reads', async () => {
@@ -496,6 +510,21 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(nums).toContain('RT-OLD-1');
       expect(nums).not.toContain('RT-NEW-1');
       expect(nums).not.toContain('RT-PRE-1');
+    });
+
+    it('retiring=1 drops sets whose exit date passed long ago with no live LEGO.com signal', async () => {
+      await db.batch([
+        // Risk model still scores it, but LEGO's exit date was 2023 and LEGO.com has nothing.
+        db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired, retirement_risk_score, exit_date) VALUES ('RT-GONE-1','Long Gone',2022,0,85,'2023-12-31T00:00:00Z')`),
+        // Same old date, but LEGO.com still flags it retiring: keep.
+        db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired, lego_retiring_soon, exit_date) VALUES ('RT-FLAG-1','Still Flagged',2022,0,1,'2023-12-31T00:00:00Z')`),
+        // Exit date only weeks ago: keep (LEGO.com may lag).
+        db.prepare(`INSERT INTO lego_sets (set_num, name, year, retired, retirement_risk_score, exit_date) VALUES ('RT-RECENT-1','Just Past',2024,0,85,strftime('%Y-%m-%dT00:00:00Z','now','-20 days'))`),
+      ]);
+      const nums = (await (await app.fetch(new Request('http://localhost/api/sets/search?retiring=1&limit=100'), env)).json<any>()).sets.map((x: any) => x.set_num);
+      expect(nums).not.toContain('RT-GONE-1');
+      expect(nums).toContain('RT-FLAG-1');
+      expect(nums).toContain('RT-RECENT-1');
     });
 
     it('handles exact set numbers with dashes as plain search text', async () => {

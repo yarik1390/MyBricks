@@ -1,6 +1,6 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { env } from 'cloudflare:test';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { parseNextBackfillPage } from './jobs/backfill-upc';
 import {
   isEbayAccessError,
@@ -13,7 +13,7 @@ import { computeMinifigRarity } from './lib/minifig-rarity';
 import { proxyImageUrl, rewriteImages } from './lib/img-proxy';
 import { isSearchIndexCorruption } from './lib/search-index';
 import { formulaValuation, retailAgeMultiplier, isLikelyRetired, isPlausibleMarketValue } from './lib/valuation';
-import { blendMarketValue, computeDealSignal, buildMarketSources, enrichSetRecord, correctedValuationMethod, BLEND_INPUT_COLUMNS, BLEND_EXT_COLUMNS, SERVER_ONLY_BLEND_COLUMNS } from './lib/market-sources';
+import { blendMarketValue, computeDealSignal, buildMarketSources, enrichSetRecord, correctedValuationMethod, BLEND_INPUT_COLUMNS, BLEND_EXT_COLUMNS, SERVER_ONLY_BLEND_COLUMNS, setSourceWeightMultipliers, resetSourceWeightMultipliers } from './lib/market-sources';
 import { CATALOG_COLS } from './routes/sets';
 import { computePartOutValue, partKey } from './lib/part-out';
 
@@ -491,6 +491,10 @@ describe('correctedValuationMethod', () => {
 });
 
 describe('blendMarketValue (valuation v2)', () => {
+  // These cases exercise BrickEconomy handling, so the source is switched on
+  // explicitly: with no source config loaded it is off (fail-closed).
+  beforeEach(() => setSourceWeightMultipliers({ brickeconomy: 1 }));
+  afterEach(() => resetSourceWeightMultipliers());
   const now = new Date().toISOString();
   const old = new Date(Date.now() - 200 * 86_400_000).toISOString();
 
