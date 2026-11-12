@@ -1,0 +1,50 @@
+name: Scan image-index eval
+
+# Measures how well catalog-image embeddings (Workers AI multimodal embedding
+# model) identify real-world LEGO photos. Read-only: calls Workers AI only, no
+# D1 writes, no Vectorize. Test photos are listed by URL in
+# scripts/scan-eval/test-photos.json (not stored in the repo).
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "probe | eval"
+        required: false
+        default: "eval"
+      distractors:
+        description: "Extra catalog sets embedded as distractors (0-30000)"
+        required: false
+        default: "3000"
+  push:
+    branches: [claude/project-thread-a60pfk]
+    paths: [".github/workflows/scan-vector-eval.yml", "scripts/scan-eval/**"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scan-vector-eval
+  cancel-in-progress: true
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          MODE: ${{ inputs.mode || 'probe' }}
+          DISTRACTORS: ${{ inputs.distractors || '3000' }}
+        run: node scripts/scan-eval/eval.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scan-eval-report
+          path: scan-eval-out/
+          if-no-files-found: ignore
