@@ -198,6 +198,14 @@ function priceFromListing(item: EbayListingItem, setNum: string): number | null 
 }
 
 const EBAY_SCOPE_BASIC = 'https://api.ebay.com/oauth/api_scope';
+const EBAY_LEGO_SETS_CATEGORY = '19006';
+const EBAY_MIN_GTIN_RESULTS = 3;
+
+/** A 12-digit UPC-A or 13-digit EAN, digits only; anything else is ignored. */
+export function validGtin(upc: unknown): string | null {
+  const digits = String(upc ?? '').trim();
+  return /^\d{12,13}$/.test(digits) ? digits : null;
+}
 
 export interface EbayActiveListings {
   ask_value: number | null;
@@ -214,7 +222,7 @@ export async function fetchEbayActiveListings(
   setNum: string,
   setName: string,
   env: Env,
-  options: { recordHealth?: boolean } = {},
+  options: { recordHealth?: boolean; upc?: string | null } = {},
 ): Promise<EbayActiveListings | null> {
   void setName;
   if (!hasConfiguredEbaySecrets(env)) return null;
@@ -230,13 +238,15 @@ export async function fetchEbayActiveListings(
   }
   if (!token) return { ask_value: null, ask_qty: 0, error: 'eBay OAuth token request failed.' };
 
-  const params = new URLSearchParams({
-    q: cleanKeywords(setNum),
-    limit: '50',
-    filter: 'buyingOptions:{FIXED_PRICE},conditions:{NEW}',
-  });
-
-  try {
+  // Category 19006 = LEGO Complete Sets & Packs: eBay itself drops manuals,
+  // loose parts, minifigures and light kits before the title filter runs.
+  const search = async (query: Record<string, string>): Promise<{ prices: number[] } | { error: string }> => {
+    const params = new URLSearchParams({
+      ...query,
+      category_ids: EBAY_LEGO_SETS_CATEGORY,
+      limit: '50',
+      filter: 'buyingOptions:{FIXED_PRICE},conditions:{NEW}',
+    });
     const resp = await fetchTracked(
       env,
       'ebay',
@@ -250,22 +260,32 @@ export async function fetchEbayActiveListings(
       },
       { retries: 1, timeoutMs: 10000, record: options.recordHealth !== false },
     );
-    if (!resp.ok) {
-      return { ask_value: null, ask_qty: 0, error: await ebayErrorMessage(resp, 'eBay Browse') };
-    }
-
-    const data = await resp.json() as {
-      itemSummaries?: Array<{ title?: string; price?: { value?: string | number; currency?: string } }>;
+    if (!resp.ok) return { error: await ebayErrorMessage(resp, 'eBay Browse') };
+    const data = await resp.json() as { itemSummaries?: EbayListingItem[] };
+    return {
+      prices: (data.itemSummaries || [])
+        .map(item => priceFromListing(item, setNum))
+        .filter((price): price is number => price != null),
     };
-    const prices = (data.itemSummaries || [])
-      .map(item => priceFromListing(item, setNum))
-      .filter((price): price is number => price != null);
-    const summary = summarizeSoldPrices(prices);
+  };
+
+  try {
+    // The set's barcode pins the exact product (no "75192 compatible" or
+    // other-set lots). Many sellers leave GTIN blank, so a thin barcode result
+    // falls back to the keyword search: at most one extra call per set.
+    const gtin = validGtin(options.upc);
+    let result = gtin ? await search({ gtin }) : null;
+    if (!result || 'error' in result || result.prices.length < EBAY_MIN_GTIN_RESULTS) {
+      result = await search({ q: cleanKeywords(setNum) });
+    }
+    if ('error' in result) return { ask_value: null, ask_qty: 0, error: result.error };
+    const summary = summarizeSoldPrices(result.prices);
     return { ask_value: summary.value, ask_qty: summary.sample_count, error: null };
   } catch (error) {
     return { ask_value: null, ask_qty: 0, error: (error as Error).message || String(error) };
   }
 }
+
 
 export function buildEbayAskUpdate(
   db: D1Database,

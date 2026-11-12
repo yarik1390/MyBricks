@@ -261,7 +261,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
     // prioritized (owned/wishlisted) sets only. The Browse API needs only the
     // basic OAuth scope.
     if (includeEbay && !browseDenied && set.ask_stale && takeQuota('ebay')) {
-      const listings = await fetchEbayActiveListings(set.set_num, set.name, env, sourceOptions)
+      const listings = await fetchEbayActiveListings(set.set_num, set.name, env, { ...sourceOptions, upc: set.upc })
         .catch((err) => { tallyFail('ebay', err); return null; });
       if (listings && !listings.error) tallyOk('ebay');
       else if (listings?.error) {

@@ -114,11 +114,15 @@ describe('POST /api/bricklink/import-csv', () => {
 
 describe('community comps from multi-copy sales', () => {
   beforeEach(async () => {
-    await applyTestTables(db, ['lego_sets', 'user_collection', 'user_wishlist', 'community_comps', 'pricing_signals', 'pricing_write_ledger', 'realized_sales', 'holding_copies', 'set_value_history']);
+    await applyTestTables(db, ['lego_sets', 'user_collection', 'user_wishlist', 'community_comps', 'pricing_signals', 'pricing_write_ledger', 'realized_sales', 'holding_copies', 'set_value_history', 'user_prefs']);
   });
 
   it('divides a whole-holding sale price back to a per-set comp', async () => {
     await db.batch([
+      // Community comps count only collectors who turned on Share prices.
+      ...['u1', 'u2', 'u3', 'u4', 'u5'].map(u => db.prepare(
+        `INSERT INTO user_prefs (user_id, contribute_community_comps) VALUES (?, 1)`,
+      ).bind(u)),
       db.prepare(`INSERT INTO lego_sets (set_num, name, blended_value) VALUES ('CC-Q', 'CC-Q', 100)`),
       ...['u1', 'u2', 'u3', 'u4', 'u5'].map(u => db.prepare(
         `INSERT INTO user_collection (user_id, set_num, quantity, sold_price, sold_at, deleted_at) VALUES (?, 'CC-Q', 2, 200, date('now','-5 days'), datetime('now'))`,

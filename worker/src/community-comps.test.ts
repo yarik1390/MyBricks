@@ -14,7 +14,22 @@ const addPurchase = (user: string, setNum: string, price: number, cond = 'new') 
 
 describe('runCommunityComps (first-party comps aggregation)', () => {
   beforeEach(async () => {
-    await applyTestTables(db, ['lego_sets', 'user_collection', 'user_wishlist', 'community_comps', 'pricing_signals', 'pricing_write_ledger']);
+    await applyTestTables(db, ['lego_sets', 'user_collection', 'user_wishlist', 'community_comps', 'pricing_signals', 'pricing_write_ledger', 'user_prefs']);
+    // Every test collector has opted in unless a test records otherwise first.
+    await db.prepare(`CREATE TRIGGER cc_opt_in AFTER INSERT ON user_collection BEGIN
+      INSERT OR IGNORE INTO user_prefs (user_id, contribute_community_comps) VALUES (NEW.user_id, 1);
+    END`).run();
+  });
+
+  it('only counts collectors who opted in to sharing prices', async () => {
+    await db.batch([
+      addSet('CC-OPT', 100),
+      db.prepare(`INSERT INTO user_prefs (user_id, contribute_community_comps) VALUES ('u5', 0)`),
+      ...['u1', 'u2', 'u3', 'u4', 'u5'].map((u) => addPurchase(u, 'CC-OPT', 100)),
+    ]);
+    expect((await runCommunityComps(env as any)).published).toBe(0); // only 4 consenting
+    await db.prepare(`UPDATE user_prefs SET contribute_community_comps = 1 WHERE user_id = 'u5'`).run();
+    expect((await runCommunityComps(env as any)).published).toBe(1);
   });
 
   it('publishes a k>=5 set with the right median and counts', async () => {

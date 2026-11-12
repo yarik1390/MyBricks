@@ -419,7 +419,7 @@ export const ui = {
   "BricksVault Pro": "BricksVault Pro",
   "BricksVault Pro ⭐": "BricksVault Pro ⭐",
   "BricksVault Vault": "BricksVault Vault",
-  "BricksVault collectors can log what they actually paid for a set and what it actually sold for. We aggregate those real transactions into a community price signal — published only when": "Los coleccionistas de BricksVault pueden registrar lo que pagaron realmente por un set y por cuánto lo vendieron realmente. Agregamos esas transacciones reales en una señal de precio comunitaria, publicada solo cuando",
+  "BricksVault collectors can log what they actually paid for a set and what it actually sold for. Collectors who turn on Share prices, which is off by default, allow us to aggregate those real transactions into a community price signal — published only when": "Los coleccionistas de BricksVault pueden registrar lo que realmente pagaron por un set y por cuánto se vendió realmente. Quienes activan Compartir precios (desactivado por defecto) nos permiten agregar esas transacciones reales en una señal de precio de la comunidad, publicada solo cuando",
   "Brickset / barcode": "Brickset / código de barras",
   "Brickset account connected": "Cuenta de Brickset conectada",
   "Brickset disconnected": "Brickset desconectado",

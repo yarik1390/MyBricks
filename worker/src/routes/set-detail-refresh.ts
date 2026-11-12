@@ -36,7 +36,7 @@ export function scheduleSetDetailRefresh(c: RefreshCtx, activeSet: Record<string
         const refreshPromise = Promise.all([
           fetchSetPricing(activeSet.set_num as string, c.env).catch(() => null),
           fetchUsedPricing(activeSet.set_num as string, c.env).catch(() => null),
-          askStale ? fetchEbayActiveListings(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null) : Promise.resolve(null),
+          askStale ? fetchEbayActiveListings(activeSet.set_num as string, activeSet.name as string, c.env, { upc: activeSet.upc as string | null }).catch(() => null) : Promise.resolve(null),
         ]).then(async ([blp, u, askListings]) => {
           const supplementStmts: D1PreparedStatement[] = [];
           const askStmt = buildEbayAskUpdate(c.env.DB, activeSet.set_num as string, askListings);
@@ -99,7 +99,7 @@ export function scheduleSetDetailRefresh(c: RefreshCtx, activeSet: Record<string
         const refreshPromise = Promise.all([
           fetchSetPricing(activeSet.set_num as string, c.env).catch(() => null),
           fetchUsedPricing(activeSet.set_num as string, c.env).catch(() => null),
-          askStale ? fetchEbayActiveListings(activeSet.set_num as string, activeSet.name as string, c.env).catch(() => null) : Promise.resolve(null),
+          askStale ? fetchEbayActiveListings(activeSet.set_num as string, activeSet.name as string, c.env, { upc: activeSet.upc as string | null }).catch(() => null) : Promise.resolve(null),
         ]).then(async ([p, u, askListings]) => {
           const supplementStmts: D1PreparedStatement[] = [];
           const askStmt = buildEbayAskUpdate(c.env.DB, activeSet.set_num as string, askListings);

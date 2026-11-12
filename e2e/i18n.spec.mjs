@@ -1,8 +1,8 @@
 import { test, expect } from './fixtures.mjs';
 test.use({ locale: 'de-DE' });
-test('German BrickLink sales import discloses anonymous community medians', async ({ page }) => {
+test('German BrickLink sales import discloses opt-in anonymous community medians', async ({ page }) => {
   await page.goto('/#/me/data');
-  await expect(page.locator('#root')).toContainText('anonyme Community-Medianwerte');
+  await expect(page.locator('#root')).toContainText('anonymen Community-Medianen');
   await expect(page.locator('#root')).toContainText('mindestens fünf Sammler');
 });
 test('device locale drives the UI language', async ({ page }) => {

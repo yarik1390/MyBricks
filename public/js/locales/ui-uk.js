@@ -419,7 +419,7 @@ export const ui = {
   "BricksVault Pro": "BricksVault Pro",
   "BricksVault Pro ⭐": "BricksVault Pro ⭐",
   "BricksVault Vault": "Сховище BricksVault",
-  "BricksVault collectors can log what they actually paid for a set and what it actually sold for. We aggregate those real transactions into a community price signal — published only when": "Колекціонери BricksVault можуть записувати, скільки насправді заплатили за набір і за скільки його насправді продали. Ми агрегуємо ці реальні операції у ціновий сигнал спільноти — він публікується лише тоді, коли",
+  "BricksVault collectors can log what they actually paid for a set and what it actually sold for. Collectors who turn on Share prices, which is off by default, allow us to aggregate those real transactions into a community price signal — published only when": "Колекціонери BricksVault можуть записувати, скільки насправді заплатили за набір і за скільки його насправді продали. Колекціонери, які ввімкнули «Ділитися цінами» (типово вимкнено), дозволяють нам об’єднувати ці реальні угоди в ціновий сигнал спільноти — його публікують лише тоді, коли",
   "Brickset / barcode": "Brickset / штрихкод",
   "Brickset account connected": "Обліковий запис Brickset підключено",
   "Brickset disconnected": "Brickset відключено",

@@ -10,6 +10,7 @@ import { pricingWritesAllowed, recordPricingWrites } from '../lib/pricing-budget
 // pricing_signals as the verified 'community' sold family — the blend picks it
 // up automatically the moment enough collectors have priced a set.
 // Privacy and integrity rules:
+//   - Consent: only users who turned on user_prefs.contribute_community_comps.
 //   - k-anonymity: a row is published only when >= 5 DISTINCT users contributed.
 //   - Only aggregates are stored — never per-user prices.
 //   - 3x outlier trim vs the set's blended/current value (typo & lot protection);
@@ -55,6 +56,8 @@ export async function runCommunityComps(env: Env) {
         AND sold_at IS NOT NULL AND sold_at >= date('now', ?1)
     ) t
     JOIN lego_sets s ON s.set_num = t.set_num
+    -- Only collectors who opted in (Data & import -> Share prices).
+    JOIN user_prefs up ON up.user_id = t.user_id AND up.contribute_community_comps = 1
   `).bind(`-${WINDOW_DAYS} days`)
     .all<{ set_num: string; bucket: 'new_sealed' | 'used_complete'; user_id: string; price: number; ref: number | null }>();
 

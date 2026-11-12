@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isExactPriceChartingMatch } from './lib/pricecharting';
 import {
+  freshnessWeight,
   buildForecastV3,
   legacySignalsFor,
   valueSignalsV3,
@@ -426,5 +427,30 @@ describe('opened copies', () => {
     expect(holdingValueForRollout({ ...row, bl_new_qty: 0 }, 0)).toBe(3133);
     expect(holdingValueForRollout({ ...row, condition: 'sealed' }, 0)).toBe(3133);
     expect(holdingValueForRollout({ ...row, bl_new_value: 4000 }, 0)).toBe(3133);
+  });
+});
+
+describe('freshnessWeight', () => {
+  const now = Date.parse('2026-11-12T00:00:00Z');
+  const daysAgo = (d: number) => new Date(now - d * 86400000).toISOString();
+  const sig = (checked: number, extra: Record<string, unknown> = {}) => ({
+    set_num: 'X-1', source: 'bricklink_sold', provider_family: 'bricklink', condition: 'new_sealed',
+    signal_type: 'sold', value: 100, checked_at: daysAgo(checked), source_observed_at: daysAgo(checked), ...extra,
+  }) as any;
+
+  it('decays smoothly instead of dropping at day 15', () => {
+    expect(freshnessWeight(sig(5), now)).toBe(1);
+    expect(freshnessWeight(sig(10), now)).toBe(1);
+    const d14 = freshnessWeight(sig(14), now);
+    const d15 = freshnessWeight(sig(15), now);
+    expect(d14).toBeGreaterThan(0.8);
+    expect(d14 - d15).toBeLessThan(0.05); // no cliff
+    expect(freshnessWeight(sig(24), now)).toBeCloseTo(0.5, 2);
+    expect(freshnessWeight(sig(60), now)).toBe(0.35);
+  });
+
+  it('keeps an old sold observation and a missing check date at the stale floor', () => {
+    expect(freshnessWeight(sig(2, { source_observed_at: daysAgo(120) }), now)).toBe(0.35);
+    expect(freshnessWeight(sig(2, { checked_at: null, source_observed_at: null }), now)).toBe(0.35);
   });
 });
