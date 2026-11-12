@@ -1,5 +1,5 @@
 import type { Env } from '../types';
-import { enrichSetRecord } from './market-sources';
+import { enrichSetRecord, holdingValueForRollout, type HoldingValuationRow } from './market-sources';
 
 // Builds a structured context string for the AI advisor. Covers collection,
 // wishlist, portfolio stats, market movers, 90-day price trends, resale spread,
@@ -8,7 +8,7 @@ import { enrichSetRecord } from './market-sources';
 // rarity. Source-anonymized — the advice is user-facing, so the context feeds
 // generic signal types/confidence, never a provider name.
 export async function buildAdvisorContext(userId: string, env: Env): Promise<string> {
-  const [topSets, wishlist, stats, movers, trends, themes, rareFigs] = await Promise.all([
+  const [topSets, wishlist, holdings, movers, trends, rareFigs] = await Promise.all([
     env.DB.prepare(`
       SELECT ls.set_num, ls.name, ls.theme, COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) AS current_value, ls.retail_price,
              COALESCE(ls.ebay_new_value, ls.ebay_value) AS ebay_value,
@@ -61,14 +61,20 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
       lego_availability: string | null; lego_retiring_soon: number | null;
     }>(),
 
+    // Every holding, valued in JS by the same holdingValueForRollout chain as
+    // the vault total and the daily value chart (condition-aware, opened-copy
+    // cap, withheld values count as 0), so the advisor quotes the same totals.
     env.DB.prepare(`
-      SELECT COUNT(*) as set_count,
-             COALESCE(SUM(COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) * uc.quantity), 0) as total_value,
-             COALESCE(SUM(COALESCE(uc.purchase_price, 0) * uc.quantity), 0) as total_paid
+      SELECT uc.set_num, uc.condition, uc.quantity, uc.purchase_price, ls.theme,
+             ls.current_value, ls.blended_value, ls.used_value, ls.ebay_used_value,
+             ls.pc_new_value, ls.pc_complete_value, ls.bl_new_value, ls.bl_new_qty,
+             svn.fair_value AS v3_new_fair, svu.fair_value AS v3_used_fair
       FROM user_collection uc
       JOIN lego_sets ls ON ls.set_num = uc.set_num
+      LEFT JOIN set_valuation_state svn ON svn.set_num = ls.set_num AND svn.condition = 'new_sealed'
+      LEFT JOIN set_valuation_state svu ON svu.set_num = ls.set_num AND svu.condition = 'used_complete'
       WHERE uc.user_id = ? AND uc.deleted_at IS NULL
-    `).bind(userId).first<{ set_count: number; total_value: number; total_paid: number }>(),
+    `).bind(userId).all<HoldingValuationRow & { theme: string | null; quantity: number; purchase_price: number | null }>(),
 
     env.DB.prepare(`
       SELECT set_num, name, COALESCE(NULLIF(blended_value, 0), current_value) AS current_value, retail_price, valuation_method
@@ -87,33 +93,28 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
       retail_price: number | null; valuation_method: string;
     }>(),
 
-    // 90-day price growth per owned set (requires ≥7 snapshots for reliability)
+    // 90-day price change per owned set: latest snapshot vs the first one in
+    // the window (chronological, so a falling set reads negative), requiring
+    // >=7 snapshots for reliability.
     env.DB.prepare(`
-      SELECT svh.set_num,
-        ROUND((MAX(svh.current_value) - MIN(svh.current_value))
-              / NULLIF(MIN(svh.current_value), 0) * 100, 1) as growth_90d
-      FROM set_value_history svh
-      WHERE svh.snapshot_date >= DATE('now', '-90 days')
-        AND svh.set_num IN (
-          SELECT set_num FROM user_collection WHERE user_id = ? AND deleted_at IS NULL
-        )
-      GROUP BY svh.set_num
-      HAVING COUNT(*) >= 7
+      SELECT set_num, ROUND((last_v - first_v) / NULLIF(first_v, 0) * 100, 1) AS growth_90d
+      FROM (
+        SELECT svh.set_num, COUNT(*) AS n,
+          (SELECT x.current_value FROM set_value_history x WHERE x.set_num = svh.set_num
+             AND x.snapshot_date >= DATE('now', '-90 days') AND x.current_value > 0
+           ORDER BY x.snapshot_date ASC LIMIT 1) AS first_v,
+          (SELECT x.current_value FROM set_value_history x WHERE x.set_num = svh.set_num
+             AND x.snapshot_date >= DATE('now', '-90 days') AND x.current_value > 0
+           ORDER BY x.snapshot_date DESC LIMIT 1) AS last_v
+        FROM set_value_history svh
+        WHERE svh.snapshot_date >= DATE('now', '-90 days') AND svh.current_value > 0
+          AND svh.set_num IN (
+            SELECT set_num FROM user_collection WHERE user_id = ? AND deleted_at IS NULL
+          )
+        GROUP BY svh.set_num
+        HAVING COUNT(*) >= 7
+      )
     `).bind(userId).all<{ set_num: string; growth_90d: number }>(),
-
-    // Theme performance breakdown
-    env.DB.prepare(`
-      SELECT ls.theme,
-        COUNT(*) as sets,
-        ROUND(SUM(COALESCE(NULLIF(ls.blended_value, 0), ls.current_value) * uc.quantity), 0) as value,
-        ROUND(SUM(COALESCE(uc.purchase_price, 0) * uc.quantity), 0) as paid
-      FROM user_collection uc
-      JOIN lego_sets ls ON ls.set_num = uc.set_num
-      WHERE uc.user_id = ? AND uc.deleted_at IS NULL AND ls.theme IS NOT NULL
-      GROUP BY ls.theme
-      ORDER BY value DESC
-      LIMIT 5
-    `).bind(userId).all<{ theme: string; sets: number; value: number; paid: number }>(),
 
     // Rare+ owned minifigs (G1 real rarity) — surfaces standout figs so the
     // advisor can flag hidden value in the minifig collection.
@@ -126,6 +127,23 @@ export async function buildAdvisorContext(userId: string, env: Env): Promise<str
       LIMIT 8
     `).bind(userId).all<{ fig_num: string; name: string; rarity: string; current_value: number | null; quantity: number }>(),
   ]);
+
+  const rolloutPercent = Number(env.PRICING_V3_READ_PERCENT || 0);
+  const stats = { set_count: holdings.results.length, total_value: 0, total_paid: 0 };
+  const themeAgg = new Map<string, { theme: string; sets: number; value: number; paid: number }>();
+  for (const h of holdings.results) {
+    const qty = Number(h.quantity || 1);
+    const value = holdingValueForRollout(h, rolloutPercent) * qty;
+    const paid = (Number(h.purchase_price) || 0) * qty;
+    stats.total_value += value;
+    stats.total_paid += paid;
+    if (h.theme) {
+      const t = themeAgg.get(h.theme) || { theme: h.theme, sets: 0, value: 0, paid: 0 };
+      t.sets += 1; t.value += value; t.paid += paid;
+      themeAgg.set(h.theme, t);
+    }
+  }
+  const themes = { results: [...themeAgg.values()].sort((a, b) => b.value - a.value).slice(0, 5) };
 
   const fmt = (n: number | null | undefined) => n ? `$${n.toFixed(0)}` : 'unknown';
   const pct = (cur: number | null, paid: number | null) => {

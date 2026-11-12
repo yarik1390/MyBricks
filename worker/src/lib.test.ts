@@ -896,6 +896,16 @@ describe('computePartOutValue (E1 part-out)', () => {
     expect(r.total_lots).toBe(2);
   });
 
+  it('never extrapolates a low-coverage sum to the whole set', () => {
+    const parts = [
+      { part_num: 'a', color_id: 0, quantity: 1 }, // priced
+      { part_num: 'b', color_id: 1, quantity: 3 }, // unpriced
+    ];
+    const r = computePartOutValue(parts, price([['a', 0, 5]]));
+    expect(r.coverage).toBe(0.25);
+    expect(r.value).toBe(5); // was 5 / 0.25 * 0.85 = 17
+  });
+
   it('reports partial coverage (quantity-weighted) when some lots are unpriced', () => {
     const parts = [
       { part_num: 'a', color_id: 0, quantity: 2 }, // priced
