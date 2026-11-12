@@ -1,5 +1,6 @@
 import type { Env } from '../types';
 import { enrichSetRecord } from './market-sources';
+import { hydrateScanSets } from './scan-hydrate';
 
 // AI-described set from any vision provider (Gemini / OpenRouter / OpenAI).
 export interface DescribedSet {
@@ -59,6 +60,16 @@ function inferredSetNumber(cand: DescribedSet): string {
   return match?.[1] ?? '';
 }
 
+// Two words refer to the same thing: identical, or one is a plural/longer
+// form of the other with at least 5 shared letters ("falcon"/"falcons").
+// Short prefixes do not count: "star" must not match "starfighter", nor "car"
+// match "cargo".
+function sameWord(a: string, b: string): boolean {
+  if (a === b) return true;
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  return short.length >= 5 && long.startsWith(short);
+}
+
 export function isNameCompatible(catalogName: unknown, candidateName: unknown): boolean {
   const cName = normalizeMatchText(catalogName);
   const wName = normalizeMatchText(candidateName);
@@ -70,7 +81,23 @@ export function isNameCompatible(catalogName: unknown, candidateName: unknown): 
   const wWords = wName.split(' ').filter(w => w.length > 2 && !STOP.has(w));
   if (!cWords.length || !wWords.length) return true;
 
-  return wWords.some(w => cWords.includes(w) || cWords.some(cw => cw.startsWith(w) || w.startsWith(cw)));
+  // Two multi-word names must share at least two words: one generic word in
+  // common ("Star", "Castle") is not enough. A one-word name still matches on
+  // that word.
+  const shared = wWords.filter(w => cWords.some(cw => sameWord(w, cw))).length;
+  return shared >= Math.min(2, cWords.length, wWords.length);
+}
+
+// Merchandise that shares a set's name (bag tags, key chains, magnets, books).
+// It is demoted below real boxed sets unless the model described that item.
+const NOVELTY_THEME = /^(gear|books|key chains?|stationery|watches|clocks|storage|lifestyle|magnets)\b/;
+const NOVELTY_NAME = /\b(key ?chain|bag tag|magnet|plush|notebook|bookmark|gel pen|luggage tag|backpack|lunch box)\b/;
+
+function isNoveltyRow(row: Record<string, unknown>): boolean {
+  const pieces = Number(row.pieces);
+  return NOVELTY_THEME.test(normalizeMatchText(row.theme))
+    || NOVELTY_NAME.test(normalizeMatchText(row.name))
+    || (Number.isFinite(pieces) && pieces > 0 && pieces < 20);
 }
 
 function rankCatalogMatch(row: Record<string, unknown>, cand: DescribedSet): number {
@@ -86,6 +113,8 @@ function rankCatalogMatch(row: Record<string, unknown>, cand: DescribedSet): num
   else if (wantedName && rowName.startsWith(`${wantedName} `)) score += 30;
   if (wantedTheme && rowTheme === wantedTheme) score += 20;
   if (Number.isFinite(wantedYear) && rowYear === wantedYear) score += 10;
+  const wantedNovelty = NOVELTY_NAME.test(wantedName) || NOVELTY_THEME.test(wantedTheme);
+  if (!wantedNovelty && isNoveltyRow(row)) score -= 45;
   return score;
 }
 
@@ -116,6 +145,7 @@ export async function matchSetsToCatalog(env: Env, described: DescribedSet[]): P
   }
 
   const matched: Record<string, unknown>[] = [];
+  const picked: Array<{ row: Record<string, unknown>; cand: DescribedSet }> = [];
   const seen = new Set<string>();
   let topConfidence = 'none';
   let reasoning = '';
@@ -157,16 +187,27 @@ export async function matchSetsToCatalog(env: Env, described: DescribedSet[]): P
       const setNum = String(row.set_num);
       if (seen.has(setNum)) continue;
       seen.add(setNum);
-      // enrichSetRecord recomputes `confidence` as PRICING confidence, so the
-      // AI's identification confidence travels under its own key — the shelf
-      // checklist shows it per row ("medium match" ≠ "estimated price").
-      const box = scanBox(cand.box);
-      matched.push(enrichSetRecord({ ...row, retired: !!row.retired, confidence: cand.confidence, reasoning: cand.reasoning, match_confidence: cand.confidence ?? null, ...(box ? { scan_box: box } : {}) }));
+      picked.push({ row, cand });
       if (topConfidence === 'none' || cand.confidence === 'high') {
         topConfidence = cand.confidence ?? topConfidence;
         reasoning = cand.reasoning ?? reasoning;
       }
     }
+  }
+
+  // Price every match exactly like the set page (persisted v3 state). Falls
+  // back to enriching the matched row when the pricing tables are missing.
+  const hydrated = picked.length ? await hydrateScanSets(env.DB, picked.map(p => String(p.row.set_num))) : null;
+  for (const { row, cand } of picked) {
+    // enrichSetRecord recomputes `confidence` as PRICING confidence, so the
+    // AI's identification confidence travels under its own key — the shelf
+    // checklist shows it per row ("medium match" ≠ "estimated price").
+    const box = scanBox(cand.box);
+    const scanFields = { reasoning: cand.reasoning, match_confidence: cand.confidence ?? null, ...(box ? { scan_box: box } : {}) };
+    const priced = hydrated?.get(String(row.set_num));
+    matched.push(priced
+      ? { ...priced, ...scanFields }
+      : enrichSetRecord({ ...row, retired: !!row.retired, confidence: cand.confidence, ...scanFields }));
   }
 
   return { sets: matched, topConfidence, reasoning };

@@ -1654,9 +1654,42 @@ describe('BrickVault API Worker Tests', () => {
         expect(data.timings?.[0]).toMatchObject({ provider: 'local-ocr', outcome: 'accepted' });
         expect(brickognizeCalls).toBe(0);
         expect(brickognizeAcceptedAiCalls).toBe(0);
+        // A free on-device OCR hit must not use up a photo scan.
+        const reserved = await db.prepare(
+          "SELECT COUNT(*) AS n FROM scan_quota_reservations WHERE request_key='local-ocr-accepted-0001'",
+        ).first<{ n: number }>();
+        expect(reserved?.n).toBe(0);
       } finally {
         globalThis.fetch = previousFetch;
       }
+    });
+
+    it('accepts an unlabelled box-front number backed by the piece count, at no quota cost', async () => {
+      const res = await app.fetch(
+        new Request('http://localhost/api/scan/identify', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Idempotency-Key': 'local-ocr-boxfront-0001',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            mode: 'image',
+            image: 'data:image/x-local-ocr-boxfront;base64,mock',
+            ocr_lines: ['LEGO', 'STAR WARS', '75192', '7541 pcs/pzs', '18+', '\u00a9 2017 The LEGO Group'],
+          }),
+        }),
+        env,
+      );
+      expect(res.status).toBe(200);
+      const data = await res.json<{ source: string; sets: Array<{ set_num: string }>; timings?: Array<{ provider: string; model: string }> }>();
+      expect(data.source).toBe('local-ocr');
+      expect(data.sets[0]?.set_num).toBe('75192');
+      expect(data.timings?.[0]).toMatchObject({ provider: 'local-ocr', model: 'box-front' });
+      const reserved = await db.prepare(
+        "SELECT COUNT(*) AS n FROM scan_quota_reservations WHERE request_key='local-ocr-boxfront-0001'",
+      ).first<{ n: number }>();
+      expect(reserved?.n).toBe(0);
     });
 
     it('falls through when local OCR candidates map to multiple catalog sets', async () => {

@@ -8,11 +8,12 @@ import { state, invalidatePortfolio } from '../state.js';
 import { api, outboxEnqueue, getSessionUserId, photoScanNeedsSetup, isGuestMode } from '../api.js';
 import { I } from '../icons.js';
 import { showSheet, hideSheet } from './sheet.js';
-import { computeDealScore as computeDealScorePure, computeStoreVerdict, marketValueForCondition, flipEconomics, classifyScanFailure, manualScanTarget, displayValueOf, estMark } from '../lib/pure.js';
+import { computeDealScore as computeDealScorePure, computeStoreVerdict, marketValueForCondition, flipEconomics, classifyScanFailure, manualScanTarget, displayValueOf, estMark, acceptScannedBarcode } from '../lib/pure.js';
 import { checkGemma3Downloaded, runLocalVisionScan, isWebGpuAvailable } from '../lib/local-ai.js';
 import { flipCalcHTML } from './flip-calc.js';
 import { isNativeCapacitor } from '../lib/native-auth.js';
-import { collectOcrCandidates } from '../lib/scan-ocr.js';
+import { collectOcrEvidence } from '../lib/scan-ocr.js';
+import { lookupSeedByBarcode } from '../lib/seed-catalog.js';
 import { amazonSlotHTML, hydrateAmazonSlots } from '../lib/amazon-affiliate.js';
 import { t, tPlural, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 import { getModePref, setSystemBarsOverride } from '../theme.js';
@@ -31,6 +32,11 @@ let _lastRetryableScan = null;
 // (catalog lookup, OCR, on-device AI, Turnstile, blind boxes) is unchanged.
 // ---------------------------------------------------------------------------
 let _session = [];           // sets added in this scanner session (Done · N)
+// Shelf Snap photo size, and the upload ceiling kept under the Worker's
+// 2,000,000-character image limit.
+const SHELF_MAX_SIDE = 1600;
+const SCAN_UPLOAD_MAX_CHARS = 1_850_000;
+const base64Chars = (dataUrl) => String(dataUrl || '').length - String(dataUrl || '').indexOf(',') - 1;
 let _lastBarcode = null;     // last decoded / typed barcode (unknown-code card)
 let _moveCloserTimer = null; // "Move closer" + zoom step after 2.5 s
 let _liveStop = null;        // stop() for the native live scanner
@@ -211,7 +217,9 @@ function trackScanPath(path, { final = false } = {}) {
 // Why the scanner failed, short enough for the admin metric key (32 chars):
 // "barcode:err:" + the first letters of the plugin's error code or message.
 function trackScanError(where, error) {
-  const raw = String(error?.code || error?.message || error || "unknown");
+  // The message first: Capacitor plugin rejections carry a generic code
+  // ("error"), which said nothing about why the live scanner failed.
+  const raw = String(error?.message || error?.code || error || "unknown");
   const slug = raw.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 16) || "unknown";
   track("scan_path", `${state.camera.mode || "barcode"}:${where}:${slug}`);
 }
@@ -556,7 +564,10 @@ export function openScan(mode = "barcode", { deferStart = false, shelf = false, 
         if (state.camera.shelf) {
           stopCamera();
           const dataUrl = await readFileAsDataURL(files[0]);
-          const resized = await resizeImage(dataUrl, 1280);
+          // More detail so small spine numbers stay readable, stepped down if
+          // the photo would exceed the server's upload limit.
+          let resized = await resizeImage(dataUrl, SHELF_MAX_SIDE);
+          if (base64Chars(resized) > SCAN_UPLOAD_MAX_CHARS) resized = await resizeImage(dataUrl, 1280);
           const preview = $("#scanPhotoPreview");
           if (preview) { preview.src = resized; preview.hidden = false; }
           document.querySelector(".bv-scan")?.classList.add("has-captured-photo");
@@ -609,7 +620,8 @@ export function closeScan() {
 }
 
 export function stopCamera() {
-  clearInterval(state.camera.timer);
+  _barcodeLoop += 1;
+  clearTimeout(state.camera.timer);
   clearTimeout(_moveCloserTimer);
   clearTimeout(_systemScanTimer);
   state.camera.timer = null;
@@ -667,7 +679,8 @@ export async function startCamera() {
   }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment", width: { ideal: 1280 } }
+      // Shelf Snap reads many small boxes, so it asks for a sharper stream.
+      video: { facingMode: "environment", width: { ideal: state.camera.shelf ? 1920 : 1280 } }
     });
     state.camera.stream = stream;
     const vid = $("#scanVideo");
@@ -675,9 +688,10 @@ export async function startCamera() {
     wireTorch();
 
     if (state.camera.mode !== "image" && "BarcodeDetector" in window) {
-      state.camera.detector = new BarcodeDetector({ formats: ["ean_13","ean_8","upc_a","upc_e","code_128","code_39"] });
+      // No Code 39: LEGO boxes never use it, and it misreads box-edge stripes.
+      state.camera.detector = new BarcodeDetector({ formats: ["ean_13","ean_8","upc_a","upc_e","code_128"] });
       state.camera.scanning = true;
-      state.camera.timer = setInterval(scanBarcode, 300);
+      startBarcodeLoop();
       armMoveCloser();
       trackScanPath("web");
     } else if (state.camera.mode !== "image") {
@@ -918,17 +932,35 @@ function showManualBarcodeEntry({ focus = false } = {}) {
   if (focus) $("#manualBarcodeInput")?.focus();
 }
 
+// Web barcode loop. The next detect() is scheduled only after the previous
+// one finished, so slow frames never pile up on top of each other (the old
+// 300 ms setInterval fired regardless of whether detect() was still running).
+let _barcodeLoop = 0;
+function startBarcodeLoop() {
+  clearTimeout(state.camera.timer);
+  const loop = ++_barcodeLoop;
+  const tick = async () => {
+    if (loop !== _barcodeLoop || !state.camera.scanning || !state.camera.detector) return;
+    try { await scanBarcode(); } finally {
+      if (loop === _barcodeLoop && state.camera.scanning) state.camera.timer = setTimeout(tick, 200);
+    }
+  };
+  state.camera.timer = setTimeout(tick, 200);
+}
+
 async function scanBarcode() {
   if (!state.camera.scanning) return;
   const vid = $("#scanVideo");
   if (!vid || vid.readyState < 2) return;
   try {
     const codes = await state.camera.detector.detect(vid);
-    if (codes.length > 0 && state.camera.scanning) {
+    // A blurred partial read fails its check digit: skip it and keep looking.
+    const code = codes.find((c) => acceptScannedBarcode(c.rawValue));
+    if (code && state.camera.scanning) {
       state.camera.scanning = false;
-      clearInterval(state.camera.timer);
+      _barcodeLoop += 1;
+      clearTimeout(state.camera.timer);
       clearTimeout(_moveCloserTimer);
-      const code = codes[0];
       const { w, h } = scanView();
       const rect = quadToViewRect(code.cornerPoints || (code.boundingBox ? [
         { x: code.boundingBox.x, y: code.boundingBox.y },
@@ -969,8 +1001,7 @@ function clearScanResult({ restartCamera = false } = {}) {
     armMoveCloser();
   } else if (restartCamera && state.camera.mode !== "image" && state.camera.detector && state.camera.stream) {
     state.camera.scanning = true;
-    clearInterval(state.camera.timer);
-    state.camera.timer = setInterval(scanBarcode, 300);
+    startBarcodeLoop();
     armMoveCloser();
   }
 }
@@ -1086,12 +1117,16 @@ export async function capturePhoto() {
   if (!vid) return;
   const canvas = document.createElement("canvas");
   // Shelf shots keep more resolution — the model has to read many small boxes.
-  const maxSide = state.camera.shelf ? 1280 : 1024;
   const w = vid.videoWidth || 640; const h = vid.videoHeight || 480;
-  const scale = Math.min(1, maxSide / Math.max(w, h));
-  canvas.width = w * scale; canvas.height = h * scale;
-  canvas.getContext("2d").drawImage(vid, 0, 0, canvas.width, canvas.height);
-  const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+  const encode = (maxSide, quality) => {
+    const scale = Math.min(1, maxSide / Math.max(w, h));
+    canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale);
+    canvas.getContext("2d").drawImage(vid, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", quality);
+  };
+  let dataUrl = encode(state.camera.shelf ? SHELF_MAX_SIDE : 1024, 0.85);
+  // Never exceed the server's upload limit (it answers 413 above 2M chars).
+  if (base64Chars(dataUrl) > SCAN_UPLOAD_MAX_CHARS) dataUrl = encode(1280, 0.75);
   finishPhotoCapture(dataUrl);
 }
 
@@ -1180,7 +1215,11 @@ async function cloudScanIdentify(payload, signal, idempotencyKey) {
   if (openaiKey) extraHeaders['X-OpenAI-Key'] = openaiKey;
   // Shared server-key image scans (no BYOK key) carry a Turnstile token for bot
   // protection when configured; BYOK and barcode scans skip it.
-  if (!geminiKey && !openaiKey && (payload.mode === 'image' || payload.mode === 'shelf')) {
+  // The signed-in Android app skips it: the server does not ask for a token
+  // there (Turnstile cannot run inside the app's WebView), and waiting for a
+  // widget that never answers added up to 24 s to every photo scan.
+  const nativeSignedIn = isNativeCapacitor() && !!getSessionUserId();
+  if (!geminiKey && !openaiKey && !nativeSignedIn && (payload.mode === 'image' || payload.mode === 'shelf')) {
     // Fetch a FRESH token immediately before the request. Turnstile tokens are
     // single-use and short-lived, so they must be minted right before siteverify —
     // holding a pre-warmed one caused server-side "could not verify" rejections.
@@ -1253,17 +1292,28 @@ async function sendScanToAPI(payload) {
   const scanEngine = localStorage.getItem('bv_ai_engine') || 'cloud';
   const online = navigator.onLine;
 
-  // OCR runs against the captured still on the device. Only bounded, explicit
-  // set-number candidates leave the phone; failures are silent and preserve the
-  // current Brickognize/AI route. Shelf Snap remains cloud multi-object vision.
-  if (payload.mode === 'image' && payload.image && !payload.ocr_candidates) {
+  // OCR runs against the captured still on the device. Explicit "Set 75313"
+  // labels go up as candidates, and the recognised box text (bounded lines)
+  // lets the server accept a bare box-front number when the piece count or
+  // name backs it up. Failures are silent and keep the Brickognize/AI route.
+  // Shelf Snap remains cloud multi-object vision.
+  if (payload.mode === 'image' && payload.image && !payload.ocr_candidates && !payload.ocr_lines) {
     const ocrStarted = performance.now();
     try {
-      const candidates = await collectOcrCandidates(payload.image);
+      const { candidates, lines } = await collectOcrEvidence(payload.image);
       if (stale()) return;
       if (candidates.length) payload = { ...payload, ocr_candidates: candidates };
+      if (lines.length) payload = { ...payload, ocr_lines: lines };
       scanTime('OCR', ocrStarted);
     } catch { /* best-effort local optimization */ }
+  }
+
+  // Barcode while offline (toy aisles often have no signal): resolve it from
+  // the catalog bundled in the app instead of failing.
+  if (payload.mode === 'barcode' && !online) {
+    const local = await offlineBarcodeResult(payload.barcode);
+    if (stale()) return;
+    if (local) { await revealScanResult(local, stale); done(); return; }
   }
 
   // On-device (Gemma) vision is best-effort: only attempt it when the user
@@ -1361,6 +1411,13 @@ async function sendScanToAPI(payload) {
     await revealScanResult(res, stale);
   } catch (e) {
     if (generation !== _scanGeneration || (controller.signal.aborted && !timedOut)) return;
+    // Barcode lookup that never reached the server (signal dropped, server
+    // down): fall back to the bundled catalog before showing an error.
+    if (payload.mode === 'barcode' && (timedOut || !e?.status || e.status >= 502)) {
+      const local = await offlineBarcodeResult(payload.barcode);
+      if (generation !== _scanGeneration) return;
+      if (local) { await revealScanResult(local, stale); return; }
+    }
     // A lower-level fetch abort (not the user cancelling) is a timeout too:
     // show the friendly "took too long" copy, never the browser's abort text.
     if (!timedOut && (e?.name === 'AbortError' || e?.name === 'TimeoutError' || /abort/i.test(String(e?.message || '')))) timedOut = true;
@@ -1390,6 +1447,18 @@ async function sendScanToAPI(payload) {
   } finally {
     clearTimeout(tid);
     done();
+  }
+}
+
+// A barcode hit from the catalog bundled in the app, shaped like the server's
+// /api/scan/identify reply, or null when the code is not in it.
+async function offlineBarcodeResult(code) {
+  try {
+    const set = await lookupSeedByBarcode(code);
+    if (!set?.set_num) return null;
+    return { identified: true, set, confidence: 'high', reasoning: t('scanner.offlineBarcodeMatch'), offline: true };
+  } catch {
+    return null;
   }
 }
 
@@ -1793,17 +1862,35 @@ function figRowHTML(fig, idx) {
     </label>`;
 }
 
+// Run fn over items, at most `limit` at a time; resolves to allSettled-style
+// results in item order. Shelf adds used to go one request at a time.
+async function runBounded(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      try { results[i] = { status: "fulfilled", value: await fn(items[i], i) }; }
+      catch (reason) { results[i] = { status: "rejected", reason }; }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 async function addCheckedFigs(minifigs) {
-  let added = 0;
-  for (const box of $$(".scan-fig-check:checked")) {
+  const boxes = $$(".scan-fig-check:checked");
+  const results = await runBounded(boxes, 4, async (box) => {
     const fig = minifigs[Number(box.dataset.idx)];
     const path = `/api/minifigs/${encodeURIComponent(box.dataset.fignum)}`;
-    try { await api(path, { method: "PUT", body: { quantity: 1 } }); added++; }
+    try { await api(path, { method: "PUT", body: { quantity: 1 } }); return true; }
     catch (e) {
-      if (!navigator.onLine) { outboxEnqueue({ path, method: 'PUT', body: { quantity: 1 } }); added++; }
-      else toast(t('scanner.addItemFailed', { name: fig?.name || t('scanner.minifig'), error: e.message || e }), "error");
+      if (!navigator.onLine) { outboxEnqueue({ path, method: 'PUT', body: { quantity: 1 } }); return true; }
+      toast(t('scanner.addItemFailed', { name: fig?.name || t('scanner.minifig'), error: e.message || e }), "error");
+      return false;
     }
-  }
+  });
+  const added = results.filter((r) => r.status === "fulfilled" && r.value).length;
   if (added) invalidatePortfolio();
   return added;
 }
@@ -1919,10 +2006,10 @@ function showShelfChecklist(el, sets, minifigs) {
     const checked = $$(".scan-select-check:checked").map((c) => sets[Number(c.dataset.idx)]);
     haptic("heavy");
     setBtnLoading($("#scanAdd"), true);
-    let failed = 0;
-    for (const set of checked) {
-      try { await addScannedSet(set); } catch { failed++; }
-    }
+    // Shelf results are one row per set, so parallel adds never race on the
+    // same collection entry.
+    const results = await runBounded(checked, 4, (set) => addScannedSet(set));
+    const failed = results.filter((r) => r.status === "rejected").length;
     const figs = await addCheckedFigs(minifigs);
     if (!checked.length && !figs) { setBtnLoading($("#scanAdd"), false); toast(t("bvAdd.nothingSelected"), "info"); return; }
     if (failed) toast(tPlural('scanner.bulkPartial', failed, { added: checked.length - failed, total: checked.length, failed }), "error");

@@ -17,7 +17,7 @@ const API_BASE = process.env.API_BASE || 'https://brickvault-api.zhydenko.worker
 // endpoint serves at most PAGE per request, so we page through with offset.
 const TOTAL = Number(process.env.SEED_LIMIT) || 100000;
 const PAGE = 5000;
-const REQUIRED_MODEL_VERSION = 'v4';
+const REQUIRED_MODEL_VERSION = 'v5';
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'data', 'seed-catalog.json');
 
 async function main() {

@@ -1,9 +1,9 @@
 // Background worker for the ~11 MB offline seed catalog: the download, JSON
 // parse, index and every filter/sort run here so the UI thread never freezes.
 // Protocol: postMessage({ id, op, arg }) → { id, ok, result } | { id, ok:false }.
-// op: 'search' (params), 'detail' (setNum), 'head' (n), 'info'.
+// op: 'search' (params), 'detail' (setNum), 'barcode' (code), 'head' (n), 'info'.
 
-import { indexSeed, querySeed, detailFromSeed, headOfSeed } from './seed-catalog-core.js';
+import { indexSeed, querySeed, detailFromSeed, headOfSeed, barcodeFromSeed } from './seed-catalog-core.js';
 
 let seedPromise = null;
 
@@ -27,6 +27,7 @@ self.onmessage = async (event) => {
     if (seed) {
       if (op === 'search') result = querySeed(seed, arg || {});
       else if (op === 'detail') result = detailFromSeed(seed, arg);
+      else if (op === 'barcode') result = barcodeFromSeed(seed, arg);
       else if (op === 'head') result = headOfSeed(seed, arg);
       else if (op === 'info') result = { generated_at: seed.generated_at, count: seed.count };
     }

@@ -5,7 +5,8 @@ import { getCapacitorPlugin, isNativeCapacitor } from './native-auth.js';
 
 // LEGO set boxes carry EAN-13 / UPC-A retail barcodes; keep the format list
 // tight so the scanner locks on faster and ignores QR/other noise.
-const FORMATS = ['EAN_13', 'EAN_8', 'UPC_A', 'UPC_E', 'CODE_128', 'CODE_39'];
+// No Code 39: LEGO boxes never use it, and it misreads box-edge stripes.
+const FORMATS = ['EAN_13', 'EAN_8', 'UPC_A', 'UPC_E', 'CODE_128'];
 
 export async function nativeBarcodeSupported(win) {
   if (!isNativeCapacitor(win)) return false;

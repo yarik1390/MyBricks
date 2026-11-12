@@ -29,6 +29,21 @@ export async function collectOcrCandidates(dataUrl, win) {
   return parseOcrSetNumbers(texts);
 }
 
+// Explicit set-number candidates plus the recognised box text, bounded to what
+// the server reads (32 lines of 200 characters). Only lines with a 4-6 digit
+// number or a word are kept; the server accepts a bare box-front number only
+// when the piece count or set name in these lines backs it up.
+export async function collectOcrEvidence(dataUrl, win) {
+  const texts = await readImageText(dataUrl, win);
+  return { candidates: parseOcrSetNumbers(texts), lines: ocrContextLines(texts) };
+}
+
+export function ocrContextLines(texts) {
+  return sanitizeOcrInput(Array.isArray(texts) ? texts : [texts])
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter((line) => /[a-z]{3}|\d{4}/i.test(line));
+}
+
 function sanitizeOcrInput(input) {
   const list = Array.isArray(input) ? input : (typeof input === 'string' || typeof input === 'number' ? [input] : []);
   const out = [];

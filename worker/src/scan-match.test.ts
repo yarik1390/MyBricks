@@ -1,7 +1,8 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { matchSetsToCatalog, scanBox } from './lib/scan-match';
+import { isNameCompatible, matchSetsToCatalog, scanBox } from './lib/scan-match';
+import { applyTestTables } from './test-schema';
 
 const db = (env as any).DB as D1Database;
 
@@ -105,6 +106,59 @@ describe('scan catalog matching', () => {
 
     expect(result.sets[0]?.set_num).toBe('21000-1');
     expect(result.sets[0]?.name).toBe('Willis Tower');
+  });
+});
+
+describe('scan name checks', () => {
+  it('rejects names that share only a short or generic word', () => {
+    expect(isNameCompatible('Starfarer', 'Star Destroyer')).toBe(false);
+    expect(isNameCompatible('Cargo Heli', 'Car Transporter')).toBe(false);
+    expect(isNameCompatible('Hogwarts Castle', 'Disney Castle Tower')).toBe(false);
+  });
+
+  it('keeps real matches and abbreviations', () => {
+    expect(isNameCompatible('Millennium Falcon UCS', 'Millennium Falcon')).toBe(true);
+    expect(isNameCompatible("The Mandalorian's Razor Crest", 'Razor Crest')).toBe(true);
+    expect(isNameCompatible('Batmobile', 'The Batmobile Tumbler')).toBe(true);
+    expect(isNameCompatible('Titanic', 'Titanic Ship')).toBe(true);
+    expect(isNameCompatible('Ferrari Daytona SP3', 'Ferrari Daytona')).toBe(true);
+  });
+
+  it('demotes a key chain below the boxed set unless the model asked for one', async () => {
+    await freshSchema();
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, year, theme) VALUES
+      ('854124-1', 'Hogwarts Castle', 2021, 'Key Chains'),
+      ('71043-1', 'Hogwarts Castle', 2018, 'Harry Potter')`).run();
+    await db.prepare(`INSERT INTO lego_sets_fts(rowid, set_num, name, theme)
+      SELECT rowid, set_num, name, theme FROM lego_sets WHERE set_num IN ('854124-1', '71043-1')`).run();
+    const boxed = await matchSetsToCatalog(env as any, [{ name: 'Hogwarts Castle', confidence: 'high' }]);
+    expect(boxed.sets[0]?.set_num).toBe('71043-1');
+    const keychain = await matchSetsToCatalog(env as any, [{ name: 'Hogwarts Castle Key Chain', theme: 'Key Chains', confidence: 'high' }]);
+    expect(keychain.sets[0]?.set_num).toBe('854124-1');
+  });
+});
+
+describe('scan prices match the set page', () => {
+  beforeEach(async () => {
+    await db.prepare('DROP TABLE IF EXISTS lego_sets_fts').run();
+    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'set_valuation_state']);
+    await db.prepare(`CREATE VIRTUAL TABLE lego_sets_fts USING fts5(
+      set_num UNINDEXED, name, theme, content='lego_sets', content_rowid='rowid'
+    )`).run();
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, year, theme, pieces, current_value, retail_price)
+      VALUES ('75192-1', 'Millennium Falcon', 2017, 'Star Wars', 7541, 100, 849.99)`).run();
+    await db.prepare(`INSERT INTO set_valuation_state (set_num, condition, fair_value, low, high, confidence, model_version, as_of)
+      VALUES ('75192-1', 'new_sealed', 912, 850, 990, 'high', 'v3', '2026-11-12')`).run();
+  });
+
+  it('uses the stored v3 valuation instead of recomputing from the raw row', async () => {
+    const result = await matchSetsToCatalog(env as any, [{ set_num: '75192', name: 'Millennium Falcon', confidence: 'medium', reasoning: 'UCS dish' }]);
+    const set = result.sets[0] as any;
+    expect(set.set_num).toBe('75192-1');
+    expect(set.valuation.new.fair_value).toBe(912);
+    expect(set.match_confidence).toBe('medium');
+    expect(set.reasoning).toBe('UCS dish');
+    expect(Object.keys(set).some((k) => k.startsWith('v3_') || k.startsWith('__valuation'))).toBe(false);
   });
 });
 

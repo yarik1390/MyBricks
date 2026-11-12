@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { expandSetNumKeys, parseOcrSetNumbers, resolveOcrSetNum } from './lib/scan-ocr';
+import { expandSetNumKeys, extractBoxFrontNumbers, parseOcrSetNumbers, resolveOcrSetNum } from './lib/scan-ocr';
 
 const db = (env as any).DB as D1Database;
 
@@ -81,5 +81,58 @@ describe('OCR catalog lookup', () => {
     await expect(resolveOcrSetNum(db, ['375'])).resolves.toEqual({
       kind: 'ambiguous', setNums: ['375-1', '375-2'],
     });
+  });
+});
+
+describe('OCR box-front numbers', () => {
+  beforeEach(async () => {
+    await db.prepare('DROP TABLE IF EXISTS lego_sets').run();
+    await db.prepare(`CREATE TABLE lego_sets (
+      set_num TEXT PRIMARY KEY, name TEXT NOT NULL, theme TEXT, pieces INTEGER
+    )`).run();
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, theme, pieces) VALUES
+      ('75313-1', 'AT-AT', 'Star Wars', 6785),
+      ('42156-1', 'PEUGEOT 9X8 24H Le Mans Hybrid Hypercar', 'Technic', 1775),
+      ('2017-1', 'Choo Choo Train', 'Duplo', 14),
+      ('6785-1', 'Tow Truck', 'Town', 30),
+      ('10316-1', 'Rivendell', 'Icons', 6167)`).run();
+  });
+
+  it('extracts bare numbers but skips piece counts, ages, years, prices and barcodes', () => {
+    expect(extractBoxFrontNumbers([
+      '75313', '6785 pcs', '6,785 pieces', 'Ages 18+', '18+', '8-14', '© 2024 LEGO Group',
+      '$849.99', '€ 1999', '5702017153209', '42156 Peugeot',
+    ])).toEqual(['75313', '42156']);
+  });
+
+  it('accepts a bare box number backed by the piece count', async () => {
+    await expect(resolveOcrSetNum(db, [], ['LEGO STAR WARS', '75313', '6785 pcs', '18+']))
+      .resolves.toMatchObject({ kind: 'accepted', setNum: '75313-1', method: 'box-front' });
+  });
+
+  it('accepts a bare box number backed by words from the name', async () => {
+    await expect(resolveOcrSetNum(db, [], ['LEGO Technic 42156', 'PEUGEOT 9X8']))
+      .resolves.toMatchObject({ kind: 'accepted', setNum: '42156-1', method: 'box-front' });
+    await expect(resolveOcrSetNum(db, [], ['THE LORD OF THE RINGS', '10316', 'RIVENDELL']))
+      .resolves.toMatchObject({ kind: 'accepted', setNum: '10316-1' });
+  });
+
+  it('does not accept a bare number with nothing backing it up', async () => {
+    // 2017 and 6785 are real (old) set numbers; neither the theme alone nor a
+    // year or piece count is enough.
+    await expect(resolveOcrSetNum(db, [], ['© 2017 LEGO Group', '2017 pcs'])).resolves.toMatchObject({ kind: 'empty' });
+    await expect(resolveOcrSetNum(db, [], ['LEGO STAR WARS 75313'])).resolves.toEqual({ kind: 'unmapped' });
+    await expect(resolveOcrSetNum(db, [], ['Duplo 2017'])).resolves.toEqual({ kind: 'unmapped' });
+  });
+
+  it('keeps an explicit label ahead of box text', async () => {
+    await expect(resolveOcrSetNum(db, ['42156'], ['75313', '6785 pcs']))
+      .resolves.toMatchObject({ kind: 'accepted', setNum: '42156-1', method: 'label' });
+  });
+
+  it('works on a catalog without piece or theme columns', async () => {
+    await freshSchema();
+    await expect(resolveOcrSetNum(db, [], ['75313', 'AT-AT'])).resolves.toMatchObject({ kind: 'accepted', setNum: '75313-1' });
+    await expect(resolveOcrSetNum(db, [], ['75313', 'Star Wars'])).resolves.toEqual({ kind: 'unmapped' });
   });
 });
