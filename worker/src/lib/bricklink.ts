@@ -1,5 +1,5 @@
 import type { Env } from '../types';
-import { fetchTracked } from './http';
+import { fetchTracked, OUTAGE_HEADER, type FetchTrackedOptions } from './http';
 import { isIntegrationBlocked } from './integration-health';
 
 // While BrickLink is paused (planned maintenance detected by fetchTracked, or
@@ -13,7 +13,27 @@ async function assertBrickLinkAvailable(env: Env, recordHealth: boolean | undefi
   if (!pausedMemo || Date.now() - pausedMemo.at > 60_000) {
     pausedMemo = { at: Date.now(), paused: await isIntegrationBlocked(env, 'bricklink') };
   }
-  if (pausedMemo.paused) throw new Error('bricklink paused (maintenance or outage)');
+  if (pausedMemo.paused) throw new BrickLinkOfflineError('BrickLink is paused while it is offline');
+}
+
+/** Thrown when BrickLink itself is offline (maintenance page or edge refusal). */
+export class BrickLinkOfflineError extends Error {
+  constructor(detail: string) {
+    super(detail);
+    this.name = 'BrickLinkOfflineError';
+  }
+}
+
+// Every BrickLink call goes through here so an outage is named as an outage:
+// callers get BrickLinkOfflineError instead of a generic "HTTP 403/503".
+async function blFetch(env: Env, url: string, init: RequestInit, opts: FetchTrackedOptions = {}): Promise<Response> {
+  const resp = await fetchTracked(env, 'bricklink', url, init, { ...opts, edgeRefusalIsOutage: true });
+  const outage = resp.headers.get(OUTAGE_HEADER);
+  if (outage) {
+    pausedMemo = null;
+    throw new BrickLinkOfflineError(outage);
+  }
+  return resp;
 }
 
 /** Tests only. */
@@ -124,7 +144,7 @@ export async function fetchUsedPricing(
       env.BRICKLINK_TOKEN, env.BRICKLINK_TOKEN_SECRET,
     );
     await assertBrickLinkAvailable(env, options.recordHealth);
-    const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
+    const resp = await blFetch(env, `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
     }, {
       okStatuses: [404],
@@ -208,7 +228,7 @@ export async function fetchSetPricingDetailed(
 
     await assertBrickLinkAvailable(env, options.recordHealth);
 
-    const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
+    const resp = await blFetch(env, `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
     }, {
       okStatuses: [404],
@@ -282,7 +302,7 @@ export async function fetchSetStockAsk(
     env.BRICKLINK_TOKEN, env.BRICKLINK_TOKEN_SECRET,
   );
   await assertBrickLinkAvailable(env, options.recordHealth);
-  const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
+  const resp = await blFetch(env, `${baseUrl}?${new URLSearchParams(queryParams)}`, {
     headers: { Authorization: authHeader, Accept: 'application/json' },
   }, {
     okStatuses: [404],
@@ -356,7 +376,7 @@ export async function fetchPartPricing(
       env.BRICKLINK_TOKEN, env.BRICKLINK_TOKEN_SECRET,
     );
     await assertBrickLinkAvailable(env, options.recordHealth);
-    const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
+    const resp = await blFetch(env, `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
     }, {
       okStatuses: [404],
@@ -403,7 +423,7 @@ export async function fetchMinifigPricing(
       env.BRICKLINK_TOKEN, env.BRICKLINK_TOKEN_SECRET,
     );
     await assertBrickLinkAvailable(env, options.recordHealth);
-    const resp = await fetchTracked(env, 'bricklink', `${baseUrl}?${new URLSearchParams(queryParams)}`, {
+    const resp = await blFetch(env, `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
     }, { okStatuses: [404], record: options.recordHealth !== false });
     if (resp.status === 404) return { value: null, lots: 0 };

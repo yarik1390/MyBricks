@@ -170,7 +170,9 @@ ${context}`;
               contents: [{ role: 'user', parts: [{ text: q }] }],
               generationConfig: { maxOutputTokens: 512 },
             }),
-          }
+          },
+          // The user's own key: not evidence about the server key.
+          { record: false },
         );
         if (!resp.ok || !resp.body) {
           await send({ error: providerUserMessage('gemini', `HTTP ${resp.status}`) });
@@ -213,7 +215,6 @@ ${context}`;
           const text = chunk.choices[0]?.delta?.content ?? '';
           if (text) await send({ text });
         }
-        await recordIntegrationAttempt(c.env, 'openai', true);
       } else {
         // SERVER-key cascade, ordered by the admin-tunable advisor route.
         //
@@ -295,8 +296,9 @@ ${context}`;
       }
       await send({ done: true });
     } catch (e) {
+      // A failure on the user's own key is not recorded: it says nothing
+      // about the server keys (server steps record their own results).
       const provider = geminiKey ? 'gemini' : 'openai';
-      await recordIntegrationAttempt(c.env, provider, false, e);
       await send({ error: providerUserMessage(provider, e) });
       await send({ done: true });
     } finally {

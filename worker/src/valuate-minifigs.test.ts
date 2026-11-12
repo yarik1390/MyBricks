@@ -3,8 +3,13 @@ import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { applyTestTables } from './test-schema';
 
-vi.mock('./lib/bricklink', () => ({ fetchMinifigPricing: vi.fn() }));
-import { fetchMinifigPricing } from './lib/bricklink';
+vi.mock('./lib/bricklink', () => ({
+  fetchMinifigPricing: vi.fn(),
+  BrickLinkOfflineError: class BrickLinkOfflineError extends Error {},
+}));
+import { fetchMinifigPricing, BrickLinkOfflineError } from './lib/bricklink';
+import { setIntegrationBlock } from './lib/integration-health';
+import { resultFailed, summarizeResult } from './lib/cron-runs';
 import { runValuateMinifigs } from './jobs/valuate-minifigs';
 
 const db = (env as any).DB as D1Database;
@@ -55,6 +60,38 @@ describe('runValuateMinifigs', () => {
     expect(await readFig('fig-held')).toMatchObject({ current_value: 30, cached_at: '2020-01-01', ebay_value: 35 });
     expect((await db.prepare(`SELECT ebay_cached_at FROM minifigs WHERE fig_num='fig-held'`).first<any>()).ebay_cached_at)
       .toBe('2020-01-02');
+  });
+
+  it('skips instead of failing while BrickLink is paused, without spending calls', async () => {
+    await applyTestTables(db, ['integration_health']);
+    await db.batch([seedFig('fig-off', 'Batman'), seedBl('bat001', 'batman', 2014)]);
+    await setIntegrationBlock(fcEnv, 'bricklink', 1);
+    const result = await runValuateMinifigs(fcEnv, { limit: 5 });
+    expect(mockBl).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ figs: 1, failed: 0, priced: 0 });
+    expect(resultFailed(result)).toBe(false);
+    expect(summarizeResult(result)).toBe('skipped: BrickLink is offline, will retry next run');
+    expect((await db.prepare(`SELECT COALESCE(SUM(used),0) AS n FROM api_quota WHERE service='bricklink'`).first<any>()).n).toBe(0);
+    await db.prepare('DELETE FROM integration_health').run();
+  });
+
+  it('stops at the first offline answer, pauses BrickLink and reports a skip', async () => {
+    await applyTestTables(db, ['integration_health']);
+    await db.prepare('DELETE FROM integration_health').run();
+    await db.batch([
+      seedFig('fig-a', 'Batman'), seedBl('bat001', 'batman', 2014),
+      seedFig('fig-b', 'Robin'), seedBl('rob001', 'robin', 2014),
+    ]);
+    mockBl.mockRejectedValue(new BrickLinkOfflineError('Provider offline'));
+    const result = await runValuateMinifigs(fcEnv, { limit: 5 });
+    expect(mockBl).toHaveBeenCalledTimes(1);
+    expect(resultFailed(result)).toBe(false);
+    expect(result.skipped).toMatch(/offline/);
+    // Paused now, so the next run does not call out at all.
+    mockBl.mockClear();
+    await runValuateMinifigs(fcEnv, { limit: 5 });
+    expect(mockBl).not.toHaveBeenCalled();
+    await db.prepare('DELETE FROM integration_health').run();
   });
 
   it('resolves a BrickLink id when its name merely extends ours', async () => {
