@@ -6,11 +6,6 @@ const SERVICE_FLAGS = {
   firecrawl: 'firecrawl',
 };
 
-const PRICING_SERVICES = new Set([
-  'bricklink', 'brickeconomy', 'ebay', 'pricecharting',
-  'brickinsights', 'amazon', 'firecrawl', 'brightdata', 'decodo', 'zenrows',
-]);
-const CATALOG_SERVICES = new Set(['rebrickable', 'brickset', 'upc']);
 const AI_SERVICES = new Set(['gemini', 'openai', 'openrouter', 'opencodex', 'workersai', 'groq']);
 // Sources disabled by default require positive effective-config evidence before an
 // integration failure can be called an outage. Keep this aligned with the
@@ -29,19 +24,10 @@ function observationTimestamp(row, now) {
 }
 
 function remedyFor(service) {
-  if (PRICING_SERVICES.has(service)) {
-    return { href: '#/me/admin?hub=pricing&view=center', label: 'Review pricing services' };
-  }
-  if (CATALOG_SERVICES.has(service)) {
-    return { href: '#/me/admin?hub=pricing&view=populate', label: 'Review catalog sources' };
-  }
-  if (AI_SERVICES.has(service)) {
-    return { href: '#/me/admin?hub=ai', label: 'Review AI routing' };
-  }
-  if (service === 'email' || service === 'push' || service === 'firebase' || service === 'google') {
-    return { href: '#/me/admin?hub=governance&view=maintenance', label: 'Review service settings' };
-  }
-  return { href: '#/me/admin', label: 'Review services' };
+  // Every service, its test button and its switches live in the Services tab;
+  // AI providers also have the routing editor there.
+  if (AI_SERVICES.has(service)) return { href: '#/me/admin?hub=services', label: 'Open AI services' };
+  return { href: '#/me/admin?hub=services', label: 'Open in Services' };
 }
 
 function isAccessFailure(row) {
@@ -104,7 +90,7 @@ export function buildAdminIssues({
       kind: 'unknown',
       severity: 'neutral',
       title: 'Service evidence is unavailable',
-      detail: 'Overview could not confirm current service health.',
+      detail: 'The admin console could not confirm current service health.',
       evidenceAt: null,
       ...remedyFor('diagnostics'),
     }];

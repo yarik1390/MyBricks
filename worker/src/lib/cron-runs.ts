@@ -7,7 +7,7 @@ import type { Env } from '../types';
 // summary. EVERY helper FAILS OPEN: tracking must never break a cron.
 // ---------------------------------------------------------------------------
 
-const KEEP_PER_NAME = 5; // history depth retained per process
+const KEEP_PER_NAME = 12; // history depth retained per process (admin run-history dots)
 
 export interface CronRunRow {
   id: number;
@@ -152,18 +152,26 @@ export async function recordCronFinish(
 export interface RecentRuns {
   latest: Record<string, CronRunRow>; // newest run per process name
   recent: CronRunRow[];               // chronological feed (newest first)
+  history: Record<string, CronRunRow[]>; // up to KEEP_PER_NAME runs per process, newest first
 }
 
 // Latest run per process + a recent chronological feed. Fails open to empty.
 export async function getRecentRuns(env: Env): Promise<RecentRuns> {
   const latest: Record<string, CronRunRow> = {};
+  const history: Record<string, CronRunRow[]> = {};
   let recent: CronRunRow[] = [];
   try {
+    // The table is pruned to KEEP_PER_NAME rows per process (~600 rows), so one
+    // ordered read gives both the latest run and the short history per name.
     const { results } = await env.DB.prepare(
       `SELECT id, name, started_at, finished_at, status, summary, error, duration_ms
-         FROM cron_runs WHERE id IN (SELECT MAX(id) FROM cron_runs GROUP BY name)`,
+         FROM cron_runs ORDER BY id DESC LIMIT 2000`,
     ).all<CronRunRow>();
-    for (const r of results ?? []) latest[r.name] = r;
+    for (const r of results ?? []) {
+      if (!latest[r.name]) latest[r.name] = r;
+      const list = history[r.name] ?? (history[r.name] = []);
+      if (list.length < KEEP_PER_NAME) list.push(r);
+    }
   } catch { /* none yet */ }
   try {
     const { results } = await env.DB.prepare(
@@ -172,5 +180,5 @@ export async function getRecentRuns(env: Env): Promise<RecentRuns> {
     ).all<CronRunRow>();
     recent = results ?? [];
   } catch { /* none yet */ }
-  return { latest, recent };
+  return { latest, recent, history };
 }

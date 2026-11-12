@@ -68,11 +68,12 @@ test('LLM routing console is reachable and its controls render', async ({ page }
   await stubAdmin(page);
   await page.goto('/#/me/admin');
 
-  const tab = page.locator('[data-admin-section-link="adminLlm"]');
+  const tab = page.locator('[data-admin-section-link="adminServices"]');
   await expect(tab).toBeVisible();
   await tab.click();
 
-  const section = page.locator('#adminLlm');
+  const section = page.locator('#adminServices');
+  await section.locator('#adminAiRoutingFold > summary').click();
   await expect(section).toHaveClass(/is-active/);
 
   // Merge Gateway was removed (2026-11-08): no allowance card, no Merge rows.
@@ -97,9 +98,10 @@ test('LLM routing console is reachable and its controls render', async ({ page }
 test('the model picker opens a sheet and applies a choice', async ({ page }) => {
   await stubAdmin(page);
   await page.goto('/#/me/admin');
-  await page.locator('[data-admin-section-link="adminLlm"]').click();
+  await page.locator('[data-admin-section-link="adminServices"]').click();
 
-  const section = page.locator('#adminLlm');
+  const section = page.locator('#adminServices');
+  await section.locator('#adminAiRoutingFold > summary').click();
   await section.locator('.llm-model-btn').first().click();
   const list = page.locator('.llm-pick-list');
   await expect(list).toBeVisible();
@@ -115,9 +117,10 @@ test('the model picker opens a sheet and applies a choice', async ({ page }) => 
 test('editing the order surfaces a save bar', async ({ page }) => {
   await stubAdmin(page);
   await page.goto('/#/me/admin');
-  await page.locator('[data-admin-section-link="adminLlm"]').click();
+  await page.locator('[data-admin-section-link="adminServices"]').click();
 
-  const section = page.locator('#adminLlm');
+  const section = page.locator('#adminServices');
+  await section.locator('#adminAiRoutingFold > summary').click();
   await expect(section.locator('.llm-savebar')).toHaveCount(0);
   await section.locator('[data-llm-move="down"]').first().click();
   await expect(section.locator('.llm-savebar')).toBeVisible();

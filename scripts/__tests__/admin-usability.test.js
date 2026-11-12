@@ -5,12 +5,14 @@ import { describe, it } from 'node:test';
 const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
 const adminView = read('public/js/views/me-admin.js');
 const adminConfig = read('public/js/views/me-admin-config.js');
+const adminHome = read('public/js/views/me-admin-home.js');
 
 describe('admin usability controls', () => {
   it('makes PriceCharting process actions reachable', () => {
     assert.match(adminView, /'pricecharting-verify': 'pricechartingVerify'/);
     assert.match(adminView, /'pricecharting-enrich': 'pricecharting'/);
-    assert.match(adminView, /data-process-run=/);
+    assert.match(adminHome, /data-process-run=/);
+    assert.match(adminView, /closest\('\[data-process-run\]'\)/);
 
     assert.match(adminConfig, /pricechartingVerify:\s*\{[\s\S]*?url: '\/api\/admin\/run-pricecharting-verify'/);
     assert.match(adminConfig, /pricecharting:\s*\{[\s\S]*?url: '\/api\/admin\/jobs\/pricecharting-enrich\?limit=10'/);
@@ -26,7 +28,7 @@ describe('admin usability controls', () => {
   it('links rendered guidance to real sections and subtabs', () => {
     assert.doesNotMatch(adminView, /(?:the |from |through |→ )Activity tab/i);
     assert.doesNotMatch(adminView, /(?:the |from |through |→ )Populate tab/i);
-    assert.match(adminView, /data-admin-section-jump="adminOverview" data-scroll-target="adminActivityHeading"/);
+    assert.match(adminView, /data-admin-section-jump="adminJobs" data-scroll-target="adminActivityHeading"/);
     assert.match(adminView, /data-admin-section-jump="adminPricing" data-open-subtab="pricingPopulatePanel"/);
     assert.match(adminView, /function jumpToAdminSection\(btn\)/);
     assert.match(adminView, /function activateAdminSubtab\(btn(?:,|\))/);

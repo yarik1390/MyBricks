@@ -82,3 +82,70 @@ export function processInfo(name: string): ProcessInfo {
     group: 'Maintenance',
   };
 }
+
+// ---------------------------------------------------------------------------
+// Schedule health. The admin console used to colour a process by its LAST run
+// only, so a job whose cron slot stopped firing (the value model, Nov 3–12)
+// stayed green for days. These helpers compare the last start with the
+// interval the schedule promises, so a silent stop shows up as "missed".
+// ---------------------------------------------------------------------------
+
+export type ProcessHealth = 'ok' | 'failing' | 'missed' | 'running' | 'idle';
+
+export interface RunLike {
+  status: string;
+  started_at: string | null;
+  finished_at?: string | null;
+}
+
+/** Hours between scheduled runs, read from the human schedule string; null = not scheduled. */
+export function expectedEveryHours(schedule: string | null | undefined): number | null {
+  const s = String(schedule || '').trim().toLowerCase();
+  if (!s || s.startsWith('manual')) return null;
+  if (s.startsWith('hourly')) return 1;
+  if (s.startsWith('weekly')) return 24 * 7;
+  if (s.startsWith('daily')) return 24;
+  return null;
+}
+
+/** SQLite `datetime('now')` text (UTC, no zone) or ISO → epoch ms; NaN when unparseable. */
+export function parseRunTime(ts: string | null | undefined): number {
+  if (!ts) return NaN;
+  const t = String(ts);
+  return Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(t) ? t : `${t.replace(' ', 'T')}Z`);
+}
+
+export interface ProcessAssessment {
+  health: ProcessHealth;
+  every_hours: number | null;
+  /** Scheduled runs that should have started since the last one (missed only). */
+  missed_runs: number;
+  /** Newest-first count of consecutive failed runs. */
+  consecutive_failures: number;
+}
+
+/**
+ * Judge a process from its newest-first run history and schedule.
+ * Missed wins over failing: a job that stopped firing is the bigger problem,
+ * and its last (possibly failed) result is stale anyway. A grace of half an
+ * interval plus one hour absorbs slow slots and cron jitter.
+ */
+export function assessProcess(schedule: string, runs: RunLike[], now = Date.now()): ProcessAssessment {
+  const every = expectedEveryHours(schedule);
+  const latest = runs[0];
+  let consecutive = 0;
+  for (const r of runs) { if (r.status === 'failed') consecutive++; else break; }
+  const base = { every_hours: every, missed_runs: 0, consecutive_failures: consecutive };
+  if (!latest) return { ...base, health: 'idle' };
+  if (latest.status === 'running') return { ...base, health: 'running' };
+  const started = parseRunTime(latest.started_at);
+  if (every && Number.isFinite(started)) {
+    const hourMs = 3600_000;
+    const age = now - started;
+    if (age > every * hourMs * 1.5 + hourMs) {
+      return { ...base, health: 'missed', missed_runs: Math.max(1, Math.floor(age / (every * hourMs))) };
+    }
+  }
+  if (latest.status === 'failed') return { ...base, health: 'failing' };
+  return { ...base, health: 'ok' };
+}

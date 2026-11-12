@@ -70,13 +70,13 @@ describe('cron run tracking', () => {
     expect(latest['test-job-x'].error).toBe('boom');
   });
 
-  it('prunes history to the last 5 runs per process', async () => {
-    for (let i = 0; i < 8; i++) {
+  it('prunes history to the last 12 runs per process', async () => {
+    for (let i = 0; i < 15; i++) {
       const id = await recordCronStart(env as any, 'valuate-sets');
       await recordCronFinish(env as any, id, 'valuate-sets', { ok: true, summary: `run ${i}` });
     }
     const row = await db.prepare(`SELECT COUNT(*) AS n FROM cron_runs WHERE name='valuate-sets'`).first<{ n: number }>();
-    expect(row!.n).toBe(5);
+    expect(row!.n).toBe(12);
   });
 
   it('sweeps orphaned running rows older than the window, leaving fresh ones', async () => {
