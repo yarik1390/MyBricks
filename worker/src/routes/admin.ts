@@ -36,7 +36,8 @@ import { recordProbeResult } from '../jobs/health-probes';
 import { runServiceTest, TESTABLE_SERVICES } from '../lib/service-tests';
 import { getRecentRuns, recordCronStart, recordCronFinish, summarizeResult } from '../lib/cron-runs';
 import { runPriceChartingVerify } from '../jobs/pricecharting-verify';
-import { PROCESS_REGISTRY, GROUP_ORDER, processInfo } from '../lib/process-registry';
+import { PROCESS_REGISTRY, GROUP_ORDER, processInfo, assessProcess } from '../lib/process-registry';
+import { getAdminSummary } from '../lib/admin-summary';
 import { getPricingWriteBudget } from '../lib/pricing-budget';
 import { amazonReadiness } from '../lib/amazon';
 import { integrationReadiness } from '../lib/config-readiness';
@@ -689,10 +690,16 @@ app.post('/test/:service', async (c) => {
 // it does + its latest run (status, when, duration, result), plus a recent
 // chronological feed. The frontend merges this with admin import jobs.
 app.get('/activity', async (c) => {
-  const { latest, recent } = await getRecentRuns(c.env);
+  const { latest, recent, history } = await getRecentRuns(c.env);
+  const now = Date.now();
   const processes = Object.entries(PROCESS_REGISTRY).map(([name, info]) => {
     const r = latest[name];
+    const runs = history[name] ?? [];
+    const assessment = assessProcess(info.schedule, runs, now);
     return {
+      ...assessment,
+      // Oldest → newest so the UI can draw the run dots left to right.
+      runs: runs.slice().reverse().map((run) => ({ status: run.status, started_at: run.started_at, summary: run.summary })),
       name,
       label: info.label,
       description: info.description,
@@ -709,6 +716,12 @@ app.get('/activity', async (c) => {
   const recentFeed = recent.map((r) => ({ ...r, label: processInfo(r.name).label, group: processInfo(r.name).group }));
   return c.json({ processes, recent: recentFeed, group_order: GROUP_ORDER, generated_at: new Date().toISOString() });
 });
+
+// Start-page numbers that no other admin endpoint carries: accounts and growth,
+// collection totals, last-7-day client events (scanner funnel, app errors),
+// yesterday's provider quota and how many owned/wishlisted sets carry a real
+// market price. Loaded once per page open (not polled).
+app.get('/summary', async (c) => c.json(await getAdminSummary(c.env)));
 
 app.get('/integrations', async (c) => {
   const [integrations, coverage, quota, ai_usage, market_ext, firecrawl_pool, brightdata_pool, partner_revenue] = await Promise.all([
