@@ -167,13 +167,32 @@ function signalFresh(signal: PricingSignal, now: number): boolean {
   return checkedFresh && observedFresh;
 }
 
+// Freshness weight: full for 10 days after a re-check, then halving every 14
+// days down to the old stale floor of 0.35 (reached around day 31). It used to
+// fall from 1.0 to 0.35 the moment a signal turned 15 days old, so a family
+// could swing the blend overnight on age alone. A sold comp observed more
+// than 90 days ago is still treated as stale outright.
+const FRESH_PLATEAU_DAYS = 10;
+const FRESH_HALF_LIFE_DAYS = 14;
+const STALE_WEIGHT = 0.35;
+export function freshnessWeight(signal: PricingSignal, now: number): number {
+  const observedStale = signal.signal_type === 'sold'
+    && !REPUBLISHED_GUIDE_SOURCES.has(signal.source)
+    && ageDays(signal.source_observed_at || signal.checked_at, now) > SOLD_OBSERVATION_DAYS;
+  if (observedStale) return STALE_WEIGHT;
+  const age = ageDays(signal.checked_at, now);
+  if (!Number.isFinite(age)) return STALE_WEIGHT;
+  if (age <= FRESH_PLATEAU_DAYS) return 1;
+  return Math.max(STALE_WEIGHT, Math.pow(0.5, (age - FRESH_PLATEAU_DAYS) / FRESH_HALF_LIFE_DAYS));
+}
+
 function signalWeight(signal: PricingSignal, now: number): number {
   const type = signal.signal_type === 'sold' ? 1
     : signal.signal_type === 'modeled' ? 0.65
       : signal.signal_type === 'asking' ? 0.35 : 0.2;
   const sample = Math.max(1, observedSamples(signal));
   const sampleFactor = signal.signal_type === 'sold' ? 0.65 + Math.min(sample, 20) / 40 : 1;
-  const freshness = signalFresh(signal, now) ? 1 : 0.35;
+  const freshness = freshnessWeight(signal, now);
   const trust = Number.isFinite(signal.trust_multiplier) ? Math.max(0, signal.trust_multiplier as number) : 1;
   return type * sampleFactor * freshness * trust;
 }
