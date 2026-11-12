@@ -153,3 +153,53 @@ describe('runBricksetEnrich', () => {
     expect((await row('21318-1')).rating).toBe(4.6);
   });
 });
+
+describe('runBricksetEnrich Brickset API lane', () => {
+  const apiEnv = { ...env, BRICKSET_API_KEY: 'bs', FIRECRAWL_API_KEY: '', FIRECRAWL_API_KEYS: '' } as any;
+  const apiBody = { status: 'success', sets: [{ numberVariant: 1, setID: 31234, rating: 4.4, themeGroup: 'Licensed',
+    LEGOCom: { US: { retailPrice: 59.99 } }, extendedData: { tags: ['Castle'] } }] };
+
+  beforeEach(async () => {
+    mockScrape.mockReset();
+    mockFetch.mockReset();
+    mockFetch.mockResolvedValue(new Response('blocked', { status: 403 }));
+    await applyTestTables(db, ['lego_sets', 'set_market_ext', 'user_collection', 'user_wishlist', 'api_quota', 'integration_health']);
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.includes('brickset.com/api/v3.asmx/getSets')) return Response.json(apiBody);
+      return new Response('blocked', { status: 403 });
+    }));
+  });
+
+  it('enriches from the Brickset API when the page lanes are blocked', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, year, brickset_enriched_at) VALUES ('10305-1','Lion Knights', 2022, NULL)`).run();
+    const r = await runBricksetEnrich(apiEnv);
+    expect(r).toMatchObject({ processed: 1, updated: 1, failed: 0 });
+    const x = await row('10305-1');
+    expect(x.msrp).toBe(59.99);
+    expect(x.rating).toBe(4.4);
+    expect(x.tags).toBe(JSON.stringify(['Castle']));
+    const q = await db.prepare(`SELECT used FROM api_quota WHERE service='brickset' AND day=?`).bind(today).first<any>();
+    expect(q.used).toBe(1);
+  });
+
+  it('leaves the reserve for users: no API call once only the reserve is left', async () => {
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, year, brickset_enriched_at) VALUES ('10305-1','Lion Knights', 2022, NULL)`).run();
+    await db.prepare(`INSERT INTO api_quota (service, day, used, cap) VALUES ('brickset', ?1, ?2, ?3)`)
+      .bind(today, QUOTA_CAPS.brickset - 20, QUOTA_CAPS.brickset).run();
+    const r = await runBricksetEnrich(apiEnv);
+    expect(r).toMatchObject({ processed: 1, updated: 0, failed: 1 });
+    const q = await db.prepare(`SELECT used FROM api_quota WHERE service='brickset' AND day=?`).bind(today).first<any>();
+    expect(q.used).toBe(QUOTA_CAPS.brickset - 20);
+  });
+
+  it('defers, not fails, the sets beyond the API share of one run', async () => {
+    const stmts = [];
+    for (let i = 0; i < 37; i++) {
+      stmts.push(db.prepare(`INSERT INTO lego_sets (set_num, name, year, brickset_enriched_at) VALUES (?1, 'Set', 2022, NULL)`).bind(`${20000 + i}-1`));
+    }
+    await db.batch(stmts);
+    const r = await runBricksetEnrich(apiEnv, { limit: 37 });
+    expect(r).toMatchObject({ processed: 37, updated: 35, failed: 0, deferred: 2 });
+  });
+});

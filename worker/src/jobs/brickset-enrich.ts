@@ -2,7 +2,8 @@ import type { Env } from '../types';
 import { firecrawlScrape, FirecrawlRateLimitedError } from '../lib/firecrawl';
 import { firecrawlEnabled } from '../lib/pricing-flags';
 import { sourceEnabled } from '../lib/source-config';
-import { quotaRemaining } from '../lib/api-quota';
+import { quotaRemaining, spendQuotaFailClosed } from '../lib/api-quota';
+import { fetchBricksetDetails, type BricksetDetails } from '../lib/brickset';
 import { brightDataUnlock } from '../lib/brightdata';
 import { brightDataEnabled } from '../lib/brightdata-keys';
 import { parseBricksetHtml, type BricksetScrape } from '../lib/brightdata-parsers';
@@ -53,13 +54,50 @@ const plausibleDate = (v: unknown): string | null => {
 };
 
 
+// Brickset's own API as a lane. Its daily allowance is small (90 calls) and is
+// shared with the on-demand photo gallery, so a run takes at most
+// API_LANE_PER_RUN and always leaves API_LANE_RESERVE for users. It exists
+// because every page-scrape lane can be down at once: from 2026-11-09 to 11-12
+// brickset.com answered direct fetches with 403, Firecrawl had no credits and
+// Bright Data got 520, so the job failed 79 of 80 sets, six runs in a row,
+// while the API answered normally.
+const API_LANE_PER_RUN = 35;
+const API_LANE_RESERVE = 20;
+
+export function detailsToScrape(d: BricksetDetails): BricksetScrape {
+  let tags: string[] | null = null;
+  try {
+    const parsed = d.tags ? JSON.parse(d.tags) : null;
+    if (Array.isArray(parsed)) tags = parsed.map(String);
+  } catch { /* malformed tags are dropped */ }
+  return {
+    msrp_usd: d.msrp,
+    launch_date: d.launchDate ? d.launchDate.slice(0, 10) : null,
+    exit_date: d.exitDate ? d.exitDate.slice(0, 10) : null,
+    theme_group: d.themeGroup,
+    category: d.category,
+    subtheme: d.subtheme,
+    age_min: d.ageMin,
+    age_max: d.ageMax,
+    packaging_type: d.packagingType,
+    instructions_count: d.instructionsCount,
+    additional_image_count: d.additionalImageCount,
+    description: d.description,
+    tags,
+    rating: d.rating,
+    review_count: d.reviewCount,
+    brickset_set_id: d.setId,
+    dimensions: d.dimensions,
+  };
+}
+
 const BRICKSET_NOT_FOUND = /^\s*Sorry, we don't have a set with that number/i;
 /**
  * Backfill Brickset enrichment data for sets whose brickset_enriched_at is
  * NULL or stale (>90 days). Reads brickset.com/sets/{setNum} pages through
- * the cheapest lane that works (direct, Decodo, ZenRows, Firecrawl, Bright
- * Data; see the loop), populating the 19 brickset_* columns without burning
- * the Brickset API quota.
+ * the cheapest lane that works (direct, Decodo, ZenRows, a capped share of
+ * the Brickset API, Firecrawl, Bright Data; see the loop), populating the 19
+ * brickset_* columns.
  *
  * Prioritises: un-enriched sets first, then modern sets (year DESC), then
  * owned/wishlisted sets ahead of the general catalog.
@@ -74,6 +112,11 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number; bud
   const hasFirecrawl = (await sourceEnabled(env, 'firecrawl')) && firecrawlEnabled(env)
     && (await quotaRemaining(env, 'firecrawl')) >= 5;
 
+  let apiLaneLeft = env.BRICKSET_API_KEY
+    ? Math.max(0, Math.min(API_LANE_PER_RUN, (await quotaRemaining(env, 'brickset')) - API_LANE_RESERVE))
+    : 0;
+
+  let apiLaneWorked = false;
   const requestedLimit = Number(options.limit);
   const effLimit = Number.isFinite(requestedLimit) && requestedLimit > 0
     ? Math.min(Math.floor(requestedLimit), 200)
@@ -140,6 +183,15 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number; bud
       const html = await backupScrape(url, env, { timeoutMs: 20_000 });
       if (html) data = parseBricksetHtml(html);
     }
+    if (!data && apiLaneLeft > 0) {
+      if (await spendQuotaFailClosed(env, 'brickset')) {
+        apiLaneLeft--;
+        const details = await fetchBricksetDetails(set_num, env).catch(() => null);
+        if (details) { data = detailsToScrape(details); apiLaneWorked = true; }
+      } else {
+        apiLaneLeft = 0;
+      }
+    }
     if (!data && hasFirecrawl) {
       result = await firecrawlScrape<BricksetScrape>(
         {
@@ -167,6 +219,13 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number; bud
     if (!data && rateLimited) {
       // Firecrawl was only busy. Leave the attempt clock untouched so the set
       // is retried first next run; this is not a provider failure.
+      deferred++;
+      continue;
+    }
+
+    if (!data && !result && apiLaneWorked && apiLaneLeft <= 0) {
+      // The page lanes are down and the API lane, which was answering, has
+      // used its share for this run: the set simply waits for the next run.
       deferred++;
       continue;
     }
