@@ -37,3 +37,17 @@
 # it loads by reflection.
 -if class androidx.credentials.CredentialManager
 -keep class androidx.credentials.playservices.** { *; }
+
+# Live barcode scanner (@capacitor-mlkit/barcode-scanning startScan: CameraX
+# preview behind the WebView + bundled ML Kit decoder). The in-app live scanner
+# started 7-20 times a day until R8 shrinking (2026-10-27) and full R8
+# optimisation (2026-10-31) shipped; from then on almost every start rejected
+# with an empty or obfuscated error ("lfail:error", "lfail:f0-j1-f0-w-devic")
+# and users fell back to ML Kit's own screen. CameraX and ML Kit load parts of
+# themselves by reflection, so keep the whole scanner stack unshrunk.
+-keep class androidx.camera.** { *; }
+-keep interface androidx.camera.** { *; }
+-keep class io.capawesome.capacitorjs.plugins.mlkit.barcodescanning.** { *; }
+-keep class com.google.mlkit.vision.barcode.** { *; }
+-keep class com.google.mlkit.vision.common.** { *; }
+-keep class com.google.android.gms.internal.mlkit_vision_barcode_bundled.** { *; }
