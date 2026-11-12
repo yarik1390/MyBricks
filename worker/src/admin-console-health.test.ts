@@ -3,6 +3,7 @@ import { env } from 'cloudflare:test';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { assessProcess, expectedEveryHours, parseRunTime, PROCESS_REGISTRY } from './lib/process-registry';
 import { getAdminSummary } from './lib/admin-summary';
+import { recordScanOutcome, scanOutcomeDetail } from './lib/analytics';
 import { getRecentRuns, recordCronFinish, recordCronStart } from './lib/cron-runs';
 import { applyTestTables } from './test-schema';
 
@@ -73,6 +74,28 @@ describe('run history', () => {
     expect(history['valuate-sets']).toHaveLength(12);
     expect(history['valuate-sets'][0].summary).toBe('run 14');
     expect(latest['valuate-sets'].summary).toBe('run 14');
+  });
+});
+
+describe('scan outcome metric', () => {
+  beforeEach(() => applyTestTables(db, ['lego_themes', 'lego_sets', 'user_prefs', 'user_collection', 'user_wishlist', 'client_metrics_daily', 'api_quota', 'app_feedback']));
+
+  it('names the mode, hit/miss/err and the answering step or reason', () => {
+    expect(scanOutcomeDetail('image', { identified: true, provider: 'brickognize' }, 200)).toBe('image:hit:brickognize');
+    expect(scanOutcomeDetail('image', { identified: true }, 200)).toBe('image:hit:ai');
+    expect(scanOutcomeDetail('image', { identified: false, reason: 'not_lego' }, 200)).toBe('image:miss:not-lego');
+    expect(scanOutcomeDetail('shelf', { identified: false }, 200)).toBe('shelf:miss:no-match');
+    expect(scanOutcomeDetail('image', { identified: false, reason: 'provider_timeout' }, 503)).toBe('image:err:provider-timeout');
+    expect(scanOutcomeDetail('barcode', { identified: true, barcode_source: 'taught_by_you' }, 200)).toBe('barcode:hit:taught-by-you');
+    expect(scanOutcomeDetail('image', { identified: true, provider: 'x'.repeat(80) }, 200).length).toBeLessThanOrEqual(32);
+  });
+
+  it('counts per day and shows up in the admin summary', async () => {
+    await recordScanOutcome(env as any, 'image', { identified: true, provider: 'local-ocr' }, 200);
+    await recordScanOutcome(env as any, 'image', { identified: true, provider: 'local-ocr' }, 200);
+    await recordScanOutcome(env as any, 'image', { identified: false, reason: 'not_lego' }, 200);
+    const s = await getAdminSummary(env as any);
+    expect(s.scan_outcomes_7d).toEqual([{ detail: 'image:hit:local-ocr', n: 2 }, { detail: 'image:miss:not-lego', n: 1 }]);
   });
 });
 

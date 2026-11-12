@@ -935,6 +935,12 @@
     ]
   },
   {
+    "text": "Barcode lookups",
+    "files": [
+      "views/me-admin-home.js"
+    ]
+  },
+  {
     "text": "Barcode must be 8–14 digits",
     "files": [
       "components/contribute.js"
@@ -5770,6 +5776,12 @@
     ]
   },
   {
+    "text": "No scans have reached the server since this counter started.",
+    "files": [
+      "views/me-admin-home.js"
+    ]
+  },
+  {
     "text": "No scans in the last 7 days.",
     "files": [
       "views/me-admin-home.js"
@@ -6581,6 +6593,12 @@
     "text": "Photo removed",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Photo scans",
+    "files": [
+      "views/me-admin-home.js"
     ]
   },
   {
@@ -8226,6 +8244,12 @@
     ]
   },
   {
+    "text": "Scans that reached the server",
+    "files": [
+      "views/me-admin-home.js"
+    ]
+  },
+  {
     "text": "Scenario range based on the current fair value.",
     "files": [
       "views/portfolio-detail-market.js"
@@ -8646,6 +8670,12 @@
     "text": "Sharing isn't available on this device",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Shelf scans",
+    "files": [
+      "views/me-admin-home.js"
     ]
   },
   {

@@ -75,3 +75,23 @@ describe('admin home: limits, funnel, totals', () => {
     assert.equal(pct(39, 54), 72);
   });
 });
+
+import { scanOutcomes } from '../lib/admin-home.js';
+
+describe('scan outcomes (server-side scan results)', () => {
+  const rows = [
+    { detail: 'image:hit:brickognize', n: 6 }, { detail: 'image:hit:local-ocr', n: 2 },
+    { detail: 'image:miss:not-lego', n: 3 }, { detail: 'image:err:provider-timeout', n: 1 },
+    { detail: 'barcode:hit:catalog', n: 4 }, { detail: 'barcode:miss:not-in-catalog', n: 4 },
+    { detail: 'garbage', n: 9 },
+  ];
+  it('groups by mode with hit rate, answering steps and miss reasons', () => {
+    const [image, barcode] = scanOutcomes(rows);
+    assert.equal(image.mode, 'image');
+    assert.deepEqual([image.total, image.hits, image.misses, image.errors, image.rate], [12, 8, 3, 1, 67]);
+    assert.deepEqual(image.steps, { brickognize: 6, 'local-ocr': 2 });
+    assert.deepEqual(image.reasons, { 'not-lego': 3, 'provider-timeout': 1 });
+    assert.deepEqual([barcode.mode, barcode.total, barcode.rate], ['barcode', 8, 50]);
+    assert.deepEqual(scanOutcomes(null), []);
+  });
+});

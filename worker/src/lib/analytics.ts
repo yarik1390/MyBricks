@@ -81,3 +81,27 @@ export async function mirrorClientMetric(env: Env, event: string, detail: string
     ON CONFLICT (day, event, detail) DO UPDATE SET count = count + 1
   `).bind(event, d).run().catch(() => {});
 }
+
+/**
+ * One row per finished server-side scan, counted per day in
+ * client_metrics_daily (event 'scan_outcome'). scan_attempt only counts
+ * scanner OPENS, so this is the number that says how many photos / barcodes
+ * actually reached the server and which step answered them.
+ * detail = "<mode>:hit:<step>" | "<mode>:miss:<reason>" | "<mode>:err:<reason>".
+ */
+export function scanOutcomeDetail(mode: string, payload: Record<string, unknown>, status: number): string {
+  const slug = (v: unknown, fallback: string) =>
+    String(v || fallback).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 16) || fallback;
+  const m = slug(mode, 'image').slice(0, 7);
+  if (status >= 500) return `${m}:err:${slug(payload.reason, 'error')}`;
+  if (payload.identified === true) return `${m}:hit:${slug(payload.provider ?? payload.barcode_source, 'ai')}`;
+  return `${m}:miss:${slug(payload.reason, 'no-match')}`;
+}
+
+export async function recordScanOutcome(env: Env, mode: string, payload: Record<string, unknown>, status: number): Promise<void> {
+  await env.DB.prepare(`
+    INSERT INTO client_metrics_daily (day, event, detail, count)
+    VALUES (date('now'), 'scan_outcome', ?, 1)
+    ON CONFLICT (day, event, detail) DO UPDATE SET count = count + 1
+  `).bind(scanOutcomeDetail(mode, payload, status)).run().catch(() => {});
+}
