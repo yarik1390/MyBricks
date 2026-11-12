@@ -23,7 +23,7 @@ export async function runEbayAskBackfill(env: Env, options: { limit?: number } =
     ? Math.min(Math.floor(requestedLimit), 200)
     : 40;
   const { results } = await env.DB.prepare(`
-    SELECT ls.set_num, ls.name
+    SELECT ls.set_num, ls.name, ls.upc
     FROM lego_sets ls
     WHERE ls.ebay_ask_cached_at IS NULL OR ls.ebay_ask_cached_at < datetime('now', '-14 days')
     ORDER BY
@@ -36,7 +36,7 @@ export async function runEbayAskBackfill(env: Env, options: { limit?: number } =
       COALESCE(ls.ebay_ask_cached_at, '2000-01-01') ASC,
       ls.set_num ASC
     LIMIT ?
-  `).bind(limit).all<{ set_num: string; name: string }>();
+  `).bind(limit).all<{ set_num: string; name: string; upc: string | null }>();
   if (!results.length) return { processed: 0, updated: 0, limit };
 
   // Browse performs one provider call per set. Respect the exact grant so a
@@ -52,7 +52,7 @@ export async function runEbayAskBackfill(env: Env, options: { limit?: number } =
   for (const set of grantedResults) {
     if (browseDenied) break;
     processed++;
-    const listings = await fetchEbayActiveListings(set.set_num, set.name, env, { recordHealth: false })
+    const listings = await fetchEbayActiveListings(set.set_num, set.name, env, { recordHealth: false, upc: set.upc })
       .catch((err) => { health.fail++; health.lastError = (err as Error)?.message || String(err); return null; });
     if (listings && !listings.error) {
       health.ok++;
