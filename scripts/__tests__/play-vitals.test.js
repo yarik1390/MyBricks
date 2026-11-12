@@ -18,6 +18,13 @@ describe('Play Console Android warnings', () => {
     assert.match(rules, /^-keep class com\.amazon\.\*\* \{ \*; \}/m);
   });
 
+  it('keeps the live barcode scanner stack out of R8 (CameraX, ML Kit, plugin)', () => {
+    const rules = read('android/app/proguard-rules.pro');
+    assert.match(rules, /^-keep class androidx\.camera\.\*\* \{ \*; \}/m);
+    assert.match(rules, /^-keep class io\.capawesome\.capacitorjs\.plugins\.mlkit\.barcodescanning\.\*\* \{ \*; \}/m);
+    assert.match(rules, /^-keep class com\.google\.mlkit\.vision\.barcode\.\*\* \{ \*; \}/m);
+  });
+
   it('goes edge-to-edge without the APIs Android 15 deprecated', () => {
     const activity = read(`${javaDir}MainActivity.java`);
     assert.match(activity, /EdgeToEdge\.enable\(this/);
