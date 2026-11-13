@@ -1902,3 +1902,7 @@ zh.dp = {"paid": "买入价", "gain": "收益", "sets": "套装", "today": "今�
 
 // Data & import → Share prices (community comps consent).
 Object.assign(zh.data, {"shareTitle": "分享价格", "shareLabel": "匿名分享我的价格", "shareSub": "你的买入价和卖出价能帮助为所有人估值套装。只公开中位数，并且仅在至少五位收藏者分享某套装后才公开。默认关闭。", "shareOn": "谢谢，你的价格现已计入社区中位数", "shareOff": "你的价格已不再分享", "blSalesSub": "从你的 BrickLink 店铺导出 “Orders Received” CSV。已售套装会带着售价离开你的收藏，并计入已实现收益。如果开启“分享价格”，这些价格也会计入匿名社区中位数。"});
+
+// Deep-testing fixes (2026-11-13): sale of several copies, purchase checks,
+// US retail label, list catalog check, empty display name.
+zh.qa = {"soldForAllOne": "售价（全部 {n} 套）", "soldForAllHelpOne": "这会记录全部 {n} 套的出售。只卖了一套？请在“你的副本”中对那一套使用“出售”。", "soldForAllOther": "售价（全部 {n} 套）", "soldForAllHelpOther": "这会记录全部 {n} 套的出售。只卖了一套？请在“你的副本”中对那一套使用“出售”。", "futureDate": "购买日期不能是未来的日期。", "priceTooHigh": "这个价格看起来输错了，请检查金额。", "priceHighTitle": "这个价格对吗？", "priceHighBody": "你输入了 {price}，远高于该套装的价值 {value}。", "retailUs": "美国零售价", "listUnknown": "目录中没有：{sets}。请检查套装编号。", "nameEmpty": "请输入名称，不能为空。"};

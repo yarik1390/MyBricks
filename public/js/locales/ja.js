@@ -1907,3 +1907,7 @@ ja.dp = {"paid": "購入額", "gain": "含み益", "sets": "セット", "today":
 
 // Data & import → Share prices (community comps consent).
 Object.assign(ja.data, {"shareTitle": "価格を共有", "shareLabel": "自分の価格を匿名で共有する", "shareSub": "購入価格と売却価格は、みんなのためのセット評価に役立ちます。公開されるのは中央値のみで、5人以上のコレクターが共有したセットに限ります。初期設定はオフです。", "shareOn": "ありがとうございます。あなたの価格がコミュニティの中央値に反映されます", "shareOff": "あなたの価格は共有されなくなりました", "blSalesSub": "BrickLinkストアの「Orders Received」をCSVでエクスポートしてください。売却したセットは売却価格とともにコレクションから外れ、実現利益に反映されます。「価格を共有」をオンにすると、匿名のコミュニティ中央値にも反映されます。"});
+
+// Deep-testing fixes (2026-11-13): sale of several copies, purchase checks,
+// US retail label, list catalog check, empty display name.
+ja.qa = {"soldForAllOne": "販売価格（{n}個すべて）", "soldForAllHelpOne": "{n}個すべての販売として記録します。1個だけ売った場合は「あなたのコピー」でその1個の「売却」を使ってください。", "soldForAllOther": "販売価格（{n}個すべて）", "soldForAllHelpOther": "{n}個すべての販売として記録します。1個だけ売った場合は「あなたのコピー」でその1個の「売却」を使ってください。", "futureDate": "購入日を未来の日付にすることはできません。", "priceTooHigh": "入力ミスのようです。金額を確認してください。", "priceHighTitle": "この価格で合っていますか？", "priceHighBody": "{price}と入力されましたが、セットの価値{value}を大きく上回っています。", "retailUs": "米国定価", "listUnknown": "カタログにありません: {sets}。セット番号を確認してください。", "nameEmpty": "名前を入力してください。空にはできません。"};

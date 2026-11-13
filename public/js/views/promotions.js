@@ -11,6 +11,7 @@ import { api } from '../api.js';
 import { t, intlLocale } from '../lib/i18n.js';
 import { topbar, btn, pill, field, sheetBody, emptyState, skeletonRows } from '../ui/kit.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
+import { localizeStoreUrl } from '../lib/pure.js';
 
 const onScreen = () => location.hash.split('?')[0] === '#/promos';
 const MARKETS = ['US', 'FR', 'DE', 'NL', 'GB', 'CA', 'AU'];
@@ -61,7 +62,7 @@ function promoHTML(p, { upcoming = false, admin = false } = {}) {
     ${p.details ? `<p class="bv-promo__details">${escapeHtml(p.details)}</p>` : ''}
     ${gift}
     <div class="bv-promo__actions">
-      ${p.url ? `<a class="bv-btn bv-btn--text bv-btn--sm" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">Details</a>` : ''}
+      ${p.url ? `<a class="bv-btn bv-btn--text bv-btn--sm" href="${escapeHtml(admin ? p.url : localizeStoreUrl(p.url, myMarket()))}" target="_blank" rel="noopener">Details</a>` : ''}
       ${admin ? `<button type="button" class="bv-btn bv-btn--text bv-btn--sm" data-promo-edit>Edit</button>
         <button type="button" class="bv-btn bv-btn--text bv-btn--sm" data-promo-hide>${Number(p.hidden) ? 'Show' : 'Hide'}</button>` : ''}
     </div>

@@ -265,9 +265,13 @@ a.bv-card, button.bv-card { text-decoration: none; text-align: left; font: inher
 .bv-row + .bv-row { border-top: 1px solid var(--bv-line); }
 .bv-row > svg { width: 22px; height: 22px; flex-shrink: 0; }
 .bv-row__text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.bv-row__title { font: 500 16px/22px var(--bv-sans); overflow-wrap: anywhere; }
-.bv-row__sub { font-size: 13px; line-height: 18px; color: var(--bv-mute); overflow-wrap: anywhere; }
-.bv-row__trail { display: flex; align-items: center; gap: 4px; font-size: 14px; color: var(--bv-mute); white-space: nowrap; flex-shrink: 0; }
+.bv-row__title { font: 500 16px/22px var(--bv-sans); overflow-wrap: break-word; }
+.bv-row__sub { font-size: 13px; line-height: 18px; color: var(--bv-mute); overflow-wrap: break-word; }
+/* With large system fonts a long trail ("GBP · United Kingdom") used to keep
+   its width and squeeze the title to "Curre/ncy & /region"; now both shrink
+   and wrap at word boundaries (deep-testing BUG-015). */
+.bv-row__trail { display: flex; align-items: center; gap: 4px; font-size: 14px; color: var(--bv-mute); flex: 0 1 auto; text-align: end; justify-content: flex-end; }
+.bv-row__trail > svg { flex-shrink: 0; }
 .bv-row__trail svg { width: 20px; height: 20px; }
 .bv-row--danger, .bv-row--danger .bv-row__title { color: var(--bv-loss); }
 .bv-row:active { background: color-mix(in srgb, var(--bv-ink) 5%, transparent); }
@@ -311,7 +315,7 @@ a.bv-card, button.bv-card { text-decoration: none; text-align: left; font: inher
 .bv-tile__media img { position: absolute; inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); object-fit: contain; }
 .bv-tile__media.photo-loaded > svg { visibility: hidden; }
 .bv-tile__body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.bv-tile__name { font: 600 14px/18px var(--bv-sans); min-height: 36px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.bv-tile__name { font: 600 14px/18px var(--bv-sans); min-height: 36px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: break-word; hyphens: auto; }
 .bv-tile__meta { font-size: 12px; line-height: 16px; color: var(--bv-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bv-tile__value { font: 600 15px/20px var(--bv-mono); margin-top: 2px; }
 .bv-tile__tag { position: absolute; left: 6px; top: 6px; }
@@ -1560,7 +1564,7 @@ html.bv-scan-native-live .bv-scan__video { display: none; }
 .bv-shortcut:active { background: color-mix(in srgb, var(--bv-ink) 5%, var(--bv-s)); }
 .bv-shortcut__icon { width: 36px; height: 36px; flex-shrink: 0; border-radius: 18px; display: grid; place-items: center; background: color-mix(in srgb, var(--bv-acc) 28%, transparent); }
 .bv-shortcut__text { display: flex; flex-direction: column; min-width: 0; }
-.bv-shortcut__title { font: 600 14px/18px var(--bv-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bv-shortcut__title { font: 600 14px/18px var(--bv-sans); overflow-wrap: break-word; }
 .bv-shortcut__sub { font: 400 12px/16px var(--bv-sans); color: var(--bv-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bv-discover__section .bv-setrow__end .bv-pill { margin-top: 2px; }
 /* One swipeable row of themes (it wrapped to three rows before), bleeding to
@@ -1599,7 +1603,10 @@ body.collector-ui .bv-discover #catalogSortBtn { grid-column: auto; grid-row: au
 .bv-filter__section { display: flex; flex-direction: column; gap: 6px; padding: 6px 0; }
 .bv-filter__section h3 { margin: 0; font: 600 14px/20px var(--bv-sans); color: var(--bv-ink); }
 .bv-filter__section .bv-chips--wrap { gap: 8px; }
-.bv-filter__actions { position: sticky; bottom: calc(-24px - var(--safe-bottom, 0px)); padding: 12px 0 4px; background: var(--bv-bg); margin-top: 4px; }
+/* Sticks flush with the sheet's bottom edge, which on Android edge-to-edge
+   sits under the system navigation buttons: pad the bar by the safe area so
+   its buttons stay above them (deep-testing BUG-017). */
+.bv-filter__actions { position: sticky; bottom: calc(-24px - var(--safe-bottom, 0px)); padding: 12px 0 calc(4px + var(--safe-bottom, 0px)); background: var(--bv-bg); margin-top: 4px; }
 
 /* Retiring soon */
 .bv-retiring .bv-tabs--seg { border: 0; padding: 4px; gap: 4px; border-radius: 24px; background: var(--bv-s2); }
@@ -2029,6 +2036,11 @@ body.bv-nav-off .advisor-fab { bottom: calc(var(--safe-bottom, 0px) + 20px); }
   width: 100%; max-width: 480px; height: 56px; border: 0; border-radius: 28px; background: #252820; color: #ffda47; cursor: pointer; text-decoration: none;
   display: flex; align-items: center; justify-content: center; gap: 8px; font: 600 16px/1 var(--bv-sans);
 }
+/* ".bv-wr a { color: inherit }" outranks .bv-wr__cta, which left the empty
+   story's "Add sets" link dark-on-dark, a black button with no label
+   (deep-testing BUG-021). The gold skin sets its own colour below. */
+.bv-wr a.bv-wr__cta { color: #ffda47; }
+.bv-wr--gold a.bv-wr__cta { color: #2A2008; }
 .bv-wr.is-loading .bv-wr__top { justify-content: flex-start; }
 @media (prefers-reduced-motion: no-preference) {
   .bv-wr__stat.is-new { animation: bvWrIn .32s var(--bv-ease-emph, ease-out); }
@@ -2553,6 +2565,9 @@ body.collector-ui.offline #app { padding-top: 56px; }
 /* Lot checker (views/lot.js). */
 .bv-lot > section, .bv-lot > .bv-field, .bv-lot > .bv-btn, .bv-lot > .bv-field__help, .bv-lot > .bv-card { margin-left: var(--bv-gutter); margin-right: var(--bv-gutter); }
 .bv-lot > .bv-btn, .bv-lot > .bv-card, .bv-lot > .bv-field { margin-bottom: 12px; }
+/* A full-width button plus the side gutters ran past the right edge
+   ("Check this lot", deep-testing BUG-023). */
+.bv-lot > .bv-btn--full { width: calc(100% - 2 * var(--bv-gutter)); }
 .bv-lot__add { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px; }
 .bv-lot__add textarea { width: 100%; min-height: 72px; resize: vertical; border: 0; background: transparent; color: inherit; font: inherit; }
 .bv-lot__hits { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }

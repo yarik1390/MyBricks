@@ -1,5 +1,5 @@
 import { discoverNavigation } from '../components/collector-shell.js';
-import { $, $$, haptic, escapeHtml, setHue, bvIDB, SEARCH_DEBOUNCE_MS, mount, toast, thumbImg, snackbar } from '../utils.js';
+import { $, $$, haptic, escapeHtml, setHue, bvIDB, SEARCH_DEBOUNCE_MS, mount, toast, thumbImg, snackbar, capturedMoneyContext, CURRENCY_SYMBOLS, fmtMoney } from '../utils.js';
 import { icon as kitIcon, iconBtn as kitIconBtn, row as kitRow, sectionTitle as kitSectionTitle, pill as kitPill, topbar as kitTopbar, searchBar as kitSearchBar, sheetBody as kitSheetBody, emptyState as kitEmptyState, field as kitField } from '../ui/kit.js';
 import { setRow as kitSetRow, money0 } from '../ui/set-ui.js';
 import { t, tPlural, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
@@ -235,8 +235,13 @@ function catalogQuery() {
   else if (f.catalogRetired === "active") p.set("retired", "0");
   else if (f.catalogRetired === "retiring") p.set("retiring", "1");
   if (f.catalogDeal) p.set("deal", "1");
+  // The value range is typed in the user's currency (the field shows "£");
+  // the API compares USD, so convert it — Max £500 used to mean $500.
+  const rate = Number(capturedMoneyContext().rate) || 1;
   for (const [k, v] of Object.entries(f.catalogRanges)) {
-    if (v !== "" && v != null) p.set(k, v);
+    if (v === "" || v == null) continue;
+    const isValue = k === "min_value" || k === "max_value";
+    p.set(k, isValue && rate !== 1 ? String(Math.round((Number(v) / rate) * 100) / 100) : v);
   }
   return p.toString();
 }
@@ -334,7 +339,7 @@ function refreshCatalogSummary() {
   // the results region, so a grid refresh repaints it; keep the live-region
   // summary for screen readers.
   const el = $("#catalogFilterSummary");
-  if (el) el.textContent = catalogFilterSummaryText(state.filter, t, tPlural);
+  if (el) el.textContent = catalogFilterSummaryText(state.filter, t, tPlural, valueAmount);
 }
 
 function tileTagHTML(s) {
@@ -542,7 +547,7 @@ function paintAdd() {
       ${kitTopbar({ title: t('collector.discover'), actionsHtml: kitIconBtn({ icon: "more", label: t("bvAdd.moreOptions"), id: "discoverMoreBtn" }) })}
       ${kitSearchBar({ id: "catalogSearch", name: "catalog_search", placeholder: t("bvAdd.searchPlaceholder"), label: t("bvAdd.searchLabel"), value: f.catalogQ, trailHtml: kitIconBtn({ icon: "scan", label: t("bvAdd.scanToSearch"), id: "catalogScanBtn" }) })}
       ${discoverNavigation()}
-      <p class="bv-sr" id="catalogFilterSummary" aria-live="polite">${escapeHtml(catalogFilterSummaryText(f, t, tPlural))}</p>
+      <p class="bv-sr" id="catalogFilterSummary" aria-live="polite">${escapeHtml(catalogFilterSummaryText(f, t, tPlural, valueAmount))}</p>
       <div class="bv-discover__body">
         <div id="catalogResults" class="bv-discover__results">${catalogResultsHTML()}</div>
         <aside class="bv-discover__panel" id="catalogFilterPanel" aria-labelledby="filterPanelTitle">${filterPanelHTML()}</aside>
@@ -735,12 +740,14 @@ function clearCatalogFilters() {
 // finer facets. One builder serves the phone sheet (ids "f_…") and the desktop
 // panel beside the results (ids "fp_…"), so both stay in step.
 const RANGE_PAIRS = [["min_year", "max_year"], ["min_pieces", "max_pieces"], ["min_value", "max_value"]];
+const valueSymbol = () => { const ctx = capturedMoneyContext(); return CURRENCY_SYMBOLS[ctx.currency] || ctx.currency || "$"; };
+const valueAmount = (v) => `${valueSymbol()}${v}`;
 
 function filterFormHTML(f, shownRanges, p = "f_") {
   const rangeField = (label, minKey, maxKey, ph1, ph2, money = false) => {
     const accessibleLabel = t({ min_year: 'catalog.releaseYear', min_pieces: 'catalog.pieces', min_value: 'catalog.currentValue' }[minKey]);
     const box = (key, ph, which) => `<div class="bv-field"><label for="${p}${key}">${escapeHtml(t(which === "min" ? "bvAdd.min" : "bvAdd.max"))}</label>
-      <div class="bv-field__box">${money ? `<span class="bv-field__prefix">$</span>` : ""}<input class="bv-mono-input" type="number" inputmode="numeric" id="${p}${key}" data-range="${key}" value="${escapeHtml(String(shownRanges[key] ?? ""))}" placeholder="${escapeHtml(ph)}" aria-label="${escapeHtml(accessibleLabel)} — ${escapeHtml(t(which === "min" ? 'catalog.minimum' : 'catalog.maximum'))}" aria-describedby="${p}${minKey}_error"></div></div>`;
+      <div class="bv-field__box">${money ? `<span class="bv-field__prefix">${escapeHtml(valueSymbol())}</span>` : ""}<input class="bv-mono-input" type="number" inputmode="numeric" id="${p}${key}" data-range="${key}" value="${escapeHtml(String(shownRanges[key] ?? ""))}" placeholder="${escapeHtml(ph)}" aria-label="${escapeHtml(accessibleLabel)} — ${escapeHtml(t(which === "min" ? 'catalog.minimum' : 'catalog.maximum'))}" aria-describedby="${p}${minKey}_error"></div></div>`;
     return `<section class="bv-filter__section">
         <h3>${escapeHtml(label)}</h3>
         <div class="bv-form-grid">${box(minKey, ph1, "min")}${box(maxKey, ph2, "max")}</div>
@@ -1056,7 +1063,7 @@ function pppBadgeHTML(s) {
   const r = pricePerPiece(s);
   if (!r) return "";
   const color = r.delta <= -0.25 ? "var(--up)" : r.delta >= 0.25 ? "var(--down)" : "var(--ink-mute)";
-  return `<span class="ppp-badge" style="color:${color};">${t('card.perPiece', { price: `$${r.ppp.toFixed(2)}` })}</span>`;
+  return `<span class="ppp-badge" style="color:${color};">${t('card.perPiece', { price: fmtMoney(r.ppp) })}</span>`;
 }
 
 // Owned if the API flagged it OR it's in the client-side owned set (kept fresh

@@ -16,6 +16,12 @@ function backupLabel(d) {
   return Number.isFinite(ts) ? new Date(ts).toLocaleDateString(getLocale(), { day: 'numeric', month: 'short', year: 'numeric' }) : d;
 }
 
+// Android's file picker matches by MIME type, and Downloads/Drive label CSV
+// files differently (text/comma-separated-values, text/csv, application/csv,
+// sometimes text/plain or application/vnd.ms-excel). Accepting only ".csv"
+// greyed those files out, so list every label a CSV is known to carry.
+const CSV_ACCEPT = '.csv,text/csv,text/comma-separated-values,application/csv,application/x-csv,text/x-csv,text/plain,application/vnd.ms-excel';
+
 export async function renderMeData() {
   if (!state.me) $("#root").innerHTML = skelPage(skelSettingRows(3));
   await loadMe();
@@ -26,7 +32,7 @@ export async function renderMeData() {
     <div class="bv-datarow">
       <div class="bv-datarow__head">${kitIcon(ic, { size: 22 })}<span class="bv-row__text"><span class="bv-row__title">${title}</span><span class="bv-row__sub">${sub}</span></span></div>
       <div class="csv-import-wrap bv-datarow__actions">
-        <span class="csv-file-picker"><button type="button" class="bv-btn bv-btn--tonal csv-file-label" data-file-picker data-file-input="${inputId}">${kitIcon('upload', { size: 20 })}<span>${pickLabel}</span></button><input type="file" id="${inputId}" accept=".csv" tabindex="-1" aria-hidden="true"></span>
+        <span class="csv-file-picker"><button type="button" class="bv-btn bv-btn--tonal csv-file-label" data-file-picker data-file-input="${inputId}">${kitIcon('upload', { size: 20 })}<span>${pickLabel}</span></button><input type="file" id="${inputId}" accept="${CSV_ACCEPT}" tabindex="-1" aria-hidden="true"></span>
         <span class="bv-datarow__file" id="${nameId}"></span>
         <button type="button" class="bv-btn bv-btn--primary" id="${importId}" style="display:none;">${kitIcon('plus', { size: 20 })}<span>${importLabel}</span></button>
       </div>

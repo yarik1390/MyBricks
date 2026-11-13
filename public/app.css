@@ -7331,7 +7331,11 @@ body.keyboard-open .detail-page-container {
 [data-mode="kids"] #advisorFab,
 [data-mode="kids"] #heroChart,
 [data-mode="kids"] #rangePills,
-[data-mode="kids"] .portfolio-tabs { display: none !important; }
+[data-mode="kids"] .portfolio-tabs,
+/* Current list rows and tiles (Discover, Retiring soon, Coming soon, Vault):
+   Kids Mode is "price-free", so their value column goes too. */
+[data-mode="kids"] .bv-setrow__value,
+[data-mode="kids"] .bv-tile__value { display: none !important; }
 
 /* Level orb + XP bar */
 .kids-hero { display: flex; align-items: center; gap: 16px; padding: 20px 0 16px; }

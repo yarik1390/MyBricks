@@ -53,7 +53,9 @@ export async function renderSubcollections() {
   const wished = new Set((state.wishlist || []).map(row => canonicalSetNum(row.set_num)));
   for (const w of state.wishlist || []) if (w.name && !names.has(canonicalSetNum(w.set_num))) names.set(canonicalSetNum(w.set_num), w.name);
   const busy = () => document.querySelector('#collectionEditor fieldset')?.disabled;
-  const message = error => t(error?.status === 409 ? 'collections.conflict' : 'collections.failed');
+  const message = error => error?.body?.code === 'unknown_sets' && Array.isArray(error.body.unknown)
+    ? t('qa.listUnknown', { sets: error.body.unknown.slice(0, 5).join(', ') })
+    : t(error?.status === 409 ? 'collections.conflict' : 'collections.failed');
   const pins = () => readCollectorPreferences(getSessionUserId()).pins;
 
   const newList = () => {
@@ -272,6 +274,20 @@ export async function renderSubcollections() {
       try { body = method === 'DELETE' ? { revision: draft.revision } : normalizeSubcollection({ name: $('#collectionName').value, set_nums: targets(), revision: draft.revision }); }
       catch { $('#collectionFormError').textContent = t('collections.invalid'); return; }
       fieldset.disabled = true;
+      // Guest lists live on the device, so check the new numbers against the
+      // catalog here (members get the same check from the server).
+      if (method !== 'DELETE' && isGuestMode()) {
+        const before = new Set(draft.set_nums.map(canonicalSetNum));
+        const added = body.set_nums.filter(num => !before.has(canonicalSetNum(num))).slice(0, 40);
+        const unknown = (await Promise.all(added.map(num => api(`/api/sets/${encodeURIComponent(num)}`)
+          .then(r => ((r?.set || r)?.set_num ? null : num), err => (err?.status === 404 ? num : null))))).filter(Boolean);
+        if (!valid()) return;
+        if (unknown.length) {
+          $('#collectionFormError').textContent = t('qa.listUnknown', { sets: unknown.slice(0, 5).join(', ') });
+          fieldset.disabled = false;
+          return;
+        }
+      }
       try {
         const result = await subcollectionRequest(id, { method, body });
         if (!valid()) return;
