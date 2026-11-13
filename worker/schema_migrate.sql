@@ -594,7 +594,11 @@ CREATE TABLE IF NOT EXISTS cron_runs (
   status TEXT DEFAULT 'running',
   summary TEXT,
   error TEXT,
-  duration_ms INTEGER
+  duration_ms INTEGER,
+  progress_done INTEGER,
+  progress_total INTEGER,
+  progress_step TEXT,
+  heartbeat_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_cron_runs_name ON cron_runs(name, id);
 
@@ -792,3 +796,7 @@ ALTER TABLE swap_requests ADD COLUMN to_done INTEGER DEFAULT 0;
 ALTER TABLE swap_requests ADD COLUMN from_read_id INTEGER DEFAULT 0;
 ALTER TABLE swap_requests ADD COLUMN to_read_id INTEGER DEFAULT 0;
 ALTER TABLE swap_requests ADD COLUMN last_message_at DATETIME;
+ALTER TABLE cron_runs ADD COLUMN progress_done INTEGER;
+ALTER TABLE cron_runs ADD COLUMN progress_total INTEGER;
+ALTER TABLE cron_runs ADD COLUMN progress_step TEXT;
+ALTER TABLE cron_runs ADD COLUMN heartbeat_at TEXT;

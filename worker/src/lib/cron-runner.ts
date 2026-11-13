@@ -1,5 +1,6 @@
 import type { Env } from '../types';
 import { pruneCronRuns, summarizeResult, resultFailed } from './cron-runs';
+import { withProgress, type ProgressHandle } from './job-progress';
 
 // ---------------------------------------------------------------------------
 // Scheduled-job runner. One instance per scheduled() invocation.
@@ -61,7 +62,7 @@ async function withRetry<T>(fn: () => Promise<T>, delaysMs: number[]): Promise<T
 
 export function createCronRunner(
   env: Env,
-  cfg: { slotBudgetMs?: number; now?: () => number; retryDelaysMs?: number[] } = {},
+  cfg: { slotBudgetMs?: number; now?: () => number; retryDelaysMs?: number[]; heartbeatMs?: number } = {},
 ): CronRunner {
   const now = cfg.now ?? Date.now;
   const slotDeadline = now() + (cfg.slotBudgetMs ?? SLOT_BUDGET_MS);
@@ -128,13 +129,24 @@ export function createCronRunner(
     const budget = Math.min(remaining, o.timeoutMs ?? remaining);
 
     let timer: ReturnType<typeof setTimeout> | undefined;
+    // Live progress + heartbeat for the admin console (lib/job-progress.ts).
+    let progress: ProgressHandle | undefined;
+    const settleProgress = async () => {
+      if (!progress) return;
+      progress.stop();
+      // Bounded: a stuck progress write must not delay the final status.
+      await Promise.race([progress.flush().catch(() => {}), sleep(3_000)]);
+    };
     try {
+      const tracked = withProgress(env, runId, fn, { heartbeatMs: cfg.heartbeatMs });
+      progress = tracked.handle;
       const res = await Promise.race([
-        fn(),
+        tracked.result,
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => reject(new CronTimeoutError(budget)), budget);
         }),
       ]);
+      await settleProgress();
       const summary = summarizeResult(res);
       const failed = resultFailed(res);
       await finish(runId, name, {
@@ -145,9 +157,11 @@ export function createCronRunner(
     } catch (e) {
       console.error(`[cron] ${name} failed:`, e);
       errors.push({ name, error: e as Error });
+      await settleProgress();
       await finish(runId, name, { ok: false, error: (e as Error).message, durationMs: now() - startedMs });
     } finally {
       if (timer) clearTimeout(timer);
+      progress?.stop();
     }
   }
 

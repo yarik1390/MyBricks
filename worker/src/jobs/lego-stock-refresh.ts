@@ -6,6 +6,7 @@ import { sourceEnabled } from '../lib/source-config';
 import { backupScrapersAvailable } from '../lib/backup-scrapers';
 import { brightDataEnabled } from '../lib/brightdata-keys';
 import { FIRECRAWL_MAX_CONCURRENCY } from '../lib/firecrawl';
+import { reportProgress } from '../lib/job-progress';
 
 /**
  * Proactively refresh LEGO.com stock + retirement status. Phase-2 lean scope:
@@ -87,6 +88,7 @@ export async function runLegoStockRefresh(env: Env, options: { limit?: number; b
   // invocation. Use the account-wide Firecrawl concurrency ceiling because any
   // Bright Data miss can fall through to Firecrawl.
   for (let i = 0; i < results.length; i += FIRECRAWL_MAX_CONCURRENCY) {
+    reportProgress(i, results.length, 'Checking LEGO.com pages');
     if (Date.now() >= deadline) { stopped_early = true; break; }
     const stmts: D1PreparedStatement[] = [];
     const batch = results.slice(i, i + FIRECRAWL_MAX_CONCURRENCY);

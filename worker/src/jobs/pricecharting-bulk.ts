@@ -4,6 +4,7 @@ import { recomputeBlendedValues } from '../lib/market-sources';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { sourceEnabled } from '../lib/source-config';
 import { runPriceChartingTriage, type TriageResult } from './pricecharting-triage';
+import { reportStep } from '../lib/job-progress';
 
 // ---------------------------------------------------------------------------
 // PriceCharting bulk LEGO CSV import (Legendary tier).
@@ -243,6 +244,7 @@ export async function runPriceChartingBulkFetch(env: Env): Promise<BulkResult> {
   const token = env.PRICECHARTING_TOKEN;
   if (!token) return persistBulk(env, { rows: 0, matched: 0, unmatched: 0, updated: 0, skipped: 'PRICECHARTING_TOKEN not set' });
   let text: string;
+  reportStep('Downloading the price guide', 0, 7);
   try {
     const resp = await fetch(`${LEGO_CSV_URL}?t=${token}&category=lego-sets`, {
       headers: { 'User-Agent': `BrickvaultBot/1.0 (+${appBaseUrl(env)})`, Accept: 'text/csv,*/*' },
@@ -302,6 +304,7 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
   // avoids D1's 100-bound-parameters-per-query limit (a 150-row chunk with three
   // IN(...) lists bound up to ~450 params and threw before any write — the reason
   // earlier runs left no trace) and keeps the whole import subrequest-lean.
+  reportStep(`Loading ${stageRows.length.toLocaleString('en-US')} rows`, 1, 7);
   await env.DB.prepare(
     `CREATE TABLE ${STAGE} (
       pcid TEXT, upc TEXT, provider_category TEXT, title TEXT, setbase TEXT, setnum TEXT,
@@ -345,6 +348,7 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
   }
   await flushStageRows();
 
+  reportStep('Matching rows to sets', 2, 7);
   await env.DB.prepare(`CREATE INDEX IF NOT EXISTS ${STAGE}_pcid ON ${STAGE}(pcid)`).run();
   await env.DB.prepare(`CREATE INDEX IF NOT EXISTS ${STAGE}_upc ON ${STAGE}(upc)`).run();
   // Both branches of the duplicate-evidence OR must be indexed; otherwise
@@ -449,6 +453,7 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
     JOIN lego_sets ls ON ls.set_num=pm.set_num
    AND ${OBSERVATION_IDENTITY_COMPATIBLE}`;
 
+  reportStep('Checking prices against each set', 3, 7);
   // Judge every staged price against the set it is now mapped to, before any
   // write reads it. Unmapped rows are never written, so they are left alone.
   // Re-run after triage, which can map more products before the signal writes.
@@ -476,6 +481,7 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
   `).run();
   await gateStagedValues();
 
+  reportStep('Writing prices', 4, 7);
   // Manual mappings can exist without a UPC. Dual-write the legacy columns for
   // rollback, but only normalized signals participate in pricing v3.
   await env.DB.prepare(`
@@ -597,6 +603,7 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
   `);
   const [, , contradictedResult] = await env.DB.batch([contradictedColumns, contradictedSignals, contradictedMaps]);
   const contradicted = Number(contradictedResult.meta?.changes || 0);
+  reportStep('Settling matches on hold', 5, 7);
   // Settle what the sweep (and any earlier run) quarantined: re-point products to
   // the set their title names, reject the provable mismatches. Runs before the
   // signal writes below so a re-pointed product is priced in this same import.
@@ -624,6 +631,7 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
   ).all<{ set_num: string }>();
   const touched = new Set(touchedSets.results.map((row) => row.set_num));
 
+  reportStep('Refreshing owned and wishlisted values', 6, 7);
   // Recompute the persisted blend for OWNED + WISHLISTED sets only (user-facing
   // priority, bounded). Everything else surfaces live on read and catches up on
   // the next daily valuation pass. Conflicting staged observations are excluded

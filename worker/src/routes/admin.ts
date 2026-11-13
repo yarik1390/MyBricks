@@ -6,7 +6,7 @@ import { nextBackfillPage, runBackfillUpc } from '../jobs/backfill-upc';
 import { BARCODE_PAGE_SIZE } from '../lib/brickset';
 import { runValuateSets } from '../jobs/valuate-sets';
 import { brickInsightsEnabled, firecrawlEnabled } from '../lib/pricing-flags';
-import { getIntegrationDiagnostics } from '../lib/integration-health';
+import { getIntegrationDiagnostics, blockedIntegrations } from '../lib/integration-health';
 import { getQuotaUsage } from '../lib/api-quota';
 import { getAiUsageReport } from '../lib/ai-usage';
 import { rebuildSearchIndex } from '../lib/search-index';
@@ -34,9 +34,11 @@ import { getOpenRouterPools, MODELS } from '../lib/llm';
 import { getFeatureFlags, saveFeatureFlags, applyFeatureFlags, FEATURE_FLAGS } from '../lib/feature-flags';
 import { recordProbeResult } from '../jobs/health-probes';
 import { runServiceTest, TESTABLE_SERVICES } from '../lib/service-tests';
-import { getRecentRuns, recordCronStart, recordCronFinish, summarizeResult } from '../lib/cron-runs';
+import { getRecentRuns } from '../lib/cron-runs';
 import { runPriceChartingVerify } from '../jobs/pricecharting-verify';
-import { PROCESS_REGISTRY, GROUP_ORDER, processInfo, assessProcess } from '../lib/process-registry';
+import { PROCESS_REGISTRY, GROUP_ORDER, processInfo, assessProcess, typicalDurationMs } from '../lib/process-registry';
+import { adviseJob } from '../lib/job-advice';
+import { createCronRunner } from '../lib/cron-runner';
 import { getAdminSummary } from '../lib/admin-summary';
 import { getPricingWriteBudget } from '../lib/pricing-budget';
 import { amazonReadiness } from '../lib/amazon';
@@ -175,8 +177,11 @@ app.post('/pricecharting-bulk-fetch', async (c) => {
       return c.json({ error: 'PriceCharting CSV downloads are limited to once per 10 minutes. Try again shortly.' }, 429);
     }
   } catch { /* best-effort guard */ }
+  // Through the cron runner, so a Run now shows up in Admin > Jobs with live
+  // progress and its result, exactly like the scheduled 04:30 run.
   c.executionCtx.waitUntil(
-    runPriceChartingBulkFetch(c.env).catch((e) => console.warn('[pc-bulk-fetch] failed:', (e as Error).message)),
+    createCronRunner(c.env).run('pricecharting-bulk-fetch', () => runPriceChartingBulkFetch(c.env), { timeoutMs: 10 * 60_000 })
+      .catch((e) => console.warn('[pc-bulk-fetch] failed:', (e as Error).message)),
   );
   return c.json({ ok: true, status: 'running', message: 'LEGO price-guide download started — results appear in diagnostics shortly.' });
 });
@@ -191,16 +196,10 @@ app.post('/run-pricecharting-verify', async (c) => {
   const requested = Number(body.limit);
   const limit = Number.isFinite(requested) && requested > 0 ? Math.min(Math.floor(requested), 2500) : 2500;
 
-  c.executionCtx.waitUntil((async () => {
-    const startedMs = Date.now();
-    const runId = await recordCronStart(c.env, 'pricecharting-verify').catch(() => null);
-    try {
-      const res = await runPriceChartingVerify(c.env, { limit });
-      await recordCronFinish(c.env, runId, 'pricecharting-verify', { ok: !res.skipped, summary: summarizeResult(res), durationMs: Date.now() - startedMs }).catch(() => {});
-    } catch (e) {
-      await recordCronFinish(c.env, runId, 'pricecharting-verify', { ok: false, error: (e as Error).message, durationMs: Date.now() - startedMs }).catch(() => {});
-    }
-  })());
+  c.executionCtx.waitUntil(
+    createCronRunner(c.env).run('pricecharting-verify', () => runPriceChartingVerify(c.env, { limit }))
+      .catch((e) => console.warn('[pc-verify] failed:', (e as Error).message)),
+  );
 
   return c.json({ ok: true, status: 'running', limit, message: 'PriceCharting verification started — watch the Activity tab for promoted/signal counts.' });
 });
@@ -690,14 +689,34 @@ app.post('/test/:service', async (c) => {
 // it does + its latest run (status, when, duration, result), plus a recent
 // chronological feed. The frontend merges this with admin import jobs.
 app.get('/activity', async (c) => {
-  const { latest, recent, history } = await getRecentRuns(c.env);
+  const [{ latest, recent, history }, blocked] = await Promise.all([
+    getRecentRuns(c.env),
+    blockedIntegrations(c.env).catch(() => new Set<string>()),
+  ]);
   const now = Date.now();
   const processes = Object.entries(PROCESS_REGISTRY).map(([name, info]) => {
     const r = latest[name];
     const runs = history[name] ?? [];
     const assessment = assessProcess(info.schedule, runs, now);
+    const advice = adviseJob({
+      name,
+      health: assessment.health,
+      error: r?.error,
+      summary: r?.summary,
+      consecutive_failures: assessment.consecutive_failures,
+      recent_errors: runs.map((run) => run.error),
+      blocked_services: [...blocked],
+    });
     return {
       ...assessment,
+      advice,
+      // Usual length of a successful run, so a running job without its own
+      // progress counter can still show "about 60% of its usual time".
+      typical_ms: typicalDurationMs(runs),
+      progress_done: r?.status === 'running' || r?.status === 'failed' ? r?.progress_done ?? null : null,
+      progress_total: r?.status === 'running' || r?.status === 'failed' ? r?.progress_total ?? null : null,
+      progress_step: r?.status === 'running' || r?.status === 'failed' ? r?.progress_step ?? null : null,
+      heartbeat_at: r?.status === 'running' ? r?.heartbeat_at ?? null : null,
       // Oldest → newest so the UI can draw the run dots left to right.
       runs: runs.slice().reverse().map((run) => ({ status: run.status, started_at: run.started_at, summary: run.summary })),
       name,

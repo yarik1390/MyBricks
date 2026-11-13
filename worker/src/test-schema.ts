@@ -848,7 +848,11 @@ export const TABLE_DDL: Record<string, string> = {
   status TEXT DEFAULT 'running',
   summary TEXT,
   error TEXT,
-  duration_ms INTEGER
+  duration_ms INTEGER,
+  progress_done INTEGER,
+  progress_total INTEGER,
+  progress_step TEXT,
+  heartbeat_at TEXT
 )`,
 };
 

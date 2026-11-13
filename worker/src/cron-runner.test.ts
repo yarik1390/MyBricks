@@ -17,7 +17,8 @@ describe('cron runner', () => {
     await env.DB.prepare('DROP TABLE IF EXISTS cron_runs').run();
     await env.DB.prepare(`CREATE TABLE cron_runs (
       id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, started_at TEXT,
-      finished_at TEXT, status TEXT, summary TEXT, error TEXT, duration_ms INTEGER
+      finished_at TEXT, status TEXT, summary TEXT, error TEXT, duration_ms INTEGER,
+      progress_done INTEGER, progress_total INTEGER, progress_step TEXT, heartbeat_at TEXT
     )`).run();
   });
 
@@ -87,7 +88,8 @@ describe('daily catch-up', () => {
     await env.DB.prepare('DROP TABLE IF EXISTS cron_runs').run();
     await env.DB.prepare(`CREATE TABLE cron_runs (
       id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, started_at TEXT,
-      finished_at TEXT, status TEXT, summary TEXT, error TEXT, duration_ms INTEGER
+      finished_at TEXT, status TEXT, summary TEXT, error TEXT, duration_ms INTEGER,
+      progress_done INTEGER, progress_total INTEGER, progress_step TEXT, heartbeat_at TEXT
     )`).run();
   });
 
