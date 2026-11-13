@@ -31,6 +31,7 @@ import {
 } from '../lib/amazon';
 import { hasProAccess } from '../lib/early-access';
 import { aiAccess, byokSuggested } from '../lib/ai-access';
+import { legoLocalMarket, readLegoLocalPrice } from '../lib/lego-local-price';
 
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -709,15 +710,22 @@ async function buildSharedSetDetail(
     // can sharpen the live acquisition price but is never stored in D1 and
     // never becomes a valuation comp. Wins only when cheaper than (or the only)
     // stored retail offer.
-    const [retailOffer, amOffer] = await Promise.all([
+    // LEGO.com's own list price in the member's shop country (lego.com/en-gb
+    // in pounds), so "Retail" isn't the US price converted (deep-testing BUG-006).
+    const localMarket = String(retailMarket).toUpperCase() === 'US' ? null : legoLocalMarket(retailMarket);
+    const [retailOffer, amOffer, legoLocal] = await Promise.all([
       c.env.DB.prepare(`
         SELECT market, currency, item_price, delivered_price, merchant, stock,
                offer_count, msrp, lowest_90d, all_time_low, checked_at, source
         FROM retail_price_current WHERE set_num=? AND market=?
       `).bind(setNum, retailMarket).first<Record<string, unknown>>().catch(() => null),
       getFreshAmazonOffer(c.env, setNum, amazonMarket(retailMarket, c.env)).catch(() => null),
+      localMarket ? readLegoLocalPrice(c.env, setNum, localMarket) : Promise.resolve(null),
     ]);
     if (retailOffer) set = { ...set, __retail_offer: retailOffer };
+    if (legoLocal && Number(legoLocal.price) > 0 && legoLocal.currency) {
+      set = { ...set, retail_local: { market: legoLocal.market, currency: legoLocal.currency, price: Number(legoLocal.price) } };
+    }
     if (amOffer) {
       const storedPrice = Number(retailOffer?.delivered_price ?? retailOffer?.item_price);
       if (!Number.isFinite(storedPrice) || storedPrice <= 0 || amOffer.price < storedPrice) {

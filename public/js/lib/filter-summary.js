@@ -3,12 +3,14 @@ import { catalogFilterSummary, figFilterSummary } from './pure.js';
 // Pure summary data is intentionally kept separate from language-specific
 // rendering. Callers supply the app's t/tPlural functions, while the final
 // HTML sink remains responsible for escaping catalog and search values.
-export function catalogFilterSummaryText(filter, t, tPlural) {
+// `money` (optional) writes a value-filter amount in the user's currency; the
+// value range is entered in that currency (catalog.js converts it to USD).
+export function catalogFilterSummaryText(filter, t, tPlural, money = null) {
   const summary = catalogFilterSummary(filter);
   if (!summary.count) return t('catalog.filterSummaryNone');
   const rangeValue = (field, value) => field === 'pieces'
     ? t('catalog.filterSummaryPiecesValue', { value })
-    : field === 'value' ? t('catalog.filterSummaryValueAmount', { value }) : String(value);
+    : field === 'value' ? (money ? money(value) : t('catalog.filterSummaryValueAmount', { value })) : String(value);
   const parts = summary.parts.map((part) => {
     if (part.kind === 'search') return t('catalog.filterSummarySearch', { value: part.value });
     if (part.kind === 'status') return t(`catalog.filterSummaryStatus${part.value[0].toUpperCase()}${part.value.slice(1)}`);

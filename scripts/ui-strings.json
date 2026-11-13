@@ -1232,6 +1232,12 @@
     ]
   },
   {
+    "text": "Brickset rating",
+    "files": [
+      "views/portfolio-detail.js"
+    ]
+  },
+  {
     "text": "Brickset username",
     "files": [
       "views/me-integrations.js"
@@ -1730,12 +1736,6 @@
     "text": "Common",
     "files": [
       "runtime-exact"
-    ]
-  },
-  {
-    "text": "Community",
-    "files": [
-      "views/portfolio-detail.js"
     ]
   },
   {
@@ -4084,7 +4084,7 @@
     ]
   },
   {
-    "text": "I need purchase prices before I can rank ROI. Add purchase prices in each set's Manage tab and I will calculate gains locally.",
+    "text": "I need purchase prices before I can rank ROI. Add purchase prices in each set's Your copy sheet and I will calculate gains locally.",
     "files": [
       "api.js"
     ]
@@ -5888,6 +5888,12 @@
     "text": "None (loose parts)",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "None of your sets is flagged as retiring soon right now.",
+    "files": [
+      "api.js"
     ]
   },
   {
@@ -7863,6 +7869,7 @@
   {
     "text": "Retiring soon",
     "files": [
+      "api.js",
       "route-meta.js"
     ]
   },
@@ -8413,6 +8420,12 @@
     ]
   },
   {
+    "text": "See Discover → Retiring soon for every set about to leave the shelves.",
+    "files": [
+      "api.js"
+    ]
+  },
+  {
     "text": "See Pro options →",
     "files": [
       "components/onboarding.js"
@@ -8600,6 +8613,12 @@
     "text": "Set not found",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "Set not in your vault",
+    "files": [
+      "api.js"
     ]
   },
   {
@@ -8853,6 +8872,12 @@
     "files": [
       "components/onboarding.js",
       "views/welcome.js"
+    ]
+  },
+  {
+    "text": "Sign in for full AI answers to any question.",
+    "files": [
+      "api.js"
     ]
   },
   {
@@ -9872,6 +9897,12 @@
     ]
   },
   {
+    "text": "Too many wrong PINs. Wait a few minutes, then try again.",
+    "files": [
+      "views/kids.js"
+    ]
+  },
+  {
     "text": "Took too long — try again.",
     "files": [
       "runtime-exact"
@@ -10778,6 +10809,12 @@
     ]
   },
   {
+    "text": "You are offline. Connect to check the PIN.",
+    "files": [
+      "views/kids.js"
+    ]
+  },
+  {
     "text": "You can change this anytime in Settings.",
     "files": [
       "components/onboarding.js"
@@ -11029,6 +11066,12 @@
     "text": "Zip-lock bag",
     "files": [
       "views/portfolio-detail.js"
+    ]
+  },
+  {
+    "text": "a loss",
+    "files": [
+      "api.js"
     ]
   },
   {
@@ -12831,6 +12874,18 @@
     "text": "skipped —",
     "files": [
       "runtime-exact"
+    ]
+  },
+  {
+    "text": "sold_fees must be a number >= 0 and below the sold price",
+    "files": [
+      "api.js"
+    ]
+  },
+  {
+    "text": "sold_price must be a number > 0",
+    "files": [
+      "api.js"
     ]
   },
   {

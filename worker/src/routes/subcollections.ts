@@ -45,6 +45,17 @@ function normalizeWriteBody(value: unknown): { name: string; setNums: string[]; 
   return { name, setNums, revision: Number(body.revision) };
 }
 
+async function unknownSetNums(env: Env, setNums: string[]): Promise<string[]> {
+  const known = new Set<string>();
+  for (let i = 0; i < setNums.length; i += 90) {
+    const chunk = setNums.slice(i, i + 90);
+    const { results } = await env.DB.prepare(`SELECT set_num FROM lego_sets WHERE set_num IN (${chunk.map(() => '?').join(',')})`)
+      .bind(...chunk).all<{ set_num: string }>();
+    for (const r of results || []) known.add(r.set_num);
+  }
+  return setNums.filter((n) => !known.has(n));
+}
+
 function normalizeDeleteBody(value: unknown): { revision: number } | { error: string } {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return { error: 'Invalid JSON body' };
   const revision = (value as Record<string, unknown>).revision;
@@ -72,6 +83,12 @@ app.put('/:id', async (c) => {
   if (!id) return c.json({ error: 'id must be a UUID' }, 400);
   const parsed = normalizeWriteBody(await jsonBody(c));
   if ('error' in parsed) return c.json({ error: parsed.error }, 400);
+  // A list with a set number the catalog doesn't know ("abc", "99999-9") can
+  // never reach 100% (deep-testing BUG-016), so name them and refuse.
+  const unknown = await unknownSetNums(c.env, parsed.setNums);
+  if (unknown.length) {
+    return c.json({ error: `Not in the catalog: ${unknown.slice(0, 5).join(', ')}${unknown.length > 5 ? '…' : ''}`, code: 'unknown_sets', unknown }, 400);
+  }
   const userId = c.get('userId');
   let row: StoredSubcollection | null;
   if (parsed.revision === 0) {

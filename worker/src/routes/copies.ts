@@ -8,6 +8,7 @@ import {
 } from '../lib/holding-copies';
 import { parseSaleBody, recordSale } from '../lib/realized-sales';
 import { scheduleBuildCacheRecompute } from '../lib/build-matcher';
+import { purchasePriceError, isFuturePurchaseDate } from '../lib/purchase-validate';
 
 // Per-copy tracking under a holding (mounted at /api/collection).
 //
@@ -38,7 +39,8 @@ export function parseCopyFields(body: Record<string, unknown>): { ok: true; fiel
   }
   if ('purchase_price' in body) {
     const p = body.purchase_price;
-    if (p !== null && (typeof p !== 'number' || !Number.isFinite(p) || p < 0)) return { ok: false, error: 'Purchase price must be a number >= 0' };
+    const priceErr = purchasePriceError(p);
+    if (priceErr) return { ok: false, error: priceErr };
     fields.purchase_price = p as number | null;
   }
   if ('purchased_at' in body) {
@@ -46,6 +48,7 @@ export function parseCopyFields(body: Record<string, unknown>): { ok: true; fiel
     if (d !== null && d !== '' && (typeof d !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(Date.parse(d)))) {
       return { ok: false, error: 'Purchased at must be a valid YYYY-MM-DD date string' };
     }
+    if (typeof d === 'string' && d && isFuturePurchaseDate(d)) return { ok: false, error: 'Purchase date cannot be in the future' };
     fields.purchased_at = (d || null) as string | null;
   }
   if ('box_grade' in body) {

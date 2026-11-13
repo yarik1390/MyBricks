@@ -34,7 +34,16 @@ describe('owner-private named subcollections', () => {
     (env as any).SUPABASE_JWT_SECRET = secret;
     (env as any).SUPABASE_URL = 'https://supabase.mock.io';
     (env as any).SUPABASE_ANON_KEY = 'fixture-anon-key';
-    await applyTestTables(db, ['user_subcollections']);
+    await applyTestTables(db, ['user_subcollections', 'lego_sets']);
+    await db.batch(['123-1', 'ABC_2'].map((n) => db.prepare('INSERT OR IGNORE INTO lego_sets (set_num, name) VALUES (?, ?)').bind(n, n)));
+  });
+
+  it('refuses set numbers that are not in the catalog and names them', async () => {
+    const res = await request(`/${ID}`, { method: 'PUT', body: JSON.stringify({ name: 'List', set_nums: ['99999-9', 'abc', '123-1'], revision: 0 }) });
+    expect(res.status).toBe(400);
+    const body = await res.json<any>();
+    expect(body.code).toBe('unknown_sets');
+    expect(body.unknown).toEqual(['99999-9', 'abc']);
   });
 
   it('requires member auth, applies private no-store, and never exposes another owner', async () => {

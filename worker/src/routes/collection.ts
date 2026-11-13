@@ -15,6 +15,7 @@ import { scheduleBuildCacheRecompute } from '../lib/build-matcher';
 import { activeCopies, applyHoldingFieldsToCopies, closeCopies, syncCopiesToQuantity, syncHoldingFromCopies } from '../lib/holding-copies';
 import { recordSale, preserveLegacySale } from '../lib/realized-sales';
 import { hasProAccess } from '../lib/early-access';
+import { purchasePriceError, isFuturePurchaseDate } from '../lib/purchase-validate';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -293,13 +294,13 @@ app.post('/', async (c) => {
   if (typeof quantity !== 'number' || !Number.isInteger(quantity) || quantity < 1) {
     return c.json({ error: 'Quantity must be an integer >= 1' }, 400);
   }
-  if (purchase_price !== undefined && purchase_price !== null && (typeof purchase_price !== 'number' || purchase_price < 0)) {
-    return c.json({ error: 'Purchase price must be a number >= 0' }, 400);
-  }
+  const priceErr = purchasePriceError(purchase_price);
+  if (priceErr) return c.json({ error: priceErr }, 400);
   if (purchased_at) {
     if (typeof purchased_at !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(purchased_at) || isNaN(Date.parse(purchased_at))) {
       return c.json({ error: 'Purchased at must be a valid YYYY-MM-DD date string' }, 400);
     }
+    if (isFuturePurchaseDate(purchased_at)) return c.json({ error: 'Purchase date cannot be in the future' }, 400);
   }
 
   const existing = await c.env.DB.prepare('SELECT 1 FROM lego_sets WHERE set_num=?').bind(set_num).first();
@@ -329,6 +330,15 @@ app.post('/', async (c) => {
   }
   // Tracked copies follow the new quantity (no-op when the set isn't tracked per copy).
   await syncCopiesToQuantity(c.env.DB, userId, set_num);
+  // A set that just joined the vault is no longer wanted: take it off the
+  // wishlist so its buy alerts stop (deep-testing BUG-022; same as the
+  // wishlist's own "Bought it"). Re-adding to an existing holding leaves it.
+  let removedFromWishlist = false;
+  if (!prior || prior.deleted_at) {
+    const del = await c.env.DB.prepare('DELETE FROM user_wishlist WHERE user_id = ? AND set_num = ?')
+      .bind(userId, set_num).run().catch(() => null);
+    removedFromWishlist = !!del?.meta?.changes;
+  }
 
   const item = await c.env.DB.prepare(
     'SELECT * FROM user_collection WHERE user_id=? AND set_num=? AND deleted_at IS NULL'
@@ -339,7 +349,7 @@ app.post('/', async (c) => {
   // Pre-warm the "What can I build?" cache for the NEW collection state so the
   // next Build visit is instant instead of a guaranteed-cold multi-second scan.
   scheduleBuildCacheRecompute(c.env, userId, c.executionCtx);
-  return c.json({ item, kids: kidsResult.xp_gained > 0 ? kidsResult : undefined }, 201);
+  return c.json({ item, kids: kidsResult.xp_gained > 0 ? kidsResult : undefined, ...(removedFromWishlist ? { removed_from_wishlist: true } : {}) }, 201);
 });
 
 // GET /api/collection/export
@@ -670,16 +680,15 @@ app.patch('/:id', async (c) => {
     }
   }
   if ('purchase_price' in body) {
-    const p = body.purchase_price;
-    if (p !== null && (typeof p !== 'number' || p < 0)) {
-      return c.json({ error: 'Purchase price must be a number >= 0' }, 400);
-    }
+    const priceErr = purchasePriceError(body.purchase_price);
+    if (priceErr) return c.json({ error: priceErr }, 400);
   }
   if ('purchased_at' in body && body.purchased_at) {
     const pa = body.purchased_at;
     if (typeof pa !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(pa) || isNaN(Date.parse(pa))) {
       return c.json({ error: 'Purchased at must be a valid YYYY-MM-DD date string' }, 400);
     }
+    if (isFuturePurchaseDate(pa)) return c.json({ error: 'Purchase date cannot be in the future' }, 400);
   }
   if ('sell_target' in body) {
     const st = body.sell_target;

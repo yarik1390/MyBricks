@@ -9,6 +9,7 @@ import { showSheet, hideSheet, confirmSheet } from './sheet.js';
 import { icon, field, sheetBody } from '../ui/kit.js';
 import { localMoneyToUsd, usdMoneyInputValue } from '../lib/money-input.js';
 import { t } from '../lib/i18n.js';
+import { purchaseInputIssue } from '../lib/pure.js';
 
 const CONDITIONS = [
   ['sealed', 'Sealed (MISB)'],
@@ -59,7 +60,7 @@ function editSheetHTML(copy, ctx, isNew) {
       </select></div></div>
       <div class="bv-form-grid">
         ${field({ id: 'copyPrice', label: 'Price paid', value: usdMoneyInputValue(copy.purchase_price, ctx), placeholder: '0.00', mono: true, prefix: symbol(ctx), inputmode: 'decimal', autocomplete: 'off' })}
-        <div class="bv-field"><label for="copyDate">Purchase date</label><div class="bv-field__box"><input id="copyDate" type="date" value="${escapeHtml((copy.purchased_at || '').slice(0, 10))}"></div></div>
+        <div class="bv-field"><label for="copyDate">Purchase date</label><div class="bv-field__box"><input id="copyDate" type="date" max="${new Date().toISOString().slice(0, 10)}" value="${escapeHtml((copy.purchased_at || '').slice(0, 10))}"></div></div>
       </div>
       <div class="bv-field"><label for="copySource">Acquisition source</label><div class="bv-field__box"><select id="copySource">
         <option value="">— select —</option>
@@ -189,6 +190,9 @@ export async function mountCopies(root, _set, entry, { onChange } = {}) {
         box_grade: document.getElementById('copyBoxGrade').value || null,
         box_notes: boxNotes,
       };
+      const issue = purchaseInputIssue({ usd: body.purchase_price, date: body.purchased_at });
+      if (issue === 'future') { toast(t('qa.futureDate'), 'error'); return; }
+      if (issue === 'impossible') { toast(t('qa.priceTooHigh'), 'error'); return; }
       const btn = document.getElementById('copySave');
       setBtnLoading(btn, true);
       try {

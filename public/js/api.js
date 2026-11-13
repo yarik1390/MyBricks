@@ -1,5 +1,5 @@
-import { state, invalidatePortfolio } from './state.js';
-import { bvIDB, toast, track } from './utils.js';
+import { state, invalidatePortfolio, earlyAccessPro } from './state.js';
+import { bvIDB, toast, track, fmtMoney } from './utils.js';
 import { jwtSub, displayValueOf, isCredentialAuthFailure, isRepeatedSignup } from './lib/pure-core.js';
 import { t, tPlural } from './lib/i18n.js';
 import { getProviderCredential } from './lib/provider-credentials.js';
@@ -419,6 +419,9 @@ const GUEST_PREFS_KEY = 'bv_guest_prefs';
 const GUEST_COLLECTION_KEY = 'bv_guest_collection';
 const GUEST_WISHLIST_KEY = 'bv_guest_wishlist';
 const GUEST_FIG_DETAILS_KEY = 'bv_guest_fig_details';
+// Sales a guest recorded with "Mark as sold": the holding leaves the vault and
+// the realized gain stays on this device (Insights, Vault "What changed").
+const GUEST_SALES_KEY = 'bv_guest_sales';
 
 const SET_FIELDS = [
   'set_num','name','theme','year','pieces','minifigs','retail_price','current_value',
@@ -427,7 +430,7 @@ const SET_FIELDS = [
   // current_value). Dropping these made the vault fall back to current_value and
   // disagree with the catalog for the same set.
   'market_value','blended_value','market_value_confidence',
-  'forecast_2y','forecast_5y','image_url','retired','retirement_risk_score','used_value',
+  'forecast_2y','forecast_5y','image_url','retired','retirement_risk_score','lego_retiring_soon','exit_date','used_value',
   'ebay_value','ebay_new_value','ebay_used_value','ebay_new_qty','ebay_used_qty',
   'ebay_new_cached_at','ebay_used_cached_at','cached_at','valuation_method','bl_new_value','bl_new_qty','bl_used_qty',
   'source','brickset','trend','market_sources','primary_value_source','confidence',
@@ -581,6 +584,7 @@ function clearGuestVault() {
     localStorage.removeItem(GUEST_FIG_DETAILS_KEY);
     localStorage.removeItem(GUEST_PREFS_KEY);
     localStorage.removeItem('bv_guest_history');
+    localStorage.removeItem(GUEST_SALES_KEY);
     localStorage.removeItem("bv_figs");
   } catch {}
 }
@@ -745,7 +749,13 @@ function guestCollectionPayload() {
     return s + (Number(fig?.current_value ?? fig?.value) || 0) * (normalizeMinifigHolding(fig?.holding)?.quantity || 1);
   }, 0);
   recordGuestSnapshot(totalValue, totalPaid, items.length);
+  const sales = readLocalJSON(GUEST_SALES_KEY, []).filter(x => x && Number(x.sold_price) > 0);
+  const realizedSales = sales.filter(x => x.cost_basis != null);
   return {
+    ...(realizedSales.length ? {
+      realized_gain: realizedSales.reduce((sum, x) => sum + (Number(x.sold_price) - (Number(x.sold_fees) || 0) - Number(x.cost_basis)), 0),
+      realized_sales: realizedSales.length,
+    } : {}),
     items,
     total_value: totalValue,
     total_paid: totalPaid,
@@ -797,7 +807,9 @@ function guestHistoryPayload(path) {
   const cutoff = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
   const snapshots = readLocalJSON(GUEST_HISTORY_KEY, [])
     .filter(s => s && s.snapshot_date >= cutoff);
-  return { snapshots };
+  // During early access every Pro feature is open to guests too (the welcome
+  // screen and Pro page promise it), so the 1Y/All ranges aren't locked.
+  return { snapshots, pro: earlyAccessPro() };
 }
 
 function readGuestPrefs() {
@@ -937,7 +949,14 @@ async function guestAddCollection(body = {}) {
   if (idx >= 0) items[idx] = item;
   else items.unshift(item);
   writeGuestCollection(items);
-  return { item };
+  // Same as the Worker: a set new to the vault leaves the wishlist.
+  let removed = false;
+  if (!existing) {
+    const wl = readGuestWishlist();
+    const kept = wl.filter(w => !sameSetNum(w.set_num, item.set_num));
+    if (kept.length !== wl.length) { writeGuestWishlist(kept); removed = true; }
+  }
+  return removed ? { item, removed_from_wishlist: true } : { item };
 }
 
 function guestPatchCollection(ref, body = {}) {
@@ -959,6 +978,32 @@ function guestPatchCollection(ref, body = {}) {
   items[idx] = normalizeCollectionItem(next);
   writeGuestCollection(items);
   return { item: items[idx] };
+}
+
+// Mirrors POST /api/collection/sell: the whole holding is sold for one total
+// price (all copies), recorded locally, and leaves the vault.
+function guestSellCollection(body = {}) {
+  const setNum = String(body.set_num || '').trim();
+  if (!setNum) throw new Error('set_num required');
+  const soldPrice = Number(body.sold_price);
+  if (!Number.isFinite(soldPrice) || soldPrice <= 0) throw new Error('sold_price must be a number > 0');
+  const soldAt = /^\d{4}-\d{2}-\d{2}$/.test(String(body.sold_at || '')) ? String(body.sold_at) : new Date().toISOString().slice(0, 10);
+  const fees = body.sold_fees == null ? null : Number(body.sold_fees);
+  if (fees != null && (!Number.isFinite(fees) || fees < 0 || fees >= soldPrice)) throw new Error('sold_fees must be a number >= 0 and below the sold price');
+  const items = readGuestCollection();
+  const holding = items.find(item => sameSetNum(item.set_num, setNum));
+  if (!holding) throw new Error('Set not in your vault');
+  const qty = Math.max(1, parseInt(String(holding.quantity ?? 1), 10) || 1);
+  const paid = numberOrNull(holding.purchase_price);
+  const sales = readLocalJSON(GUEST_SALES_KEY, []);
+  sales.push({
+    id: nextLocalId(sales), set_num: holding.set_num, name: holding.name || null, quantity: qty,
+    condition: holding.condition || null, cost_basis: paid != null ? paid * qty : null,
+    purchased_at: holding.purchased_at || null, sold_price: soldPrice, sold_fees: fees, sold_at: soldAt,
+  });
+  writeLocalJSON(GUEST_SALES_KEY, sales.slice(-500));
+  writeGuestCollection(items.filter(item => item !== holding));
+  return { ok: true, set_num: holding.set_num, sold_price: soldPrice, sold_at: soldAt, sold_fees: fees };
 }
 
 function guestDeleteCollection(ref) {
@@ -1128,6 +1173,9 @@ async function guestMinifigs(path) {
 function guestAdvisorResponse(q = '') {
   const p = guestCollectionPayload();
   const items = (p.items || []).map((i) => ({ ...i, current_value: displayValueOf(i) }));
+  // Amounts in the currency the app shows (they used to be hard-coded "$").
+  const money = (usd) => fmtMoney(Number(usd) || 0, { cents: 0 });
+  const label = (s) => `${s.name} (${s.set_num})`;
   const topValue = items.slice().sort((a, b) => (Number(b.current_value) || 0) - (Number(a.current_value) || 0)).slice(0, 3);
   const topRoi = items
     .filter(i => Number(i.purchase_price) > 0 && Number(i.current_value) > 0)
@@ -1135,20 +1183,50 @@ function guestAdvisorResponse(q = '') {
     .sort((a, b) => b.roi - a.roi)
     .slice(0, 3);
   const prompt = String(q || '').toLowerCase();
+  const has = (...words) => words.some(w => prompt.includes(w));
+  // A set named in the question, by number or by name.
+  const named = items.find(i => {
+    const num = String(i.set_num || '').replace(/-\d+$/, '').toLowerCase();
+    const name = String(i.name || '').toLowerCase();
+    return (num && prompt.includes(num)) || (name.length > 3 && prompt.includes(name));
+  });
+  const signIn = ' Sign in for full AI answers to any question.';
   let text = '';
   if (!items.length) {
-    text = "You are in guest mode, so I can use local data on this device only. Add a few sets to your vault and I can summarize value, themes, ROI, and sell candidates here.";
-  } else if (prompt.includes('sell')) {
-    text = `Guest-mode readout: your vault has ${p.count} sets worth about $${p.total_value.toFixed(0)}. Start sell reviews with ${topValue.map(s => `${s.name} (${s.set_num})`).join(', ') || 'your highest-value sets'}, then check condition and recent market price before listing.`;
-  } else if (prompt.includes('roi') || prompt.includes('gain')) {
+    text = "You are in guest mode, so I can use local data on this device only. Add a few sets to your vault and I can summarize value, themes, ROI, retiring sets and sell candidates here." + signIn;
+  } else if (has('retir')) {
+    // Same rule as the set page's "Retiring soon" status: LEGO's flag, an
+    // announced exit date ahead, or a high retirement-risk score.
+    const retiringSoon = (i) => !i.retired && (Number(i.lego_retiring_soon) === 1 || i.lego_retiring_soon === true
+      || Date.parse(i.exit_date) > Date.now() || Number(i.retirement_risk_score) >= 60);
+    const retiring = items.filter(retiringSoon)
+      .sort((a, b) => Number(b.lego_retiring_soon || 0) - Number(a.lego_retiring_soon || 0) || Number(b.retirement_risk_score || 0) - Number(a.retirement_risk_score || 0));
+    const retired = items.filter(i => i.retired);
+    const parts = [];
+    const exitNote = (i) => (Date.parse(i.exit_date) > Date.now() ? ` (expected to leave shops by ${new Date(i.exit_date).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })})` : '');
+    if (retiring.length) parts.push(`Likely to retire soon: ${retiring.slice(0, 5).map(i => label(i) + exitNote(i)).join(', ')}. Sealed copies of retiring sets usually gain value once shops run out.`);
+    else parts.push('None of your sets is flagged as retiring soon right now.');
+    if (retired.length) parts.push(`Already retired: ${retired.slice(0, 5).map(label).join(', ')}.`);
+    parts.push('See Discover → Retiring soon for every set about to leave the shelves.');
+    text = parts.join(' ');
+  } else if (named && !has('sell', 'roi', 'gain')) {
+    const v = Number(named.current_value) || 0;
+    const paid = Number(named.purchase_price) || 0;
+    const qty = Number(named.quantity) || 1;
+    text = `${label(named)}: about ${money(v)} each${qty > 1 ? `, ${money(v * qty)} for your ${qty} copies` : ''}.`
+      + (paid > 0 ? ` You paid ${money(paid)} each, ${v >= paid ? 'a gain' : 'a loss'} of ${money(Math.abs(v - paid) * qty)} on paper.` : '')
+      + (named.retired ? ' It is retired.' : (Number(named.lego_retiring_soon) === 1 || named.lego_retiring_soon === true || Date.parse(named.exit_date) > Date.now() || Number(named.retirement_risk_score) >= 60) ? ' It is likely to retire soon.' : '');
+  } else if (has('sell')) {
+    text = `Guest-mode readout: your vault has ${p.count} sets worth about ${money(p.total_value)}. Start sell reviews with ${topValue.map(label).join(', ') || 'your highest-value sets'}, then check condition and recent market price before listing.`;
+  } else if (has('roi', 'gain', 'profit')) {
     text = topRoi.length
       ? `Your strongest local ROI leaders are ${topRoi.map(s => `${s.name} at ${(s.roi * 100).toFixed(1)}%`).join(', ')}. Sets without a purchase price are excluded from this ROI view.`
-      : "I need purchase prices before I can rank ROI. Add purchase prices in each set's Manage tab and I will calculate gains locally.";
+      : "I need purchase prices before I can rank ROI. Add purchase prices in each set's Your copy sheet and I will calculate gains locally.";
   } else {
     const themes = {};
     for (const item of items) themes[item.theme || 'Other'] = (themes[item.theme || 'Other'] || 0) + Number(item.quantity || 1);
     const topTheme = Object.entries(themes).sort((a, b) => b[1] - a[1])[0];
-    text = `Guest-mode snapshot: ${p.count} sets, about $${p.total_value.toFixed(0)} market value, and $${p.total_paid.toFixed(0)} invested. ${topTheme ? `Your largest theme is ${topTheme[0]} with ${topTheme[1]} set${topTheme[1] === 1 ? '' : 's'}.` : ''} Sign in when you want AI advice synced across devices.`;
+    text = `In guest mode I answer from the data on this device: value, gains, selling and retiring sets. Your vault: ${p.count} sets, about ${money(p.total_value)} market value, ${money(p.total_paid)} invested. ${topTheme ? `Your largest theme is ${topTheme[0]} with ${topTheme[1]} set${topTheme[1] === 1 ? '' : 's'}.` : ''}` + signIn;
   }
   const enc = new TextEncoder();
   return new Response(new ReadableStream({
@@ -1187,9 +1265,10 @@ async function guestApi(path, opts = {}, streamMode = false) {
       }
       const prefs = readGuestPrefs();
       if (body.display_name && String(body.display_name).length > 40) throw new Error('display_name max 40 chars');
+      if (body.display_name !== undefined && !String(body.display_name || '').trim()) throw new Error('Display name cannot be empty');
       const next = {
         ...prefs,
-        ...(body.display_name !== undefined ? { display_name: String(body.display_name || 'Guest Collector') } : {}),
+        ...(body.display_name !== undefined ? { display_name: String(body.display_name).trim() } : {}),
         ...(body.currency !== undefined ? { currency: String(body.currency || 'USD') } : {}),
         ...(body.retail_market !== undefined ? { retail_market: String(body.retail_market || 'FR').toUpperCase() } : {}),
         ...(body.notify_price_drops !== undefined ? { notify_price_drops: !!body.notify_price_drops } : {}),
@@ -1221,6 +1300,9 @@ async function guestApi(path, opts = {}, streamMode = false) {
   }
   if (pathname === '/api/collection/history' && method === 'GET') {
     return { handled: true, value: guestHistoryPayload(path) };
+  }
+  if (pathname === '/api/collection/sell' && method === 'POST') {
+    return { handled: true, value: guestSellCollection(body) };
   }
   if (pathname === '/api/collection/import' && method === 'POST') {
     return { handled: true, value: await guestImportCollection(body.rows, !!body.overwrite) };

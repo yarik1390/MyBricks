@@ -1471,3 +1471,47 @@ export function findContactDetails(text) {
   if (CONTACT_MESSENGER.test(s)) found.push('messenger');
   return found;
 }
+
+// "Your copy" sanity check (deep-testing BUG-004). A typo like 99999999 or a
+// purchase date picked in the future used to save silently and wreck the
+// vault total. Returns 'future' (date after today), 'impossible' (above the
+// server's hard cap), 'high' (far above what the set is worth — ask first)
+// or null. All amounts are USD; dates are YYYY-MM-DD.
+export const MAX_PURCHASE_PRICE_USD = 1_000_000;
+export function purchaseInputIssue({ usd = null, date = '', valueUsd = 0, retailUsd = 0, today = new Date().toISOString().slice(0, 10) } = {}) {
+  if (date && String(date) > String(today)) return 'future';
+  const paid = Number(usd);
+  if (!Number.isFinite(paid) || paid <= 0) return null;
+  if (paid > MAX_PURCHASE_PRICE_USD) return 'impossible';
+  const ref = Math.max(Number(valueUsd) || 0, Number(retailUsd) || 0);
+  if (ref > 0 && paid > ref * 5 && paid - ref > 100) return 'high';
+  return null;
+}
+
+// Price-history spike filter (deep-testing BUG-007). One bad snapshot — e.g. a
+// stale formula estimate at the very first point, more than double every
+// other value — drove "Down 60% over 160 days" on a flat chart. A point is
+// dropped when it sits 1.8x away from the median of its nearest neighbours
+// (two each side) on current_value. Needs 5+ points; real moves span several
+// snapshots, so they survive.
+export function dropHistorySpikes(history, ratio = 1.8) {
+  if (!Array.isArray(history) || history.length < 5) return Array.isArray(history) ? history : [];
+  const val = (r) => Number(r?.current_value);
+  const median = (xs) => { const s = xs.slice().sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+  return history.filter((row, i) => {
+    const v = val(row);
+    if (!(v > 0)) return true;
+    const near = [];
+    for (let j = i - 2; j <= i + 2; j++) {
+      if (j === i || j < 0 || j >= history.length) continue;
+      const n = val(history[j]);
+      if (n > 0) near.push(n);
+    }
+    // At the ends only one side exists; borrow one more point inward.
+    const extra = i === 0 ? 3 : i === history.length - 1 ? history.length - 4 : -1;
+    if (extra >= 0 && val(history[extra]) > 0) near.push(val(history[extra]));
+    if (near.length < 2) return true;
+    const m = median(near);
+    return !(v > m * ratio || v < m / ratio);
+  });
+}

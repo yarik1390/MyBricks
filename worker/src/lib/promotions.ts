@@ -41,6 +41,31 @@ export function promoPages(market: string): string[] {
   ];
 }
 
+const CURRENCY_SIGN: Record<string, string> = { USD: '$', CAD: '$', AUD: '$', EUR: '€', GBP: '£' };
+
+/**
+ * True when an offer filed under a non-US store is really another store's
+ * copy: its link goes to a different LEGO.com locale (lego.com/en-us for a UK
+ * member) or its text quotes amounts in another currency ("Spend over $130"
+ * on a pound offer). That happens when a scrape of lego.com/en-gb is served
+ * the US page; the extractor then converts $130 to £98, a threshold LEGO
+ * never set (deep-testing BUG-010/011). Such rows are skipped, so the store
+ * falls back to the US list, labelled as such.
+ */
+export function promoLooksForeign(p: { market?: string | null; currency?: string | null; url?: string | null; details?: string | null; title?: string | null }): boolean {
+  const market = String(p.market || 'US').toUpperCase();
+  if (market === 'US' || !PROMO_MARKETS[market]) return false;
+  const locale = PROMO_MARKETS[market].locale.toLowerCase();
+  const m = /lego\.com\/([a-z]{2}-[a-z]{2})(?:\/|$)/i.exec(String(p.url || ''));
+  if (m && m[1].toLowerCase() !== locale) return true;
+  const own = CURRENCY_SIGN[String(p.currency || PROMO_MARKETS[market].currency).toUpperCase()];
+  const text = `${p.title || ''} ${p.details || ''}`;
+  for (const hit of text.matchAll(/([$€£])\s?\d/g)) {
+    if (own && hit[1] !== own) return true;
+  }
+  return false;
+}
+
 /** The US pages, kept for callers that predate per-country stores. */
 export const PROMO_PAGES = promoPages('US');
 

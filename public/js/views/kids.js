@@ -331,7 +331,16 @@ function bindExit() {
           freeExit();
           return;
         }
-        toast('Something went wrong. Try again.', 'error');
+        // Too many wrong PINs: the server says how long the lock lasts. Show
+        // it in the sheet instead of a generic error, so a parent knows the
+        // correct PIN will work again after the wait.
+        const err = $('#exitPinErr');
+        if (e?.status === 429 && err) {
+          err.textContent = e.message || 'Too many wrong PINs. Wait a few minutes, then try again.';
+          err.style.display = 'block';
+          return;
+        }
+        toast(navigator.onLine === false ? 'You are offline. Connect to check the PIN.' : 'Something went wrong. Try again.', 'error');
       }
     });
   });}

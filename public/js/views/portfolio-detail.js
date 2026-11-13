@@ -1,4 +1,4 @@
-import { $, $$, haptic, escapeHtml, fmtShortDate, toast, undoToast, fmtMoney, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg, capturedMoneyContext, advisorEnabled } from '../utils.js';
+import { $, $$, haptic, escapeHtml, fmtShortDate, toast, undoToast, fmtMoney, fmtMoneyIn, fmtPct, clamp, celebrate, setHue, fmtDateUpdated, setBtnLoading, drawSparkline, bricklinkBuyURL, CURRENCY_SYMBOLS, getExchangeRate, mount, cacheSetDetail, getCachedSetDetail, lastPortfolioMilestone, recordPortfolioMilestone, publicOrigin, proxyImg, capturedMoneyContext, advisorEnabled } from '../utils.js';
 import { slidePanel, syncTabInk } from '../lib/motion.js';
 import { goBackOr } from '../lib/nav-history.js';
 import { installHeroScrim } from '../lib/hero-scrim.js';
@@ -6,7 +6,7 @@ import { icon as kitIcon, iconBtn as kitIconBtn, row as kitRow, seg as kitSeg, f
 import { localMoneyToUsd, usdMoneyInputValue } from '../lib/money-input.js';
 import { derivePartOutDecision } from '../lib/part-out-decision.js';
 import { priceStripHTML, marketConfidenceHTML, marketSpreadHTML, marketDepthHTML, dealSignalHTML, partOutHTML, investmentPricingHTML, investmentPricingDetailHTML, soldEvidenceHTML } from './portfolio-detail-market.js';
-import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, openedCopyValue, estMark, estimateAccuracyClass, displayValueOf, flipEconomics, cleanTagLabel, priceMovementSummary, valuationConfidencePresentation, localizeStoreUrl } from '../lib/pure.js';
+import { computeDealScore, computeSellSignal, ebaySoldSummary, marketValueForCondition, openedCopyValue, estMark, estimateAccuracyClass, displayValueOf, purchaseInputIssue, dropHistorySpikes, flipEconomics, cleanTagLabel, priceMovementSummary, valuationConfidencePresentation, localizeStoreUrl } from '../lib/pure.js';
 import { t, tPlural, getLocale, kidsXpMessage, kidsBadgeLabel } from '../lib/i18n.js';
 import { pricechartingAttributionHTML } from '../lib/partner-attribution.js';
 import { figAvatarSVG } from '../lib/fig-avatar.js';
@@ -367,7 +367,15 @@ function valueCardHTML(set, entry) {
     facts.push(`<button type="button" class="bv-valuecard__fact bv-valuecard__fact--btn" data-set-sheet="target" id="sellTargetBtn"><span class="bv-label">${escapeHtml(t("bvSet.sellTarget"))}</span>
       <span class="bv-valuecard__factval">${target ? `<span class="bv-num">${escapeHtml(money0(target))}</span>` : `<span class="bv-valuecard__hint">${escapeHtml(t("bvSet.setTarget"))}</span>`}${kitIcon("edit", { size: 16 })}</span></button>`);
   } else if (!entry && !set.coming_soon && Number(set.retail_price) > 0) {
-    facts.push(`<div class="bv-valuecard__fact"><span class="bv-label">${escapeHtml(t("bvSet.retail"))}</span><span class="bv-num">${escapeHtml(fmtMoney(Number(set.retail_price)))}</span></div>`);
+    // LEGO.com's own price in the shop country when we hold it; otherwise the
+    // US list price, labelled as such outside the US instead of passing a
+    // converted "£513.49" off as the UK retail price.
+    const local = set.retail_local;
+    const shop = String(state.me?.retail_market || "FR").toUpperCase();
+    const localOk = local && Number(local.price) > 0 && local.currency && String(local.market || "").toUpperCase() === shop;
+    const retailLabel = localOk || shop === "US" ? t("bvSet.retail") : t("qa.retailUs");
+    const retailText = localOk ? fmtMoneyIn(Number(local.price), local.currency) : fmtMoney(Number(set.retail_price));
+    facts.push(`<div class="bv-valuecard__fact"><span class="bv-label">${escapeHtml(retailLabel)}</span><span class="bv-num">${escapeHtml(retailText)}</span></div>`);
   }
   const chip = isSimpleMode() || set.coming_soon ? "" : `<button type="button" class="bv-conf bv-conf--${escapeHtml(conf.tone)}" data-set-sheet="why" title="${escapeHtml(conf.detail)}">${conf.tone === "good" ? kitIcon("check", { size: 16, stroke: 2.4 }) : ""}<span>${escapeHtml(conf.label)}</span>${kitIcon("chev", { size: 14, stroke: 2.4 })}</button>`;
   return `<section class="bv-card bv-valuecard detail-market-summary" aria-label="Market value summary">
@@ -519,7 +527,7 @@ function openEditSheet(set, entry) {
       <div class="bv-field"><span class="bv-field__label">${escapeHtml(t("bvSet.condition"))}</span>
         ${kitSeg(CONDITION_SEG.map(([value, key]) => ({ label: t(key), value, current: cond === value })), { label: t("bvSet.condition"), id: "qeCondition" })}</div>
       <div class="bv-form-grid">
-        <div class="bv-field"><label for="qeDate">${escapeHtml(t("bvSet.bought"))}</label><div class="bv-field__box">${kitIcon("cal", { size: 20 })}<input id="qeDate" type="date" value="${entry.purchased_at ? escapeHtml(String(entry.purchased_at).slice(0, 10)) : ""}"></div></div>
+        <div class="bv-field"><label for="qeDate">${escapeHtml(t("bvSet.bought"))}</label><div class="bv-field__box">${kitIcon("cal", { size: 20 })}<input id="qeDate" type="date" max="${new Date().toISOString().slice(0, 10)}" value="${entry.purchased_at ? escapeHtml(String(entry.purchased_at).slice(0, 10)) : ""}"></div></div>
         <div class="bv-field"><span class="bv-field__label">${escapeHtml(t("bvSet.copies"))}</span>
           <div class="bv-stepper qty-stepper">
             <button type="button" class="bv-iconbtn qty-btn" id="qtyDown" aria-label="${escapeHtml(t("bvSet.fewerCopies"))}">${kitIcon("minus")}</button>
@@ -551,6 +559,14 @@ function openEditSheet(set, entry) {
       condition,
       purchased_at: $("#qeDate").value || null,
     };
+    const issue = purchaseInputIssue({ usd: body.purchase_price, date: body.purchased_at, valueUsd: market, retailUsd: rrp });
+    if (issue === "future") { toast(t("qa.futureDate"), "error"); $("#qeDate").focus(); return; }
+    if (issue === "impossible") { toast(t("qa.priceTooHigh"), "error"); $("#qePrice").focus(); return; }
+    if (issue === "high" && !(await confirmSheet({
+      title: t("qa.priceHighTitle"),
+      message: t("qa.priceHighBody", { price: money0(body.purchase_price), value: money0(Math.max(market, rrp)) }),
+      confirmLabel: t("common.save"),
+    }))) return;
     haptic("medium");
     hideSheet();
     repaintWith(set, { ...entry, ...body });
@@ -626,7 +642,9 @@ function openSellTargetSheet(set, entry) {
 // Fee math shared by "Sell or part out" and the listing screen (same
 // marketplace-fee settings the flip calculator uses). All figures are USD.
 function saleEconomics(set, entry, marketOverride) {
-  const market = marketOverride || marketValueForCondition(set, entry?.condition || "new") || setDisplayValue(set);
+  // Same number the set page headline shows for this copy (copyValue), so
+  // "Sell whole", the sale form and the market value never disagree.
+  const market = marketOverride || copyValue(set, entry) || setDisplayValue(set);
   const rate = getExchangeRate(state.me?.currency || "USD");
   const feePct = parseFloat(localStorage.getItem("bv_flip_fee_pct") ?? "13.25");
   const paymentPct = parseFloat(localStorage.getItem("bv_flip_payment_pct") ?? "2.9");
@@ -678,14 +696,20 @@ function openRecordSaleSheet(set, entry) {
   const ctx = capturedMoneyContext();
   const { market, fees } = saleEconomics(set, entry);
   const paid = paidOf(entry);
+  // The sale closes the whole holding (POST /api/collection/sell), so with
+  // several copies the price, fees and cost basis are all for every copy —
+  // the "Sold for" label and placeholders say so instead of showing one copy.
+  const qty = Math.max(1, Number(entry?.quantity) || 1);
+  // Whole units in the user's currency ("426", not a converted "425.87").
+  const wholeLocal = (usd) => { const v = usdMoneyInputValue(usd, ctx); return v ? String(Math.round(Number(v))) : ""; };
   const today = new Date().toISOString().slice(0, 10);
   showSheet(kitSheetBody({
     title: t("bvSet.saleTitle"),
     inner: `<form class="bv-form" id="saleForm" novalidate>
-      ${kitField({ id: "exitSoldPrice", label: t("bvSet.soldFor"), placeholder: market ? usdMoneyInputValue(Math.round(market), ctx) : "", mono: true, prefix: moneySymbol(ctx), inputmode: "decimal", autocomplete: "off" })}
+      ${kitField({ id: "exitSoldPrice", label: qty > 1 ? tPlural("qa.soldForAll", qty) : t("bvSet.soldFor"), placeholder: market ? wholeLocal(market * qty) : "", mono: true, prefix: moneySymbol(ctx), inputmode: "decimal", autocomplete: "off", help: qty > 1 ? tPlural("qa.soldForAllHelp", qty) : "" })}
       <div class="bv-form-grid">
         <div class="bv-field"><label for="saleDate">${escapeHtml(t("bvSet.saleDate"))}</label><div class="bv-field__box">${kitIcon("cal", { size: 20 })}<input id="saleDate" type="date" value="${today}" max="${today}"></div></div>
-        ${kitField({ id: "saleFees", label: t("bvSet.fees"), placeholder: fees ? usdMoneyInputValue(Math.round(fees), ctx) : "0", mono: true, prefix: moneySymbol(ctx), inputmode: "decimal", autocomplete: "off" })}
+        ${kitField({ id: "saleFees", label: t("bvSet.fees"), placeholder: fees ? wholeLocal(fees * qty) : "0", mono: true, prefix: moneySymbol(ctx), inputmode: "decimal", autocomplete: "off" })}
       </div>
       <div class="bv-salegain" id="saleGain" hidden><span class="bv-salegain__text"><strong>${escapeHtml(t("bvSet.realizedGain"))}</strong><small id="saleGainSub"></small></span><span class="bv-num" id="saleGainVal"></span></div>
       <p class="bv-field__help">${escapeHtml(t("bvSet.saleNote"))}</p>
@@ -702,11 +726,11 @@ function openRecordSaleSheet(set, entry) {
     if (!box) return;
     if (!price.valid || paid == null) { box.hidden = true; return; }
     const received = price.usd - (fee.valid && !fee.blank ? fee.usd : 0);
-    const gain = received - paid * (Number(entry.quantity) || 1);
+    const gain = received - paid * qty;
     box.hidden = false;
     box.classList.toggle("is-loss", gain < 0);
     $("#saleGainVal").textContent = signedMoney0(gain);
-    $("#saleGainSub").textContent = t("bvSet.realizedSub", { received: money0(received), paid: money0(paid * (Number(entry.quantity) || 1)) });
+    $("#saleGainSub").textContent = t("bvSet.realizedSub", { received: money0(received), paid: money0(paid * qty) });
   };
   ["#exitSoldPrice", "#saleFees"].forEach(s => $(s)?.addEventListener("input", refresh));
   $("#saleForm")?.addEventListener("submit", async (e) => {
@@ -1153,7 +1177,7 @@ function infoTabHTML(set, entry) {
             ${launchBadge}
             ${retiredYearBadge}
             ${riskBadge}
-            ${ratingNum ? `<div class="detail-kv span2" style="display:flex;align-items:center;gap:8px;"><span class="k">Community</span> <span class="v">⭐ ${ratingNum.toFixed(1)}</span> <span style="color:var(--ink-mute);font-size:10px;">${reviewsStr}</span> ${ratingSignal}</div>` : ''}
+            ${ratingNum ? `<div class="detail-kv span2" style="display:flex;align-items:center;gap:8px;"><span class="k">Brickset rating</span> <span class="v">⭐ ${ratingNum.toFixed(1)}</span> ${reviewsStr ? `<a class="bv-link" style="font-size:12px;" href="${escapeHtml(`https://brickset.com/reviews/set-${encodeURIComponent(set.set_num)}`)}" target="_blank" rel="noopener">${escapeHtml(reviewsStr)}</a>` : ''} ${ratingSignal}</div>` : ''}
             ${brickInsightsBadge}
             ${legoStockBadge}
             ${tagsBadge}
@@ -2511,7 +2535,7 @@ async function loadSetHistory(setNum, days = 365, entry = null) {
   try {
     const res = await api("/api/sets/" + encodeURIComponent(setNum) + "/history?days=" + days);
     if (req !== _historyReq || !el.isConnected) return;
-    const hist = res.history || [];
+    const hist = dropHistorySpikes(res.history || []);
     el.innerHTML = "";
     el.style.height = "";
     if (markEl) markEl.hidden = true;

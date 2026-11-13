@@ -201,6 +201,9 @@ app.patch('/', async (c) => {
   } & NotificationPrefsPatch>();
   const { display_name, currency, retail_market, notify_price_drops, notify_weekly_digest, handle, is_public, expose_public_value, discord_webhook_url } = body;
   if (display_name && display_name.length > 40) return c.json({ error: 'display_name max 40 chars' }, 400);
+  if (display_name !== undefined && display_name !== null && !String(display_name).trim()) {
+    return c.json({ error: 'Display name cannot be empty' }, 400);
+  }
   // Whitelist currency (mirrors CURRENCY_SYMBOLS in public/js/utils.js) — it
   // was previously stored verbatim, so any string could persist unbounded.
   const CURRENCIES = ['USD', 'GBP', 'EUR', 'CAD', 'AUD'];
@@ -247,7 +250,7 @@ app.patch('/', async (c) => {
       updated_at = datetime('now')
   `).bind(
     userId,
-    display_name ?? null,
+    typeof display_name === 'string' ? display_name.trim() : (display_name ?? null),
     currency ?? 'USD',
     retail_market?.toUpperCase() ?? 'FR',
     notify_price_drops != null ? (notify_price_drops ? 1 : 0) : 1,
@@ -256,7 +259,7 @@ app.patch('/', async (c) => {
     is_public != null ? (is_public ? 1 : 0) : 0,
     epv,
     discord_webhook_url !== undefined ? (discord_webhook_url || null) : null,
-    display_name ?? null,
+    typeof display_name === 'string' ? display_name.trim() : (display_name ?? null),
     currency ?? null,
     retail_market?.toUpperCase() ?? null,
     notify_price_drops != null ? (notify_price_drops ? 1 : 0) : null,
@@ -450,7 +453,15 @@ app.post('/kids-pin/verify', async (c) => {
     RETURNING hit_count
   `).bind(userId, windowStart).first<{ hit_count: number }>();
   if ((rate?.hit_count || 0) > 10) {
-    return c.json({ error: 'Too many PIN attempts. Try again in 15 minutes.' }, 429);
+    // Say exactly how long the lock lasts: the window is fixed, so it can be
+    // one minute or fifteen (deep-testing BUG-014: parents thought the PIN broke).
+    const retryAfter = Math.max(1, Math.ceil((Date.parse(windowStart) + windowMs - Date.now()) / 1000));
+    const minutes = Math.ceil(retryAfter / 60);
+    c.header('Retry-After', String(retryAfter));
+    return c.json({
+      error: `Too many wrong PINs. Kids Mode is locked for ${minutes} more minute${minutes === 1 ? '' : 's'}, then try again.`,
+      code: 'pin_locked', retry_after: retryAfter,
+    }, 429);
   }
   const row = await c.env.DB.prepare(
     'SELECT kids_pin_hash FROM user_prefs WHERE user_id=?'

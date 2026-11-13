@@ -268,8 +268,11 @@ function wire(me, shelf) {
   $("#editName")?.addEventListener("click", async () => {
     const res = await promptSheet({ title: t('bvAccount.editNameTitle'), label: t('bvAccount.displayName'), value: me.display_name || "" });
     if (res === null) return;
+    const name = String(res).trim();
+    if (!name) { toast(t('qa.nameEmpty'), "error"); return; }
+    if (name === (me.display_name || "")) return;
     try {
-      await api("/api/me", { method: "PATCH", body: { display_name: res } });
+      await api("/api/me", { method: "PATCH", body: { display_name: name } });
       state.me = null;
       toast(t('bvAccount.nameUpdated'), "success");
       await renderMe();
