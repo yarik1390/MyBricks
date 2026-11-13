@@ -101,7 +101,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
   const auth = (t = token) => ({ Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' });
 
   beforeEach(async () => {
-    await applyTestTables((env as any).DB as D1Database, ['holding_copies', 'realized_sales']);
+    await applyTestTables((env as any).DB as D1Database, ['holding_copies', 'realized_sales', 'cron_runs']);
     (env as any).SUPABASE_JWT_SECRET = JWT_SECRET;
     (env as any).SUPABASE_URL = 'https://supabase.mock.io';
     (env as any).SUPABASE_ANON_KEY = 'supabase-anon-key-mock';
@@ -720,6 +720,14 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         delete (env as any).BRICKINSIGHTS_ENABLED;
       }
 
+      // Run now on a scheduled job is recorded like its cron run, so a good
+      // manual run clears a "failing" alert in Admin.
+      const run = await db.prepare(
+        `SELECT status, finished_at FROM cron_runs WHERE name='brickinsights-ratings' ORDER BY id DESC LIMIT 1`
+      ).first<any>();
+      expect(run).toMatchObject({ status: 'ok' });
+      expect(run.finished_at).not.toBeNull();
+
       const hi = await db.prepare(`SELECT brickinsights_rating FROM lego_sets WHERE set_num='BIHI-1'`).first<any>();
       const lo = await db.prepare(`SELECT brickinsights_rating FROM lego_sets WHERE set_num='BILO-1'`).first<any>();
       expect(hi.brickinsights_rating).toBe(88);
@@ -751,6 +759,9 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       const data = await res.json<any>();
       expect(data.ok).toBe(true);
       expect(data.reset).toBe(2);
+      // Not a scheduled job: a manual reset leaves the job history alone.
+      expect(await db.prepare(`SELECT COUNT(*) AS n FROM cron_runs WHERE name='firecrawl-reset-pool'`).first<any>())
+        .toMatchObject({ n: 0 });
 
       const rows = await db.prepare(
         `SELECT used, exhausted_at FROM firecrawl_keys ORDER BY key_hash`
