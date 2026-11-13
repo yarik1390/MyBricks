@@ -83,9 +83,9 @@ export function adviceHTML(p, { canRun = () => false } = {}) {
 export function runningNowHTML(processes = [], now = Date.now()) {
   const running = processes.filter(p => processHealth(p) === 'running');
   if (!running.length) return '';
-  const head = running.length === 1 ? '1 job' : `${running.length} jobs`;
+  const head = (running.length === 1 ? '1 job' : `${running.length} jobs`) + ' · updates every few seconds';
   return `
-    <div class="adm-h"><h3>Running now</h3><span>${escapeHtml(head)} · updates every few seconds</span></div>
+    <div class="adm-h"><h3>Running now</h3><span>${escapeHtml(head)}</span></div>
     <div class="adm-card adm-list adm-running" aria-live="polite">${running.map(p => `
       <div class="adm-item">
         <span class="adm-dot is-run"></span>
@@ -251,8 +251,8 @@ export function todayHTML({ processes, issues, canRun, quotaToday, quotaYesterda
     ${status}
     <div class="adm-today-grid">
       <div class="adm-col">
-        <div class="adm-h"><h3>Needs you</h3><span>most urgent first</span></div>
         ${loaded ? runningNowHTML(processes) : ''}
+        <div class="adm-h"><h3>Needs you</h3><span>most urgent first</span></div>
         ${loaded ? needsYouHTML(items, canRun) : '<div class="adm-card adm-muted">Loading…</div>'}
         <div class="adm-h"><h3>Background jobs</h3><span>${summarizeJobHealth(processes).scheduled} scheduled</span></div>
         ${jobsBarHTML(processes)}

@@ -23,7 +23,7 @@ describe('adviseJob', () => {
   });
 
   it('says wait for a rate limit or daily cap', () => {
-    expect(failing('pricecharting-enrich', 'HTTP 429 Too Many Requests').kind).toBe('quota');
+    expect(failing('pricecharting-enrich', 'HTTP 429 Too Many Requests')?.kind).toBe('quota');
   });
 
   it('treats a provider outage as wait, and escalates after a long streak', () => {
@@ -36,9 +36,9 @@ describe('adviseJob', () => {
   });
 
   it('retries a one-off D1 blip, but calls three in a row a code problem', () => {
-    expect(failing('snapshot-set-values', 'D1_ERROR: overloaded [7429]').kind).toBe('retry');
+    expect(failing('snapshot-set-values', 'D1_ERROR: overloaded [7429]')?.kind).toBe('retry');
     const e = 'D1_ERROR: overloaded [7429]';
-    expect(failing('snapshot-set-values', e, { recent_errors: [e, e, e] }).kind).toBe('code');
+    expect(failing('snapshot-set-values', e, { recent_errors: [e, e, e] })?.kind).toBe('code');
   });
 
   it('retries a first timeout, but asks for smaller batches when it repeats', () => {
@@ -56,8 +56,8 @@ describe('adviseJob', () => {
   });
 
   it('suggests one retry for an unknown error, then a code fix when it repeats', () => {
-    expect(failing('db-hygiene', 'something odd').kind).toBe('retry');
-    expect(failing('db-hygiene', 'something odd', { recent_errors: ['something odd', 'something odd'] }).kind).toBe('code');
+    expect(failing('db-hygiene', 'something odd')?.kind).toBe('retry');
+    expect(failing('db-hygiene', 'something odd', { recent_errors: ['something odd', 'something odd'] })?.kind).toBe('code');
   });
 });
 
