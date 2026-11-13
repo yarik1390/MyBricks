@@ -1,5 +1,6 @@
 import { $, escapeHtml, haptic, advisorEnabled, toast } from '../utils.js';
-import { goBackOr } from '../lib/nav-history.js';
+import { goBackOr, navDepth } from '../lib/nav-history.js';
+import { scrollKeyFor, shouldRestoreScroll } from '../lib/scroll-memory.js';
 import { I } from '../icons.js';
 import { getSessionUserId, } from '../api.js';
 import { getModePref } from '../theme.js';
@@ -204,13 +205,18 @@ export function setPinnedCollection(id, pinned) {
 
 // Navigation state is memory-only and discarded on identity changes. Filters
 // already live in the app state; keep each destination's scroll independently.
+// Whether a visit restores or opens at the top: lib/scroll-memory.js.
 const scrollPositions = new Map();
 let renderedRoute = null;
+let renderedDepth = null;
 export function rememberCollectorScroll() {
-  if (renderedRoute) scrollPositions.set(renderedRoute, window.scrollY);
+  if (renderedRoute) scrollPositions.set(scrollKeyFor(renderedRoute), window.scrollY);
 }
 export function restoreCollectorScroll(hash) {
+  const fromDepth = renderedDepth;
+  const toDepth = navDepth();
   renderedRoute = hash;
+  renderedDepth = toDepth;
   const targetList = new URLSearchParams(location.hash.split('?')[1] || '').get('list');
   if (hash === '/collections' && targetList) {
     const card = [...document.querySelectorAll('[data-list-id]')].find(el => el.dataset.listId === targetList);
@@ -222,7 +228,10 @@ export function restoreCollectorScroll(hash) {
       return;
     }
   }
-  const top = scrollPositions.get(hash) || 0;
+  const key = scrollKeyFor(hash);
+  const restore = shouldRestoreScroll(hash, { fromDepth, toDepth });
+  if (!restore) scrollPositions.delete(key);
+  const top = restore ? (scrollPositions.get(key) || 0) : 0;
   window.scrollTo({ top, behavior: 'instant' });
 }
-window.addEventListener('bv:owner-changed', () => { scrollPositions.clear(); renderedRoute = null; });
+window.addEventListener('bv:owner-changed', () => { scrollPositions.clear(); renderedRoute = null; renderedDepth = null; });
