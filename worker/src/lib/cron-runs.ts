@@ -18,6 +18,11 @@ export interface CronRunRow {
   summary: string | null;
   error: string | null;
   duration_ms: number | null;
+  /** Live progress written by lib/job-progress.ts while the run is going. */
+  progress_done?: number | null;
+  progress_total?: number | null;
+  progress_step?: string | null;
+  heartbeat_at?: string | null;
 }
 
 // Turn a cron's return value into a compact one-line summary for the UI.
@@ -172,9 +177,14 @@ export async function getRecentRuns(env: Env): Promise<RecentRuns> {
     // The table is pruned to KEEP_PER_NAME rows per process (~600 rows), so one
     // ordered read gives both the latest run and the short history per name.
     const { results } = await env.DB.prepare(
+      `SELECT id, name, started_at, finished_at, status, summary, error, duration_ms,
+              progress_done, progress_total, progress_step, heartbeat_at
+         FROM cron_runs ORDER BY id DESC LIMIT 2000`,
+    ).all<CronRunRow>().catch(() => env.DB.prepare(
+      // Before the progress columns are migrated (fresh deploy window).
       `SELECT id, name, started_at, finished_at, status, summary, error, duration_ms
          FROM cron_runs ORDER BY id DESC LIMIT 2000`,
-    ).all<CronRunRow>();
+    ).all<CronRunRow>());
     for (const r of results ?? []) {
       if (!latest[r.name]) latest[r.name] = r;
       const list = history[r.name] ?? (history[r.name] = []);

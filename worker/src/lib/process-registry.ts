@@ -149,3 +149,14 @@ export function assessProcess(schedule: string, runs: RunLike[], now = Date.now(
   if (latest.status === 'failed') return { ...base, health: 'failing' };
   return { ...base, health: 'ok' };
 }
+
+/** Median duration of the recent successful runs (ms); null with no ok run. */
+export function typicalDurationMs(runs: Array<{ status: string; duration_ms?: number | null }>): number | null {
+  const ds = runs
+    .filter((r) => r.status === 'ok' && Number(r.duration_ms) > 0)
+    .map((r) => Number(r.duration_ms))
+    .sort((a, b) => a - b);
+  if (!ds.length) return null;
+  const mid = Math.floor(ds.length / 2);
+  return ds.length % 2 ? ds[mid] : Math.round((ds[mid - 1] + ds[mid]) / 2);
+}

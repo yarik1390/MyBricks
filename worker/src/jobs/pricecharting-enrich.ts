@@ -3,6 +3,7 @@ import { fetchPriceChartingData } from '../lib/pricecharting';
 import { recomputeBlendedValues } from '../lib/market-sources';
 import { getSourceConfig } from '../lib/source-config';
 import { spendQuota } from '../lib/api-quota';
+import { reportProgress } from '../lib/job-progress';
 
 /**
  * Populate PriceCharting pricing data into pc_new_value / pc_complete_value
@@ -112,6 +113,7 @@ export async function runPriceChartingEnrich(
   const concurrency = Math.max(1, Math.min(options.concurrency ?? 5, 10));
 
   for (let i = 0; i < results.length; i += concurrency) {
+    reportProgress(i, results.length, 'Looking up PriceCharting');
     const batch = results.slice(i, i + concurrency);
     // Meter this batch's per-set API calls against the shared daily ledger so
     // PriceCharting usage is visible in admin diagnostics and a runaway is capped.

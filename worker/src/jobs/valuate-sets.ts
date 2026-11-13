@@ -11,6 +11,7 @@ import { runValuateMinifigs } from './valuate-minifigs';
 import { sourceEnabled } from '../lib/source-config';
 import { discoveryWantsUsed, selectDueSets, blBackedOffAt, type ValuationQuotaGrants } from './valuate-select';
 import { recordIntegrationHealth, type IntegrationName } from '../lib/integration-health';
+import { reportProgress } from '../lib/job-progress';
 
 export interface ValuateSetsOptions {
   scope?: 'owned' | 'all';
@@ -127,6 +128,7 @@ export async function runValuateSets(env: Env, options: ValuateSetsOptions = {})
   const deadline = options.budgetMs && options.budgetMs > 0 ? Date.now() + options.budgetMs : 0;
   let budgetExhausted = false;
   for (const set of results) {
+    reportProgress(processed, results.length, `Valuing ${set.set_num}`);
     if (deadline && Date.now() > deadline) {
       budgetExhausted = true;
       console.warn(`[valuate-sets] wall-clock budget spent after ${processed}/${results.length} sets — stopping cleanly`);

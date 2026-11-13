@@ -95,3 +95,46 @@ describe('scan outcomes (server-side scan results)', () => {
     assert.deepEqual(scanOutcomes(null), []);
   });
 });
+
+import {
+  liveProgress, liveProgressLine, stoppedAtLine, adviceLabel, adviceCopyText, durationText,
+} from '../lib/admin-home.js';
+
+describe('admin home: live job progress', () => {
+  const now = Date.parse('2026-11-13T10:00:00Z');
+  it('counts progress from done/total and estimates time left', () => {
+    const live = liveProgress({ health: 'running', status: 'running', started_at: '2026-11-13 09:59:00', heartbeat_at: '2026-11-13 09:59:55', progress_done: 50, progress_total: 200, progress_step: 'Valuing 10305-1' }, now);
+    assert.equal(live.pct, 0.25);
+    assert.equal(live.estimated, false);
+    assert.equal(live.stalled, false);
+    assert.equal(live.etaMs, 180000);
+    assert.equal(liveProgressLine(live), 'Valuing 10305-1 · 50 of 200 · running 1m 00s · ~3m 00s left');
+  });
+  it('falls back to the usual run length when the job reports no counts', () => {
+    const live = liveProgress({ health: 'running', started_at: '2026-11-13 09:59:30', heartbeat_at: '2026-11-13 09:59:50', typical_ms: 60000 }, now);
+    assert.equal(live.estimated, true);
+    assert.equal(live.pct, 0.5);
+    assert.match(liveProgressLine(live), /~50% of its usual time/);
+  });
+  it('flags a run whose heartbeat stopped', () => {
+    const live = liveProgress({ health: 'running', started_at: '2026-11-13 09:50:00', heartbeat_at: '2026-11-13 09:57:00' }, now);
+    assert.equal(live.stalled, true);
+    assert.match(liveProgressLine(live), /probably cut off/);
+  });
+  it('is null for jobs that are not running', () => {
+    assert.equal(liveProgress({ health: 'ok' }, now), null);
+  });
+  it('says where a failed run stopped', () => {
+    assert.equal(stoppedAtLine({ status: 'failed', progress_step: 'Matching rows to sets', progress_done: 2, progress_total: 7 }), 'Stopped at step 3 of 7: Matching rows to sets');
+    assert.equal(stoppedAtLine({ status: 'failed', progress_step: 'Valuing 1-1', progress_done: 40, progress_total: 200 }), 'Stopped after 40 of 200 (Valuing 1-1)');
+    assert.equal(stoppedAtLine({ status: 'ok', progress_step: 'x' }), '');
+  });
+  it('formats durations and advice text', () => {
+    assert.equal(durationText(45000), '45s');
+    assert.equal(durationText(3725000), '1h 02m');
+    assert.equal(adviceLabel('code'), 'Code fix');
+    const text = adviceCopyText({ name: 'pricecharting-bulk-fetch', label: 'PriceCharting (bulk fetch)', error: 'D1_ERROR: too many columns', consecutive_failures: 2 });
+    assert.match(text, /PriceCharting \(bulk fetch\)/);
+    assert.match(text, /Failed 2 runs in a row/);
+  });
+});

@@ -356,6 +356,18 @@ function activateAdminSubtab(btn, { updateUrl = true } = {}) {
   }
 }
 
+// "Copy error for Claude" on a job that needs a code fix.
+function copyAdviceText(e) {
+  const btn = e.target.closest('[data-copy-text]');
+  if (!btn) return false;
+  const text = btn.getAttribute('data-copy-text') || '';
+  haptic('light');
+  navigator.clipboard?.writeText(text)
+    .then(() => toast('Error copied. Paste it to Claude to get it fixed.', 'success'))
+    .catch(() => toast(text, 'info'));
+  return true;
+}
+
 function jumpToAdminSection(btn) {
   const id = btn?.getAttribute('data-admin-section-jump');
   if (!id || !document.getElementById(id)) return;
@@ -435,8 +447,11 @@ function wireAdminShell() {
   });
   const processesEl = document.getElementById('processesContainer');
   processesEl?.addEventListener('click', (e) => {
+    if (copyAdviceText(e)) return;
     const runBtn = e.target.closest('[data-process-run]');
-    if (runBtn) runProcess(runBtn.getAttribute('data-process-run'), runBtn);
+    if (runBtn) { runProcess(runBtn.getAttribute('data-process-run'), runBtn); return; }
+    const jumpBtn = e.target.closest('[data-admin-section-jump]');
+    if (jumpBtn) jumpToAdminSection(jumpBtn);
   });
   $('#adminJobFilters')?.addEventListener('click', (e) => {
     const chip = e.target.closest('[data-job-filter]');
@@ -446,6 +461,7 @@ function wireAdminShell() {
     renderProcesses();
   });
   $('#adminTodayContainer')?.addEventListener('click', (e) => {
+    if (copyAdviceText(e)) return;
     const runBtn = e.target.closest('[data-process-run]');
     if (runBtn) { runProcess(runBtn.getAttribute('data-process-run'), runBtn); return; }
     const jumpBtn = e.target.closest('[data-admin-section-jump]');

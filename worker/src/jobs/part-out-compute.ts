@@ -1,5 +1,6 @@
 import type { Env } from '../types';
 import { computePartOutValue, partKey, type PartLot } from '../lib/part-out';
+import { reportProgress } from '../lib/job-progress';
 
 /**
  * Compute and store each set's part-out (sum-of-parts) value from the shared
@@ -46,6 +47,7 @@ export async function runPartOutCompute(env: Env, options: { limit?: number } = 
   let processed = 0;
   let valued = 0;
   for (let i = 0; i < ids.length; i += CHUNK) {
+    reportProgress(i, ids.length, 'Adding up part prices');
     const chunk = ids.slice(i, i + CHUNK);
     const ph = chunk.map(() => '?').join(',');
     const { results } = await env.DB.prepare(`

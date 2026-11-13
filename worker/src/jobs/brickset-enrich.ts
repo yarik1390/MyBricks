@@ -9,6 +9,7 @@ import { brightDataEnabled } from '../lib/brightdata-keys';
 import { parseBricksetHtml, type BricksetScrape } from '../lib/brightdata-parsers';
 import { fetchWithRetry } from '../lib/http';
 import { backupScrape, backupScrapersAvailable } from '../lib/backup-scrapers';
+import { reportProgress } from '../lib/job-progress';
 
 const BRICKSET_SCHEMA = {
   type: 'object',
@@ -164,6 +165,7 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number; bud
   ).bind(setNum, status));
 
   for (const { set_num } of results) {
+    reportProgress(processed, results.length, `Reading ${set_num}`);
     processed++;
     const url = `https://brickset.com/sets/${set_num}`;
 

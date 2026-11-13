@@ -1281,7 +1281,11 @@ CREATE TABLE IF NOT EXISTS cron_runs (
   status TEXT DEFAULT 'running',
   summary TEXT,
   error TEXT,
-  duration_ms INTEGER
+  duration_ms INTEGER,
+  progress_done INTEGER,
+  progress_total INTEGER,
+  progress_step TEXT,
+  heartbeat_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_cron_runs_name ON cron_runs(name, id);
 

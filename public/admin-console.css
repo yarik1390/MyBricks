@@ -181,3 +181,35 @@
 .adm-more[open] > summary { display: none; }
 .adm-more > .adm-item { border-top: 1px solid var(--adm-line); }
 .admin-dashboard-page .adm-item-title { min-height: 0; margin: 0; width: auto; }
+
+/* Live job progress (Today "Running now", Jobs rows) */
+.adm-live { display: block; margin-top: 6px; }
+.adm-live-track { display: block; position: relative; height: 6px; border-radius: 3px; background: var(--adm-s2); overflow: hidden; }
+.adm-live-track > span { display: block; height: 100%; border-radius: 3px; background: var(--bv-acc, #ffda47); transition: width 0.6s ease; }
+.adm-live.is-estimate .adm-live-track > span { background: repeating-linear-gradient(45deg, var(--bv-acc, #ffda47) 0 6px, color-mix(in srgb, var(--bv-acc, #ffda47) 60%, transparent) 6px 12px); }
+.adm-live.is-stalled .adm-live-track > span { background: var(--adm-warn); }
+.adm-live-track > span.is-indeterminate { width: 35%; animation: adm-live-slide 1.4s ease-in-out infinite; }
+@keyframes adm-live-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+.adm-live small { display: block; margin-top: 4px; font-size: 12.5px; line-height: 17px; color: var(--adm-mute); overflow-wrap: anywhere; }
+.adm-live.is-stalled small { color: var(--adm-warn); font-weight: 600; }
+.adm-job-main .adm-live { margin-top: 4px; }
+@media (prefers-reduced-motion: reduce) {
+  .adm-live-track > span { transition: none; }
+  .adm-live-track > span.is-indeterminate { animation: none; width: 100%; opacity: 0.5; }
+}
+
+/* Failure recommendation */
+.adm-advice { margin-top: 8px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--adm-line); background: var(--adm-s2); }
+.adm-advice.is-bad { border-color: color-mix(in srgb, var(--adm-bad) 30%, transparent); background: color-mix(in srgb, var(--adm-bad) 7%, var(--adm-s)); }
+.adm-advice.is-warn { border-color: color-mix(in srgb, var(--adm-warn) 35%, transparent); background: color-mix(in srgb, var(--adm-warn) 8%, var(--adm-s)); }
+.adm-advice.is-ok { border-color: color-mix(in srgb, var(--adm-ok) 30%, transparent); background: color-mix(in srgb, var(--adm-ok) 7%, var(--adm-s)); }
+.adm-advice-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.adm-advice-head strong { font-size: 14px; line-height: 19px; font-weight: 600; flex: 1 1 200px; }
+.adm-advice-kind { flex: none; padding: 1px 7px; border-radius: 6px; font: 700 11px/16px var(--bv-sans, sans-serif); text-transform: uppercase; letter-spacing: 0.04em; background: var(--adm-s); color: var(--bv-ink); border: 1px solid var(--adm-line); }
+.adm-advice.is-bad .adm-advice-kind { background: var(--adm-bad); border-color: var(--adm-bad); color: #fff; }
+.adm-advice p { margin: 4px 0 0; font-size: 13px; line-height: 18px; color: var(--adm-mute); overflow-wrap: anywhere; }
+.adm-advice .adm-advice-stop { color: var(--bv-ink); font-weight: 500; }
+.adm-advice .adm-acts { margin-top: 10px; }
+.adm-advice .adm-btn { min-height: 40px; }
+/* Give the advice box the full row width on phones (it sits under the side label). */
+@media (max-width: 600px) { .adm-item-body .adm-advice { margin-right: -64px; } .adm-job-body .adm-advice { margin-right: 0; } }

@@ -156,3 +156,106 @@ export function aiTotals(aiUsage = {}) {
 export function pct(part, whole) {
   return n(whole) > 0 ? Math.round((n(part) / n(whole)) * 100) : null;
 }
+
+// ---------------------------------------------------------------------------
+// Live progress of a running job and failure advice (Today "Running now",
+// Jobs rows). Inputs are /api/admin/activity process rows.
+// ---------------------------------------------------------------------------
+
+const runTs = (ts) => {
+  if (!ts) return NaN;
+  const s = String(ts);
+  return Date.parse(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : `${s.replace(' ', 'T')}Z`);
+};
+
+/** "45s", "3m 05s", "1h 12m". */
+export function durationText(ms) {
+  const s = Math.max(0, Math.round(n(ms) / 1000));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${String(s % 60).padStart(2, '0')}s`;
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+}
+
+/** No heartbeat for this long while "running" means the run was cut off (heartbeat every 20s). */
+export const STALL_MS = 90_000;
+
+/**
+ * Live view of a running job: how far it is, how long it has run, when it was
+ * last seen alive. `pct` is 0–1 or null (unknown). `estimated` marks a
+ * percentage guessed from the usual run length rather than counted.
+ */
+export function liveProgress(p = {}, now = Date.now()) {
+  if (processHealth(p) !== 'running') return null;
+  const started = runTs(p.started_at);
+  const elapsedMs = Number.isFinite(started) ? Math.max(0, now - started) : 0;
+  const hb = runTs(p.heartbeat_at);
+  const lastSignMs = Number.isFinite(hb) ? Math.max(0, now - hb) : elapsedMs;
+  const done = p.progress_done == null ? null : n(p.progress_done);
+  const total = n(p.progress_total);
+  const step = p.progress_step ? String(p.progress_step) : '';
+  let pct = null;
+  let estimated = false;
+  let countText = '';
+  let etaMs = null;
+  if (done != null && total > 0) {
+    pct = Math.min(1, done / total);
+    countText = `${done.toLocaleString('en-US')} of ${total.toLocaleString('en-US')}`;
+    if (pct > 0.02 && pct < 1 && elapsedMs > 10_000) etaMs = Math.round(elapsedMs * (1 - pct) / pct);
+  } else if (n(p.typical_ms) > 0) {
+    pct = Math.min(0.95, elapsedMs / n(p.typical_ms));
+    estimated = true;
+    const left = n(p.typical_ms) - elapsedMs;
+    if (left > 0) etaMs = left;
+  }
+  const stalled = lastSignMs > STALL_MS;
+  return {
+    pct, estimated, step, countText, elapsedMs, lastSignMs, etaMs, stalled,
+    overdue: n(p.typical_ms) > 0 && elapsedMs > n(p.typical_ms) * 3 && elapsedMs > 120_000,
+  };
+}
+
+/** One line under a running job: "Step · 120 of 200 · 1m 05s · ~40s left". */
+export function liveProgressLine(live) {
+  if (!live) return '';
+  if (live.stalled) return `No sign of life for ${durationText(live.lastSignMs)}: it was probably cut off`;
+  const parts = [];
+  if (live.step) parts.push(live.step);
+  if (live.countText) parts.push(live.countText);
+  else if (live.estimated && live.pct != null) parts.push(`~${Math.round(live.pct * 100)}% of its usual time`);
+  parts.push(`running ${durationText(live.elapsedMs)}`);
+  if (live.etaMs != null) parts.push(`~${durationText(live.etaMs)} left`);
+  return parts.join(' · ');
+}
+
+/** Where a failed run stopped, from its last reported step: "Stopped at step 3 of 7: Matching rows to sets". */
+export function stoppedAtLine(p = {}) {
+  if (p.status !== 'failed' || !p.progress_step) return '';
+  const total = n(p.progress_total);
+  const done = n(p.progress_done);
+  if (total > 0 && total <= 12) return `Stopped at step ${Math.min(done + 1, total)} of ${total}: ${p.progress_step}`;
+  if (total > 0) return `Stopped after ${done.toLocaleString('en-US')} of ${total.toLocaleString('en-US')} (${p.progress_step})`;
+  return `Stopped at: ${p.progress_step}`;
+}
+
+const ADVICE_LABEL = {
+  retry: 'Retry', wait: 'Wait', key: 'Replace key', topup: 'Top up', quota: 'Limit reached', code: 'Code fix', check: 'Check',
+};
+
+/** Badge text for an advice kind. */
+export function adviceLabel(kind) {
+  return ADVICE_LABEL[kind] || 'Check';
+}
+
+/** Ready-to-paste message for Claude when a job needs a code fix. */
+export function adviceCopyText(p = {}) {
+  const lines = [
+    `BricksVault admin: the background job "${p.label || p.name}" (${p.name}) is failing.`,
+    `Error: ${p.error || p.summary || 'unknown'}`,
+  ];
+  const stop = stoppedAtLine(p);
+  if (stop) lines.push(stop);
+  if (n(p.consecutive_failures) > 1) lines.push(`Failed ${n(p.consecutive_failures)} runs in a row.`);
+  lines.push('Please find the cause and fix it.');
+  return lines.join('\n');
+}

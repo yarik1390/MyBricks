@@ -1500,6 +1500,12 @@
     ]
   },
   {
+    "text": "Check",
+    "files": [
+      "lib/admin-home.js"
+    ]
+  },
+  {
     "text": "Check Supabase URL, anon key, and JWT secret.",
     "files": [
       "views/me-admin.js"
@@ -1661,6 +1667,12 @@
     "text": "Cloudflare bot check on keyless web photo scans. Site key and secret must come from the SAME widget, or every scan is rejected.",
     "files": [
       "views/me-admin-config.js"
+    ]
+  },
+  {
+    "text": "Code fix",
+    "files": [
+      "lib/admin-home.js"
     ]
   },
   {
@@ -1926,6 +1938,12 @@
     "text": "Copy admin token",
     "files": [
       "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Copy error for Claude",
+    "files": [
+      "views/me-admin-home.js"
     ]
   },
   {
@@ -2891,6 +2909,12 @@
   },
   {
     "text": "Error",
+    "files": [
+      "views/me-admin.js"
+    ]
+  },
+  {
+    "text": "Error copied. Paste it to Claude to get it fixed.",
     "files": [
       "views/me-admin.js"
     ]
@@ -4702,6 +4726,7 @@
   {
     "text": "Limit reached",
     "files": [
+      "lib/admin-home.js",
       "lib/pure.js"
     ]
   },
@@ -6270,6 +6295,12 @@
     ]
   },
   {
+    "text": "Open Services",
+    "files": [
+      "views/me-admin-home.js"
+    ]
+  },
+  {
     "text": "Open a new tab and go to",
     "files": [
       "views/me-integrations.js"
@@ -6680,6 +6711,12 @@
     "files": [
       "views/kids.js",
       "views/me.js"
+    ]
+  },
+  {
+    "text": "Please find the cause and fix it.",
+    "files": [
+      "lib/admin-home.js"
     ]
   },
   {
@@ -7595,6 +7632,12 @@
     ]
   },
   {
+    "text": "Replace key",
+    "files": [
+      "lib/admin-home.js"
+    ]
+  },
+  {
     "text": "Replay",
     "files": [
       "components/empty-vault-brick-3d.js"
@@ -7846,6 +7889,7 @@
     "files": [
       "components/advisor.js",
       "components/legal-sheet.js",
+      "lib/admin-home.js",
       "views/catalog.js",
       "views/me-admin.js",
       "views/me-data.js",
@@ -8016,6 +8060,12 @@
     ]
   },
   {
+    "text": "Run anyway",
+    "files": [
+      "views/me-admin-home.js"
+    ]
+  },
+  {
     "text": "Run next slice if coverage remains",
     "files": [
       "views/me-admin.js"
@@ -8046,6 +8096,7 @@
     "text": "Running now",
     "files": [
       "lib/admin-home.js",
+      "views/me-admin-home.js",
       "views/me-admin.js"
     ]
   },
@@ -9845,6 +9896,12 @@
     ]
   },
   {
+    "text": "Top up",
+    "files": [
+      "lib/admin-home.js"
+    ]
+  },
+  {
     "text": "Total market value",
     "files": [
       "lib/insurance-report.js"
@@ -10421,6 +10478,12 @@
     "text": "WALK AWAY",
     "files": [
       "components/scanner.js"
+    ]
+  },
+  {
+    "text": "Wait",
+    "files": [
+      "lib/admin-home.js"
     ]
   },
   {
@@ -12586,6 +12649,12 @@
   },
   {
     "text": "new in 30 days",
+    "files": [
+      "views/me-admin-home.js"
+    ]
+  },
+  {
+    "text": "no heartbeat",
     "files": [
       "views/me-admin-home.js"
     ]

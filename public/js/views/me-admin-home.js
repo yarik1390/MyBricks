@@ -7,6 +7,7 @@ import { getLocale } from '../lib/i18n.js';
 import {
   processHealth, summarizeJobHealth, sortProcesses, processProblemLine, runDots,
   quotaRows, scanFunnel, scanOutcomes, aiTotals, pct,
+  liveProgress, liveProgressLine, stoppedAtLine, adviceLabel, adviceCopyText, durationText,
 } from '../lib/admin-home.js';
 
 const fmt = (v) => Number(v || 0).toLocaleString();
@@ -21,6 +22,80 @@ function dotsHTML(p) {
   const dots = runDots(p);
   if (!dots.length) return '';
   return `<span class="adm-runs" aria-label="Last ${dots.length} runs: ${dots.filter(d => d === 'failed').length} failed">${dots.map(d => `<i class="is-${d}"></i>`).join('')}</span>`;
+}
+
+// ---------------------------------------------------------------------------
+// Live progress + failure advice (shared by Today and Jobs)
+// ---------------------------------------------------------------------------
+
+const ADVICE_TONE = { retry: 'ok', wait: 'warn', quota: 'warn', check: 'warn', key: 'bad', topup: 'bad', code: 'bad' };
+
+/** Progress bar + one live line for a running job. Indeterminate when the size is unknown. */
+export function liveBarHTML(p, now = Date.now()) {
+  const live = liveProgress(p, now);
+  if (!live) return '';
+  const line = liveProgressLine(live);
+  const width = live.pct == null ? null : Math.max(3, Math.round(live.pct * 100));
+  const cls = live.stalled ? ' is-stalled' : live.estimated ? ' is-estimate' : '';
+  const label = live.pct == null ? 'Running' : `${Math.round(live.pct * 100)}%`;
+  return `
+    <div class="adm-live${cls}" role="progressbar" aria-label="${escapeHtml(label)}"${width != null ? ` aria-valuenow="${width}" aria-valuemin="0" aria-valuemax="100"` : ''}>
+      <span class="adm-live-track"><span class="${width == null ? 'is-indeterminate' : ''}"${width != null ? ` style="width:${width}%"` : ''}></span></span>
+      <small>${escapeHtml(line)}</small>
+    </div>`;
+}
+
+/** Last sign of life for a running job: "alive 4s ago". */
+function aliveText(p, now = Date.now()) {
+  const live = liveProgress(p, now);
+  if (!live) return '';
+  return live.stalled ? 'no heartbeat' : `alive ${durationText(live.lastSignMs)} ago`;
+}
+
+/**
+ * The recommendation for a failing or missed job, with the buttons that fit
+ * it: Run now only leads when a retry can help; a code bug gets "Copy for
+ * Claude"; key, credit and outage problems link to Services.
+ */
+export function adviceHTML(p, { canRun = () => false } = {}) {
+  const a = p.advice;
+  if (!a) return '';
+  const stop = stoppedAtLine(p);
+  const runnable = canRun(p.name) && processHealth(p) !== 'running';
+  const runLabel = a.retryHelps ? 'Run now' : 'Run anyway';
+  const servicesBtn = a.service && ['key', 'topup', 'wait', 'quota', 'check'].includes(a.kind)
+    ? `<button type="button" class="adm-btn" data-admin-section-jump="adminServices">Open Services</button>` : '';
+  const copyBtn = a.kind === 'code'
+    ? `<button type="button" class="adm-btn${runnable && a.retryHelps ? '' : ' is-primary'}" data-copy-text="${escapeHtml(adviceCopyText(p))}">Copy error for Claude</button>` : '';
+  const runBtn = runnable
+    ? `<button type="button" class="adm-btn${a.retryHelps ? ' is-primary' : ''}" data-process-run="${escapeHtml(p.name)}">${escapeHtml(runLabel)}</button>` : '';
+  const acts = a.retryHelps ? runBtn + servicesBtn + copyBtn : copyBtn + servicesBtn + runBtn;
+  return `
+    <div class="adm-advice is-${ADVICE_TONE[a.kind] || 'warn'}">
+      <div class="adm-advice-head"><span class="adm-advice-kind">${escapeHtml(adviceLabel(a.kind))}</span><strong>${escapeHtml(a.title)}</strong></div>
+      ${stop ? `<p class="adm-advice-stop">${escapeHtml(stop)}</p>` : ''}
+      ${(a.steps || []).map(st => `<p>${escapeHtml(st)}</p>`).join('')}
+      ${acts ? `<div class="adm-acts">${acts}</div>` : ''}
+    </div>`;
+}
+
+/** Today: every job running right now, with live progress. Empty when nothing runs. */
+export function runningNowHTML(processes = [], now = Date.now()) {
+  const running = processes.filter(p => processHealth(p) === 'running');
+  if (!running.length) return '';
+  const head = (running.length === 1 ? '1 job' : `${running.length} jobs`) + ' · updates every few seconds';
+  return `
+    <div class="adm-h"><h3>Running now</h3><span>${escapeHtml(head)}</span></div>
+    <div class="adm-card adm-list adm-running" aria-live="polite">${running.map(p => `
+      <div class="adm-item">
+        <span class="adm-dot is-run"></span>
+        <div class="adm-item-body">
+          <button type="button" class="adm-item-title" data-admin-section-jump="adminJobs" data-job-focus="${escapeHtml(p.name)}">${escapeHtml(p.label)}</button>
+          ${liveBarHTML(p, now)}
+        </div>
+        <span class="adm-side">${escapeHtml(aliveText(p, now))}</span>
+      </div>`).join('')}
+    </div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -47,6 +122,7 @@ export function needsYouItems({ processes = [], issues = [], canRun = () => fals
       side: h === 'missed' ? 'missed' : `${Math.max(1, Number(p.consecutive_failures || 1))}× failed`,
       name: p.name,
       canRun: canRun(p.name) && h !== 'running',
+      process: p,
     };
   };
   for (const p of jobs.filter(p => processHealth(p) === 'missed')) items.push(jobItem(p));
@@ -75,7 +151,7 @@ function dateShort(ts) {
   return new Date(t).toLocaleDateString(getLocale(), { month: 'short', day: 'numeric' });
 }
 
-function needsYouHTML(items) {
+function needsYouHTML(items, canRun = () => false) {
   if (!items.length) {
     return `<div class="adm-card adm-empty"><span class="adm-dot is-ok"></span><div><strong>Nothing needs you</strong><p>Every scheduled job ran on time and no service reports a problem.</p></div></div>`;
   }
@@ -88,8 +164,9 @@ function needsYouHTML(items) {
           ? `<button type="button" class="adm-item-title" data-admin-section-jump="adminJobs" data-job-focus="${escapeHtml(item.name)}">${escapeHtml(item.title)}</button>`
           : `<strong>${escapeHtml(item.title)}</strong>`}
         <p>${item.kindLabel ? `<span class="adm-kind">${escapeHtml(item.kindLabel)}</span> ` : ''}${escapeHtml(item.detail || '')}</p>
-        ${(item.kind === 'job' && item.canRun) || (item.kind === 'service' && item.href) ? `<div class="adm-acts">
-          ${item.kind === 'job' && item.canRun ? `<button type="button" class="adm-btn is-primary" data-process-run="${escapeHtml(item.name)}">Run now</button>` : ''}
+        ${item.kind === 'job' && item.process?.advice ? adviceHTML(item.process, { canRun }) : ''}
+        ${(item.kind === 'job' && item.canRun && !item.process?.advice) || (item.kind === 'service' && item.href) ? `<div class="adm-acts">
+          ${item.kind === 'job' && item.canRun && !item.process?.advice ? `<button type="button" class="adm-btn is-primary" data-process-run="${escapeHtml(item.name)}">Run now</button>` : ''}
           ${item.kind === 'service' && item.href ? `<a class="adm-btn" href="${escapeHtml(item.href)}">${escapeHtml(item.label || 'Open')}</a>` : ''}
         </div>` : ''}
       </div>
@@ -174,8 +251,9 @@ export function todayHTML({ processes, issues, canRun, quotaToday, quotaYesterda
     ${status}
     <div class="adm-today-grid">
       <div class="adm-col">
+        ${loaded ? runningNowHTML(processes) : ''}
         <div class="adm-h"><h3>Needs you</h3><span>most urgent first</span></div>
-        ${loaded ? needsYouHTML(items) : '<div class="adm-card adm-muted">Loading…</div>'}
+        ${loaded ? needsYouHTML(items, canRun) : '<div class="adm-card adm-muted">Loading…</div>'}
         <div class="adm-h"><h3>Background jobs</h3><span>${summarizeJobHealth(processes).scheduled} scheduled</span></div>
         ${jobsBarHTML(processes)}
       </div>
@@ -209,10 +287,10 @@ function jobRowHTML(p, { canRun, open }) {
         <span class="adm-dot is-${DOT[h]}"></span>
         <span class="adm-job-main">
           <strong>${escapeHtml(p.label)}</strong>
-          <small>${escapeHtml(processProblemLine(p))}</small>
+          ${h === 'running' ? liveBarHTML(p) : `<small>${escapeHtml(processProblemLine(p))}</small>`}
           ${dotsHTML(p)}
         </span>
-        <span class="adm-job-when">${escapeHtml(last ? when(last) : 'never')}<br><span>${escapeHtml(p.schedule || '')}</span></span>
+        <span class="adm-job-when">${escapeHtml(h === 'running' ? aliveText(p) : last ? when(last) : 'never')}<br><span>${escapeHtml(p.schedule || '')}</span></span>
       </summary>
       <div class="adm-job-body">
         <p>${escapeHtml(p.description || '')}</p>
@@ -222,7 +300,8 @@ function jobRowHTML(p, { canRun, open }) {
           ${result ? `<dt>Result</dt><dd class="${p.status === 'failed' ? 'is-bad' : ''}">${escapeHtml(String(result).slice(0, 300))}</dd>` : ''}
           ${h === 'missed' ? `<dt>Expected</dt><dd>every ${p.every_hours >= 168 ? 'week' : p.every_hours === 1 ? 'hour' : 'day'}; ${escapeHtml(processProblemLine(p).toLowerCase())}</dd>` : ''}
         </dl>
-        ${canRun(p.name) && h !== 'running' ? `<div class="adm-acts"><button type="button" class="adm-btn is-primary admin-proc-run" data-process-run="${escapeHtml(p.name)}">Run now</button></div>` : ''}
+        ${adviceHTML(p, { canRun })}
+        ${canRun(p.name) && h !== 'running' && !p.advice ? `<div class="adm-acts"><button type="button" class="adm-btn is-primary admin-proc-run" data-process-run="${escapeHtml(p.name)}">Run now</button></div>` : ''}
       </div>
     </details>`;
 }
