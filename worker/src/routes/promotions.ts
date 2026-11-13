@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { requireAdmin } from '../auth';
 import type { Env, Variables } from '../types';
 import { edgeCached } from '../lib/edge-cache';
-import { normalizePromo, promoMarket, stripMarkdown } from '../lib/promotions';
+import { normalizePromo, promoLooksForeign, promoMarket, stripMarkdown } from '../lib/promotions';
 
 // Promotions calendar (mounted at /api/promotions).
 //
@@ -42,7 +42,10 @@ async function forMarket(env: Env, asked: string, where: string, order: string, 
   const read = (m: string) => env.DB.prepare(
     `SELECT ${COLUMNS} FROM promotions p LEFT JOIN lego_sets s ON s.set_num = p.gift_set_num
       WHERE COALESCE(p.market, 'US') = ? AND ${where} ORDER BY ${order} LIMIT ${limit}`,
-  ).bind(m).all<Record<string, unknown>>().then((r) => r.results || []).catch(() => [] as Record<string, unknown>[]);
+  ).bind(m).all<Record<string, unknown>>().then((r) => r.results || []).catch(() => [] as Record<string, unknown>[])
+    // Rows filed under this store that are really the US copy (scraped before
+    // the job learned to skip them) must not pass as local offers.
+    .then((rows) => rows.filter((r) => r.source === 'admin' || !promoLooksForeign(r as { market?: string; currency?: string; url?: string; details?: string; title?: string })));
   let rows = await read(asked);
   let market = asked;
   if (!rows.length && asked !== 'US') {

@@ -116,7 +116,9 @@ app.get('/leaderboard', async (c) => {
   const sort = c.req.query('sort') === 'sets' ? 'sets' : c.req.query('sort') === 'rising' ? 'rising' : 'value';
   const byValue = (a: Record<string, unknown>, b: Record<string, unknown>) => Number(b.total_value) - Number(a.total_value);
   const valued = everyone.filter(r => Number(r.total_value) > 0);
-  const pool = sort === 'sets' ? everyone : sort === 'rising' ? valued.filter(r => change(r) !== null) : valued;
+  // "Biggest gains": a collection that lost value is not a riser (a -40%
+  // collection topped it when nobody else had a month of history).
+  const pool = sort === 'sets' ? everyone : sort === 'rising' ? valued.filter(r => Number(change(r)) > 0) : valued;
   const allRanked = [...pool].sort(
     sort === 'sets' ? (a, b) => (Number(b.set_count) - Number(a.set_count)) || byValue(a, b)
       : sort === 'rising' ? (a, b) => (Number(change(b)) - Number(change(a))) || byValue(a, b)

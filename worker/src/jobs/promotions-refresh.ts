@@ -3,7 +3,7 @@ import { firecrawlScrape } from '../lib/firecrawl';
 import { firecrawlEnabled } from '../lib/pricing-flags';
 import { sourceEnabled } from '../lib/source-config';
 import { rawPageAvailable, fetchRawPage, llmExtractJson, pageText } from '../lib/page-extract';
-import { PROMO_MARKETS, PROMO_SCHEMA, normalizePromo, promoKey, promoPages, promoPrompt } from '../lib/promotions';
+import { PROMO_MARKETS, PROMO_SCHEMA, normalizePromo, promoKey, promoLooksForeign, promoPages, promoPrompt } from '../lib/promotions';
 
 type Extracted = { data: { promotions?: Record<string, unknown>[] } };
 type MarketResult = { pages: number; seen: number; added: number };
@@ -60,6 +60,8 @@ async function refreshMarket(env: Env, market: string, today: string, useFirecra
       if (!p) continue;
       // An offer that already ended is history, not calendar news.
       if (p.ends_on && p.ends_on < today) continue;
+      // Another store's copy served for this store's page (geo redirect).
+      if (promoLooksForeign(p)) continue;
       seen++;
       const key = promoKey(p);
       const existing = await env.DB.prepare('SELECT 1 AS x FROM promotions WHERE dedupe_key = ?').bind(key).first();
