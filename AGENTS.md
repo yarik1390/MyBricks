@@ -7,7 +7,8 @@ sharp edges), and what changed recently.
 
 - **Live app (PWA):** https://bricksvault.app
 - **Live API (Worker):** https://brickvault-api.zhydenko.workers.dev
-- **Repo:** `yarik1390/MyBricks` · working branch `main` (the only development branch)
+- **Repo:** `yarik1390/MyBricks` · base branch `main`; changes ship as PRs from per-task branches
+- **Live state + who is working on what:** [`HANDOFF.md`](./HANDOFF.md) (shared by Claude Code and the Hermes agent; Hermes reads `.hermes.md`)
 - **Cloudflare projects:** Pages project `brickvault`, Worker `brickvault-api`, D1 db `brickvault`
 
 ---
