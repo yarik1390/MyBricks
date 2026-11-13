@@ -191,6 +191,19 @@ describe('PriceCharting bulk identity verification', () => {
     expect(bag.results.map((r: any) => [r.condition, r.value])).toEqual([['loose', 3]]);
   });
 
+  it('gates prices when lego_sets is at D1\'s 100-column cap, like production', async () => {
+    // A multi-table UPDATE ... FROM becomes SELECT * over every joined table;
+    // at the cap that broke the Nov 13 2026 import with "too many columns".
+    const have = (await db.prepare(`PRAGMA table_info(lego_sets)`).all()).results.length;
+    for (let i = have; i < 100; i++) await db.prepare(`ALTER TABLE lego_sets ADD COLUMN pad_${i} TEXT`).run();
+    await db.prepare(`INSERT INTO lego_sets (set_num,name,category,pieces,brickset_msrp,bl_new_value)
+                      VALUES ('75192-1','Millennium Falcon','Normal',7541,849.99,3000)`).run();
+    const result = await importRows(['111,LEGO Star Wars,,Millennium Falcon #75192-1,$1500,$2400,$3200,40']);
+    expect(result).toMatchObject({ matched: 1 });
+    expect(await db.prepare(`SELECT pc_new_value,pc_complete_value FROM lego_sets WHERE set_num='75192-1'`).first<any>())
+      .toMatchObject({ pc_new_value: 3200, pc_complete_value: 2400 });
+  });
+
   it.each([
     ['same set and same prices', [
       'dup,LEGO Sets,,Set #10001-1,$70,$80,$90,9',

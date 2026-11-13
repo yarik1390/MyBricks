@@ -93,7 +93,8 @@ const money = (v: string | undefined): number | null => {
 // plausibleSql() below.
 
 // SQL twin of isPlausibleMarketValue (lib/valuation.ts) for one staged value
-// against the matched set `ls` / `ext`: within 0.15x-3x of a real comp when one
+// against the matched set's anchors, read from the gate's `a` subquery (its
+// retail is PC_RETAIL over `ls` / `ext`): within 0.15x-3x of a real comp when one
 // exists, else within 0.2x-25/40x of a non-echo retail, else <= $20/piece,
 // else <= $2,000. Returns the value or NULL.
 const PC_RETAIL = `COALESCE(NULLIF(ls.brickset_msrp, 0), NULLIF(ext.bs_retail_alt, 0),
@@ -107,9 +108,9 @@ function plausibleSql(v: string, comps: string[]): string {
   return `CASE
     WHEN ${v} IS NULL OR ${v} <= 0 THEN NULL
     WHEN ${anyComp} THEN CASE WHEN ${v} <= 3 * ${maxComp} AND ${v} >= 0.15 * ${minComp} THEN ${v} END
-    WHEN ${PC_RETAIL} > 0 AND ${PC_RETAIL} <> ${v} THEN CASE WHEN ${v} >= 0.2 * ${PC_RETAIL}
-      AND ${v} <= (CASE WHEN ls.pieces > 500 THEN 25 ELSE 40 END) * ${PC_RETAIL} THEN ${v} END
-    WHEN ls.pieces >= 30 THEN CASE WHEN ${v} / ls.pieces <= 20 THEN ${v} END
+    WHEN a.retail > 0 AND a.retail <> ${v} THEN CASE WHEN ${v} >= 0.2 * a.retail
+      AND ${v} <= (CASE WHEN a.pieces > 500 THEN 25 ELSE 40 END) * a.retail THEN ${v} END
+    WHEN a.pieces >= 30 THEN CASE WHEN ${v} / a.pieces <= 20 THEN ${v} END
     WHEN ${v} <= 2000 THEN ${v}
   END`;
 }
@@ -451,15 +452,26 @@ async function processBulkCsv(env: Env, csvText: string): Promise<BulkResult> {
   // Judge every staged price against the set it is now mapped to, before any
   // write reads it. Unmapped rows are never written, so they are left alone.
   // Re-run after triage, which can map more products before the signal writes.
+  //
+  // The anchors come from ONE narrow subquery. SQLite rewrites a multi-table
+  // UPDATE ... FROM into `SELECT *` over every joined table; with lego_sets at
+  // D1's 100-column cap, pm + ls + ext came to ~147 columns and the import died
+  // with "too many columns in result set" (Nov 13 2026, the first run after
+  // this gate shipped).
   const gateStagedValues = () => env.DB.prepare(`
     UPDATE ${STAGE} AS s SET
-      newv = ${plausibleSql('s.newv', ['ls.bl_new_value', 'ls.ebay_new_value'])},
-      cibv = ${plausibleSql('s.cibv', ['ls.used_value', 'ls.ebay_used_value'])},
-      loosev = ${plausibleSql('s.loosev', ['ls.used_value', 'ls.ebay_used_value'])}
-    FROM pricing_source_map pm JOIN lego_sets ls ON ls.set_num = pm.set_num
-      LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
-    WHERE pm.source = 'pricecharting' AND pm.source_item_id = s.pcid
-      AND pm.status IN ('verified', 'manual')
+      newv = ${plausibleSql('s.newv', ['a.bl_new_value', 'a.ebay_new_value'])},
+      cibv = ${plausibleSql('s.cibv', ['a.used_value', 'a.ebay_used_value'])},
+      loosev = ${plausibleSql('s.loosev', ['a.used_value', 'a.ebay_used_value'])}
+    FROM (
+      SELECT pm.source_item_id AS pcid, ls.pieces AS pieces, ${PC_RETAIL} AS retail,
+        ls.bl_new_value AS bl_new_value, ls.ebay_new_value AS ebay_new_value,
+        ls.used_value AS used_value, ls.ebay_used_value AS ebay_used_value
+      FROM pricing_source_map pm JOIN lego_sets ls ON ls.set_num = pm.set_num
+        LEFT JOIN set_market_ext ext ON ext.set_num = ls.set_num
+      WHERE pm.source = 'pricecharting' AND pm.status IN ('verified', 'manual')
+    ) AS a
+    WHERE a.pcid = s.pcid
       AND (s.newv IS NOT NULL OR s.cibv IS NOT NULL OR s.loosev IS NOT NULL)
   `).run();
   await gateStagedValues();

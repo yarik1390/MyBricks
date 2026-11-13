@@ -169,14 +169,13 @@ export async function matchSetsToCatalog(env: Env, described: DescribedSet[]): P
       if (q) {
         try {
           const { results } = await env.DB.prepare(
-            `SELECT s.*, f.rank AS _scan_fts_rank
+            `SELECT s.*
              FROM lego_sets s JOIN lego_sets_fts f ON s.rowid = f.rowid
              WHERE f.lego_sets_fts MATCH ? ORDER BY f.rank LIMIT 12`,
           ).bind(q).all<Record<string, unknown>>();
           row = results
             .map((candidate, index) => ({ candidate, index, score: rankCatalogMatch(candidate, cand) }))
             .sort((a, b) => b.score - a.score || a.index - b.index)[0]?.candidate ?? null;
-          if (row) delete row._scan_fts_rank;
         } catch (e) {
           console.warn('[scan-match] FTS lookup failed:', (e as Error).message);
         }
