@@ -670,7 +670,7 @@ jobs:
           # AI key canaries: free key checks (model list, no tokens) for the
           # scan providers, so a rejected GEMINI_API_KEY or GROQ_API_KEY shows
           # up in the deploy log instead of only in Admin. Non-fatal.
-          for svc in gemini groq; do
+          for svc in gemini groq aigateway; do
             curl -s -X POST "${WORKER_URL}/api/admin/test/${svc}" \
               -H "Authorization: Bearer ${ADMIN_JWT}" \
               | jq -r --arg s "$svc" '"\($s) probe: \(.status // "unknown") — \(.detail // "no detail")"' || true

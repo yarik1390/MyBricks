@@ -5,6 +5,7 @@ import { configuredFirecrawlKeys, isCreditExhaustion } from './firecrawl-keys';
 import { configuredBrightDataTokens, brightDataEnabled } from './brightdata-keys';
 import { openCodexClient } from './opencodex';
 import { firebasePushConfigured, probeFirebaseAccess } from './firebase-push';
+import { geminiUrl, gatewayHeaders } from './llm';
 
 // ---------------------------------------------------------------------------
 // On-demand per-service health probes for the admin console. Each probe is
@@ -198,6 +199,26 @@ const PROBES: Record<string, Probe> = {
       timeoutMs: 12000,
     });
     return r.status === 200 ? ok('key valid, generation works') : err(`HTTP ${r.status}: ${r.text.slice(0, 160)}`);
+  },
+
+  // Cloudflare AI Gateway: one Gemini token THROUGH the gateway, with the
+  // gateway token. Real calls quietly retry direct when the gateway refuses
+  // them (lib/ai-gateway.ts), so without this nothing shows whether
+  // AI_GATEWAY_TOKEN is accepted. Raw fetch here: no fallback.
+  async aigateway(env) {
+    if (!env.GEMINI_API_KEY) return configured('GEMINI_API_KEY not set (the probe uses Gemini)');
+    const url = geminiUrl('gemini-3.5-flash-lite', { env, routeThroughGateway: true });
+    if (!url.startsWith('https://gateway.ai.cloudflare.com/')) return configured('AI_GATEWAY_ACCOUNT_ID / AI_GATEWAY_ID not set');
+    const r = await http('POST', url, {
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': String(env.GEMINI_API_KEY), ...gatewayHeaders(env) },
+      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'ping' }] }], generationConfig: { maxOutputTokens: 1 } }),
+      timeoutMs: 12000,
+    });
+    if (r.status === 200) return ok(env.AI_GATEWAY_TOKEN ? 'gateway accepted the token, generation works' : 'gateway open (no token needed), generation works');
+    if (r.status === 401 && /"code"\s*:\s*2009\b/.test(r.text)) {
+      return err(env.AI_GATEWAY_TOKEN ? 'gateway refused AI_GATEWAY_TOKEN (code 2009): token wrong or revoked' : 'gateway requires a token (code 2009) and AI_GATEWAY_TOKEN is not set');
+    }
+    return err(`HTTP ${r.status}: ${r.text.slice(0, 160)}`);
   },
 
   // Groq: free key check (model list, no tokens), so Admin has same-day
