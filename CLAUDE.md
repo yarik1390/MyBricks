@@ -6,9 +6,12 @@
 > is the short quick-start; `AGENTS.md` is the comprehensive reference.
 
 Guidance for AI agents working in this repo. Read this before making changes.
-Multiple agents work on the same branch (`main`, the only development branch) in
-parallel — keep changes small, commit in logical chunks, and `git pull` before
-every push.
+Claude Code and the Hermes agent work on this repo in parallel. Hermes reads
+[`.hermes.md`](./.hermes.md); both agents coordinate through
+[`HANDOFF.md`](./HANDOFF.md) (live state + the "In flight" table). Read
+`HANDOFF.md` at the start of every session and update it when you start or
+finish work. Changes ship as PRs to `main` from a per-task branch; keep them
+small and `git pull` before every push.
 
 ## What this is
 
@@ -139,8 +142,12 @@ the install is skipped and the guarded hook simply no-ops.
 
 ## Working in parallel (important)
 
+- Read `HANDOFF.md` first; don't edit files another agent has claimed in its
+  "In flight" table, and add your own row before you start.
 - `git pull origin main` before each push.
 - Prefer **new files** over edits to shared hotspots (`index.ts`,
   `public/js/views/portfolio.js`, `app.css`) to minimize conflicts.
 - Commit in small, self-contained chunks with descriptive messages.
-- **Do not** open a PR unless explicitly asked.
+- Ship as a PR from your task branch, drive `checks`/`smoke`/`a11y` green, merge
+  as `Merge #N: <title>`, then verify Deploy Brickvault, Build Android (.aab),
+  e2e-smoke and the live `sw.js` VERSION, and update `HANDOFF.md`.
