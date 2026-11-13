@@ -34,11 +34,12 @@ import { getOpenRouterPools, MODELS } from '../lib/llm';
 import { getFeatureFlags, saveFeatureFlags, applyFeatureFlags, FEATURE_FLAGS } from '../lib/feature-flags';
 import { recordProbeResult } from '../jobs/health-probes';
 import { runServiceTest, TESTABLE_SERVICES } from '../lib/service-tests';
-import { getRecentRuns } from '../lib/cron-runs';
+import { getRecentRuns, recordCronStart, recordCronFinish, resultFailed, summarizeResult } from '../lib/cron-runs';
 import { runPriceChartingVerify } from '../jobs/pricecharting-verify';
 import { PROCESS_REGISTRY, GROUP_ORDER, processInfo, assessProcess, typicalDurationMs } from '../lib/process-registry';
 import { adviseJob } from '../lib/job-advice';
 import { createCronRunner } from '../lib/cron-runner';
+import { withProgress } from '../lib/job-progress';
 import { getAdminSummary } from '../lib/admin-summary';
 import { getPricingWriteBudget } from '../lib/pricing-budget';
 import { amazonReadiness } from '../lib/amazon';
@@ -1077,7 +1078,16 @@ app.post('/jobs/:job', async (c) => {
   // sees exactly what its scheduled run would (e.g. a DB-set `firecrawl` flag). The
   // HTTP request path doesn't otherwise apply these — only scheduled() does.
   await applySourceConfig(c.env).catch(() => {});
-  try {
+  // A manual run of a scheduled job is recorded like its cron run, so Run now on
+  // a "failing" job clears the Admin alert once it succeeds (it used to stay red
+  // until the next scheduled slot even after a good manual run).
+  const tracked = Object.prototype.hasOwnProperty.call(PROCESS_REGISTRY, job);
+  const startedMs = Date.now();
+  const runId = tracked ? await recordCronStart(c.env, job).catch(() => null) : null;
+  const finishRun = (opts: { ok: boolean; summary?: string | null; error?: string | null }) =>
+    tracked ? recordCronFinish(c.env, runId, job, { ...opts, durationMs: Date.now() - startedMs }).catch(() => {}) : Promise.resolve();
+  // The job body, run inside a live-progress context when it is tracked.
+  const dispatch = async (): Promise<Record<string, unknown> | null> => {
     let result: Record<string, unknown>;
     if (job === 'lego-stock-refresh') {
       result = await runLegoStockRefresh(c.env, { limit });
@@ -1131,10 +1141,29 @@ app.post('/jobs/:job', async (c) => {
       const r = await indexMissingAlts(c.env, { limit });
       result = { ...r };
     } else {
+      return null;
+    }
+    return result;
+  };
+  try {
+    let result: Record<string, unknown> | null;
+    if (runId) {
+      const live = withProgress(c.env, runId, dispatch);
+      try { result = await live.result; } finally {
+        live.handle.stop();
+        await Promise.race([live.handle.flush().catch(() => {}), new Promise((r) => setTimeout(r, 3_000))]);
+      }
+    } else {
+      result = await dispatch();
+    }
+    if (!result) {
+      await finishRun({ ok: false, error: 'Not implemented' });
       return c.json({ error: 'Not implemented' }, 501);
     }
+    await finishRun({ ok: !resultFailed(result), summary: summarizeResult(result) });
     return c.json({ ok: true, job, started_at, limit, ...result });
   } catch (err) {
+    await finishRun({ ok: false, error: (err as Error).message });
     return c.json({ ok: false, job, started_at, error: (err as Error).message }, 500);
   }
 });
