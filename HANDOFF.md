@@ -48,7 +48,7 @@ notes in this file.
 
 | Agent | Branch | Area / files | Started | Status |
 |-------|--------|--------------|---------|--------|
-| — | — | — | — | — |
+| Claude | claude/project-thread-8ayxmc | Affiliate store links: worker/src/lib/affiliate-links.ts, store-prices.js, promotions.js, pure.js | 2026-11-18 | PR open |
 
 Old draft PRs #1, #2 (scanner OCR/CLIP experiments) and #31 (public
 `/healthz`) are parked; nobody is working on them. Ask the owner before

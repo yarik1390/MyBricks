@@ -11,7 +11,17 @@ import { api } from '../api.js';
 import { t, intlLocale } from '../lib/i18n.js';
 import { topbar, btn, pill, field, sheetBody, emptyState, skeletonRows } from '../ui/kit.js';
 import { showSheet, hideSheet } from '../components/sheet.js';
-import { localizeStoreUrl } from '../lib/pure.js';
+import { affiliateStoreUrl, localizeStoreUrl } from '../lib/pure.js';
+import { brickvaultPlatform } from '../lib/amazon-affiliate.js';
+
+// LEGO.com links carry BricksVault's affiliate id when one is set up
+// (/api/config `affiliate`); the page then adds the disclosure line.
+let paintTagged = false;
+function promoLink(url) {
+  const { url: href, tagged } = affiliateStoreUrl(localizeStoreUrl(url, myMarket()), myMarket(), state.config?.affiliate, brickvaultPlatform());
+  if (tagged) paintTagged = true;
+  return `href="${escapeHtml(href)}" target="_blank" rel="${tagged ? 'sponsored nofollow noopener' : 'noopener'}"`;
+}
 
 const onScreen = () => location.hash.split('?')[0] === '#/promos';
 const MARKETS = ['US', 'FR', 'DE', 'NL', 'GB', 'CA', 'AU'];
@@ -62,7 +72,7 @@ function promoHTML(p, { upcoming = false, admin = false } = {}) {
     ${p.details ? `<p class="bv-promo__details">${escapeHtml(p.details)}</p>` : ''}
     ${gift}
     <div class="bv-promo__actions">
-      ${p.url ? `<a class="bv-btn bv-btn--text bv-btn--sm" href="${escapeHtml(admin ? p.url : localizeStoreUrl(p.url, myMarket()))}" target="_blank" rel="noopener">Details</a>` : ''}
+      ${p.url ? `<a class="bv-btn bv-btn--text bv-btn--sm" ${admin ? `href="${escapeHtml(p.url)}" target="_blank" rel="noopener"` : promoLink(p.url)}>Details</a>` : ''}
       ${admin ? `<button type="button" class="bv-btn bv-btn--text bv-btn--sm" data-promo-edit>Edit</button>
         <button type="button" class="bv-btn bv-btn--text bv-btn--sm" data-promo-hide>${Number(p.hidden) ? 'Show' : 'Hide'}</button>` : ''}
     </div>
@@ -111,15 +121,19 @@ function paint(data, admin) {
   const all = admin ? data.promotions || [] : [...(data.now || []), ...(data.upcoming || [])];
   const now = all.filter((p) => !p.starts_on || p.starts_on <= today);
   const upcoming = all.filter((p) => p.starts_on && p.starts_on > today);
+  paintTagged = false;
   const list = (rows, opts) => `<ul class="bv-promos__list">${rows.map((p) => promoHTML(p, { ...opts, admin })).join('')}</ul>`;
+  const nowHTML = now.length ? `<h2 class="bv-h2">On now</h2>${list(now, {})}` : '';
+  const upcomingHTML = upcoming.length ? `<h2 class="bv-h2">Coming up</h2>${list(upcoming, { upcoming: true })}` : '';
   root.innerHTML = `<main class="bv-page no-nav bv-promos" id="promosPage">
     ${topbar({ title: 'Promotions', sub: 'Gifts, double points and sales at LEGO', back: '#/me' })}
     ${admin ? `<div class="bv-promos__admin">${btn('Add a promotion', { kind: 'outline', icon: 'plus', id: 'promoAdd', full: true })}</div>` : ''}
     ${data.fallback ? `<p class="bv-promos__note bv-foot" role="note">${escapeHtml(t('promos.fallback', { store: regionName(data.asked_market || myMarket()) }))}</p>` : ''}
     ${!all.length ? emptyState({ icon: 'cal', title: 'No promotions right now', body: 'We check LEGO.com every day. New gifts with purchase and double points weeks show up here.' }) : ''}
-    ${now.length ? `<h2 class="bv-h2">On now</h2>${list(now, {})}` : ''}
-    ${upcoming.length ? `<h2 class="bv-h2">Coming up</h2>${list(upcoming, { upcoming: true })}` : ''}
+    ${nowHTML}
+    ${upcomingHTML}
     ${all.length ? `<p class="bv-foot">${escapeHtml(t('promos.footer', { store: regionName(data.market || 'US') }))}</p>` : ''}
+    ${paintTagged ? `<p class="bv-foot">${escapeHtml(t('stores.affiliateNote'))}</p>` : ''}
   </main>`;
   const reload = () => load();
   $('#promoAdd')?.addEventListener('click', () => editSheet(null, reload));

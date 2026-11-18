@@ -12891,7 +12891,8 @@
   {
     "text": "sponsored nofollow noopener",
     "files": [
-      "components/store-prices.js"
+      "components/store-prices.js",
+      "views/promotions.js"
     ]
   },
   {
