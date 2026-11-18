@@ -31,8 +31,8 @@ notes in this file.
 
 ## Live state (update after each merge)
 
-- Live web version: **v659** (`https://bricksvault.app/sw.js`), Android
-  versionName 1.0.659. Last merge: #207 (2026-11-13).
+- Live web version: **v660** (`https://bricksvault.app/sw.js`), Android
+  versionName 1.0.660. Last merge: #209 (2026-11-18).
 - Android: production access on Google Play was granted 2026-11-09; the first
   production release has not been rolled out yet and waits on the owner.
   CI uploads new builds to the internal testing track only.
@@ -48,7 +48,7 @@ notes in this file.
 
 | Agent | Branch | Area / files | Started | Status |
 |-------|--------|--------------|---------|--------|
-| Claude | claude/project-thread-8ayxmc | Affiliate store links: worker/src/lib/affiliate-links.ts, store-prices.js, promotions.js, pure.js | 2026-11-18 | PR open |
+| — | — | — | — | — |
 
 Old draft PRs #1, #2 (scanner OCR/CLIP experiments) and #31 (public
 `/healthz`) are parked; nobody is working on them. Ask the owner before
@@ -63,6 +63,7 @@ reviving or closing them.
 
 ## Recently shipped (newest first, keep about 10)
 
+- #209 (2026-11-18) Affiliate tagging for LEGO.com/eBay/Walmart/Target links (off until ids are set in wrangler.toml).
 - #207 (2026-11-13) Fixes from the deep-testing report (23 findings).
 - #206 (2026-11-13) Set page always opens at the top when opened from a list.
 - #205 (2026-11-13) Admin: live job progress and a concrete fix per failing job.
