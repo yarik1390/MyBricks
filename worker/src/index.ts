@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { affiliatePublicConfig } from './lib/affiliate-links';
 
 import { meRoute } from './routes/me';
 import { collectionRoute } from './routes/collection';
@@ -208,6 +209,9 @@ app.get('/api/config', (c) => {
     // Early-access free launch: the app hides paywalls and upgrade prompts
     // (lib/early-access.ts). Public so guests skip the Pro pitch too.
     early_access_pro: c.env.EARLY_ACCESS_PRO === '1',
+    // Affiliate ids for store links (public by design: every tracked link
+    // carries them). null until one is set up (lib/affiliate-links.ts).
+    affiliate: affiliatePublicConfig(c.env),
     status: publicConfigStatus(status),
     setup: { google: { configured: setup.google.configured } },
   });

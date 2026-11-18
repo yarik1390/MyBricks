@@ -11,10 +11,21 @@ import { state } from '../state.js';
 import { icon, pill } from '../ui/kit.js';
 import { t, tPlural } from '../lib/i18n.js';
 import { amazonOfferIsFresh } from '../lib/amazon-affiliate.js';
-import { localizeStoreUrl, localStoreOffers } from '../lib/pure.js';
+import { brickvaultPlatform } from '../lib/amazon-affiliate.js';
+import { affiliateStoreUrl, localizeStoreUrl, localStoreOffers } from '../lib/pure.js';
 
-// Store links follow the country chosen in Settings (LEGO.com fr-fr, ebay.fr, ...).
-const storeUrl = (url) => localizeStoreUrl(url, state.me?.retail_market || 'FR');
+// Store links follow the country chosen in Settings (LEGO.com fr-fr, ebay.fr, ...)
+// and carry BricksVault's affiliate id where one is set up (/api/config
+// `affiliate`, worker/src/lib/affiliate-links.ts). `renderTagged` records
+// whether the card being drawn holds a tagged link, for the disclosure line.
+let renderTagged = false;
+function linkAttrs(url) {
+  const market = state.me?.retail_market || 'FR';
+  const local = localizeStoreUrl(url, market);
+  const { url: href, tagged } = affiliateStoreUrl(local, market, state.config?.affiliate, brickvaultPlatform());
+  if (tagged) renderTagged = true;
+  return `href="${escapeHtml(href)}" target="_blank" rel="${tagged ? 'sponsored nofollow noopener' : 'noopener'}"`;
+}
 
 // A local LEGO.com price (lego.com/fr-fr in euros) shows exactly as the store
 // charges it when it is in the user's own currency (or no rate is loaded),
@@ -37,7 +48,7 @@ function offerRowHTML(o, best, value) {
     : below != null && below <= -5 ? t('stores.aboveValue', { pct: -below })
     : '';
   return `<li class="bv-stores__row${out ? ' is-out' : ''}">
-    <a class="bv-stores__link" href="${escapeHtml(storeUrl(o.url))}" target="_blank" rel="noopener sponsored">
+    <a class="bv-stores__link" ${linkAttrs(o.url)}>
       <span class="bv-stores__name">${escapeHtml(o.label)}${best ? ` ${pill(t('stores.best'), 'acc')}` : ''}</span>
       ${note ? `<span class="bv-stores__note">${escapeHtml(note)}</span>` : ''}
       <span class="bv-num bv-stores__price">${escapeHtml(offerPriceText(o))}</span>
@@ -54,7 +65,7 @@ function marketRowHTML(m) {
     ? (m.count ? tPlural('stores.blSold', m.count) : t('stores.blSoldPlain'))
     : (m.count ? tPlural('stores.ebayAsk', m.count) : t('stores.ebayAskPlain'));
   return `<li class="bv-stores__row">
-    <a class="bv-stores__link" href="${escapeHtml(storeUrl(m.url))}" target="_blank" rel="noopener">
+    <a class="bv-stores__link" ${linkAttrs(m.url)}>
       <span class="bv-stores__name">${escapeHtml(m.label)}</span>
       <span class="bv-stores__note">${escapeHtml(note)}</span>
       <span class="bv-num bv-stores__price">${escapeHtml(fmtMoney(m.price, { cents: 0 }))}</span>
@@ -67,7 +78,7 @@ function marketRowHTML(m) {
 function statusRowHTML(s, checking) {
   const note = t(checking ? 'stores.checking' : s.status === 'not_listed' ? 'stores.notListed' : 'stores.unchecked');
   return `<li class="bv-stores__row is-out"${checking ? ' aria-busy="true"' : ''}>
-    <a class="bv-stores__link" href="${escapeHtml(storeUrl(s.url))}" target="_blank" rel="noopener">
+    <a class="bv-stores__link" ${linkAttrs(s.url)}>
       <span class="bv-stores__name">${escapeHtml(s.label)}</span>
       <span class="bv-stores__note">${escapeHtml(note)}</span>
       <span class="bv-stores__price">—</span>
@@ -92,6 +103,7 @@ function amazonRowHTML(a) {
 }
 
 export function storePricesHTML(data, { checking = false, amazon = null } = {}) {
+  renderTagged = false;
   // While the local LEGO.com page (lego.com/fr-fr ...) is being read, its row
   // says "Checking now…" instead of flashing the US price converted.
   const legoPending = checking && !!data?.lego_local_due && (data?.offers || []).some((o) => o.store === 'lego' && o.us_price);
@@ -112,13 +124,13 @@ export function storePricesHTML(data, { checking = false, amazon = null } = {}) 
   const bestIndex = offers.findIndex((o) => o.in_stock);
   const usd = (state.me?.currency || 'USD') === 'USD';
   const usStores = (data?.stores || []).length > 0;
-  return `<section class="detail-card bv-stores" aria-labelledby="storesTitle">
+  const html = `<section class="detail-card bv-stores" aria-labelledby="storesTitle">
     <div class="detail-card-title" id="storesTitle">Compare stores</div>
     ${offers.length || statusRows.length || market.length || azPriced
       ? `<ul class="bv-stores__list">${offers.map((o, i) => offerRowHTML(o, i === bestIndex, value)).join('')}${azPriced ? amazonRowHTML(az) : ''}${statusRows.map((s) => statusRowHTML(s, checking && s.status === 'unchecked')).join('')}${market.map(marketRowHTML).join('')}</ul>`
       : '<p class="bv-stores__empty">No store has a price for this set today.</p>'}
     ${links.length ? `<div class="bv-stores__more"><span class="bv-label">Check the price at</span>
-      <div class="bv-stores__chips">${links.map((l) => `<a class="bv-chip" href="${escapeHtml(storeUrl(l.url))}" target="_blank" rel="${l.sponsored ? 'sponsored nofollow noopener' : 'noopener'}">${escapeHtml(l.label)}${icon('ext', { size: 14 })}</a>`).join('')}</div></div>` : ''}
+      <div class="bv-stores__chips">${links.map((l) => `<a class="bv-chip" ${l.sponsored ? `href="${escapeHtml(l.url)}" target="_blank" rel="sponsored nofollow noopener"` : linkAttrs(l.url)}>${escapeHtml(l.label)}${icon('ext', { size: 14 })}</a>`).join('')}</div></div>` : ''}
     ${usStores
       ? `<p class="bv-stores__foot">${usd
         ? 'Walmart and Target are US stores. Prices are checked daily, before tax and shipping.'
@@ -130,7 +142,9 @@ export function storePricesHTML(data, { checking = false, amazon = null } = {}) 
         : 'eBay and BrickLink figures come from US listings and sales of new sets, converted to your currency. Check the listing for its own price and shipping.'}</p>`
       : ''}
     ${az ? `<p class="bv-stores__foot">${escapeHtml(az.disclosure || 'As an Amazon Associate, Brickvault earns from qualifying purchases.')}${azPriced && az.price_disclaimer ? ` ${escapeHtml(az.price_disclaimer)}` : ''}</p>` : ''}
+    @@AFFILIATE_NOTE@@
   </section>`;
+  return html.replace('@@AFFILIATE_NOTE@@', renderTagged ? `<p class="bv-stores__foot">${escapeHtml(t('stores.affiliateNote'))}</p>` : '');
 }
 
 /** Fill `el` with the card; silent on failure (the set page must not depend on it). */

@@ -166,6 +166,11 @@ export interface Env {
   AMAZON_CREATORS_PUBLIC_KEY?: string;
   AMAZON_CREATORS_PRIVATE_KEY?: string;
   AMAZON_CREATORS_ENABLED?: string;
+  // Affiliate links for the other stores (lib/affiliate-links.ts).
+  EPN_CAMPAIGN_ID?: string;
+  AFFILIATE_LINK_TEMPLATES?: string;
+  AFFILIATE_WEB_ENABLED?: string;
+  AFFILIATE_ANDROID_ENABLED?: string;
   // Shadow rollout percentage for v3 reads (0, 10, 50, 100). The state is
   // always computed; this only controls whether it replaces legacy headlines.
   PRICING_V3_READ_PERCENT?: string;

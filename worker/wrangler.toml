@@ -160,3 +160,10 @@ AMAZON_PARTNER_TAG_FR_WEB = "bricksvault-21"
 AMAZON_WEB_ENABLED = "1"
 AMAZON_ANDROID_ENABLED = "0"
 AMAZON_CREATORS_ENABLED = "0"
+# Affiliate links for LEGO.com, eBay, Walmart, Target, BrickLink, Brick Owl
+# (worker/src/lib/affiliate-links.ts). Ids are public by design. Empty = links
+# stay untagged. Android stays "0" until each network approves the app.
+EPN_CAMPAIGN_ID = ""
+AFFILIATE_LINK_TEMPLATES = "{}"
+AFFILIATE_WEB_ENABLED = "1"
+AFFILIATE_ANDROID_ENABLED = "0"

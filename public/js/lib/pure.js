@@ -1515,3 +1515,55 @@ export function dropHistorySpikes(history, ratio = 1.8) {
     return !(v > m * ratio || v < m / ratio);
   });
 }
+
+// eBay Partner Network rotation id (mkrid) per eBay country site.
+const EPN_ROTATION = {
+  'www.ebay.com': '711-53200-19255-0', 'www.ebay.co.uk': '710-53481-19255-0',
+  'www.ebay.de': '707-53477-19255-0', 'www.ebay.fr': '709-53476-19255-0',
+  'www.ebay.ca': '706-53473-19255-0', 'www.ebay.com.au': '705-53470-19255-0',
+  'www.ebay.nl': '1346-53482-19255-0',
+};
+
+/** Which store a link belongs to, for affiliate tagging (or null). */
+export function affiliateStoreOf(url) {
+  let host;
+  try { host = new URL(String(url || '')).hostname.toLowerCase().replace(/^www\./, ''); } catch { return null; }
+  if (host === 'lego.com') return 'lego';
+  if (/^ebay\.(com|fr|de|nl|ca|co\.uk|com\.au)$/.test(host)) return 'ebay';
+  if (host === 'walmart.com') return 'walmart';
+  if (host === 'target.com') return 'target';
+  if (host === 'bricklink.com') return 'bricklink';
+  if (host === 'brickowl.com') return 'brickowl';
+  return null;
+}
+
+/**
+ * Tag a store link with BricksVault's affiliate id when one is set up for that
+ * store (cfg = /api/config `affiliate`, platform 'web' | 'android'). Returns
+ * { url, tagged }; an untagged link comes back unchanged. eBay gets the
+ * Partner Network parameters; other stores go through their network's
+ * deep-link template ("lego:FR" beats "lego").
+ */
+export function affiliateStoreUrl(url, market, cfg, platform = 'web') {
+  const plain = { url, tagged: false };
+  if (!url || !cfg || !(platform === 'android' ? cfg.android : cfg.web)) return plain;
+  const store = affiliateStoreOf(url);
+  if (!store) return plain;
+  const templates = cfg.templates || {};
+  const template = templates[`${store}:${String(market || '').toUpperCase()}`] || templates[store];
+  if (template && template.includes('{url}')) {
+    return { url: template.replace('{url}', encodeURIComponent(url)), tagged: true };
+  }
+  if (store === 'ebay' && cfg.ebay_campid) {
+    const u = new URL(url);
+    const rotation = EPN_ROTATION[u.hostname.toLowerCase()];
+    if (!rotation) return plain;
+    u.searchParams.set('mkcid', '1');
+    u.searchParams.set('mkrid', rotation);
+    u.searchParams.set('campid', String(cfg.ebay_campid));
+    u.searchParams.set('toolid', '10001');
+    u.searchParams.set('mkevt', '1');
+    return { url: u.toString(), tagged: true };
+  }
+  return plain;
+}
