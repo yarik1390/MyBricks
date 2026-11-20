@@ -824,6 +824,20 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(data.is_admin).toBe(false);
     });
 
+    it('starts the AI trial once on first load and counts it down', async () => {
+      const db = (env as any).DB as D1Database;
+      await applyTestTables(db, ['ai_trials']);
+      const uid = (await (await app.fetch(new Request('http://localhost/api/me', { headers: auth() }), env)).json<any>());
+      expect(uid.ai_trial.started_at).toBeTruthy();
+      expect(uid.ai_trial.days_left).toBe(14);
+      // Simulate the account having opened the app 5 days ago: the start date
+      // is kept (not reset by later loads) and the counter goes down.
+      await db.prepare(`UPDATE ai_trials SET started_at = datetime('now', '-5 days')`).run();
+      const later = await (await app.fetch(new Request('http://localhost/api/me', { headers: auth() }), env)).json<any>();
+      expect(later.ai_trial.days_left).toBe(9);
+      expect(later.ai_trial.active).toBe(true);
+    });
+
     it('keeps price sharing off until the collector turns it on', async () => {
       const before = await (await app.fetch(new Request('http://localhost/api/me', { headers: auth() }), env)).json<any>();
       expect(before.contribute_community_comps).toBe(false);

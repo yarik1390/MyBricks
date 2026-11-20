@@ -48,7 +48,7 @@ notes in this file.
 
 | Agent | Branch | Area / files | Started | Status |
 |-------|--------|--------------|---------|--------|
-| — | — | — | — | — |
+| Claude | claude/project-thread-ah28uf | AI trial start (worker/src/routes/me.ts, lib/ai-access.ts) | 2026-11-20 | working |
 
 Old draft PRs #1, #2 (scanner OCR/CLIP experiments) and #31 (public
 `/healthz`) are parked; nobody is working on them. Ask the owner before
