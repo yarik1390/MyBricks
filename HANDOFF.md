@@ -48,7 +48,7 @@ notes in this file.
 
 | Agent | Branch | Area / files | Started | Status |
 |-------|--------|--------------|---------|--------|
-| Claude | claude/project-thread-ah28uf | AI trial start (worker/src/routes/me.ts, lib/ai-access.ts) | 2026-11-20 | working |
+| — | — | — | — | — |
 
 Old draft PRs #1, #2 (scanner OCR/CLIP experiments) and #31 (public
 `/healthz`) are parked; nobody is working on them. Ask the owner before
@@ -63,6 +63,7 @@ reviving or closing them.
 
 ## Recently shipped (newest first, keep about 10)
 
+- #210 (2026-11-20) AI trial starts on first app open (GET /api/me), so "days left" counts down instead of sticking at 14.
 - #209 (2026-11-18) Affiliate tagging for LEGO.com/eBay/Walmart/Target links (off until ids are set in wrangler.toml).
 - #207 (2026-11-13) Fixes from the deep-testing report (23 findings).
 - #206 (2026-11-13) Set page always opens at the top when opened from a list.
