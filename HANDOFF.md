@@ -48,7 +48,7 @@ notes in this file.
 
 | Agent | Branch | Area / files | Started | Status |
 |-------|--------|--------------|---------|--------|
-| Claude | claude/project-thread-ah28uf | AI trial counter + reminders (byok-sheet.js, me.js, router.js, jobs/ai-trial-reminders.ts) | 2026-11-20 | working |
+| — | — | — | — | — |
 
 Old draft PRs #1, #2 (scanner OCR/CLIP experiments) and #31 (public
 `/healthz`) are parked; nobody is working on them. Ask the owner before
