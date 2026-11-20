@@ -800,3 +800,5 @@ ALTER TABLE cron_runs ADD COLUMN progress_done INTEGER;
 ALTER TABLE cron_runs ADD COLUMN progress_total INTEGER;
 ALTER TABLE cron_runs ADD COLUMN progress_step TEXT;
 ALTER TABLE cron_runs ADD COLUMN heartbeat_at TEXT;
+ALTER TABLE ai_trials ADD COLUMN ending_notified_at TEXT;
+ALTER TABLE ai_trials ADD COLUMN ended_notified_at TEXT;

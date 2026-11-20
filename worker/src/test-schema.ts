@@ -800,7 +800,9 @@ export const TABLE_DDL: Record<string, string> = {
 
   ai_trials: `CREATE TABLE IF NOT EXISTS ai_trials (
     user_id TEXT PRIMARY KEY,
-    started_at TEXT NOT NULL
+    started_at TEXT NOT NULL,
+    ending_notified_at TEXT,
+    ended_notified_at TEXT
   )`,
   api_quota: `CREATE TABLE IF NOT EXISTS api_quota (
   service TEXT NOT NULL,

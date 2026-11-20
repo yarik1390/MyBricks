@@ -48,6 +48,7 @@ import { runBundleValues } from './jobs/bundle-values';
 import { runWishlistAlerts } from './jobs/wishlist-alerts';
 import { runWeeklyDigest } from './jobs/weekly-digest';
 import { runSetAnniversaries } from './jobs/set-anniversaries';
+import { runAiTrialReminders } from './jobs/ai-trial-reminders';
 import { runCollectionBackups } from './jobs/collection-backups';
 import { runDailyCatalogMaintenance } from './jobs/catalog-maintenance';
 import { runDbHygiene } from './jobs/db-hygiene';
@@ -395,6 +396,7 @@ export default {
       case '0 8 * * *':
         await run('wishlist-alerts', () => runWishlistAlerts(env));
         await run('set-anniversaries', () => runSetAnniversaries(env));
+        await run('ai-trial-reminders', () => runAiTrialReminders(env));
         break;
       case '0 8 * * SUN': await run('weekly-digest', () => runWeeklyDigest(env)); break;
       case '0 5 * * SUN': await run('collection-backups', () => runCollectionBackups(env)); break;
