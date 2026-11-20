@@ -698,7 +698,10 @@ CREATE TABLE IF NOT EXISTS import_runs (
 -- the shared AI keys started. Set on the first AI request.
 CREATE TABLE IF NOT EXISTS ai_trials (
   user_id TEXT PRIMARY KEY,
-  started_at TEXT NOT NULL
+  started_at TEXT NOT NULL,
+  -- Push reminders (jobs/ai-trial-reminders.ts): sent once each.
+  ending_notified_at TEXT,
+  ended_notified_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS rate_limits (

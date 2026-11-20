@@ -6,7 +6,7 @@
 // Google AI Studio key: open the page, copy, paste, test, done. It opens from
 // Profile, and by itself when a free-path daily limit is hit (429
 // byok_suggested; api.js fires `bv:byok`).
-import { escapeHtml, haptic, toast } from '../utils.js';
+import { escapeHtml, haptic, toast, snackbar } from '../utils.js';
 import { t, tPlural } from '../lib/i18n.js';
 import { getProviderCredential, setProviderCredential, hasPersistentProviderCredential } from '../lib/provider-credentials.js';
 import { state } from '../state.js';
@@ -22,6 +22,52 @@ export function aiTrialLabel(me) {
     return tPlural('byok.trialLeft', n, { n });
   }
   return t('byok.trialEnded');
+}
+
+/**
+ * Short counter for the Profile "AI features" row: "12 days", "Ended" or
+ * "Own key". kind picks the pill colour (warn in the last 3 days).
+ * @returns {{ text: string, kind: string } | null}
+ */
+export function aiTrialChip(me) {
+  if (!me || me.is_guest) return null;
+  if (getProviderCredential('gemini') || getProviderCredential('openai')) return { text: t('byok.chipKey'), kind: 'gain' };
+  const trial = me.ai_trial;
+  if (!trial) return null;
+  if (trial.active === false) return { text: t('byok.chipEnded'), kind: 'outline' };
+  const n = Number(trial.days_left ?? 14);
+  return { text: tPlural('byok.chipDays', n, { n }), kind: n <= 3 ? 'loss' : 'acc' };
+}
+
+const NUDGE_DAY_KEY = 'bv_ai_trial_nudge_day';
+const NUDGE_ENDED_KEY = 'bv_ai_trial_nudge_ended';
+function readLocal(key) { try { return localStorage.getItem(key); } catch { return null; } }
+function writeLocal(key, value) { try { localStorage.setItem(key, value); } catch { /* private mode */ } }
+
+/**
+ * In-app reminder on app open: once a day in the trial's last 3 days, and
+ * once when it has ended. Never for guests or people with their own key.
+ * The server also sends a push at 3 days left and at the end
+ * (worker/src/jobs/ai-trial-reminders.ts).
+ */
+export function maybeRemindAiTrial(me) {
+  if (!me || me.is_guest || !me.ai_trial) return;
+  if (getProviderCredential('gemini') || getProviderCredential('openai')) return;
+  const trial = me.ai_trial;
+  const open = () => openByokSheet({ ended: trial.active === false });
+  const actions = [{ label: t('byok.nudgeAction'), onClick: open }];
+  if (trial.active === false) {
+    if (readLocal(NUDGE_ENDED_KEY)) return;
+    writeLocal(NUDGE_ENDED_KEY, '1');
+    snackbar(t('byok.trialEnded'), { actions, duration: 8000 });
+    return;
+  }
+  const n = Number(trial.days_left);
+  if (!Number.isFinite(n) || n > 3) return;
+  const today = new Date().toISOString().slice(0, 10);
+  if (readLocal(NUDGE_DAY_KEY) === today) return;
+  writeLocal(NUDGE_DAY_KEY, today);
+  snackbar(tPlural('byok.trialLeft', n, { n }), { actions, duration: 8000 });
 }
 
 /** Check a key with one free model-list call, straight to Google. */

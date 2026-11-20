@@ -114,6 +114,9 @@ async function _routeImpl(gen) {
   if (!state.me) {
     try {
       state.me = await api("/api/me");
+      // AI trial countdown nudge (last 3 days / just ended), at most once a day.
+      const loadedMe = state.me;
+      if (getModePref() !== "kids") import('./components/byok-sheet.js').then(m => m.maybeRemindAiTrial(loadedMe)).catch(() => {});
     } catch (e) {
       console.error("Failed to load user profile", e);
       state.me = { display_name: "Guest Collector", handle: null, notify_price_drops: true, currency: "USD", is_guest: true, portfolio_stats: {} };

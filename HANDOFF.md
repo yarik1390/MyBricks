@@ -48,7 +48,7 @@ notes in this file.
 
 | Agent | Branch | Area / files | Started | Status |
 |-------|--------|--------------|---------|--------|
-| — | — | — | — | — |
+| Claude | claude/project-thread-ah28uf | AI trial counter + reminders (byok-sheet.js, me.js, router.js, jobs/ai-trial-reminders.ts) | 2026-11-20 | working |
 
 Old draft PRs #1, #2 (scanner OCR/CLIP experiments) and #31 (public
 `/healthz`) are parked; nobody is working on them. Ask the owner before
@@ -63,6 +63,7 @@ reviving or closing them.
 
 ## Recently shipped (newest first, keep about 10)
 
+- #211 (2026-11-20) AI trial countdown pill on Profile, last-3-days snackbar, push at 3 days left and at the end.
 - #210 (2026-11-20) AI trial starts on first app open (GET /api/me), so "days left" counts down instead of sticking at 14.
 - #209 (2026-11-18) Affiliate tagging for LEGO.com/eBay/Walmart/Target links (off until ids are set in wrangler.toml).
 - #207 (2026-11-13) Fixes from the deep-testing report (23 findings).
