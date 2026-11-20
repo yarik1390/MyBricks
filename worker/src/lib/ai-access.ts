@@ -6,7 +6,7 @@ import { WORKERS_AI_SCAN_MODEL } from './workers-ai';
 // ---------------------------------------------------------------------------
 // BYOK-first AI access (2026-11-08, Iaroslav).
 //
-// Every new account gets a trial: for AI_TRIAL_DAYS after its first AI request
+// Every new account gets a trial: for AI_TRIAL_DAYS after it first opens the app
 // the shared server keys, paid Gemini included, power every AI feature within
 // the usual per-feature daily limits. After the trial:
 //   - users with their own Gemini/OpenAI key (BYOK) keep everything, unlimited;
@@ -17,8 +17,10 @@ import { WORKERS_AI_SCAN_MODEL } from './workers-ai';
 // The paid Gemini/OpenAI server keys are never used for an account past its
 // trial; hitting a daily limit then suggests adding a free key.
 //
-// The trial clock lives in its own table (`ai_trials`) and starts lazily, on
-// the first AI call, so it needs no account-creation date. Every read fails
+// The trial clock lives in its own table (`ai_trials`) and starts the first
+// time the account loads GET /api/me (or makes an AI call, whichever comes
+// first), so it needs no account-creation date and counts down from the first
+// app open. Every read fails
 // OPEN (an accounting outage must not lock people out of the app).
 // ---------------------------------------------------------------------------
 

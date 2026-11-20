@@ -7,7 +7,7 @@ import { hashPin, verifyPin } from '../lib/kids-xp';
 import { holdingValueForRollout } from '../lib/market-sources';
 import { leaveHousehold } from './family';
 import { hasProAccess } from '../lib/early-access';
-import { readAiTrial } from '../lib/ai-access';
+import { touchAiTrial } from '../lib/ai-access';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -114,7 +114,11 @@ app.get('/', async (c) => {
     `).bind(userId).all<Record<string, unknown>>(),
     db.prepare('SELECT badge_slug FROM kids_badges WHERE user_id=?')
       .bind(userId).all<{ badge_slug: string }>(),
-    readAiTrial(c.env, userId),
+    // Start the AI trial clock the first time the account loads its profile
+    // (idempotent). Before, it started only on the first paid-AI call, so most
+    // accounts (barcode / OCR / Brickognize scans never reach it) showed
+    // "14 days left" forever.
+    touchAiTrial(c.env, userId),
   ]);
   const rolloutPercent = Number(c.env.PRICING_V3_READ_PERCENT || 0);
   const holdingRows = holdings.results || [];
