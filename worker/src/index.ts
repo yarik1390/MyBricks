@@ -24,6 +24,7 @@ import { imgRoute } from './routes/img';
 import { rewriteImages } from './lib/img-proxy';
 import { runImagePrewarm } from './jobs/image-prewarm';
 import { runSetImageBackfill } from './jobs/set-image-backfill';
+import { runTranslateDescriptions, translateBatchOpen } from './jobs/translate-descriptions';
 import { indexMissingAlts } from './lib/build-alts';
 import { runUpcomingRefresh } from './jobs/upcoming-refresh';
 import { runExaNewsScan, runExaRetirementLookups } from './jobs/exa-news';
@@ -565,6 +566,14 @@ export default {
       // Set photos Rebrickable doesn't have (new 2026 sets, promos): probe,
       // then Brickset / LEGO.com fallbacks. Own slot so its HEAD probes and
       // scrapes don't share the :15 image-prewarm invocation's subrequests.
+      // One-off: pre-translate set descriptions on Workers AI while the startup
+      // credits cover it (until 1 Dec 2026). Skipped entirely after the cutoff,
+      // so no cron_runs rows pile up; remove this slot once it is done.
+      case '*/5 * * * *':
+        if (translateBatchOpen()) {
+          await run('translate-descriptions', () => runTranslateDescriptions(env), { maxAgeMinutes: 6, timeoutMs: 4 * 60_000 });
+        }
+        break;
       case '20 * * * *': await run('set-image-backfill', () => runSetImageBackfill(env, { probeLimit: 150, resolveLimit: 40, scrapeLimit: 12 })); break;
       case '0 22 * * *':
         // Exa: expected retirement dates for active sets that have none. Kept
