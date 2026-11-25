@@ -11,9 +11,11 @@ import type { Env } from '../types';
 export const SCAN_EMBED_MODEL = '@cf/qwen/qwen3-vl-embedding-2b';
 
 /** Input shapes the model may accept; the probe endpoint reports which works. */
-export type EmbedShape = 'image_b64' | 'image_dataurl' | 'image_bytes' | 'messages' | 'input_image';
+export type EmbedShape = 'image_b64' | 'image_dataurl' | 'image_bytes' | 'messages' | 'messages_batch' | 'input_image';
 
-export const EMBED_SHAPES: EmbedShape[] = ['image_dataurl', 'image_b64', 'image_bytes', 'messages', 'input_image'];
+// messages_batch: a list of conversations, one embedding each
+// (@cf/google/embeddinggemma-2, added to Workers AI 2026-11-12).
+export const EMBED_SHAPES: EmbedShape[] = ['image_dataurl', 'image_b64', 'image_bytes', 'messages', 'messages_batch', 'input_image'];
 
 export function bytesToBase64(bytes: Uint8Array): string {
   let bin = '';
@@ -32,6 +34,7 @@ export function buildEmbedInput(shape: EmbedShape, bytes: Uint8Array, mime: stri
     case 'image_dataurl': return { image: dataUrl };
     case 'image_bytes': return { image: [...bytes] };
     case 'messages': return { messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: dataUrl } }] }] };
+    case 'messages_batch': return { messages: [[{ role: 'user', content: [{ type: 'image_url', image_url: { url: dataUrl } }] }]] };
     case 'input_image': return { input: [{ image: dataUrl }] };
   }
 }

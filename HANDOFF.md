@@ -48,7 +48,7 @@ notes in this file.
 
 | Agent | Branch | Area / files | Started | Status |
 |-------|--------|--------------|---------|--------|
-| Claude | claude/project-thread-lj2n5w | Workers AI description pre-translation batch (jobs/translate-descriptions.ts, lib/describe-i18n.ts, */5 cron) | 2026-11-25 | working |
+| Claude | claude/project-thread-lj2n5w | Scan image-index eval with EmbeddingGemma 2 (lib/scan-embed.ts, scripts/scan-eval, scan-vector-eval.yml) | 2026-11-25 | working |
 
 Old draft PRs #1, #2 (scanner OCR/CLIP experiments) and #31 (public
 `/healthz`) are parked; nobody is working on them. Ask the owner before
@@ -62,6 +62,8 @@ reviving or closing them.
 - Pro test purchase retry; a Lifetime Pro product in Play/RevenueCat if wanted.
 
 ## Recently shipped (newest first, keep about 10)
+
+- 2026-11-25 #215 + #216 (worker-only): Workers AI pre-translates all set descriptions until 30 Nov (*/5 cron, Cloudflare startup credits), and smart catalog search (bge-m3 embeddings in Vectorize `bricksvault-sets`, hourly :20 `embed-sets`).
 
 - #211 (2026-11-20) AI trial countdown pill on Profile, last-3-days snackbar, push at 3 days left and at the end.
 - #210 (2026-11-20) AI trial starts on first app open (GET /api/me), so "days left" counts down instead of sticking at 14.
