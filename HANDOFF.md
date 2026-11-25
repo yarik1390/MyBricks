@@ -48,7 +48,7 @@ notes in this file.
 
 | Agent | Branch | Area / files | Started | Status |
 |-------|--------|--------------|---------|--------|
-| — | — | — | — | — |
+| Claude | claude/project-thread-lj2n5w | Workers AI description pre-translation batch (jobs/translate-descriptions.ts, lib/describe-i18n.ts, */5 cron) | 2026-11-25 | working |
 
 Old draft PRs #1, #2 (scanner OCR/CLIP experiments) and #31 (public
 `/healthz`) are parked; nobody is working on them. Ask the owner before

@@ -101,6 +101,9 @@ crons = [
   # the 'community' family joins the blend as soon as data exists.
   "0 22 * * *",
   "15 * * * *",
+  # One-off until 2026-11-30: pre-translate set descriptions on Workers AI
+  # (covered by startup credits until 1 Dec). Remove after the batch ends.
+  "*/5 * * * *",
   # Set photo fallbacks (Brickset / LEGO.com) for Rebrickable 404s.
   "20 * * * *",
   # Hourly BrickLink-staleness refresh. BrickLink age (not data availability) is what
