@@ -35,6 +35,10 @@ interface Options {
 export interface TranslateBatchResult {
   sets: number;
   translated: number;
+  /** Replies refused (echo, wrong length) or errored; retried by a later run. */
+  rejected: number;
+  /** Non-zero only when nothing at all got through (Workers AI down), so the
+   *  admin console doesn't flag every run for a few refused replies. */
   failed: number;
   remainingSets: number;
   stoppedEarly: boolean;
@@ -75,7 +79,7 @@ export async function runTranslateDescriptions(env: Env, opts: Options = {}): Pr
   }
 
   let translated = 0;
-  let failed = 0;
+  let rejected = 0;
   let next = 0;
   let stoppedEarly = false;
   const worker = async () => {
@@ -83,7 +87,7 @@ export async function runTranslateDescriptions(env: Env, opts: Options = {}): Pr
       if (Date.now() > deadline || !stillOpen()) { stoppedEarly = true; return; }
       const t = tasks[next++];
       const out = await translateDescriptionWorkersAi(env, t.english, t.lang);
-      if (!out) { failed++; continue; }
+      if (!out) { rejected++; continue; }
       await env.DB.prepare(
         `INSERT INTO set_description_i18n (set_num, lang, description, source_hash)
          VALUES (?, ?, ?, ?)
@@ -100,5 +104,6 @@ export async function runTranslateDescriptions(env: Env, opts: Options = {}): Pr
         AND (SELECT count(*) FROM set_description_i18n t WHERE t.set_num = s.set_num) < ?`,
   ).bind(langCount).first<{ n: number }>();
 
-  return { sets: sets.length, translated, failed, remainingSets: left?.n ?? 0, stoppedEarly };
+  const failed = translated === 0 ? rejected : 0;
+  return { sets: sets.length, translated, rejected, failed, remainingSets: left?.n ?? 0, stoppedEarly };
 }
