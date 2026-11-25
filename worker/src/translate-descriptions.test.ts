@@ -37,7 +37,7 @@ describe('translate-descriptions batch', () => {
   it('fills all eight languages with the hash the set page checks', async () => {
     const ai = fakeAi((p) => `[${langOf(p)}] ${EN}`);
     const res = await runTranslateDescriptions({ ...(env as any), AI: ai }, { now: NOW });
-    expect(res).toMatchObject({ sets: 2, translated: 16, failed: 0, remainingSets: 0 });
+    expect(res).toMatchObject({ sets: 2, translated: 16, rejected: 0, failed: 0, remainingSets: 0 });
     // The set with an empty description is never sent.
     expect(ai.calls.length).toBe(16);
     const cached = await getCachedDescription(env as any, '10001-1', 'ja', hashSource(EN));
@@ -52,9 +52,16 @@ describe('translate-descriptions batch', () => {
   it('skips echoes and errors, leaving them for a later run', async () => {
     const ai = fakeAi((p) => (langOf(p) === 'German' ? p.split('\n\n').pop()! : langOf(p) === 'Hindi' ? new Error('busy') : `ok ${EN}`));
     const res = await runTranslateDescriptions({ ...(env as any), AI: ai }, { now: NOW });
-    expect(res).toMatchObject({ translated: 12, failed: 4, remainingSets: 2 });
+    // A few refused replies don't mark the run failed; they are retried later.
+    expect(res).toMatchObject({ translated: 12, rejected: 4, failed: 0, remainingSets: 2 });
     const de = await db.prepare(`SELECT count(*) n FROM set_description_i18n WHERE lang = 'de'`).first<{ n: number }>();
     expect(de!.n).toBe(0);
+  });
+
+  it('marks the run failed only when nothing got through', async () => {
+    const ai = fakeAi(() => new Error('down'));
+    const res = await runTranslateDescriptions({ ...(env as any), AI: ai }, { now: NOW });
+    expect(res).toMatchObject({ translated: 0, rejected: 16, failed: 16 });
   });
 
   it('does nothing after the credit window closes', async () => {
