@@ -10,6 +10,11 @@ export const TABLE_DDL: Record<string, string> = {
   parent_id INTEGER
 )`,
 
+  set_embeddings: `CREATE TABLE IF NOT EXISTS set_embeddings (
+  set_num TEXT PRIMARY KEY,
+  source_hash TEXT NOT NULL,
+  embedded_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`,
   set_description_i18n: `CREATE TABLE IF NOT EXISTS set_description_i18n (
   set_num TEXT NOT NULL,
   lang TEXT NOT NULL,

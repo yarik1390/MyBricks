@@ -1416,3 +1416,12 @@ CREATE TABLE IF NOT EXISTS set_image_checks (
   attempts INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_set_image_checks_missing ON set_image_checks (rb_status, fallback_url);
+
+-- Smart search progress: which catalog sets are in the Vectorize index
+-- (SETS_INDEX) and the hash of the text they were embedded from, so only
+-- changed sets are re-embedded (jobs/embed-sets.ts).
+CREATE TABLE IF NOT EXISTS set_embeddings (
+  set_num TEXT PRIMARY KEY,
+  source_hash TEXT NOT NULL,
+  embedded_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
