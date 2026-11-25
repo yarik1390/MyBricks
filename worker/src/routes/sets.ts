@@ -16,6 +16,7 @@ import { brickEconomyOn, enrichSetRecord, persistBlendedValue } from '../lib/mar
 import { applySourceConfig } from '../lib/source-config';
 import { recentValueMedian } from '../lib/price-trend';
 import { isSearchIndexCorruption, rebuildSearchIndex } from '../lib/search-index';
+import { similarSets, wantsSimilarSets } from '../lib/set-embeddings';
 import { checkLegoStock, legoStockUpdate, normalizeLegoStockResult } from '../lib/lego-stock';
 import { fetchSetMinifigs } from '../lib/rebrickable';
 import type { Env, Variables } from '../types';
@@ -304,6 +305,36 @@ const searchHandler = async (c: Context<{ Bindings: Env; Variables: Variables }>
 
   let rows = pageRes.results.map(r => enrichSetRecord(attachCatalogValuationState({ ...r, retired: !!r.retired }))) as Record<string, unknown>[];
   let total = countRes?.total ?? 0;
+
+  // Smart search: when keywords come up short for a descriptive query, add the
+  // sets whose meaning is closest (lib/set-embeddings.ts), still honouring the
+  // theme/price/retired filters. Tagged match_kind:'similar' for the client.
+  // Best-effort: any failure leaves the keyword results untouched.
+  if (q && offset === 0 && !searchDegraded && wantsSimilarSets(q, rows.length, lim)) {
+    try {
+      const similar = await similarSets(c.env, q, lim);
+      const seen = new Set(rows.map(r => String(r.set_num)));
+      const fresh = similar.filter(m => !seen.has(m.setNum)).slice(0, lim - rows.length);
+      if (fresh.length) {
+        const fw = [`s.set_num IN (${fresh.map(() => '?').join(',')})`, ...filterWhere];
+        const { results: hits } = await c.env.DB.prepare(
+          `SELECT ${CATALOG_COLS} FROM lego_sets s ${MARKET_EXT_JOIN} WHERE ${fw.join(' AND ')}`
+        ).bind(...fresh.map(m => m.setNum), ...filterParams).all<Record<string, unknown>>();
+        const byNum = new Map(hits.map(h => [String(h.set_num), h]));
+        for (const m of fresh) {
+          const h = byNum.get(m.setNum);
+          if (!h) continue;
+          rows.push({
+            ...enrichSetRecord(attachCatalogValuationState({ ...h, retired: !!h.retired })),
+            match_kind: 'similar',
+          });
+        }
+        total = Math.max(total, rows.length);
+      }
+    } catch (e) {
+      console.warn('[search] smart matches skipped:', (e as Error)?.message);
+    }
+  }
 
   if (q && offset === 0 && rows.length < lim && c.env.REBRICKABLE_API_KEY) {
     try {

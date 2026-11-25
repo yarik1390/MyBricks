@@ -50,6 +50,12 @@ simple = { limit = 600, period = 60 }
 [ai]
 binding = "AI"
 
+# Smart catalog search: bge-m3 set embeddings (1024 dims, cosine). The deploy
+# creates the index if missing and strips this binding when it can't.
+[[vectorize]]
+binding = "SETS_INDEX"
+index_name = "bricksvault-sets"
+
 [[vpc_services]]
 binding = "OPENCODEX_VPC"
 service_id = "01a15f34-a954-7a32-8e1c-a06bf87f12ad"

@@ -447,6 +447,43 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
       expect(rows.find((r: any) => r.set_num === 'UP-FAKE').forecast_2y).toBeNull();
     });
 
+    it('smart search adds meaning-based matches when keywords come up short, honouring filters', async () => {
+      await db.batch([
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, current_value) VALUES ('SM-1','Black Seas Barracuda','Pirates',1989,500)`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, current_value) VALUES ('SM-2','Barracuda Bay','Ideas',2020,250)`),
+        db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, current_value) VALUES ('SM-3','Fire Station','City',2021,80)`),
+      ]);
+      const queried: number[][] = [];
+      const smartEnv = {
+        ...(env as any),
+        AI: { run: async (_m: string, input: any) => ({ data: input.text.map(() => Array(1024).fill(0.01)) }) },
+        SETS_INDEX: {
+          query: async (v: number[]) => {
+            queried.push(v);
+            return { matches: [
+              { id: 'SM-1', score: 0.81 }, { id: 'SM-2', score: 0.74 },
+              { id: 'SM-3', score: 0.52 }, { id: 'NOPE-9', score: 0.7 }, { id: 'SM-LOW', score: 0.3 },
+            ] };
+          },
+        },
+      };
+      const get = async (qs: string) => (await (await app.fetch(new Request(`http://localhost/api/sets/search?${qs}`), smartEnv)).json<any>());
+
+      const res = await get('q=pirate%20ship%20with%20shark&limit=24');
+      const similar = res.sets.filter((s: any) => s.match_kind === 'similar').map((s: any) => s.set_num);
+      expect(similar).toEqual(['SM-1', 'SM-2', 'SM-3']); // best first, unknown + low-score ids dropped
+      expect(queried.length).toBe(1);
+
+      // Filters still apply to smart matches.
+      const pirates = await get('q=pirate%20ship%20with%20shark&theme=Pirates&limit=24');
+      expect(pirates.sets.filter((s: any) => s.match_kind === 'similar').map((s: any) => s.set_num)).toEqual(['SM-1']);
+
+      // A set number is never sent to smart search.
+      queried.length = 0;
+      await get('q=10497&limit=24');
+      expect(queried.length).toBe(0);
+    });
+
     it('search results omit raw per-source inputs the client never reads', async () => {
       await db.prepare(`INSERT INTO lego_sets (set_num, name, theme, year, current_value, be_value_new, brickset_msrp) VALUES ('RAW-1','Raw Fields','RawTheme',2010,50,99,40)`).run();
       const res = await (await app.fetch(new Request('http://localhost/api/sets/search?theme=RawTheme&limit=5'), env)).json<any>();

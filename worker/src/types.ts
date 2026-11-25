@@ -100,6 +100,9 @@ export interface Env {
   OPENCODEX_VPC?: Fetcher;
   // Cloudflare Workers AI binding ([ai] in wrangler.toml). Free scan step.
   AI?: Ai;
+  // Vectorize index of catalog set embeddings (smart search, lib/set-embeddings.ts).
+  // Stripped by the deploy when the API token cannot create Vectorize indexes.
+  SETS_INDEX?: VectorizeIndex;
   // Cloudflare Turnstile (optional bot protection for the shared-key photo scan).
   // SITE key is public (sent to the browser via /api/config); SECRET key is
   // server-only. When SECRET is unset, scan verification is skipped (opt-in).
