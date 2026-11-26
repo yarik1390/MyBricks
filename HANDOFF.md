@@ -48,7 +48,6 @@ notes in this file.
 
 | Agent | Branch | Area / files | Started | Status |
 |-------|--------|--------------|---------|--------|
-| Claude | claude/project-thread-ecci26 | BrickLink call metering: `worker/src/lib/api-quota.ts`, `lib/bricklink.ts`, `lib/http.ts`, `routes/set-detail-refresh.ts`, minifig jobs | 2026-11-26 | working (PR open) |
 
 Old draft PRs #1, #2 (scanner OCR/CLIP experiments) and #31 (public
 `/healthz`) are parked; nobody is working on them. Ask the owner before
@@ -63,6 +62,7 @@ reviving or closing them.
 
 ## Recently shipped (newest first, keep about 10)
 
+- 2026-11-26 #221 (worker-only): BrickLink blocked the Store API for passing its daily limit (access needs a manual restore by BrickLink support, the owner emails them). Every BrickLink HTTP attempt, retries included, is now booked before sending in a rolling 24h window (cap 4,000, fail closed). Set pages no longer call BrickLink, max 1 retry, HTTP 400 = no-data. Never add a BrickLink call outside `blFetch` in `lib/bricklink.ts`.
 - 2026-11-25 #215 + #216 (worker-only): Workers AI pre-translates all set descriptions until 30 Nov (*/5 cron, Cloudflare startup credits), and smart catalog search (bge-m3 embeddings in Vectorize `bricksvault-sets`, hourly :20 `embed-sets`).
 - 2026-11-25 #217 + #218: scan eval with EmbeddingGemma 2 = 63% top-1 / 91% top-5 (67 photos) vs Brickognize 90%, so not integrated; translate runs no longer red for a few refused replies. TODO after 30 Nov: remove the `*/5 * * * *` cron + case.
 
