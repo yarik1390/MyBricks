@@ -34,7 +34,7 @@ jobs:
       - name: Install transformers.js
         run: |
           mkdir -p /tmp/fusion && cd /tmp/fusion && npm init -y >/dev/null
-          npm i @huggingface/transformers@3.7.5
+          npm i @huggingface/transformers@3.7.5 --onnxruntime-node-install-cuda=skip
       - name: Run
         env:
           NODE_PATH: /tmp/fusion/node_modules
