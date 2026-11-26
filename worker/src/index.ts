@@ -26,6 +26,7 @@ import { runImagePrewarm } from './jobs/image-prewarm';
 import { runSetImageBackfill } from './jobs/set-image-backfill';
 import { runTranslateDescriptions, translateBatchOpen } from './jobs/translate-descriptions';
 import { runEmbedSets } from './jobs/embed-sets';
+import { runSiglipBackfill } from './jobs/siglip-backfill';
 import { indexMissingAlts } from './lib/build-alts';
 import { runUpcomingRefresh } from './jobs/upcoming-refresh';
 import { runExaNewsScan, runExaRetirementLookups } from './jobs/exa-news';
@@ -579,6 +580,9 @@ export default {
       case '20 * * * *':
         await run('set-image-backfill', () => runSetImageBackfill(env, { probeLimit: 150, resolveLimit: 40, scrapeLimit: 12 }));
         await run('embed-sets', () => runEmbedSets(env), { timeoutMs: 4 * 60_000 });
+        break;
+      case '*/10 * * * *':
+        await run('siglip-backfill', () => runSiglipBackfill(env), { maxAgeMinutes: 11, timeoutMs: 4 * 60_000 });
         break;
       case '0 22 * * *':
         // Exa: expected retirement dates for active sets that have none. Kept

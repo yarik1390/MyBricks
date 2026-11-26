@@ -1,0 +1,8 @@
+{
+  "name": "bricksvault-siglip-container",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@huggingface/transformers": "3.7.5"
+  }
+}

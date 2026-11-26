@@ -1,0 +1,20 @@
+name = "bricksvault-siglip"
+main = "src/index.ts"
+compatibility_date = "2026-11-09"
+# Internal only: brickvault-api calls this Worker through a service binding.
+workers_dev = false
+
+[[containers]]
+class_name = "SiglipContainer"
+image = "./container/Dockerfile"
+# 4 vCPU / 12 GB: ~0.5 s per image on CPU (SigLIP base, fp32).
+instance_type = "standard-4"
+max_instances = 4
+
+[[durable_objects.bindings]]
+name = "SIGLIP_CONTAINER"
+class_name = "SiglipContainer"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SiglipContainer"]

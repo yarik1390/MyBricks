@@ -1425,3 +1425,12 @@ CREATE TABLE IF NOT EXISTS set_embeddings (
   source_hash TEXT NOT NULL,
   embedded_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- SigLIP catalog image vectors (SIGLIP_INDEX) for the photo-scan second
+-- opinion: which sets are done; ok=0 means the image failed, retried after
+-- 30 days (jobs/siglip-backfill.ts).
+CREATE TABLE IF NOT EXISTS siglip_embeddings (
+  set_num TEXT PRIMARY KEY,
+  ok INTEGER NOT NULL DEFAULT 1,
+  embedded_at TEXT NOT NULL DEFAULT (datetime('now'))
+);

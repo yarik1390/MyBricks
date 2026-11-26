@@ -48,6 +48,7 @@ notes in this file.
 
 | Agent | Branch | Area / files | Started | Status |
 |-------|--------|--------------|---------|--------|
+| Claude | claude/project-thread-lj2n5w | SigLIP scan second opinion: siglip/ (Container Worker), worker/src/lib/siglip.ts, jobs/siglip-backfill.ts, routes/scan.ts (Brickognize fallback), lib/brickognize.ts, deploy-siglip.yml, deploy-worker.yml | 2026-11-26 | working |
 
 Old draft PRs #1, #2 (scanner OCR/CLIP experiments) and #31 (public
 `/healthz`) are parked; nobody is working on them. Ask the owner before

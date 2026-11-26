@@ -1,6 +1,8 @@
 import type { Env } from '../types';
 
-const BRICKOGNIZE_SETS_URL = 'https://api.brickognize.com/predict/sets/?top_k_items=3&min_similarity_items=0.3';
+const BRICKOGNIZE_SETS_URL = 'https://api.brickognize.com/predict/sets/?top_k_items=5&min_similarity_items=0.1';
+// Five candidates (down to 0.1) so the SigLIP second opinion (lib/siglip.ts) can
+// re-score an unsure answer. The accept gate below only looks at the top two.
 const BRICKOGNIZE_TIMEOUT_MS = 3_000;
 const BRICKOGNIZE_ACCEPTED_CACHE_SECONDS = 30 * 24 * 60 * 60;
 const BRICKOGNIZE_FALLBACK_CACHE_SECONDS = 24 * 60 * 60;
@@ -31,7 +33,8 @@ export type BrickognizeRunOptions = {
 
 export type BrickognizeOutcome =
   | { kind: 'accepted'; top: BrickognizePrediction; second?: BrickognizePrediction; cached: boolean }
-  | { kind: 'fallback'; reason: 'disabled' | 'unsupported_image' | 'low_confidence' | 'ambiguous' | 'empty' | 'circuit_open'; cached: boolean }
+  | { kind: 'fallback'; reason: 'low_confidence' | 'ambiguous'; cached: boolean; predictions: BrickognizePrediction[] }
+  | { kind: 'fallback'; reason: 'disabled' | 'unsupported_image' | 'empty' | 'circuit_open'; cached: boolean }
   | { kind: 'error'; reason: 'timeout' | 'provider_error' | 'invalid_response'; message: string; cached: false };
 
 type BrickognizeResponse = { items?: unknown };
@@ -85,8 +88,9 @@ function inspect(items: unknown, cached: boolean): BrickognizeOutcome {
   const top = predictions[0];
   if (!top) return { kind: 'fallback', reason: 'empty', cached };
   const second = predictions[1];
-  if (top.score < BRICKOGNIZE_SCORE_MIN) return { kind: 'fallback', reason: 'low_confidence', cached };
-  if (second && top.score - second.score < BRICKOGNIZE_MARGIN_MIN) return { kind: 'fallback', reason: 'ambiguous', cached };
+  const candidates = predictions.slice(0, 5);
+  if (top.score < BRICKOGNIZE_SCORE_MIN) return { kind: 'fallback', reason: 'low_confidence', cached, predictions: candidates };
+  if (second && top.score - second.score < BRICKOGNIZE_MARGIN_MIN) return { kind: 'fallback', reason: 'ambiguous', cached, predictions: candidates };
   return { kind: 'accepted', top, second, cached };
 }
 

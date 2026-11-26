@@ -15,6 +15,11 @@ export const TABLE_DDL: Record<string, string> = {
   source_hash TEXT NOT NULL,
   embedded_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`,
+  siglip_embeddings: `CREATE TABLE IF NOT EXISTS siglip_embeddings (
+  set_num TEXT PRIMARY KEY,
+  ok INTEGER NOT NULL DEFAULT 1,
+  embedded_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`,
   set_description_i18n: `CREATE TABLE IF NOT EXISTS set_description_i18n (
   set_num TEXT NOT NULL,
   lang TEXT NOT NULL,

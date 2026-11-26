@@ -56,6 +56,18 @@ binding = "AI"
 binding = "SETS_INDEX"
 index_name = "bricksvault-sets"
 
+# SigLIP catalog photo vectors (768 dims, cosine) for the photo-scan second
+# opinion (lib/siglip.ts). Created by the deploy; stripped when it can't be.
+[[vectorize]]
+binding = "SIGLIP_INDEX"
+index_name = "bricksvault-siglip"
+
+# SigLIP image embeddings: the bricksvault-siglip Worker (siglip/, a Cloudflare
+# Container). Stripped by the deploy while that Worker doesn't exist yet.
+[[services]]
+binding = "SIGLIP"
+service = "bricksvault-siglip"
+
 [[vpc_services]]
 binding = "OPENCODEX_VPC"
 service_id = "01a15f34-a954-7a32-8e1c-a06bf87f12ad"
@@ -112,6 +124,9 @@ crons = [
   "*/5 * * * *",
   # Set photo fallbacks (Brickset / LEGO.com) for Rebrickable 404s.
   "20 * * * *",
+  # SigLIP catalog photo vectors for the photo-scan second opinion
+  # (jobs/siglip-backfill.ts). Idle once the catalog is done.
+  "*/10 * * * *",
   # Hourly BrickLink-staleness refresh. BrickLink age (not data availability) is what
   # caps blend confidence: of the sets with two independent sold families, 100% meet
   # the sample bar and 78% agree within 1.4x, but only ~19% had BOTH sources fresh.
