@@ -1818,6 +1818,51 @@ describe('BrickVault API Worker Tests', () => {
       }
     });
 
+    it('lets the SigLIP second opinion settle an ambiguous Brickognize answer', async () => {
+      const previousFetch = globalThis.fetch;
+      (env as any).BRICKOGNIZE_ENABLED = '1';
+      await db.prepare(`INSERT OR IGNORE INTO lego_sets (set_num, name, year, theme, pieces) VALUES ('75257-1', 'Millennium Falcon', 2019, 'Star Wars', 1351)`).run();
+      const unit = (i: number) => { const v = Array(768).fill(0); v[i] = 1; return v; };
+      globalThis.fetch = vi.fn().mockImplementation((url: RequestInfo | URL) => {
+        if (url.toString().includes('api.brickognize.com')) {
+          return Promise.resolve(new Response(JSON.stringify({
+            items: [
+              { id: '75192', name: 'Millennium Falcon', type: 'set', score: 0.58 },
+              { id: '75257', name: 'Millennium Falcon', type: 'set', score: 0.55 },
+            ],
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+        }
+        return previousFetch(url);
+      });
+      const siglipEnv = {
+        ...(env as any),
+        SIGLIP: { fetch: async () => Response.json({ vectors: [unit(0)] }) },
+        SIGLIP_INDEX: {
+          getByIds: async (ids: string[]) => ids.map((id) => ({ id, values: id === '75257-1' ? unit(0) : unit(1) })),
+          query: async () => ({ matches: [{ id: '75257-1', score: 1 }] }),
+        },
+      };
+      try {
+        const res = await app.fetch(
+          new Request('http://localhost/api/scan/identify', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'image', image: 'data:image/png;base64,YnJpY2tvZ25pemUtc2lnbGlw' }),
+          }),
+          siglipEnv,
+        );
+        expect(res.status).toBe(200);
+        const data = await res.json<{ identified: boolean; model: string; confidence: string; sets: Array<{ set_num: string }> }>();
+        expect(data.identified).toBe(true);
+        expect(data.model).toBe('brickognize+siglip');
+        expect(data.confidence).toBe('medium');
+        expect(data.sets[0]?.set_num).toBe('75257-1');
+      } finally {
+        globalThis.fetch = previousFetch;
+        (env as any).BRICKOGNIZE_ENABLED = '0';
+      }
+    });
+
     it('uses BYOK OpenAI key and returns matched set', async () => {
       // 75192 already seeded by beforeEach; OpenAI module is fully mocked to return it
       const res = await app.fetch(

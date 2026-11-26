@@ -19,7 +19,13 @@ export default defineConfig({
       // Keep the Pro paywall on in tests (wrangler.toml turns on the early-access
       // free launch), so the gated paths stay covered. Early-access tests pass
       // their own env with EARLY_ACCESS_PRO: '1'.
-      miniflare: { bindings: { EARLY_ACCESS_PRO: '0' } },
+      // The SIGLIP service (bricksvault-siglip, a Container) doesn't exist in
+      // tests: answer 503 so scans take the no-second-opinion path. Suites that
+      // test SigLIP pass their own fake.
+      miniflare: {
+        bindings: { EARLY_ACCESS_PRO: '0' },
+        serviceBindings: { SIGLIP: async () => new Response('siglip unavailable in tests', { status: 503 }) },
+      },
     }),
   ],
 });

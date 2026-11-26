@@ -9,6 +9,7 @@ import { resolveRoute, type LlmWorkload } from '../lib/llm-routing';
 import { openAiCompatibleStep } from '../lib/llm-clients';
 import { recordAiUsage } from '../lib/ai-usage';
 import { identifySetWithBrickognize, BRICKOGNIZE_SCORE_HIGH } from '../lib/brickognize';
+import { siglipAvailable, siglipEmbed, siglipSecondOpinion } from '../lib/siglip';
 import { parseOcrSetNumbers, resolveOcrSetNum, sanitizeOcrInput } from '../lib/scan-ocr';
 import { callRecognitionValidation } from '../lib/recognition-client';
 import { verifyTurnstileToken } from '../lib/turnstile';
@@ -902,6 +903,11 @@ app.post('/identify', async (c) => {
     // Preserve enough of the 14s request budget for at least one AI fallback.
     const brickognizeBudget = Math.min(3_000, routeDeadline - Date.now() - MIN_STEP_MS);
     if (brickognizeBudget >= 250) {
+      // SigLIP embeds the photo in parallel, so the second opinion costs no
+      // extra wait when Brickognize is unsure (lib/siglip.ts).
+      const siglipVector = siglipAvailable(c.env)
+        ? siglipEmbed(c.env, { images: [image] }, brickognizeBudget).then((v) => v?.[0] ?? null)
+        : Promise.resolve(null);
       const brickognize = await identifySetWithBrickognize(c.env, image, {
         timeoutMs: brickognizeBudget,
         signal: c.req.raw.signal,
@@ -943,6 +949,43 @@ app.post('/identify', async (c) => {
         });
       }
       timings[timings.length - 1].outcome = 'unmapped';
+    }
+    if (siglipAvailable(c.env) && brickognize.kind === 'fallback' && 'predictions' in brickognize && brickognize.predictions.length) {
+      const t1 = Date.now();
+      const vector = await siglipVector;
+      const opinion = vector ? await siglipSecondOpinion(c.env, vector, brickognize.predictions) : null;
+      timings.push({
+        provider: 'siglip',
+        model: 'siglip-base-fusion',
+        ms: Date.now() - t1,
+        outcome: !vector ? 'no_vector' : !opinion ? 'error' : opinion.accepted ? 'accepted' : 'low_margin',
+      });
+      const pick = opinion?.accepted;
+      if (pick) {
+        const hydrated = await hydrateScanSets(c.env.DB, [pick.id, pick.id.replace(/-\d+$/, '')]);
+        const set = hydrated?.get(pick.id) ?? hydrated?.get(pick.id.replace(/-\d+$/, '')) ?? null;
+        if (set) {
+          logEvent(c.env, 'scan_used', userId, { setNum: String(set.set_num || '') });
+          return finalizeShared({
+            identified: true,
+            sets: [{
+              ...set,
+              match_confidence: 'medium',
+              match_reasoning: `Brickognize + SigLIP image match (${pick.id}, margin ${opinion!.margin.toFixed(2)}).`,
+            }],
+            minifigs: [],
+            confidence: 'medium',
+            reasoning: `Brickognize and SigLIP image similarity agree on ${set.name || pick.id}.`,
+            model: 'brickognize+siglip',
+            diag: {
+              timings,
+              total_ms: Date.now() - started,
+              image_kb: Math.round(image.length / 1024),
+            },
+          });
+        }
+        timings[timings.length - 1].outcome = 'unmapped';
+      }
     }
     }
   }
