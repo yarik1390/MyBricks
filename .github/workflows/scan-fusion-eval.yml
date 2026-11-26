@@ -1,0 +1,52 @@
+name: Scan combined recognition eval
+
+# Dispatch-only. Tests whether SigLIP (run locally on the runner) as a second
+# opinion improves Brickognize's first answer on the 78 real-world test photos
+# in scripts/scan-eval/test-photos.json. Read-only: no Worker, D1 or secrets.
+on:
+  workflow_dispatch:
+    inputs:
+      distractors:
+        description: "Catalog sample size for SigLIP's own ranking (0-30000)"
+        required: false
+        default: "3000"
+      siglip_model:
+        description: "transformers.js SigLIP model id"
+        required: false
+        default: "Xenova/siglip-base-patch16-224"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scan-fusion-eval
+  cancel-in-progress: true
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install transformers.js
+        run: |
+          mkdir -p /tmp/fusion && cd /tmp/fusion && npm init -y >/dev/null
+          npm i @huggingface/transformers@3.7.5
+      - name: Run
+        env:
+          NODE_PATH: /tmp/fusion/node_modules
+          DISTRACTORS: ${{ inputs.distractors || '3000' }}
+          SIGLIP_MODEL: ${{ inputs.siglip_model || 'Xenova/siglip-base-patch16-224' }}
+        run: |
+          # ESM ignores NODE_PATH, so run the script from where the package is installed.
+          cp scripts/scan-eval/fusion.mjs /tmp/fusion/fusion.mjs
+          node /tmp/fusion/fusion.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scan-fusion-report
+          path: scan-eval-out/
+          if-no-files-found: ignore
