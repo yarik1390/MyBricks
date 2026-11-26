@@ -13,6 +13,14 @@ export interface FetchRetryOptions {
   retries?: number;     // number of *additional* attempts after the first
   backoffMs?: number;   // base backoff, doubled each retry
   timeoutMs?: number;   // per-attempt timeout
+  /**
+   * Runs before EVERY attempt (the first try and each retry), outside the
+   * retry handling: if it throws, no request is made and the error reaches
+   * the caller as is. Used to book metered calls (BrickLink) per attempt.
+   */
+  beforeAttempt?: (attempt: number) => Promise<void>;
+  /** Statuses worth retrying; defaults to 408/429/5xx. */
+  retryStatuses?: ReadonlySet<number>;
 }
 
 export interface FetchTrackedOptions extends FetchRetryOptions {
@@ -43,8 +51,19 @@ export async function fetchWithRetry(
   const backoffMs = opts.backoffMs ?? 500;
   const timeoutMs = opts.timeoutMs ?? 8000;
 
+  const retryStatuses = opts.retryStatuses ?? RETRYABLE_STATUS;
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
+    if (opts.beforeAttempt) {
+      try {
+        await opts.beforeAttempt(attempt);
+      } catch (err) {
+        // Nothing was sent: mark it so fetchTracked does not log it as a
+        // provider failure (it is our own budget guard, not the provider).
+        if (err && typeof err === 'object') (err as { preflight?: boolean }).preflight = true;
+        throw err;
+      }
+    }
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), timeoutMs);
     try {
@@ -52,7 +71,7 @@ export async function fetchWithRetry(
       clearTimeout(timer);
       // Retry transient server/rate-limit statuses; return everything else
       // (including 4xx like 404) to the caller to handle.
-      if (RETRYABLE_STATUS.has(resp.status) && attempt < retries) {
+      if (retryStatuses.has(resp.status) && attempt < retries) {
         await sleep(backoffMs * Math.pow(2, attempt));
         continue;
       }
@@ -119,7 +138,8 @@ export async function fetchTracked(
     }
     return resp;
   } catch (error) {
-    if (shouldRecord) {
+    const preflight = !!(error && typeof error === 'object' && (error as { preflight?: boolean }).preflight);
+    if (shouldRecord && !preflight) {
       await recordIntegrationAttempt(env, service, false, integrationErrorMessage(error));
     }
     throw error;
