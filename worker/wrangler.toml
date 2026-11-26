@@ -50,6 +50,12 @@ simple = { limit = 600, period = 60 }
 [ai]
 binding = "AI"
 
+# Smart catalog search: bge-m3 set embeddings (1024 dims, cosine). The deploy
+# creates the index if missing and strips this binding when it can't.
+[[vectorize]]
+binding = "SETS_INDEX"
+index_name = "bricksvault-sets"
+
 [[vpc_services]]
 binding = "OPENCODEX_VPC"
 service_id = "01a15f34-a954-7a32-8e1c-a06bf87f12ad"
@@ -101,6 +107,9 @@ crons = [
   # the 'community' family joins the blend as soon as data exists.
   "0 22 * * *",
   "15 * * * *",
+  # One-off until 2026-11-30: pre-translate set descriptions on Workers AI
+  # (covered by startup credits until 1 Dec). Remove after the batch ends.
+  "*/5 * * * *",
   # Set photo fallbacks (Brickset / LEGO.com) for Rebrickable 404s.
   "20 * * * *",
   # Hourly BrickLink-staleness refresh. BrickLink age (not data availability) is what

@@ -67,6 +67,8 @@ export const PROCESS_REGISTRY: Record<string, ProcessInfo> = {
   // --- Maintenance ---
   'db-hygiene': { label: 'Database hygiene', description: 'Cleans up stale rows, expired sessions and orphaned data.', schedule: 'Daily 04:00 UTC', group: 'Maintenance' },
   'daily-catalog-maintenance': { label: 'Catalog maintenance', description: 'Daily catalog upkeep and consistency pass.', schedule: 'Daily 04:00 UTC', group: 'Maintenance' },
+  'translate-descriptions': { label: 'Translate set descriptions', description: 'One-off batch until 30 Nov 2026: translates every Brickset set description into the 8 app languages on Workers AI (covered by startup credits), so set pages open translated without an on-view Gemini call.', schedule: 'Hourly (every 5 min, until 30 Nov 2026)', group: 'Catalog' },
+  'embed-sets': { label: 'Smart search index', description: 'Embeds catalog sets (name, theme, year, size, description) with Workers AI bge-m3 into the Vectorize index behind smart search; then re-checks month-old entries and re-embeds only changed ones.', schedule: 'Hourly (:20)', group: 'Catalog' },
   'image-prewarm': { label: 'Image pre-warm', description: 'Pre-warms set images into the edge cache for fast loads.', schedule: 'Daily 14:00 UTC', group: 'Maintenance' },
   'model-refresh': { label: 'AI model catalog refresh', description: 'Refreshes the cached free-model pool (OpenRouter) used by LLM routing.', schedule: 'Daily 04:00 UTC', group: 'Maintenance' },
   'amazon-offers': { label: 'Amazon offers', description: 'Amazon Creators API live offers (KV-only, 24h TTL per Associates terms). Two slots keep the freshness window gapless.', schedule: 'Daily 07:30 & 16:30 UTC', group: 'Maintenance' },

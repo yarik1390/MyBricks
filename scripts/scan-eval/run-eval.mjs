@@ -8,6 +8,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 const WORKER = process.env.WORKER_URL || 'https://brickvault-api.zhydenko.workers.dev';
 const JWT = process.env.ADMIN_JWT;
 const LIMIT = Number(process.env.DISTRACTORS || 3000);
+const MODEL = process.env.MODEL || undefined;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const img = (s) => `https://cdn.rebrickable.com/media/sets/${s}.jpg`;
 const base = (s) => String(s).replace(/-\d+$/, '');
@@ -18,7 +19,7 @@ async function embed(urls, shape, tries = 3) {
       const r = await fetch(`${WORKER}/api/scan-vectors/embed`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${JWT}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls, shape }),
+        body: JSON.stringify({ urls, shape, model: MODEL }),
       });
       if (r.ok) return (await r.json()).results;
       console.log(`embed HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
@@ -72,7 +73,7 @@ export async function runEval({ OUT }) {
   // 1. Which input shape does the model take?
   let shape = process.env.SHAPE || '';
   const probeLog = [];
-  for (const s of shape ? [shape] : ['image_dataurl', 'image_b64', 'image_bytes', 'messages', 'input_image']) {
+  for (const s of shape ? [shape] : ['messages_batch', 'image_dataurl', 'image_b64', 'image_bytes', 'messages', 'input_image']) {
     const [r] = await embed([img('75192-1')], s, 1);
     probeLog.push(`${s}: ${r.vector ? `ok dims=${r.vector.length} ${r.ms}ms` : `fail ${r.error}`}`);
     console.log(probeLog.at(-1));
@@ -132,7 +133,7 @@ export async function runEval({ OUT }) {
   const md = [
     `# Scan image-index eval`,
     ``,
-    `Model shape: ${shape}. Catalog images embedded: ${galOk.length}/${sets.length}. Test photos: ${rows.length} (${ok.length} embedded).`,
+    `Model: ${MODEL || 'default'}, shape: ${shape}. Catalog images embedded: ${galOk.length}/${sets.length}. Test photos: ${rows.length} (${ok.length} embedded).`,
     missingTests.length ? `Test sets missing from the catalog side: ${missingTests.join(', ')}` : '',
     `Embedding latency per photo (Worker side): median ${qms[qms.length >> 1]} ms, p90 ${qms[Math.floor(qms.length * 0.9)]} ms. Brickognize median ${bkms[bkms.length >> 1]} ms.`,
     `Catalog embed: median ${galMs[galMs.length >> 1]} ms per image.`,

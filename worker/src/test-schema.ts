@@ -10,6 +10,19 @@ export const TABLE_DDL: Record<string, string> = {
   parent_id INTEGER
 )`,
 
+  set_embeddings: `CREATE TABLE IF NOT EXISTS set_embeddings (
+  set_num TEXT PRIMARY KEY,
+  source_hash TEXT NOT NULL,
+  embedded_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`,
+  set_description_i18n: `CREATE TABLE IF NOT EXISTS set_description_i18n (
+  set_num TEXT NOT NULL,
+  lang TEXT NOT NULL,
+  description TEXT NOT NULL,
+  source_hash TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (set_num, lang)
+)`,
   lego_sets: `CREATE TABLE IF NOT EXISTS lego_sets (
   set_num TEXT PRIMARY KEY,
   name TEXT NOT NULL,
