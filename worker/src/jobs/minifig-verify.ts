@@ -35,7 +35,9 @@ export async function runMinifigVerify(env: Env, options: { limit?: number } = {
 
   let verified = 0;
   let checked = 0;
+  let budgetSpent = false;
   for (const fig of figs) {
+    if (budgetSpent) break;
     const { results: candidates } = await env.DB.prepare(
       `SELECT bl_id FROM minifig_bl_candidates WHERE fig_num = ? AND status = 'pending'`,
     ).bind(fig.fig_num).all<{ bl_id: string }>();
@@ -51,8 +53,10 @@ export async function runMinifigVerify(env: Env, options: { limit?: number } = {
       let px = null;
       try {
         px = await fetchMinifigPricing(cand.bl_id, env, { recordHealth: false });
-      } catch {
+      } catch (e) {
         providerFailed = true;
+        // BrickLink call budget full (nothing was sent): stop the whole run.
+        if ((e as Error)?.name === 'BrickLinkQuotaError') { budgetSpent = true; break; }
       }
       priced.push({ bl_id: cand.bl_id, value: px?.value ?? null, lots: px?.lots ?? 0 });
       checked++;

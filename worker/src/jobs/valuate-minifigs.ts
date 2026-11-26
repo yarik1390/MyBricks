@@ -19,6 +19,7 @@ export interface ValuateMinifigsSummary {
 }
 
 const OFFLINE_NOTE = 'BrickLink is offline, will retry next run';
+const QUOTA_NOTE = 'BrickLink daily call budget reached, will continue tomorrow';
 
 export async function runValuateMinifigs(
   env: Env,
@@ -138,6 +139,11 @@ export async function runValuateMinifigs(
         if (e instanceof BrickLinkOfflineError) {
           await setIntegrationBlock(env, 'bricklink', 1);
           return { ...summary, failed: 0, skipped: OFFLINE_NOTE };
+        }
+        // The BrickLink call budget is full (nothing was sent). Stop: every
+        // further fig would be refused too. Rows keep their clocks.
+        if ((e as Error)?.name === 'BrickLinkQuotaError') {
+          return { ...summary, skipped: QUOTA_NOTE };
         }
         brickLinkFailed = true;
       }

@@ -18,7 +18,14 @@ export const QUOTA_CAPS: Record<string, number> = {
   // valuations (of the sets with two independent sold families, only ~19% had
   // BOTH sources fresh), so the refresh lane needs the room. 500/day is still
   // reserved for organic on-demand revaluations and clock skew.
-  bricklink: 4500,
+  // 2026-11-26: BrickLink blocked the Store API for exceeding this limit even
+  // though this daily ledger never passed 3,324. The ledger only saw calls the
+  // jobs reserved: retries, the set-page refresh and the revalue button were
+  // never booked, and BrickLink's day does not start at 00:00 UTC. Every real
+  // BrickLink HTTP attempt is now booked at the source (spendBrickLinkCall,
+  // called from lib/bricklink.ts) against a ROLLING 24-hour window, so no
+  // 24-hour span can pass BRICKLINK_ROLLING_CAP whatever clock BrickLink uses.
+  bricklink: 4000,
   ebay: 4000,
   brickset: 90,
   // PriceCharting per-set /api/product calls (the daily enrich cron). Free/cheap
@@ -99,6 +106,9 @@ async function spendQuotaInternal(
   n: number,
   failClosed: boolean,
 ): Promise<boolean> {
+  // BrickLink blocks the account (manual restore) when the limit is passed, so
+  // it is never metered fail-open and always uses the rolling window.
+  if (service === 'bricklink') return n <= 0 ? true : bookBrickLinkCalls(env, n);
   let cap = effectiveCap(service);
   // Firecrawl's daily credit ceiling is env-tunable (lift it for the one-time
   // bootstrap, keep it low for normal ops) without a code change.
@@ -144,6 +154,7 @@ export async function reserveQuota(
   const grants: Record<string, number> = {};
   const capped: Array<{ service: string; want: number; cap: number }> = [];
   const day = quotaDay();
+  let brickLinkWant = 0;
 
   for (const [service, rawWant] of Object.entries(wants)) {
     if (!Number.isFinite(rawWant)) continue;
@@ -156,13 +167,21 @@ export async function reserveQuota(
       if (Number.isFinite(override) && override > 0) cap = override;
     }
 
-    if (!cap) {
+    if (!cap && service !== 'bricklink') {
       grants[service] = want;
       continue;
     }
 
     grants[service] = 0;
-    capped.push({ service, want, cap });
+    if (service === 'bricklink') {
+      brickLinkWant = want;
+      continue;
+    }
+    capped.push({ service, want, cap: cap as number });
+  }
+
+  if (brickLinkWant > 0) {
+    grants.bricklink = await reserveBrickLinkCalls(env, brickLinkWant);
   }
 
   if (!capped.length) return grants;
@@ -216,6 +235,11 @@ export async function getQuotaUsage(env: Env): Promise<QuotaUsageRow[]> {
   for (const [service, cap] of Object.entries(QUOTA_CAPS)) {
     if (!seen.has(service)) rows.push({ service, used: 0, cap });
   }
+  // BrickLink's real limit is per 24 hours, not per UTC day: show the window
+  // the guard actually enforces next to the calendar-day row.
+  try {
+    rows.push({ service: BRICKLINK_ROLLING_LABEL, used: await brickLinkRollingUsed(env), cap: brickLinkRollingCap() });
+  } catch { /* the day row above still shows */ }
   return rows
     .map(r => ({ ...r, remaining: Math.max(0, r.cap - r.used) }))
     .sort((a, b) => a.service.localeCompare(b.service));
@@ -228,6 +252,19 @@ export async function getQuotaUsage(env: Env): Promise<QuotaUsageRow[]> {
 // real spend (no reservation double-count). Fails open — a bookkeeping hiccup
 // must never starve a run.
 export async function quotaRemaining(env: Env, service: string): Promise<number> {
+  if (service === 'bricklink') {
+    try {
+      const dayRow = await env.DB.prepare('SELECT used FROM api_quota WHERE service=?1 AND day=?2')
+        .bind('bricklink', quotaDay()).first<{ used: number }>();
+      const dayCap = effectiveCap('bricklink') ?? brickLinkRollingCap();
+      return Math.max(0, Math.min(
+        brickLinkRollingCap() - await brickLinkRollingUsed(env),
+        dayCap - Number(dayRow?.used ?? 0),
+      ));
+    } catch {
+      return 0; // fail closed: never size a BrickLink batch blind
+    }
+  }
   let cap = effectiveCap(service);
   if (service === 'firecrawl') {
     const override = Number(env.FIRECRAWL_DAILY_CREDITS);
@@ -280,4 +317,147 @@ export function packBatch(requestedLimit: number, budget: number, profile: PackP
   const usable = Math.max(0, budget - RUN_OVERHEAD_SUBREQUESTS);
   const fit = Math.floor(usable / perSetCost(profile));
   return Math.max(1, Math.min(Math.max(1, requestedLimit), Math.max(1, fit)));
+}
+
+// ---------------------------------------------------------------------------
+// BrickLink: every real HTTP attempt is booked, in a rolling 24-hour window.
+//
+// BrickLink's Store API allows 5,000 calls a day and BLOCKS the account when
+// that is passed; access only comes back when their support restores it. So:
+//   * the meter sits at the source (lib/bricklink.ts calls spendBrickLinkCall
+//     before EVERY attempt, retries included), not in each job;
+//   * the window is the last 24 hourly buckets, so whatever hour BrickLink's
+//     day starts at, no 24-hour span can exceed the cap (plus at most one
+//     partial hour, which the 1,000-call margin covers);
+//   * it fails closed: if D1 cannot confirm budget, the call is not made.
+// Jobs that reserve a batch up front (reserveQuota) book the same window; the
+// units they reserve are held in a short-lived prepaid pool that the source
+// meter draws from first, so a reserved call is not booked twice while a
+// retry or an unreserved call still books its own unit.
+// ---------------------------------------------------------------------------
+
+export const BRICKLINK_HARD_DAILY_LIMIT = 5000;
+export const BRICKLINK_ROLLING_CAP = 4000;
+const BL_HOUR_SERVICE = 'bricklink@hour';
+export const BRICKLINK_ROLLING_LABEL = 'bricklink (last 24h)';
+
+export function quotaHour(now = new Date()): string {
+  return now.toISOString().slice(0, 13); // YYYY-MM-DDTHH
+}
+
+function brickLinkWindowStart(now: Date): string {
+  return quotaHour(new Date(now.getTime() - 23 * 3600_000));
+}
+
+/** Rolling cap: the admin day cap may lower it, never raise or remove it. */
+export function brickLinkRollingCap(): number {
+  const c = effectiveCap('bricklink');
+  return c && c > 0 ? Math.min(c, BRICKLINK_ROLLING_CAP) : BRICKLINK_ROLLING_CAP;
+}
+
+/** Calls booked in the last 24 hourly buckets. Throws if D1 is unavailable. */
+export async function brickLinkRollingUsed(env: Env, now = new Date()): Promise<number> {
+  const row = await env.DB.prepare(
+    'SELECT COALESCE(SUM(used), 0) AS n FROM api_quota WHERE service=?1 AND day >= ?2'
+  ).bind(BL_HOUR_SERVICE, brickLinkWindowStart(now)).first<{ n: number }>();
+  return Number(row?.n ?? 0);
+}
+
+/** Atomically book `n` BrickLink calls if the rolling window has room. */
+async function bookBrickLinkCalls(env: Env, n: number, now = new Date()): Promise<boolean> {
+  if (n <= 0) return true;
+  const cap = brickLinkRollingCap();
+  const dayCap = effectiveCap('bricklink') ?? cap;
+  const hour = quotaHour(now);
+  const from = brickLinkWindowStart(now);
+  const prune = quotaHour(new Date(now.getTime() - 72 * 3600_000));
+  // Room = the rolling 24-hour window AND the calendar-day row (the admin's
+  // day cap still applies as a second, never looser, ceiling).
+  const room = `(SELECT COALESCE(SUM(used), 0) FROM api_quota WHERE service='${BL_HOUR_SERVICE}' AND day >= ?3) + ?4 <= ?5`
+    + ` AND (SELECT COALESCE(MAX(used), 0) FROM api_quota WHERE service='bricklink' AND day=?6) + ?4 <= ?7`;
+  try {
+    const results = await env.DB.batch([
+      env.DB.prepare(
+        'INSERT INTO api_quota (service, day, used, cap) VALUES (?1, ?2, 0, ?3) ON CONFLICT(service, day) DO NOTHING'
+      ).bind(BL_HOUR_SERVICE, hour, cap),
+      upsertRow(env, 'bricklink', quotaDay(now), dayCap),
+      // The hourly row is the one the window sums; it is only incremented
+      // when both ceilings have room.
+      env.DB.prepare(
+        `UPDATE api_quota SET used = used + ?4, updated_at = datetime('now') WHERE service=?1 AND day=?2 AND ${room}`
+      ).bind(BL_HOUR_SERVICE, hour, from, n, cap, quotaDay(now), dayCap),
+      // The calendar-day row (Admin's view) follows the same decision:
+      // changes() is the row count of the UPDATE just above (same batch).
+      env.DB.prepare(
+        "UPDATE api_quota SET used = used + ?3, updated_at = datetime('now') WHERE service=?1 AND day=?2 AND changes() > 0"
+      ).bind('bricklink', quotaDay(now), n),
+      env.DB.prepare('DELETE FROM api_quota WHERE service=?1 AND day < ?2').bind(BL_HOUR_SERVICE, prune),
+    ]);
+    return ((results[2]?.meta.changes as number | undefined) ?? 0) > 0;
+  } catch (e) {
+    console.warn('[quota] bricklink booking failed closed:', (e as Error).message);
+    return false;
+  }
+}
+
+// Units booked by reserveQuota and not yet used, per isolate. They expire
+// quickly (a job finishes in minutes), so a leftover never covers calls made
+// much later; unused units simply stay booked, which only over-counts.
+const PREPAID_TTL_MS = 10 * 60_000;
+let prepaid: Array<{ until: number; n: number }> = [];
+
+function takePrepaid(nowMs: number): boolean {
+  prepaid = prepaid.filter((p) => p.until > nowMs && p.n > 0);
+  const slot = prepaid[0];
+  if (!slot) return false;
+  slot.n--;
+  return true;
+}
+
+async function reserveBrickLinkCalls(env: Env, want: number): Promise<number> {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    let room: number;
+    try {
+      const dayCap = effectiveCap('bricklink') ?? brickLinkRollingCap();
+      const dayRow = await env.DB.prepare('SELECT used FROM api_quota WHERE service=?1 AND day=?2')
+        .bind('bricklink', quotaDay()).first<{ used: number }>();
+      room = Math.min(
+        brickLinkRollingCap() - await brickLinkRollingUsed(env),
+        dayCap - Number(dayRow?.used ?? 0),
+      );
+    } catch (e) {
+      console.warn('[quota] bricklink reserve failed closed:', (e as Error).message);
+      return 0;
+    }
+    const grant = Math.min(want, Math.max(0, room));
+    if (grant <= 0) return 0;
+    if (await bookBrickLinkCalls(env, grant)) {
+      prepaid.push({ until: Date.now() + PREPAID_TTL_MS, n: grant });
+      return grant;
+    }
+  }
+  return 0;
+}
+
+// Once the window is full, skip D1 for a minute instead of asking per call.
+let exhaustedUntil = 0;
+
+/**
+ * Called by lib/bricklink.ts before EVERY BrickLink HTTP attempt (first try
+ * and each retry). Uses a reserved unit when one is held, otherwise books one.
+ * Returns false when the call must not be made.
+ */
+export async function spendBrickLinkCall(env: Env): Promise<boolean> {
+  const nowMs = Date.now();
+  if (takePrepaid(nowMs)) return true;
+  if (nowMs < exhaustedUntil) return false;
+  const ok = await bookBrickLinkCalls(env, 1);
+  if (!ok) exhaustedUntil = nowMs + 60_000;
+  return ok;
+}
+
+/** Tests only. */
+export function __resetBrickLinkMeter(): void {
+  prepaid = [];
+  exhaustedUntil = 0;
 }

@@ -1,7 +1,18 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 import { env } from 'cloudflare:test';
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { fetchSetPricing, fetchUsedPricing } from './lib/bricklink';
+import { __resetBrickLinkMeter } from './lib/api-quota';
+
+// Every BrickLink attempt is booked in api_quota first (fail closed), so the
+// ledger table must exist for any request to be made.
+beforeEach(async () => {
+  __resetBrickLinkMeter();
+  await (env as any).DB.prepare('DROP TABLE IF EXISTS api_quota').run();
+  await (env as any).DB.prepare(`CREATE TABLE api_quota (
+    service TEXT NOT NULL, day TEXT NOT NULL, used INTEGER NOT NULL DEFAULT 0,
+    cap INTEGER NOT NULL DEFAULT 0, updated_at TEXT, PRIMARY KEY (service, day))`).run();
+});
 
 // BrickLink creds so oauthHeader() runs; CACHE_KV undefined so we hit the network
 // path every time; recordHealth:false so we don't touch integration_health.

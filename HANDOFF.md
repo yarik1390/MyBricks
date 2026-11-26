@@ -48,6 +48,7 @@ notes in this file.
 
 | Agent | Branch | Area / files | Started | Status |
 |-------|--------|--------------|---------|--------|
+| Claude | claude/project-thread-ecci26 | BrickLink call metering: `worker/src/lib/api-quota.ts`, `lib/bricklink.ts`, `lib/http.ts`, `routes/set-detail-refresh.ts`, minifig jobs | 2026-11-26 | working (PR open) |
 | — | — | — | — | — |
 
 Old draft PRs #1, #2 (scanner OCR/CLIP experiments) and #31 (public
