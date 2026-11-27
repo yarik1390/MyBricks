@@ -35,7 +35,7 @@
   </div>
 
   <h1>Privacy Policy</h1>
-  <div class="updated">Last updated: 24 November 2026</div>
+  <div class="updated">Last updated: 27 November 2026</div>
   <p>This Privacy Policy explains what personal data BricksVault ("BricksVault", "we", "us") collects when you use the BricksVault app and website at bricksvault.app, why we use it, who we share it with, and the rights you have.</p>
 
   <h2>Who is responsible</h2>
@@ -47,7 +47,7 @@
     <li><strong>Your collection.</strong> The sets and minifigures you add, quantities, condition, purchase prices and dates, sales, storage locations, notes, wishlist items, sub-collections and showcase choices. If you use the Family vault, the members of your household can see the shared collection.</li>
     <li><strong>Content you submit.</strong> Photos you upload, reviews, catalog corrections and feedback you send.</li>
     <li><strong>Swaps and chat.</strong> Swaps are only for people aged 18 or older; we record when you confirm your age. If you turn on swaps, other collectors can see your public handle and the sets you offer. We store your swap requests, the notes you add and the chat messages you exchange. Messages are checked automatically for contact details (such as phone numbers or email addresses) so we can warn you before you share them. If you report someone, the report and the reported person's recent messages in that swap are kept so we can review it. Blocks and reports are stored with your account.</li>
-    <li><strong>Photos you scan.</strong> When you identify a set from a photo, the photo is sent to an AI provider (see below) to return a result. We do not store scan photos.</li>
+    <li><strong>Photos you scan.</strong> When you identify a set from a photo, the photo is sent to an AI provider (see below) to return a result. We do not store scan photos, unless you turn on <em>Help improve photo recognition</em> (see below).</li>
     <li><strong>Preferences.</strong> Display name, public handle, currency, language, notification choices, an optional Discord webhook URL, an optional Kids Mode PIN (stored only as a one-way hash) and the status of integrations you connect (such as Google Sheets, Brickset or Rebrickable). Access tokens for integrations are stored encrypted.</li>
     <li><strong>Approximate country.</strong> To pick your shop and currency on first launch, we use the country of your mobile network (Android) or the country suggested by your IP address. We do not use GPS and never ask for location permission.</li>
     <li><strong>Purchases.</strong> If you buy BricksVault Pro in the Android app, Google Play processes the payment and we never see your card details. Our subscription provider RevenueCat tells us the purchase status (product, dates, renewal or cancellation) linked to your account so Pro unlocks on your devices. On the web, supporter purchases go through Patreon, which tells us whether you are an active supporter.</li>
@@ -65,7 +65,7 @@
   </ul>
 
   <h2>AI features</h2>
-  <p>Photo identification, shelf scanning, box grading and the AI advisor send the photo or question to an AI provider to produce a result. Scan and shelf photos go to Brickognize, Cloudflare Workers AI, Groq or Google Gemini; box grading photos go to Cloudflare Workers AI, Groq, Google Gemini or OpenAI. We use these providers' API services under terms that do not let them use your photos to train their models; they may keep requests for a limited time for abuse monitoring. AI advisor questions and listing drafts, with a summary of your collection, go to Cloudflare Workers AI, Groq, Google Gemini or OpenAI (directly or through the Merge gateway). Price estimates for sets may use models reached through OpenRouter; those requests contain set details only, never your personal data. We do not use your photos to train our own models. If you add your own Gemini or OpenAI key, requests go to that provider under your own account. Your key is kept only on your device (for this session, or until you remove it if you choose to remember it) and is sent with each AI request; our servers pass it to the provider and never store it.</p>
+  <p>Photo identification, shelf scanning, box grading and the AI advisor send the photo or question to an AI provider to produce a result. Scan and shelf photos go to Brickognize, Cloudflare Workers AI, Groq or Google Gemini; box grading photos go to Cloudflare Workers AI, Groq, Google Gemini or OpenAI. We use these providers' API services under terms that do not let them use your photos to train their models; they may keep requests for a limited time for abuse monitoring. AI advisor questions and listing drafts, with a summary of your collection, go to Cloudflare Workers AI, Groq, Google Gemini or OpenAI (directly or through the Merge gateway). Price estimates for sets may use models reached through OpenRouter; those requests contain set details only, never your personal data. We use your photos to train our own recognition model only if you turn on <em>Help improve photo recognition</em> in <em>Me &gt; Data</em> (off by default, not available in Kids mode). Then we keep the photos you scan, together with the set you add after the scan, in private storage at Cloudflare, use them only to train and test BricksVault's own photo recognition, and never show, sell or share them. Photos you don't add a set from are deleted after 30 days. Turning the switch off, or deleting your account, deletes all of them. The legal basis is your consent, which you can withdraw at any time with the same switch. If you add your own Gemini or OpenAI key, requests go to that provider under your own account. Your key is kept only on your device (for this session, or until you remove it if you choose to remember it) and is sent with each AI request; our servers pass it to the provider and never store it.</p>
 
   <h2>Who we share data with</h2>
   <p>We do not sell your personal data and we do not use it for advertising. We share it only with service providers that process it on our behalf, and only as needed for their task:</p>
@@ -95,7 +95,7 @@
     <li>Account, collection, preferences and uploaded photos: while your account exists, and deleted when you delete it.</li>
     <li>Swap requests and chat messages: while both people in the swap have an account. They are deleted when either person deletes their account.</li>
     <li>Reports: as long as needed to review them and protect users, then deleted.</li>
-    <li>Scan photos: not stored after the result is returned.</li>
+    <li>Scan photos: not stored after the result is returned, unless you turned on <em>Help improve photo recognition</em>. Then photos with a set you added are kept until you turn it off or delete your account; others are deleted after 30 days.</li>
     <li>Server logs and usage counters: kept for a short period for security and limits.</li>
     <li>Guest mode data: stays on your device until you clear it or uninstall the app.</li>
   </ul>

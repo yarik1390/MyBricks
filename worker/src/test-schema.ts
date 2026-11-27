@@ -10,6 +10,50 @@ export const TABLE_DDL: Record<string, string> = {
   parent_id INTEGER
 )`,
 
+  set_embeddings: `CREATE TABLE IF NOT EXISTS set_embeddings (
+  set_num TEXT PRIMARY KEY,
+  source_hash TEXT NOT NULL,
+  embedded_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`,
+  siglip_embeddings: `CREATE TABLE IF NOT EXISTS siglip_embeddings (
+  set_num TEXT PRIMARY KEY,
+  ok INTEGER NOT NULL DEFAULT 1,
+  embedded_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`,
+  training_images: `CREATE TABLE IF NOT EXISTS training_images (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  set_num TEXT NOT NULL,
+  url TEXT NOT NULL UNIQUE,
+  source TEXT NOT NULL,
+  license TEXT,
+  creator TEXT,
+  landing_url TEXT,
+  added_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`,
+  training_photo_queries: `CREATE TABLE IF NOT EXISTS training_photo_queries (
+  set_num TEXT NOT NULL,
+  source TEXT NOT NULL,
+  hits INTEGER NOT NULL DEFAULT 0,
+  queried_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (set_num, source)
+)`,
+  training_scan_photos: `CREATE TABLE IF NOT EXISTS training_scan_photos (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  r2_key TEXT NOT NULL,
+  predicted_set_num TEXT,
+  confirmed_set_num TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  confirmed_at TEXT
+)`,
+  set_description_i18n: `CREATE TABLE IF NOT EXISTS set_description_i18n (
+  set_num TEXT NOT NULL,
+  lang TEXT NOT NULL,
+  description TEXT NOT NULL,
+  source_hash TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (set_num, lang)
+)`,
   lego_sets: `CREATE TABLE IF NOT EXISTS lego_sets (
   set_num TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -477,6 +521,7 @@ export const TABLE_DDL: Record<string, string> = {
   swaps_adult_at TEXT,
   email_off_at TEXT,
   contribute_community_comps INTEGER DEFAULT 0,
+  training_photos INTEGER DEFAULT 0,
   is_supporter INTEGER DEFAULT 0,
   supporter_since TEXT,
   stripe_customer_id TEXT,

@@ -148,8 +148,10 @@ export function parseLegoStockHtml(html: string, hint?: string, currency = 'USD'
     };
     // A Product block that yielded nothing usable must NOT short-circuit the
     // fallback — the caller should go to Firecrawl rather than persist nulls.
-    return result.in_stock != null || result.availability != null || result.retiring_soon || result.retail_price_usd != null
-      ? result : null;
+    if (!(result.in_stock != null || result.availability != null || result.retiring_soon || result.retail_price_usd != null)) return null;
+    // Gallery photos of THIS product (scoped block), kept for scan-model training.
+    if (chosen.images?.length) result.images = chosen.images;
+    return result;
   }
 
   // Ambiguous structured products must not fall back to the first global offer.
@@ -230,6 +232,18 @@ interface LdProduct {
   availability?: string;
   price?: string | number | null;
   currency?: string | null;
+  images?: string[];
+}
+
+/** JSON-LD `image`: a URL, an ImageObject, or a list of either. https only, max 20. */
+export function ldImages(image: unknown): string[] {
+  const out: string[] = [];
+  for (const v of [image].flat(2)) {
+    const url = typeof v === 'string' ? v : v && typeof v === 'object' ? ((v as any).contentUrl ?? (v as any).url) : null;
+    if (typeof url === 'string' && /^https:\/\//.test(url) && !out.includes(url)) out.push(url);
+    if (out.length >= 20) break;
+  }
+  return out;
 }
 
 /** Parse JSON-LD blocks and pick the product for the requested set number.
@@ -258,6 +272,7 @@ function pickProductBlock(html: string, target?: string): LdProduct | null {
               ? (offer?.availability ?? (item as any).availability).replace(/^https?:\/\/schema\.org\//i, '') : undefined,
             price: offer?.price ?? offer?.lowPrice ?? null,
             currency: offer?.priceCurrency ?? null,
+            images: ldImages((item as any).image),
           },
         });
       }

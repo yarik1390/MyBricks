@@ -1,0 +1,32 @@
+import { describe, it, expect } from 'vitest';
+import { openverseMatches, bareSetNum } from './jobs/training-photos';
+import { ldImages, parseLegoStockHtml } from './lib/brightdata-parsers';
+import { normalizeLegoStockResult } from './lib/lego-stock';
+
+describe('training photos', () => {
+  it('keeps Openverse results only when title or tags name the set number', () => {
+    const base = { url: 'https://live.staticflickr.com/1/2_b.jpg' };
+    expect(openverseMatches('75192-1', { ...base, title: 'LEGO 75192 Millennium Falcon' })).toBe(true);
+    expect(openverseMatches('75192-1', { ...base, title: 'Falcon', tags: [{ name: 'lego75192' }] })).toBe(true);
+    expect(openverseMatches('75192-1', { ...base, title: 'LEGO 751923 something' })).toBe(false);
+    expect(openverseMatches('75192-1', { ...base, title: 'A LEGO ship' })).toBe(false);
+    expect(openverseMatches('75192-1', { title: 'LEGO 75192' })).toBe(false); // no URL
+    expect(openverseMatches('10-1', { ...base, title: 'LEGO 10' })).toBe(false); // too short to match safely
+    expect(bareSetNum('10294-2')).toBe('10294');
+  });
+
+  it('reads LEGO.com gallery photos from the scoped JSON-LD product', () => {
+    expect(ldImages(['https://a/1.jpg', { url: 'https://a/2.jpg' }, 'http://a/3.jpg', 'https://a/1.jpg'])).toEqual(['https://a/1.jpg', 'https://a/2.jpg']);
+    const ld = (sku: string, images: string[]) => `<script type="application/ld+json">${JSON.stringify({
+      '@type': 'Product', sku, image: images,
+      offers: { availability: 'https://schema.org/InStock', price: 99.99, priceCurrency: 'USD' },
+    })}</script>`;
+    const html = ld('10316', ['https://www.lego.com/cdn/cs/set/assets/a.png', 'https://www.lego.com/cdn/cs/set/assets/b.png'])
+      + ld('99999', ['https://www.lego.com/cdn/other.png']);
+    const parsed = parseLegoStockHtml(html, '10316');
+    expect(parsed?.images).toEqual(['https://www.lego.com/cdn/cs/set/assets/a.png', 'https://www.lego.com/cdn/cs/set/assets/b.png']);
+    expect(normalizeLegoStockResult(parsed)?.images).toHaveLength(2);
+    // Photos alone never count as a stock observation.
+    expect(normalizeLegoStockResult({ images: ['https://a/1.jpg'] })).toBeNull();
+  });
+});

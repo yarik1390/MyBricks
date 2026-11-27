@@ -121,6 +121,13 @@ export async function runLegoStockRefresh(env: Env, options: { limit?: number; b
       const writes = await env.DB.batch(stmts);
       updated += writes.reduce((sum, write) => sum + (write.meta.changes ?? 0), 0);
     }
+    // Gallery photos for the scan model's training set (best effort, never fails the run).
+    const photos = outs.flatMap((o) => (o.stock?.images ?? []).map((url) => [o.set_num, url]));
+    for (let j = 0; j < photos.length; j += 50) { // D1: 100 bound params per statement
+      const chunk = photos.slice(j, j + 50);
+      await env.DB.prepare(`INSERT OR IGNORE INTO training_images (set_num, url, source)
+        VALUES ${chunk.map(() => "(?, ?, 'lego.com')").join(', ')}`).bind(...chunk.flat()).run().catch(() => {});
+    }
   }
 
   return { processed, updated, failed, no_data, partial, limit: effLimit, ...(stopped_early ? { stopped_early } : {}) };

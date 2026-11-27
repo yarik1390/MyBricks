@@ -7,6 +7,10 @@ name: Scan image-index eval
 on:
   workflow_dispatch:
     inputs:
+      model:
+        description: "Workers AI embedding model (blank = lib/scan-embed.ts default)"
+        required: false
+        default: "@cf/google/embeddinggemma-2"
       shape:
         description: "Model input shape (blank = probe in order)"
         required: false
@@ -56,6 +60,7 @@ jobs:
       - name: Run
         env:
           SHAPE: ${{ inputs.shape }}
+          MODEL: ${{ inputs.model }}
           DISTRACTORS: ${{ inputs.distractors || '3000' }}
         run: node scripts/scan-eval/eval.mjs
       - uses: actions/upload-artifact@v4

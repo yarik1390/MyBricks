@@ -77,9 +77,14 @@ describe('spendQuota', () => {
     expect(row?.cap).toBe(500);
   });
 
-  it('fails open when the ledger table is unavailable', async () => {
+  it('fails open for best-effort providers when the ledger table is unavailable', async () => {
     await testEnv.DB.prepare('DROP TABLE api_quota').run();
-    expect(await spendQuota(testEnv, 'bricklink')).toBe(true);
+    expect(await spendQuota(testEnv, 'brickset')).toBe(true);
+  });
+
+  it('never fails open for BrickLink (passing its limit blocks the account)', async () => {
+    await testEnv.DB.prepare('DROP TABLE api_quota').run();
+    expect(await spendQuota(testEnv, 'bricklink')).toBe(false);
   });
 });
 
@@ -158,6 +163,8 @@ describe('getQuotaUsage', () => {
     const bl = usage.find(u => u.service === 'bricklink')!;
     expect(bl.used).toBe(0);
     expect(bl.remaining).toBe(QUOTA_CAPS.bricklink);
+    const rolling = usage.find(u => u.service === 'bricklink (last 24h)')!;
+    expect(rolling).toMatchObject({ used: 0, cap: 4000, remaining: 4000 });
   });
 });
 

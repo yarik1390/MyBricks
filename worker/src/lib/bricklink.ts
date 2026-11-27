@@ -1,6 +1,7 @@
 import type { Env } from '../types';
 import { fetchTracked, OUTAGE_HEADER, type FetchTrackedOptions } from './http';
 import { isIntegrationBlocked } from './integration-health';
+import { spendBrickLinkCall } from './api-quota';
 
 // While BrickLink is paused (planned maintenance detected by fetchTracked, or
 // any other circuit-breaker block) every call would fail and still spend the
@@ -24,10 +25,43 @@ export class BrickLinkOfflineError extends Error {
   }
 }
 
-// Every BrickLink call goes through here so an outage is named as an outage:
-// callers get BrickLinkOfflineError instead of a generic "HTTP 403/503".
+/**
+ * Thrown BEFORE a request is made when the BrickLink call budget (rolling 24
+ * hours, see lib/api-quota.ts) has no room. Nothing was sent to BrickLink.
+ */
+export class BrickLinkQuotaError extends Error {
+  constructor() {
+    super('BrickLink daily call budget reached; call not made');
+    this.name = 'BrickLinkQuotaError';
+  }
+}
+
+// BrickLink blocks the whole account when its daily limit is passed, so a
+// retry is never free: at most one, and never after 429 (that is BrickLink
+// saying "too many", and retrying only digs deeper).
+const BL_MAX_RETRIES = 1;
+const BL_RETRY_STATUSES: ReadonlySet<number> = new Set([408, 500, 502, 503, 504]);
+// HTTP 400 (malformed/unknown item number) is treated like 404: genuine
+// no-data, so callers stamp their normal backoff. As a "failure" it was never
+// stamped and the same bad numbers were re-asked every run, each one a call.
+
+
+// Every BrickLink call goes through here so that:
+//   * every real HTTP attempt (first try AND each retry) is booked in the
+//     BrickLink call ledger before it is sent, and refused when there is no
+//     room (BrickLinkQuotaError) - this is the only BrickLink meter;
+//   * an outage is named as an outage: callers get BrickLinkOfflineError
+//     instead of a generic "HTTP 403/503".
 async function blFetch(env: Env, url: string, init: RequestInit, opts: FetchTrackedOptions = {}): Promise<Response> {
-  const resp = await fetchTracked(env, 'bricklink', url, init, { ...opts, edgeRefusalIsOutage: true });
+  const resp = await fetchTracked(env, 'bricklink', url, init, {
+    ...opts,
+    retries: Math.min(Math.max(0, opts.retries ?? BL_MAX_RETRIES), BL_MAX_RETRIES),
+    retryStatuses: BL_RETRY_STATUSES,
+    beforeAttempt: async () => {
+      if (!(await spendBrickLinkCall(env))) throw new BrickLinkQuotaError();
+    },
+    edgeRefusalIsOutage: true,
+  });
   const outage = resp.headers.get(OUTAGE_HEADER);
   if (outage) {
     pausedMemo = null;
@@ -147,7 +181,7 @@ export async function fetchUsedPricing(
     const resp = await blFetch(env, `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
     }, {
-      okStatuses: [404],
+      okStatuses: [400, 404],
       record: options.recordHealth !== false,
       retries: options.retries,
       timeoutMs: options.timeoutMs,
@@ -155,7 +189,7 @@ export async function fetchUsedPricing(
     // 404 → set has no used sold-guide entry (genuine no-data). Any other non-ok
     // or API-error status is transient/credential — throw so a source outage is
     // distinguishable from real no-data and reported accurately in run health.
-    if (resp.status === 404) return null;
+    if (resp.status === 404 || resp.status === 400) return null;
     if (!resp.ok) throw new Error(`bricklink used-sold HTTP ${resp.status}`);
     const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
     if (body.meta?.code !== 200) throw new Error(`bricklink used-sold API code ${body.meta?.code ?? 'none'}`);
@@ -231,7 +265,7 @@ export async function fetchSetPricingDetailed(
     const resp = await blFetch(env, `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
     }, {
-      okStatuses: [404],
+      okStatuses: [400, 404],
       record: options.recordHealth !== false,
       retries: options.retries,
       timeoutMs: options.timeoutMs,
@@ -241,7 +275,7 @@ export async function fetchSetPricingDetailed(
     // transient/credential failure (429/5xx after retries, or 401/403) — THROW
     // so callers can tell "the source failed" apart from "the set has no data"
     // and never stamp a 90-day no-data backoff on a transient blip.
-    if (resp.status === 404) return none;
+    if (resp.status === 404 || resp.status === 400) return none;
     if (!resp.ok) throw new Error(`bricklink new-sold HTTP ${resp.status}`);
 
     const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
@@ -305,12 +339,12 @@ export async function fetchSetStockAsk(
   const resp = await blFetch(env, `${baseUrl}?${new URLSearchParams(queryParams)}`, {
     headers: { Authorization: authHeader, Accept: 'application/json' },
   }, {
-    okStatuses: [404],
+    okStatuses: [400, 404],
     record: options.recordHealth !== false,
     retries: options.retries,
     timeoutMs: options.timeoutMs,
   });
-  if (resp.status === 404) return null;
+  if (resp.status === 404 || resp.status === 400) return null;
   if (!resp.ok) throw new Error(`bricklink new-stock HTTP ${resp.status}`);
   const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
   if (body.meta?.code !== 200) throw new Error(`bricklink new-stock API code ${body.meta?.code ?? 'none'}`);
@@ -379,12 +413,12 @@ export async function fetchPartPricing(
     const resp = await blFetch(env, `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
     }, {
-      okStatuses: [404],
+      okStatuses: [400, 404],
       record: options.recordHealth !== false,
       retries: options.retries,
       timeoutMs: options.timeoutMs,
     });
-    if (resp.status === 404) return null;
+    if (resp.status === 404 || resp.status === 400) return null;
     if (!resp.ok) throw new Error(`BrickLink part guide failed: ${resp.status}`);
     const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
     if (body.meta?.code !== 200 || !body.data) return null;
@@ -425,8 +459,8 @@ export async function fetchMinifigPricing(
     await assertBrickLinkAvailable(env, options.recordHealth);
     const resp = await blFetch(env, `${baseUrl}?${new URLSearchParams(queryParams)}`, {
       headers: { Authorization: authHeader, Accept: 'application/json' },
-    }, { okStatuses: [404], record: options.recordHealth !== false });
-    if (resp.status === 404) return { value: null, lots: 0 };
+    }, { okStatuses: [400, 404], record: options.recordHealth !== false });
+    if (resp.status === 404 || resp.status === 400) return { value: null, lots: 0 };
     if (!resp.ok) throw new Error(`BrickLink minifig guide failed: ${resp.status}`);
     const body = await resp.json() as { meta?: { code: number }; data?: Record<string, unknown> };
     if (body.meta?.code !== 200 || !body.data) return null;

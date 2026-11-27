@@ -314,7 +314,17 @@ async function ownedEntryFor(setNum) {
 
 // Add one set (or one more copy). Price paid stays EMPTY unless the user
 // picked one — the old flow stored the market value as the purchase price.
+// Id of the last opted-in photo scan kept for training (server response).
+let _trainingPhotoId = null;
+function confirmTrainingPhoto(setNum) {
+  const id = _trainingPhotoId;
+  if (!id || !setNum) return;
+  _trainingPhotoId = null;
+  api(`/api/scan/training-photo/${encodeURIComponent(id)}/confirm`, { method: "POST", body: { set_num: setNum }, retry: false }).catch(() => {});
+}
+
 async function addScannedSet(set, { priceUsd = null, condition = "sealed" } = {}) {
+  confirmTrainingPhoto(set.set_num);
   const entry = await ownedEntryFor(set.set_num);
   const record = { set_num: set.set_num, name: set.name, image_url: set.image_url, theme: set.theme };
   try {
@@ -1251,6 +1261,8 @@ async function cloudScanIdentify(payload, signal, idempotencyKey) {
     retry: false,
   });
   scanTime(payload.mode === 'barcode' ? 'barcode lookup' : 'cloud identify round-trip', _t);
+  // Opt-in training photo (Settings > Data): the set the member adds next labels it.
+  if (payload.mode !== 'barcode') _trainingPhotoId = res?.training_photo_id || null;
   return res;
 }
 

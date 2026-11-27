@@ -76,6 +76,9 @@ export interface Env {
   GEMINI_API_KEY?: string;
   /** Groq free-tier key for scan vision (OpenAI-compatible). */
   GROQ_API_KEY?: string;
+  // Openverse API client credentials (jobs/training-photos.ts, CC photo collection).
+  OPENVERSE_CLIENT_ID?: string;
+  OPENVERSE_CLIENT_SECRET?: string;
   // Cloudflare AI Gateway (optional). When account + gateway id are set, SERVER-key
   // AI calls route through the gateway for caching, analytics, rate/spend limits.
   // Token is only needed if the gateway has authentication enabled.
@@ -100,6 +103,15 @@ export interface Env {
   OPENCODEX_VPC?: Fetcher;
   // Cloudflare Workers AI binding ([ai] in wrangler.toml). Free scan step.
   AI?: Ai;
+  // Vectorize index of catalog set embeddings (smart search, lib/set-embeddings.ts).
+  // Stripped by the deploy when the API token cannot create Vectorize indexes.
+  SETS_INDEX?: VectorizeIndex;
+  /** SigLIP image embeddings of catalog photos (768 dims, cosine): photo-scan second opinion. */
+  SIGLIP_INDEX?: VectorizeIndex;
+  /** Service binding to the bricksvault-siglip Worker (SigLIP in a Container). */
+  SIGLIP?: Fetcher;
+  /** '0' turns the SigLIP scan second opinion off. */
+  SIGLIP_FUSION?: string;
   // Cloudflare Turnstile (optional bot protection for the shared-key photo scan).
   // SITE key is public (sent to the browser via /api/config); SECRET key is
   // server-only. When SECRET is unset, scan verification is skipped (opt-in).

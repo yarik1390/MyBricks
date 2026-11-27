@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import OpenAI from 'openai';
 import { optionalMember, requireAdmin } from '../auth';
+import { confirmTrainingScanPhoto, saveTrainingScanPhoto, trainingPhotosEnabled } from '../lib/training-scan-photos';
 import { callGeminiScan, callGeminiScanOutcome } from '../lib/gemini';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { logEvent, recordScanOutcome } from '../lib/analytics';
@@ -9,6 +10,7 @@ import { resolveRoute, type LlmWorkload } from '../lib/llm-routing';
 import { openAiCompatibleStep } from '../lib/llm-clients';
 import { recordAiUsage } from '../lib/ai-usage';
 import { identifySetWithBrickognize, BRICKOGNIZE_SCORE_HIGH } from '../lib/brickognize';
+import { siglipAvailable, siglipEmbed, siglipSecondOpinion } from '../lib/siglip';
 import { parseOcrSetNumbers, resolveOcrSetNum, sanitizeOcrInput } from '../lib/scan-ocr';
 import { callRecognitionValidation } from '../lib/recognition-client';
 import { verifyTurnstileToken } from '../lib/turnstile';
@@ -521,6 +523,16 @@ app.get('/backend-health', requireAdmin, async (c) => {
 
 // What the signed-in member has left on the shared server quota. The scanner
 // shows the shelf count on the Shelf tab; BYOK users are never limited.
+// POST /api/scan/training-photo/:id/confirm {set_num}: the member added this
+// set after an opted-in photo scan, so it labels that photo.
+app.post('/training-photo/:id/confirm', async (c) => {
+  const userId = c.get('userId');
+  if (!userId) return c.json({ error: 'Sign in required' }, 401);
+  const body = await c.req.json<{ set_num?: string }>().catch(() => ({} as { set_num?: string }));
+  const ok = await confirmTrainingScanPhoto(c.env, userId, c.req.param('id'), String(body.set_num ?? ''));
+  return c.json({ ok });
+});
+
 app.get('/quota', async (c) => {
   const userId = c.get('userId') || '';
   if (!userId) return c.json({ error: 'Sign in to see your scan allowance.' }, 401);
@@ -645,6 +657,14 @@ app.post('/identify', async (c) => {
         ...payload,
         quota: { ...allowance.shelf, used: allowance.shelf.used - giveBack, remaining: Math.min(allowance.shelf.limit, allowance.shelf.remaining + giveBack), pro: sharedPro },
       };
+    }
+    // Opt-in training photo (Settings > Data): keep this photo scan and hand its
+    // id to the app, which confirms the label when the member adds a set.
+    if (!shelfMode && status === 200 && userId && image && await trainingPhotosEnabled(c.env, userId)) {
+      const predicted = (payload.set as { set_num?: string } | undefined)?.set_num
+        ?? (payload.sets as Array<{ set_num?: string }> | undefined)?.[0]?.set_num ?? null;
+      const trainingId = await saveTrainingScanPhoto(c.env, userId, image, predicted);
+      if (trainingId) payload = { ...payload, training_photo_id: trainingId };
     }
     const terminal = { payload, status };
     // Validation / quota denials (4xx) are not recognition outcomes.
@@ -902,6 +922,11 @@ app.post('/identify', async (c) => {
     // Preserve enough of the 14s request budget for at least one AI fallback.
     const brickognizeBudget = Math.min(3_000, routeDeadline - Date.now() - MIN_STEP_MS);
     if (brickognizeBudget >= 250) {
+      // SigLIP embeds the photo in parallel, so the second opinion costs no
+      // extra wait when Brickognize is unsure (lib/siglip.ts).
+      const siglipVector = siglipAvailable(c.env)
+        ? siglipEmbed(c.env, { images: [image] }, brickognizeBudget).then((v) => v?.[0] ?? null)
+        : Promise.resolve(null);
       const brickognize = await identifySetWithBrickognize(c.env, image, {
         timeoutMs: brickognizeBudget,
         signal: c.req.raw.signal,
@@ -943,6 +968,43 @@ app.post('/identify', async (c) => {
         });
       }
       timings[timings.length - 1].outcome = 'unmapped';
+    }
+    if (siglipAvailable(c.env) && brickognize.kind === 'fallback' && 'predictions' in brickognize && brickognize.predictions.length) {
+      const t1 = Date.now();
+      const vector = await siglipVector;
+      const opinion = vector ? await siglipSecondOpinion(c.env, vector, brickognize.predictions) : null;
+      timings.push({
+        provider: 'siglip',
+        model: 'siglip-base-fusion',
+        ms: Date.now() - t1,
+        outcome: !vector ? 'no_vector' : !opinion ? 'error' : opinion.accepted ? 'accepted' : 'low_margin',
+      });
+      const pick = opinion?.accepted;
+      if (pick) {
+        const hydrated = await hydrateScanSets(c.env.DB, [pick.id, pick.id.replace(/-\d+$/, '')]);
+        const set = hydrated?.get(pick.id) ?? hydrated?.get(pick.id.replace(/-\d+$/, '')) ?? null;
+        if (set) {
+          logEvent(c.env, 'scan_used', userId, { setNum: String(set.set_num || '') });
+          return finalizeShared({
+            identified: true,
+            sets: [{
+              ...set,
+              match_confidence: 'medium',
+              match_reasoning: `Brickognize + SigLIP image match (${pick.id}, margin ${opinion!.margin.toFixed(2)}).`,
+            }],
+            minifigs: [],
+            confidence: 'medium',
+            reasoning: `Brickognize and SigLIP image similarity agree on ${set.name || pick.id}.`,
+            model: 'brickognize+siglip',
+            diag: {
+              timings,
+              total_ms: Date.now() - started,
+              image_kb: Math.round(image.length / 1024),
+            },
+          });
+        }
+        timings[timings.length - 1].outcome = 'unmapped';
+      }
     }
     }
   }

@@ -2195,6 +2195,7 @@ en.dp = {"paid": "Paid", "gain": "Gain", "sets": "Sets", "today": "Today", "days
 
 // Data & import → Share prices (community comps consent).
 Object.assign(en.data, {"shareTitle": "Share prices", "shareLabel": "Share my prices anonymously", "shareSub": "What you paid and sold for helps price sets for everyone. Only medians are published, and only once at least five collectors share a set. Off by default.", "shareOn": "Thanks — your prices now count toward community medians", "shareOff": "Your prices are no longer shared", "blSalesSub": "Export “Orders Received” from your BrickLink store as CSV. Sold sets leave your vault with their sale price, which counts toward realized gains. If you turn on Share prices, they also count toward anonymous community medians."});
+Object.assign(en.data, {"trainTitle": "Photo recognition", "trainLabel": "Help improve photo recognition", "trainSub": "Keep the photos you scan, with the set you then add, to train BricksVault's own recognition. Stored privately, never shown or shared. Photos you don't add a set from are deleted after 30 days. Turning this off deletes all of them. Off by default.", "trainOn": "Thanks! Your next photo scans will help train recognition", "trainOff": "Your scan photos were deleted and are no longer kept"});
 
 // Deep-testing fixes (2026-11-13): sale of several copies, purchase checks,
 // US retail label, list catalog check, empty display name.

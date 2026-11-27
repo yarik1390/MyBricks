@@ -810,6 +810,7 @@ CREATE TABLE IF NOT EXISTS user_prefs (
   -- Opt-in: this user's purchase/sale prices may feed the anonymous k>=5
   -- community medians (jobs/community-comps.ts). Off unless they turn it on.
   contribute_community_comps INTEGER DEFAULT 0,
+  training_photos INTEGER DEFAULT 0,
   is_supporter INTEGER DEFAULT 0,
   supporter_since TEXT,
   stripe_customer_id TEXT,
@@ -1416,3 +1417,59 @@ CREATE TABLE IF NOT EXISTS set_image_checks (
   attempts INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_set_image_checks_missing ON set_image_checks (rb_status, fallback_url);
+
+-- Smart search progress: which catalog sets are in the Vectorize index
+-- (SETS_INDEX) and the hash of the text they were embedded from, so only
+-- changed sets are re-embedded (jobs/embed-sets.ts).
+CREATE TABLE IF NOT EXISTS set_embeddings (
+  set_num TEXT PRIMARY KEY,
+  source_hash TEXT NOT NULL,
+  embedded_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- SigLIP catalog image vectors (SIGLIP_INDEX) for the photo-scan second
+-- opinion: which sets are done; ok=0 means the image failed, retried after
+-- 30 days (jobs/siglip-backfill.ts).
+CREATE TABLE IF NOT EXISTS siglip_embeddings (
+  set_num TEXT PRIMARY KEY,
+  ok INTEGER NOT NULL DEFAULT 1,
+  embedded_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Real-photo training set for the scan model (scripts/siglip-finetune):
+-- LEGO.com gallery photos (lego-stock-refresh), Creative Commons photos from
+-- Openverse (jobs/training-photos.ts, with licence + attribution). Brickset
+-- extra photos live in lego_sets.brickset_image_urls.
+CREATE TABLE IF NOT EXISTS training_images (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  set_num TEXT NOT NULL,
+  url TEXT NOT NULL UNIQUE,
+  source TEXT NOT NULL,
+  license TEXT,
+  creator TEXT,
+  landing_url TEXT,
+  added_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_training_images_set ON training_images(set_num);
+-- Which sets each photo source has been searched for (jobs/training-photos.ts).
+CREATE TABLE IF NOT EXISTS training_photo_queries (
+  set_num TEXT NOT NULL,
+  source TEXT NOT NULL,
+  hits INTEGER NOT NULL DEFAULT 0,
+  queried_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (set_num, source)
+);
+-- Opt-in (user_prefs.training_photos): photo scans kept in R2 under
+-- training/scans/<user>/ to train the scan model; confirmed_set_num is the set
+-- the member then added. Unconfirmed photos are deleted after 30 days, all of a
+-- member's photos when they switch it off or delete the account.
+CREATE TABLE IF NOT EXISTS training_scan_photos (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  r2_key TEXT NOT NULL,
+  predicted_set_num TEXT,
+  confirmed_set_num TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  confirmed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_training_scan_photos_user ON training_scan_photos(user_id);

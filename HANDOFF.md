@@ -48,7 +48,7 @@ notes in this file.
 
 | Agent | Branch | Area / files | Started | Status |
 |-------|--------|--------------|---------|--------|
-| — | — | — | — | — |
+| Claude | claude/project-thread-lj2n5w | Scan training photos: jobs/training-photos.ts, lego-stock-refresh + brightdata-parsers (gallery images), next: opt-in scan photo saving (scanner, settings, privacy) | 2026-11-27 | working |
 
 Old draft PRs #1, #2 (scanner OCR/CLIP experiments) and #31 (public
 `/healthz`) are parked; nobody is working on them. Ask the owner before
@@ -62,6 +62,11 @@ reviving or closing them.
 - Pro test purchase retry; a Lifetime Pro product in Play/RevenueCat if wanted.
 
 ## Recently shipped (newest first, keep about 10)
+
+- 2026-11-26 #224 (worker + new `siglip/` service): photo scans get a SigLIP second opinion when Brickognize is unsure. `bricksvault-siglip` Worker runs SigLIP base in a Cloudflare Container (own `deploy-siglip.yml`), reached only via the `SIGLIP` service binding; catalog image vectors in Vectorize `bricksvault-siglip` (768, cosine), filled by `siglip-backfill` (*/10, progress in `siglip_embeddings`). Fused margin >= 0.20 answers as `brickognize+siglip` (medium). Kill switch: `SIGLIP_FUSION=0`. If the siglip Worker is missing, deploy-worker strips the binding, so re-dispatch Deploy Brickvault after the first siglip deploy.
+- 2026-11-26 #221 (worker-only): BrickLink blocked the Store API for passing its daily limit (access needs a manual restore by BrickLink support, the owner emails them). Every BrickLink HTTP attempt, retries included, is now booked before sending in a rolling 24h window (cap 4,000, fail closed). Set pages no longer call BrickLink, max 1 retry, HTTP 400 = no-data. Never add a BrickLink call outside `blFetch` in `lib/bricklink.ts`.
+- 2026-11-25 #215 + #216 (worker-only): Workers AI pre-translates all set descriptions until 30 Nov (*/5 cron, Cloudflare startup credits), and smart catalog search (bge-m3 embeddings in Vectorize `bricksvault-sets`, hourly :20 `embed-sets`).
+- 2026-11-25 #217 + #218: scan eval with EmbeddingGemma 2 = 63% top-1 / 91% top-5 (67 photos) vs Brickognize 90%, so not integrated; translate runs no longer red for a few refused replies. TODO after 30 Nov: remove the `*/5 * * * *` cron + case.
 
 - #211 (2026-11-20) AI trial countdown pill on Profile, last-3-days snackbar, push at 3 days left and at the end.
 - #210 (2026-11-20) AI trial starts on first app open (GET /api/me), so "days left" counts down instead of sticking at 14.

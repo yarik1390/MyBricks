@@ -1903,6 +1903,7 @@ nl.dp = {"paid": "Betaald", "gain": "Winst", "sets": "Sets", "today": "Vandaag",
 
 // Data & import → Share prices (community comps consent).
 Object.assign(nl.data, {"shareTitle": "Prijzen delen", "shareLabel": "Mijn prijzen anoniem delen", "shareSub": "Wat je betaalde en waarvoor je verkocht, helpt sets voor iedereen te waarderen. Alleen medianen worden gepubliceerd, en pas als minstens vijf verzamelaars een set delen. Standaard uit.", "shareOn": "Bedankt — je prijzen tellen nu mee in de communitymedianen", "shareOff": "Je prijzen worden niet meer gedeeld", "blSalesSub": "Exporteer “Orders Received” uit je BrickLink-winkel als CSV. Verkochte sets verlaten je kluis met hun verkoopprijs, die meetelt in de gerealiseerde winst. Als je Prijzen delen aanzet, tellen ze ook mee in anonieme communitymedianen."});
+Object.assign(nl.data, {"trainTitle": "Fotoherkenning", "trainLabel": "Help fotoherkenning verbeteren", "trainSub": "Bewaar de foto's die je scant, met de set die je daarna toevoegt, om de eigen herkenning van BricksVault te trainen. Privé opgeslagen, nooit getoond of gedeeld. Foto's waarvan je geen set toevoegt, worden na 30 dagen verwijderd. Uitzetten verwijdert ze allemaal. Standaard uit.", "trainOn": "Bedankt! Je volgende fotoscans helpen de herkenning te trainen", "trainOff": "Je scanfoto's zijn verwijderd en worden niet meer bewaard"});
 
 // Deep-testing fixes (2026-11-13): sale of several copies, purchase checks,
 // US retail label, list catalog check, empty display name.

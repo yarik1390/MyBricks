@@ -23,6 +23,9 @@ describe('scan-embed helpers', () => {
     const bytes = new Uint8Array([1, 2, 3]);
     expect(buildEmbedInput('image_b64', bytes, 'image/jpeg')).toEqual({ image: bytesToBase64(bytes) });
     expect((buildEmbedInput('image_dataurl', bytes, 'image/png') as any).image).toMatch(/^data:image\/png;base64,/);
+    const batch = buildEmbedInput('messages_batch', bytes, 'image/jpeg') as any;
+    expect(batch.messages).toHaveLength(1);
+    expect(batch.messages[0][0].content[0].image_url.url).toMatch(/^data:image\/jpeg;base64,/);
     const v = Array.from({ length: 32 }, (_, i) => i / 10);
     expect(extractVector({ data: [v] })).toEqual(v);
     expect(extractVector({ data: [{ embedding: v }] })).toEqual(v);

@@ -22,6 +22,75 @@ const LANGS: Record<string, string> = {
   uk: 'Ukrainian', zh: 'Simplified Chinese', hi: 'Hindi', ja: 'Japanese',
 };
 
+export const TRANSLATABLE_LANGS = Object.keys(LANGS);
+
+function translationPrompt(language: string, source: string): string {
+  return `Translate the following LEGO set description into ${language}.\n\n`
+    + `Rules:\n`
+    + `- Return ONLY the translation. No preamble, no quotes, no notes.\n`
+    + `- Keep LEGO, set names, theme names and trademarks in their original form.\n`
+    + `- Keep numbers, measurements and set numbers exactly as written.\n`
+    + `- Preserve paragraph breaks. Plain text only — no HTML, no markdown.\n\n`
+    + source;
+}
+
+function clampSource(english: string): string {
+  return english.length > 4000 ? `${english.slice(0, 4000)}…` : english;
+}
+
+/**
+ * A reply we are willing to cache forever. An echo of the English, an empty
+ * reply, or a length far off the source (a cut-off answer, or the model
+ * chatting) would pin a bad paragraph for that language, so it is refused.
+ */
+export function acceptableTranslation(english: string, out: string, lang: string): boolean {
+  const src = english.trim();
+  const t = out.trim();
+  if (!t || t === src) return false;
+  // Chinese and Japanese need far fewer characters than English.
+  const minRatio = lang === 'zh' || lang === 'ja' ? 0.12 : 0.4;
+  const ratio = t.length / Math.max(1, Math.min(src.length, 4000));
+  return ratio >= minRatio && ratio <= 3;
+}
+
+export const WORKERS_AI_TRANSLATE_MODEL = '@cf/google/gemma-4-26b-a4b-it';
+
+/**
+ * Same translation on Workers AI, for the one-off catalog batch
+ * (jobs/translate-descriptions.ts). Not used on the request path.
+ */
+export async function translateDescriptionWorkersAi(
+  env: Env, english: string, lang: string, opts: { timeoutMs?: number } = {},
+): Promise<string | null> {
+  const language = LANGS[lang];
+  const ai = env.AI as unknown as { run: (m: string, i: unknown, o?: unknown) => Promise<unknown> } | undefined;
+  if (!language || !ai || !english.trim()) return null;
+  const input = {
+    messages: [{ role: 'user', content: translationPrompt(language, clampSource(english)) }],
+    max_tokens: 2500,
+    temperature: 0.2,
+    chat_template_kwargs: { enable_thinking: false },
+  };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const raw = await Promise.race([
+      ai.run(WORKERS_AI_TRANSLATE_MODEL, input),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Workers AI timed out')), opts.timeoutMs ?? 60_000);
+      }),
+    ]) as Record<string, any>;
+    const out = String(
+      raw?.choices?.[0]?.message?.content ?? (typeof raw?.response === 'string' ? raw.response : ''),
+    ).trim();
+    return acceptableTranslation(english, out, lang) ? out : null;
+  } catch (e) {
+    console.warn('[describe-i18n] workers ai failed:', (e as Error)?.message);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function isTranslatableLang(lang: string | undefined | null): boolean {
   return !!lang && Object.hasOwn(LANGS, lang);
 }
@@ -53,19 +122,11 @@ export async function translateDescription(
   if (!language || !english.trim()) return null;
   // Guard against a pathological source blowing up the request; descriptions
   // this long are truncated in the UI anyway.
-  const source = english.length > 4000 ? `${english.slice(0, 4000)}…` : english;
+  const source = clampSource(english);
 
   const body = {
     contents: [{
-      parts: [{
-        text: `Translate the following LEGO set description into ${language}.\n\n`
-          + `Rules:\n`
-          + `- Return ONLY the translation. No preamble, no quotes, no notes.\n`
-          + `- Keep LEGO, set names, theme names and trademarks in their original form.\n`
-          + `- Keep numbers, measurements and set numbers exactly as written.\n`
-          + `- Preserve paragraph breaks. Plain text only — no HTML, no markdown.\n\n`
-          + source,
-      }],
+      parts: [{ text: translationPrompt(language, source) }],
     }],
     generationConfig: { temperature: 0.2 },
   };
