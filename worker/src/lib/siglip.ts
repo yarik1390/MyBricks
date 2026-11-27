@@ -18,6 +18,10 @@ import type { BrickognizePrediction } from './brickognize';
  * at least 0.20 answered 8 with none wrong. Everything below that still goes to
  * the AI steps exactly as before.
  *
+ * Extra official views (LEGO.com gallery, Brickset extra photos; see
+ * jobs/siglip-backfill.ts) are extra vectors "<set>#<hash>"; each set counts
+ * with its best-matching image. SIGLIP_VIEWS=0 ignores them.
+ *
  * Fully optional: without the binding, the index, or with SIGLIP_FUSION=0, scans
  * behave as before. Every failure returns null.
  */
@@ -104,22 +108,60 @@ export async function siglipSecondOpinion(
   const index = env.SIGLIP_INDEX;
   if (!index || !predictions.length) return null;
   try {
-    const ids = [...new Set(predictions.map((p) => canonicalSetNum(p.id)))];
-    const [stored, nearest] = await Promise.all([
-      index.getByIds(ids),
-      index.query(photoVector, { topK: 5 }),
+    const sets = [...new Set(predictions.map((p) => canonicalSetNum(p.id)))];
+    const useViews = env.SIGLIP_VIEWS !== '0';
+    const viewIds = useViews ? await candidateViewIds(env, sets) : [];
+    const ids = [...sets, ...viewIds];
+    const [storedChunks, nearest] = await Promise.all([
+      Promise.all(chunk(ids, GET_BY_IDS_MAX).map((part) => index.getByIds(part))),
+      index.query(photoVector, { topK: NEAREST_TOP_K }),
     ]);
+    // Best similarity per set over its catalog photo and its extra views.
     const candidateSims = new Map<string, number>();
-    for (const v of stored) {
+    for (const v of storedChunks.flat()) {
       const values = Array.from(v.values as ArrayLike<number>);
-      if (values.length === SIGLIP_DIMENSIONS) candidateSims.set(v.id, dot(photoVector, values));
+      if (values.length !== SIGLIP_DIMENSIONS) continue;
+      const set = vectorSetNum(v.id);
+      const sim = dot(photoVector, values);
+      if (sim > (candidateSims.get(set) ?? -Infinity)) candidateSims.set(set, sim);
     }
-    const siglipTop = (nearest.matches || []).map((m) => ({ id: m.id, similarity: m.score }));
+    const siglipTop = collapseNearest(nearest.matches || [], useViews);
     const fused = fuseCandidates(predictions, candidateSims, siglipTop);
     if (!fused) return null;
     return { ...fused, accepted: fused.margin >= SIGLIP_ACCEPT_MARGIN ? fused.ranked[0] : null };
   } catch (e) {
     console.warn('[siglip] second opinion failed:', (e as Error)?.message);
     return null;
+  }
+}
+
+// Vectorize: getByIds takes at most 20 ids; topK up to 100 without values.
+const GET_BY_IDS_MAX = 20;
+const NEAREST_TOP_K = 30;
+const chunk = <T>(xs: T[], n: number) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
+
+/** "75192-1#a1b2c3d4e5" (extra view) and "75192-1" (catalog photo) both belong to 75192-1. */
+export const vectorSetNum = (id: string) => id.split('#')[0];
+
+/** Nearest vectors collapsed to the best one per set, top 5 sets. Views ignored when off. */
+export function collapseNearest(matches: { id: string; score: number }[], useViews = true): { id: string; similarity: number }[] {
+  const best = new Map<string, number>();
+  for (const m of matches) {
+    if (!useViews && m.id.includes('#')) continue;
+    const set = vectorSetNum(m.id);
+    if (m.score > (best.get(set) ?? -Infinity)) best.set(set, m.score);
+  }
+  return [...best].map(([id, similarity]) => ({ id, similarity })).sort((a, b) => b.similarity - a.similarity).slice(0, 5);
+}
+
+async function candidateViewIds(env: Env, sets: string[]): Promise<string[]> {
+  if (!sets.length) return [];
+  try {
+    const { results } = await env.DB.prepare(
+      `SELECT vec_id FROM siglip_view_embeddings WHERE ok = 1 AND set_num IN (${sets.map(() => '?').join(',')}) LIMIT 60`,
+    ).bind(...sets).all<{ vec_id: string }>();
+    return (results ?? []).map((r) => r.vec_id);
+  } catch {
+    return []; // table missing or D1 hiccup: catalog photos only
   }
 }

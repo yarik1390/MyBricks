@@ -1436,6 +1436,20 @@ CREATE TABLE IF NOT EXISTS siglip_embeddings (
   embedded_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Extra official views of a set (LEGO.com gallery, Brickset extra photos) as
+-- additional SIGLIP_INDEX vectors with id "<set_num>#<hash>", so a scan of the
+-- box back or the built model can match too (jobs/siglip-backfill.ts). ok=0
+-- means the image failed, retried after 30 days.
+CREATE TABLE IF NOT EXISTS siglip_view_embeddings (
+  url TEXT PRIMARY KEY,
+  set_num TEXT NOT NULL,
+  vec_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  ok INTEGER NOT NULL DEFAULT 1,
+  embedded_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_siglip_view_set ON siglip_view_embeddings(set_num, ok);
+
 -- Real-photo training set for the scan model (scripts/siglip-finetune):
 -- LEGO.com gallery photos (lego-stock-refresh), Creative Commons photos from
 -- Openverse (jobs/training-photos.ts, with licence + attribution). Brickset

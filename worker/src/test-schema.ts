@@ -20,6 +20,14 @@ export const TABLE_DDL: Record<string, string> = {
   ok INTEGER NOT NULL DEFAULT 1,
   embedded_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`,
+  siglip_view_embeddings: `CREATE TABLE IF NOT EXISTS siglip_view_embeddings (
+  url TEXT PRIMARY KEY,
+  set_num TEXT NOT NULL,
+  vec_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  ok INTEGER NOT NULL DEFAULT 1,
+  embedded_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`,
   training_images: `CREATE TABLE IF NOT EXISTS training_images (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   set_num TEXT NOT NULL,
