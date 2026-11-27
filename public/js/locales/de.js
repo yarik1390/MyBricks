@@ -1921,6 +1921,7 @@ de.dp = {"paid": "Bezahlt", "gain": "Gewinn", "sets": "Sets", "today": "Heute", 
 
 // Data & import → Share prices (community comps consent).
 Object.assign(de.data, {"shareTitle": "Preise teilen", "shareLabel": "Meine Preise anonym teilen", "shareSub": "Was du bezahlt und verkauft hast, hilft, Sets für alle zu bewerten. Veröffentlicht werden nur Mediane, und erst wenn mindestens fünf Sammler ein Set teilen. Standardmäßig aus.", "shareOn": "Danke — deine Preise zählen jetzt zu den Community-Medianen", "shareOff": "Deine Preise werden nicht mehr geteilt", "blSalesSub": "Exportiere „Orders Received“ aus deinem BrickLink-Shop als CSV. Verkaufte Sets verlassen deinen Tresor mit ihrem Verkaufspreis, der in die realisierten Gewinne einfließt. Wenn du „Preise teilen“ einschaltest, zählen sie auch zu anonymen Community-Medianen."});
+Object.assign(de.data, {"trainTitle": "Fotoerkennung", "trainLabel": "Fotoerkennung verbessern helfen", "trainSub": "Deine gescannten Fotos werden mit dem Set, das du danach hinzufügst, gespeichert, um die eigene Erkennung von BricksVault zu trainieren. Privat gespeichert, nie gezeigt oder weitergegeben. Fotos ohne hinzugefügtes Set werden nach 30 Tagen gelöscht. Beim Ausschalten werden alle gelöscht. Standardmäßig aus.", "trainOn": "Danke! Deine nächsten Foto-Scans helfen beim Training der Erkennung", "trainOff": "Deine Scan-Fotos wurden gelöscht und werden nicht mehr gespeichert"});
 
 // Deep-testing fixes (2026-11-13): sale of several copies, purchase checks,
 // US retail label, list catalog check, empty display name.

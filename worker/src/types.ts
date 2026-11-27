@@ -76,6 +76,9 @@ export interface Env {
   GEMINI_API_KEY?: string;
   /** Groq free-tier key for scan vision (OpenAI-compatible). */
   GROQ_API_KEY?: string;
+  // Openverse API client credentials (jobs/training-photos.ts, CC photo collection).
+  OPENVERSE_CLIENT_ID?: string;
+  OPENVERSE_CLIENT_SECRET?: string;
   // Cloudflare AI Gateway (optional). When account + gateway id are set, SERVER-key
   // AI calls route through the gateway for caching, analytics, rate/spend limits.
   // Token is only needed if the gateway has authentication enabled.

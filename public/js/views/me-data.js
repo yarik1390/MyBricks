@@ -8,6 +8,7 @@ import { subpageTopbarHTML, loadMe } from './me-shared.js';
 import { state, hasProAccess } from '../state.js';
 import { skelPage, skelSettingRows } from '../components/skeleton.js';
 import { exportBlob } from '../lib/native-file-export.js';
+import { getModePref } from '../theme.js';
 import { t, tPlural, getLocale } from '../lib/i18n.js';
 
 // "2026-08-24" → a friendly day ("24 Aug 2026"); unknown shapes stay as-is.
@@ -59,7 +60,14 @@ export async function renderMeData() {
         <div class="bv-group__box">
           <div class="bv-prefrow"><span class="bv-prefrow__text"><span class="bv-prefrow__title">${escapeHtml(t('data.shareLabel'))}</span><span class="bv-prefrow__sub">${escapeHtml(t('data.shareSub'))}</span></span>${toggle({ id: 'shareCompsToggle', on: !!state.me?.contribute_community_comps, label: t('data.shareLabel') })}</div>
         </div>
-      </section>`}
+      </section>
+      ${getModePref() === 'kids' ? '' : `
+      <section class="bv-group">
+        <h2 class="bv-h2">${escapeHtml(t('data.trainTitle'))}</h2>
+        <div class="bv-group__box">
+          <div class="bv-prefrow"><span class="bv-prefrow__text"><span class="bv-prefrow__title">${escapeHtml(t('data.trainLabel'))}</span><span class="bv-prefrow__sub">${escapeHtml(t('data.trainSub'))}</span></span>${toggle({ id: 'trainPhotosToggle', on: !!state.me?.training_photos, label: t('data.trainLabel') })}</div>
+        </div>
+      </section>`}`}
 
       <section class="bv-group">
         <h2 class="bv-h2">${escapeHtml(t('bvAccount.takeOut'))}</h2>
@@ -165,6 +173,22 @@ toast(tPlural('data.restoredFromBackup', res.restored, { date }), "success");
       toast(t(next ? 'data.shareOn' : 'data.shareOff'), 'info');
     } catch (err) {
       shareEl.setAttribute('aria-checked', String(!next));
+      toast(t('common.errorWithDetails', { error: err.message || err }), 'error');
+    }
+  });
+
+  // Scan photos for training: opt-in; switching off deletes what was shared.
+  const trainEl = document.getElementById('trainPhotosToggle');
+  trainEl?.addEventListener('click', async () => {
+    const next = trainEl.getAttribute('aria-checked') !== 'true';
+    trainEl.setAttribute('aria-checked', String(next));
+    haptic('medium');
+    try {
+      await api('/api/me', { method: 'PATCH', body: { training_photos: next } });
+      if (state.me) state.me.training_photos = next;
+      toast(t(next ? 'data.trainOn' : 'data.trainOff'), 'info');
+    } catch (err) {
+      trainEl.setAttribute('aria-checked', String(!next));
       toast(t('common.errorWithDetails', { error: err.message || err }), 'error');
     }
   });

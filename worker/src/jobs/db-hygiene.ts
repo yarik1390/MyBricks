@@ -1,3 +1,4 @@
+import { pruneUnconfirmedTrainingPhotos } from '../lib/training-scan-photos';
 import type { Env } from '../types';
 import { sweepStaleCronRuns } from '../lib/cron-runs';
 import { runOpsHealthCheck } from '../lib/ops-alerts';
@@ -178,6 +179,13 @@ export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, 
     oldSetsRetired = (fix.meta?.changes as number | undefined) ?? 0;
   } catch (e) {
     console.warn('[db-hygiene] old-set retire failed:', (e as Error).message);
+  }
+
+  // Opt-in training scan photos nobody confirmed within 30 days.
+  try {
+    deleted.training_scan_photos = await pruneUnconfirmedTrainingPhotos(env);
+  } catch (e) {
+    console.warn('[db-hygiene] training photo prune failed:', (e as Error).message);
   }
 
   return { deleted, retailBackfilled, comingSoonHealed, futureRetiredHealed, retailEchoScrubbed, beValuesHealed, giftRetailScrubbed, brickEconomyScrubbed, oldSetsRetired, staleCronRuns, opsAlerts: ops.alerts.length };

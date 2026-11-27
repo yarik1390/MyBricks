@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import OpenAI from 'openai';
 import { optionalMember, requireAdmin } from '../auth';
+import { confirmTrainingScanPhoto, saveTrainingScanPhoto, trainingPhotosEnabled } from '../lib/training-scan-photos';
 import { callGeminiScan, callGeminiScanOutcome } from '../lib/gemini';
 import { recordIntegrationAttempt } from '../lib/integration-health';
 import { logEvent, recordScanOutcome } from '../lib/analytics';
@@ -522,6 +523,16 @@ app.get('/backend-health', requireAdmin, async (c) => {
 
 // What the signed-in member has left on the shared server quota. The scanner
 // shows the shelf count on the Shelf tab; BYOK users are never limited.
+// POST /api/scan/training-photo/:id/confirm {set_num}: the member added this
+// set after an opted-in photo scan, so it labels that photo.
+app.post('/training-photo/:id/confirm', async (c) => {
+  const userId = c.get('userId');
+  if (!userId) return c.json({ error: 'Sign in required' }, 401);
+  const body = await c.req.json<{ set_num?: string }>().catch(() => ({} as { set_num?: string }));
+  const ok = await confirmTrainingScanPhoto(c.env, userId, c.req.param('id'), String(body.set_num ?? ''));
+  return c.json({ ok });
+});
+
 app.get('/quota', async (c) => {
   const userId = c.get('userId') || '';
   if (!userId) return c.json({ error: 'Sign in to see your scan allowance.' }, 401);
@@ -646,6 +657,14 @@ app.post('/identify', async (c) => {
         ...payload,
         quota: { ...allowance.shelf, used: allowance.shelf.used - giveBack, remaining: Math.min(allowance.shelf.limit, allowance.shelf.remaining + giveBack), pro: sharedPro },
       };
+    }
+    // Opt-in training photo (Settings > Data): keep this photo scan and hand its
+    // id to the app, which confirms the label when the member adds a set.
+    if (!shelfMode && status === 200 && userId && image && await trainingPhotosEnabled(c.env, userId)) {
+      const predicted = (payload.set as { set_num?: string } | undefined)?.set_num
+        ?? (payload.sets as Array<{ set_num?: string }> | undefined)?.[0]?.set_num ?? null;
+      const trainingId = await saveTrainingScanPhoto(c.env, userId, image, predicted);
+      if (trainingId) payload = { ...payload, training_photo_id: trainingId };
     }
     const terminal = { payload, status };
     // Validation / quota denials (4xx) are not recognition outcomes.

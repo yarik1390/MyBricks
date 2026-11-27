@@ -264,7 +264,7 @@ describe('Route coverage: me / wishlist / profile / collection', () => {
         user_id TEXT PRIMARY KEY, handle TEXT, display_name TEXT, currency TEXT DEFAULT 'USD', retail_market TEXT DEFAULT 'FR',
         notify_price_drops INTEGER DEFAULT 1, notify_weekly_digest INTEGER DEFAULT 0, is_public INTEGER NOT NULL DEFAULT 0,
         notify_sell_targets INTEGER, notify_big_moves INTEGER, notify_retiring INTEGER, notify_back_in_stock INTEGER,
-        quiet_hours INTEGER DEFAULT 0, quiet_start INTEGER DEFAULT 22, quiet_end INTEGER DEFAULT 8, timezone TEXT, email_off_at TEXT, contribute_community_comps INTEGER DEFAULT 0,
+        quiet_hours INTEGER DEFAULT 0, quiet_start INTEGER DEFAULT 22, quiet_end INTEGER DEFAULT 8, timezone TEXT, email_off_at TEXT, contribute_community_comps INTEGER DEFAULT 0, training_photos INTEGER DEFAULT 0,
         expose_public_value INTEGER NOT NULL DEFAULT 1,
         google_refresh_token TEXT, google_spreadsheet_id TEXT,
         email TEXT, discord_webhook_url TEXT, brickset_user_hash TEXT, rebrickable_user_token TEXT,
@@ -3127,7 +3127,7 @@ describe('Account deletion (DELETE /api/me)', () => {
         method: 'DELETE', headers: auth(), body: JSON.stringify({ confirm: 'DELETE' }),
       }), env);
       expect(res.status).toBe(200);
-      expect(list.mock.calls.map(([o]) => o.prefix)).toEqual([`${userId}/`, `stories/${userId}/`, `backups/${userId}/`]);
+      expect(list.mock.calls.map(([o]) => o.prefix)).toEqual([`${userId}/`, `stories/${userId}/`, `backups/${userId}/`, `training/scans/${userId}/`]);
       expect(del).toHaveBeenCalledWith([`stories/${userId}/7.jpg`]);
       expect(del).toHaveBeenCalledWith([`backups/${userId}/2026-10-12.json`]);
       expect(del).not.toHaveBeenCalledWith(expect.arrayContaining([expect.stringContaining(otherUserId)]));

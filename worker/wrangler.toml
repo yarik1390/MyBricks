@@ -124,6 +124,9 @@ crons = [
   "*/5 * * * *",
   # Set photo fallbacks (Brickset / LEGO.com) for Rebrickable 404s.
   "20 * * * *",
+  # Real-photo training set for the scan model: Openverse CC photos hourly,
+  # Brickset extra photos at 23:00 UTC (jobs/training-photos.ts).
+  "25 * * * *",
   # SigLIP catalog photo vectors for the photo-scan second opinion
   # (jobs/siglip-backfill.ts). Idle once the catalog is done.
   "*/10 * * * *",
