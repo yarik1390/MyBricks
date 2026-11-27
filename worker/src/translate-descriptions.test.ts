@@ -68,6 +68,14 @@ describe('translate-descriptions batch', () => {
     expect(r.failed).toBe(r.rejected);
   });
 
+  it('skips scraped placeholders like "N/A" instead of failing on them every run', async () => {
+    await db.prepare("INSERT INTO lego_sets (set_num, name, year, brickset_description) VALUES ('5007591-1', 'x', 2025, 'N/A'), ('HQ1325-1', 'y', 2025, 'Set not found')").run();
+    const ai = fakeAi(() => `ok ${EN}`);
+    const res = await runTranslateDescriptions({ ...(env as any), AI: ai }, { now: NOW });
+    expect(res).toMatchObject({ sets: 2, failed: 0, rejected: 0, remainingSets: 0 });
+    expect(ai.calls.every((p) => !p.endsWith('N/A') && !p.endsWith('Set not found'))).toBe(true);
+  });
+
   it('does nothing after the credit window closes', async () => {
     const ai = fakeAi(() => `x ${EN}`);
     expect(translateBatchOpen(TRANSLATE_BATCH_UNTIL)).toBe(false);

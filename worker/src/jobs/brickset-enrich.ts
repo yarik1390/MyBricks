@@ -3,6 +3,7 @@ import { firecrawlScrape, FirecrawlRateLimitedError } from '../lib/firecrawl';
 import { firecrawlEnabled } from '../lib/pricing-flags';
 import { sourceEnabled } from '../lib/source-config';
 import { quotaRemaining, spendQuotaFailClosed } from '../lib/api-quota';
+import { isPlaceholderDescription } from '../lib/describe-i18n';
 import { fetchBricksetDetails, lastBricksetApiError, type BricksetDetails } from '../lib/brickset';
 import { brightDataUnlock } from '../lib/brightdata';
 import { brightDataEnabled } from '../lib/brightdata-keys';
@@ -272,7 +273,7 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number; bud
     maybe('packaging_type', d.packaging_type);
     maybe('instructions_count', intInRange(d.instructions_count, 0, 100));
     maybe('additional_image_count', intInRange(d.additional_image_count, 0, 2000));
-    maybe('brickset_description', d.description);
+    if (!isPlaceholderDescription(d.description)) maybe('brickset_description', d.description);
     maybe('brickset_rating', inRange(d.rating, 0, 5));
     maybe('brickset_review_count', intInRange(d.review_count, 0, 1_000_000));
     maybe('brickset_set_id', intInRange(d.brickset_set_id, 1, 100_000_000));

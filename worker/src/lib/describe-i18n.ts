@@ -34,6 +34,16 @@ function translationPrompt(language: string, source: string): string {
     + source;
 }
 
+/**
+ * Scrapers sometimes store a placeholder ("N/A", "Set not found") instead of a
+ * real description. Those are never shown, translated or cached.
+ */
+export const PLACEHOLDER_DESCRIPTIONS = ['n/a', 'na', 'none', 'null', 'unknown', 'set not found', 'not available', 'no description', '-'];
+export function isPlaceholderDescription(text: string | null | undefined): boolean {
+  const t = String(text ?? '').trim().toLowerCase().replace(/[.\s]+$/, '');
+  return t.length < 4 || PLACEHOLDER_DESCRIPTIONS.includes(t);
+}
+
 function clampSource(english: string): string {
   return english.length > 4000 ? `${english.slice(0, 4000)}…` : english;
 }
