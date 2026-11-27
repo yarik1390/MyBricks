@@ -48,7 +48,6 @@ notes in this file.
 
 | Agent | Branch | Area / files | Started | Status |
 |-------|--------|--------------|---------|--------|
-| Claude | claude/project-thread-x3wiv9 | Scan photo index: extra official views (LEGO.com/Brickset) as SigLIP vectors: jobs/siglip-backfill.ts, lib/siglip.ts, siglip.test.ts, schema (siglip_view_embeddings) | 2026-11-27 | working |
 | Claude | claude/project-thread-lj2n5w | Scan training photos: jobs/training-photos.ts, lego-stock-refresh + brightdata-parsers (gallery images), next: opt-in scan photo saving (scanner, settings, privacy) | 2026-11-27 | working |
 
 Old draft PRs #1, #2 (scanner OCR/CLIP experiments) and #31 (public
@@ -64,6 +63,7 @@ reviving or closing them.
 
 ## Recently shipped (newest first, keep about 10)
 
+- #231 (2026-11-27): SigLIP scan second opinion also matches extra official views (LEGO.com gallery, Brickset extras, up to 8/set) as vectors `<set>#<hash>` (siglip_view_embeddings); kill switch `SIGLIP_VIEWS=0`. 821 views / 130 sets live after first run.
 - 2026-11-26 #224 (worker + new `siglip/` service): photo scans get a SigLIP second opinion when Brickognize is unsure. `bricksvault-siglip` Worker runs SigLIP base in a Cloudflare Container (own `deploy-siglip.yml`), reached only via the `SIGLIP` service binding; catalog image vectors in Vectorize `bricksvault-siglip` (768, cosine), filled by `siglip-backfill` (*/10, progress in `siglip_embeddings`). Fused margin >= 0.20 answers as `brickognize+siglip` (medium). Kill switch: `SIGLIP_FUSION=0`. If the siglip Worker is missing, deploy-worker strips the binding, so re-dispatch Deploy Brickvault after the first siglip deploy.
 - 2026-11-26 #221 (worker-only): BrickLink blocked the Store API for passing its daily limit (access needs a manual restore by BrickLink support, the owner emails them). Every BrickLink HTTP attempt, retries included, is now booked before sending in a rolling 24h window (cap 4,000, fail closed). Set pages no longer call BrickLink, max 1 retry, HTTP 400 = no-data. Never add a BrickLink call outside `blFetch` in `lib/bricklink.ts`.
 - 2026-11-25 #215 + #216 (worker-only): Workers AI pre-translates all set descriptions until 30 Nov (*/5 cron, Cloudflare startup credits), and smart catalog search (bge-m3 embeddings in Vectorize `bricksvault-sets`, hourly :20 `embed-sets`).
