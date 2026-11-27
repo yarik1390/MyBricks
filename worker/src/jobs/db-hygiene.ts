@@ -1,3 +1,4 @@
+import { PLACEHOLDER_DESCRIPTIONS } from '../lib/describe-i18n';
 import { pruneUnconfirmedTrainingPhotos } from '../lib/training-scan-photos';
 import type { Env } from '../types';
 import { sweepStaleCronRuns } from '../lib/cron-runs';
@@ -179,6 +180,20 @@ export async function runDbHygiene(env: Env): Promise<{ deleted: Record<string, 
     oldSetsRetired = (fix.meta?.changes as number | undefined) ?? 0;
   } catch (e) {
     console.warn('[db-hygiene] old-set retire failed:', (e as Error).message);
+  }
+
+  // Scraped placeholder descriptions ("N/A", "Set not found") are not text:
+  // clear them so the set page and the translate batch skip those sets.
+  try {
+    const ph = PLACEHOLDER_DESCRIPTIONS.filter((p) => p.length >= 2);
+    const res = await env.DB.prepare(
+      `UPDATE lego_sets SET brickset_description = NULL
+        WHERE brickset_description IS NOT NULL
+          AND (length(trim(brickset_description)) < 4 OR lower(trim(brickset_description)) IN (${ph.map(() => '?').join(',')}))`,
+    ).bind(...ph).run();
+    deleted.placeholder_descriptions = res.meta.changes ?? 0;
+  } catch (e) {
+    console.warn('[db-hygiene] placeholder description cleanup failed:', (e as Error).message);
   }
 
   // Opt-in training scan photos nobody confirmed within 30 days.

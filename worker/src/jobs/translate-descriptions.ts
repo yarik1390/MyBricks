@@ -1,6 +1,6 @@
 import type { Env } from '../types';
 import {
-  TRANSLATABLE_LANGS, hashSource, translateDescriptionWorkersAi,
+  TRANSLATABLE_LANGS, hashSource, translateDescriptionWorkersAi, isPlaceholderDescription,
 } from '../lib/describe-i18n';
 
 /**
@@ -64,7 +64,7 @@ export async function runTranslateDescriptions(env: Env, opts: Options = {}): Pr
     `SELECT s.set_num, s.brickset_description AS description,
             (SELECT group_concat(t.lang) FROM set_description_i18n t WHERE t.set_num = s.set_num) AS done
        FROM lego_sets s
-      WHERE s.brickset_description IS NOT NULL AND length(trim(s.brickset_description)) > 0
+      WHERE s.brickset_description IS NOT NULL AND length(trim(s.brickset_description)) >= 20
         AND (SELECT count(*) FROM set_description_i18n t WHERE t.set_num = s.set_num) < ?1
       ORDER BY EXISTS (SELECT 1 FROM user_collection c WHERE c.set_num = s.set_num AND c.deleted_at IS NULL) DESC,
                random()
@@ -73,6 +73,7 @@ export async function runTranslateDescriptions(env: Env, opts: Options = {}): Pr
 
   const tasks: { setNum: string; english: string; lang: string; hash: string }[] = [];
   for (const s of sets) {
+    if (isPlaceholderDescription(s.description)) continue; // "N/A" etc.: nothing to translate
     const done = new Set((s.done || '').split(',').filter(Boolean));
     const hash = hashSource(s.description);
     for (const lang of TRANSLATABLE_LANGS) {
@@ -109,7 +110,7 @@ export async function runTranslateDescriptions(env: Env, opts: Options = {}): Pr
 
   const left = await env.DB.prepare(
     `SELECT count(*) AS n FROM lego_sets s
-      WHERE s.brickset_description IS NOT NULL AND length(trim(s.brickset_description)) > 0
+      WHERE s.brickset_description IS NOT NULL AND length(trim(s.brickset_description)) >= 20
         AND (SELECT count(*) FROM set_description_i18n t WHERE t.set_num = s.set_num) < ?`,
   ).bind(langCount).first<{ n: number }>();
 

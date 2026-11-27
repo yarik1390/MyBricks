@@ -20,7 +20,7 @@ import { similarSets, wantsSimilarSets } from '../lib/set-embeddings';
 import { checkLegoStock, legoStockUpdate, normalizeLegoStockResult } from '../lib/lego-stock';
 import { fetchSetMinifigs } from '../lib/rebrickable';
 import type { Env, Variables } from '../types';
-import { isTranslatableLang, getCachedDescription, translateDescription, cacheDescription, hashSource } from '../lib/describe-i18n';
+import { isTranslatableLang, getCachedDescription, translateDescription, cacheDescription, hashSource, isPlaceholderDescription } from '../lib/describe-i18n';
 import {
   AMAZON_ASSOCIATE_DISCLOSURE,
   AMAZON_PRICE_DISCLAIMER,
@@ -485,7 +485,7 @@ app.get('/:setnum/description', async (c) => {
     `SELECT brickset_description AS d FROM lego_sets WHERE set_num = ?`,
   ).bind(setNum).first<{ d: string | null }>();
   const english = String(row?.d || '').trim();
-  if (!english) return c.json({ set_num: setNum, lang: 'en', description: '' });
+  if (!english || isPlaceholderDescription(english)) return c.json({ set_num: setNum, lang: 'en', description: '' });
   if (!isTranslatableLang(lang)) {
     return c.json({ set_num: setNum, lang: 'en', description: english });
   }
