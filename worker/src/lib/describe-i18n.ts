@@ -60,7 +60,8 @@ export const WORKERS_AI_TRANSLATE_MODEL = '@cf/google/gemma-4-26b-a4b-it';
  * (jobs/translate-descriptions.ts). Not used on the request path.
  */
 export async function translateDescriptionWorkersAi(
-  env: Env, english: string, lang: string, opts: { timeoutMs?: number } = {},
+  env: Env, english: string, lang: string,
+  opts: { timeoutMs?: number; onFail?: (reason: string, threw: boolean) => void } = {},
 ): Promise<string | null> {
   const language = LANGS[lang];
   const ai = env.AI as unknown as { run: (m: string, i: unknown, o?: unknown) => Promise<unknown> } | undefined;
@@ -82,9 +83,13 @@ export async function translateDescriptionWorkersAi(
     const out = String(
       raw?.choices?.[0]?.message?.content ?? (typeof raw?.response === 'string' ? raw.response : ''),
     ).trim();
-    return acceptableTranslation(english, out, lang) ? out : null;
+    if (acceptableTranslation(english, out, lang)) return out;
+    opts.onFail?.(out ? `refused reply (${out.length} chars): ${out.slice(0, 60)}` : `empty reply: ${JSON.stringify(raw).slice(0, 120)}`, false);
+    return null;
   } catch (e) {
-    console.warn('[describe-i18n] workers ai failed:', (e as Error)?.message);
+    const msg = (e as Error)?.message || String(e);
+    console.warn('[describe-i18n] workers ai failed:', msg);
+    opts.onFail?.(msg.slice(0, 160), true);
     return null;
   } finally {
     clearTimeout(timer);

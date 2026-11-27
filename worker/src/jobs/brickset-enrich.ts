@@ -3,7 +3,7 @@ import { firecrawlScrape, FirecrawlRateLimitedError } from '../lib/firecrawl';
 import { firecrawlEnabled } from '../lib/pricing-flags';
 import { sourceEnabled } from '../lib/source-config';
 import { quotaRemaining, spendQuotaFailClosed } from '../lib/api-quota';
-import { fetchBricksetDetails, type BricksetDetails } from '../lib/brickset';
+import { fetchBricksetDetails, lastBricksetApiError, type BricksetDetails } from '../lib/brickset';
 import { brightDataUnlock } from '../lib/brightdata';
 import { brightDataEnabled } from '../lib/brightdata-keys';
 import { parseBricksetHtml, type BricksetScrape } from '../lib/brightdata-parsers';
@@ -304,7 +304,14 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number; bud
   // No aggregate health write — firecrawlScrape records each scrape attempt
   // (real ok/fail + error message) inside the wrapper; a batch tally here would
   // double-count and clobber the real error with "unknown error".
-  return { processed, updated, failed, no_data, deferred, limit: effLimit };
+  // When every set failed, say which lanes were tried so the admin console
+  // shows the cause instead of only "failed 80".
+  const reason = failed && !updated
+    ? [`brickset.com page fetch failed`, hasBackup ? null : 'no backup scraper', hasFirecrawl ? null : 'Firecrawl off or out of credits',
+       hasBrightData ? null : 'Bright Data off', lastBricksetApiError ? `Brickset API: ${lastBricksetApiError}` : null]
+      .filter(Boolean).join('; ')
+    : undefined;
+  return { processed, updated, failed, no_data, deferred, limit: effLimit, ...(reason ? { reason } : {}) };
 }
 
 async function fetchBricksetDirect(url: string): Promise<BricksetScrape | 'missing' | null> {

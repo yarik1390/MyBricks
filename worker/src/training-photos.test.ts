@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { openverseMatches, bareSetNum } from './jobs/training-photos';
+import { openverseMatches, bareSetNum, runTrainingPhotos } from './jobs/training-photos';
+import { summarizeResult } from './lib/cron-runs';
 import { ldImages, parseLegoStockHtml } from './lib/brightdata-parsers';
 import { normalizeLegoStockResult } from './lib/lego-stock';
 
@@ -28,5 +29,10 @@ describe('training photos', () => {
     expect(normalizeLegoStockResult(parsed)?.images).toHaveLength(2);
     // Photos alone never count as a stock observation.
     expect(normalizeLegoStockResult({ images: ['https://a/1.jpg'] })).toBeNull();
+  });
+
+  it('reports why the Openverse step did nothing in the run summary', async () => {
+    const res = await runTrainingPhotos({} as any, new Date('2026-11-27T14:25:00Z'));
+    expect(summarizeResult(res)).toBe('skipped: openverse: no OPENVERSE_CLIENT_ID');
   });
 });
