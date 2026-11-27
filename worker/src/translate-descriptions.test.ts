@@ -61,7 +61,11 @@ describe('translate-descriptions batch', () => {
   it('marks the run failed only when nothing got through', async () => {
     const ai = fakeAi(() => new Error('down'));
     const res = await runTranslateDescriptions({ ...(env as any), AI: ai }, { now: NOW });
-    expect(res).toMatchObject({ translated: 0, rejected: 16, failed: 16 });
+    // Stops after a dozen errors instead of spending the batch, and says why.
+    expect(res).toMatchObject({ translated: 0, reason: 'down' });
+    const r = res as { rejected: number; failed: number };
+    expect(r.rejected).toBeGreaterThanOrEqual(12);
+    expect(r.failed).toBe(r.rejected);
   });
 
   it('does nothing after the credit window closes', async () => {

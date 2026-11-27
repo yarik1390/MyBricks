@@ -125,8 +125,9 @@ export async function fetchBarcodes(setNum: string, env: Env): Promise<BricksetB
     const resp = await fetchTracked(env, 'brickset', `https://brickset.com/api/v3.asmx/getSets?${params}`, {
       headers: { Accept: 'application/json' },
     });
-    if (!resp.ok) return null;
+    if (!resp.ok) { noteBricksetReply(resp.status, null); return null; }
     const data = await resp.json() as Record<string, unknown>;
+    noteBricksetReply(200, data);
     const sets = (data.sets as Array<Record<string, unknown>>) ?? [];
     if (!sets.length) return null;
     // Prefer the matching variant; fall back to the first result.
@@ -291,6 +292,14 @@ export interface BricksetDetails {
   minifigs: number | null;
 }
 
+/** Last error Brickset's API gave (bad key, daily limit…), for job summaries. */
+export let lastBricksetApiError: string | null = null;
+function noteBricksetReply(status: number, data: Record<string, unknown> | null): void {
+  if (status !== 200) { lastBricksetApiError = `HTTP ${status}`; return; }
+  const st = String(data?.status ?? '').trim().toLowerCase();
+  if (st && st !== 'success') lastBricksetApiError = String(data?.message ?? st).slice(0, 120);
+}
+
 export async function fetchBricksetDetails(setNum: string, env: Env): Promise<BricksetDetails | null> {
   const apiKey = env.BRICKSET_API_KEY;
   if (!apiKey) return null;
@@ -362,8 +371,9 @@ export async function fetchAdditionalImages(setId: number, env: Env): Promise<st
     const resp = await fetchTracked(env, 'brickset', `https://brickset.com/api/v3.asmx/getAdditionalImages?${params}`, {
       headers: { Accept: 'application/json' },
     });
-    if (!resp.ok) return null;
+    if (!resp.ok) { noteBricksetReply(resp.status, null); return null; }
     const data = await resp.json() as { status?: string; additionalImages?: Array<Record<string, unknown>> };
+    noteBricksetReply(200, data as Record<string, unknown>);
     if (String(data.status ?? '').trim().toLowerCase() !== 'success') return null;
     const imgs = Array.isArray(data.additionalImages) ? data.additionalImages : [];
     return imgs

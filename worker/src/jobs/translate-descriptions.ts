@@ -42,6 +42,8 @@ export interface TranslateBatchResult {
   failed: number;
   remainingSets: number;
   stoppedEarly: boolean;
+  /** First failure message, shown in the admin console when every item fails. */
+  reason?: string;
 }
 
 export async function runTranslateDescriptions(env: Env, opts: Options = {}): Promise<TranslateBatchResult | { skipped: string }> {
@@ -82,11 +84,18 @@ export async function runTranslateDescriptions(env: Env, opts: Options = {}): Pr
   let rejected = 0;
   let next = 0;
   let stoppedEarly = false;
+  let reason: string | undefined;
+  let thrown = 0;
   const worker = async () => {
     while (next < tasks.length) {
       if (Date.now() > deadline || !stillOpen()) { stoppedEarly = true; return; }
+      // Workers AI itself is refusing (quota, outage, retired model): stop
+      // after a handful instead of spending the whole batch on errors.
+      if (translated === 0 && thrown >= 12) { stoppedEarly = true; return; }
       const t = tasks[next++];
-      const out = await translateDescriptionWorkersAi(env, t.english, t.lang);
+      const out = await translateDescriptionWorkersAi(env, t.english, t.lang, {
+        onFail: (r, threw) => { reason ??= r; if (threw) thrown++; },
+      });
       if (!out) { rejected++; continue; }
       await env.DB.prepare(
         `INSERT INTO set_description_i18n (set_num, lang, description, source_hash)
@@ -105,5 +114,5 @@ export async function runTranslateDescriptions(env: Env, opts: Options = {}): Pr
   ).bind(langCount).first<{ n: number }>();
 
   const failed = translated === 0 ? rejected : 0;
-  return { sets: sets.length, translated, rejected, failed, remainingSets: left?.n ?? 0, stoppedEarly };
+  return { sets: sets.length, translated, rejected, failed, remainingSets: left?.n ?? 0, stoppedEarly, ...(failed && reason ? { reason } : {}) };
 }

@@ -151,7 +151,7 @@ export function createCronRunner(
       const failed = resultFailed(res);
       await finish(runId, name, {
         ok: !failed, summary,
-        error: failed ? `Provider/item failures: ${summary}` : null,
+        error: failed ? `Provider/item failures: ${summary}${resultReason(res)}` : null,
         durationMs: now() - startedMs,
       });
     } catch (e) {
@@ -232,4 +232,10 @@ export async function runMissedJobs(
     await runner.run(name, jobs[name], { timeoutMs: opts.timeoutMs ?? 4 * 60_000 });
   }
   return due;
+}
+
+/** Optional `reason` string a job returns to explain a failed run. */
+function resultReason(res: unknown): string {
+  const r = res && typeof res === 'object' ? (res as { reason?: unknown }).reason : undefined;
+  return typeof r === 'string' && r ? ` (${r.slice(0, 200)})` : '';
 }

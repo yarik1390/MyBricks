@@ -37,22 +37,38 @@ export function openverseMatches(setNum: string, img: OpenverseImage): boolean {
   return re.test(img.title ?? '') || (img.tags ?? []).some((t) => re.test(t?.name ?? ''));
 }
 
-async function openverseToken(env: Env): Promise<string | null> {
-  if (!env.OPENVERSE_CLIENT_ID || !env.OPENVERSE_CLIENT_SECRET) return null;
+const TOKEN_KEY = 'openverse:token';
+
+/**
+ * Bearer token for Openverse. Tokens last about 12 hours and the token endpoint
+ * is rate limited on its own, so the token is kept in KV and reused instead of
+ * being requested every hour. Returns the token or why there is none.
+ */
+async function openverseToken(env: Env): Promise<{ token: string | null; why?: string }> {
+  if (!env.OPENVERSE_CLIENT_ID || !env.OPENVERSE_CLIENT_SECRET) return { token: null, why: 'no OPENVERSE_CLIENT_ID' };
+  const cached = await env.CACHE_KV?.get(TOKEN_KEY).catch(() => null);
+  if (cached) return { token: cached };
   try {
     const res = await fetch(`${OPENVERSE}/auth_tokens/token/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': UA },
       body: new URLSearchParams({ grant_type: 'client_credentials', client_id: env.OPENVERSE_CLIENT_ID, client_secret: env.OPENVERSE_CLIENT_SECRET }),
     });
-    if (!res.ok) return null;
-    return ((await res.json()) as { access_token?: string }).access_token ?? null;
-  } catch { return null; }
+    if (!res.ok) return { token: null, why: `token HTTP ${res.status}: ${(await res.text().catch(() => '')).slice(0, 100)}` };
+    const body = (await res.json()) as { access_token?: string; expires_in?: number };
+    if (!body.access_token) return { token: null, why: 'token reply had no access_token' };
+    const ttl = Math.max(60, Math.min(Number(body.expires_in) || 3600, 43_200) - 600);
+    await env.CACHE_KV?.put(TOKEN_KEY, body.access_token, { expirationTtl: ttl }).catch(() => {});
+    return { token: body.access_token };
+  } catch (e) { return { token: null, why: `token fetch failed: ${(e as Error)?.message}` }; }
 }
 
 export async function runOpenversePhotos(env: Env, opts: { limit?: number; budgetMs?: number } = {}) {
-  const token = await openverseToken(env);
-  if (!token) return { skipped: env.OPENVERSE_CLIENT_ID ? 'openverse token refused' : 'no OPENVERSE_CLIENT_ID' };
+  const { token, why } = await openverseToken(env);
+  if (!env.OPENVERSE_CLIENT_ID) return { skipped: why ?? 'no OPENVERSE_CLIENT_ID' };
+  // Without a token Openverse still answers anonymously, at a lower rate, so
+  // run a small batch instead of nothing and report why the token failed.
+  const limit = token ? (opts.limit ?? 150) : Math.min(opts.limit ?? 150, 15);
   const deadline = Date.now() + (opts.budgetMs ?? 150_000);
   // Owned/wishlisted sets first, then recent sets with 50+ pieces (rarely photographed otherwise).
   const { results } = await env.DB.prepare(
@@ -63,19 +79,22 @@ export async function runOpenversePhotos(env: Env, opts: { limit?: number; budge
                EXISTS (SELECT 1 FROM user_wishlist uw WHERE uw.set_num = s.set_num) DESC,
                s.year DESC
       LIMIT ?`,
-  ).bind(opts.limit ?? 150).all<{ set_num: string }>();
+  ).bind(limit).all<{ set_num: string }>();
 
-  let queried = 0; let photos = 0; let errors = 0;
+  let queried = 0; let photos = 0; let errors = 0; let lastError: string | undefined;
   for (const { set_num } of results) {
     if (Date.now() > deadline) break;
     const q = new URLSearchParams({ q: `lego ${bareSetNum(set_num)}`, license_type: 'commercial', page_size: '50' });
     let items: OpenverseImage[] = [];
     try {
-      const res = await fetch(`${OPENVERSE}/images/?${q}`, { headers: { Authorization: `Bearer ${token}`, 'User-Agent': UA } });
-      if (res.status === 429) break; // rate limited: try again next hour
-      if (!res.ok) { errors++; continue; }
+      const headers: Record<string, string> = { 'User-Agent': UA };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const res = await fetch(`${OPENVERSE}/images/?${q}`, { headers });
+      if (res.status === 401 && token) await env.CACHE_KV?.delete(TOKEN_KEY).catch(() => {});
+      if (res.status === 429 || res.status === 401) { lastError = `search HTTP ${res.status}`; errors++; break; } // try again next hour
+      if (!res.ok) { lastError = `search HTTP ${res.status}`; errors++; continue; }
       items = ((await res.json()) as { results?: OpenverseImage[] }).results ?? [];
-    } catch { errors++; continue; }
+    } catch (e) { lastError = `search failed: ${(e as Error)?.message}`; errors++; continue; }
     queried++;
     const keep = items.filter((i) => openverseMatches(set_num, i));
     for (let j = 0; j < keep.length; j += 14) { // 7 params per row, D1 max 100
@@ -91,7 +110,7 @@ export async function runOpenversePhotos(env: Env, opts: { limit?: number; budge
       VALUES (?, 'openverse', ?, datetime('now'))`).bind(set_num, keep.length).run();
     await new Promise((r) => setTimeout(r, 400)); // stay well under Openverse's per-second limit
   }
-  return { picked: results.length, queried, photos, errors };
+  return { picked: results.length, queried, photos, errors, anonymous: !token, ...(why || lastError ? { reason: [why, lastError].filter(Boolean).join('; ') } : {}) };
 }
 
 export async function runBricksetGalleryTrickle(env: Env) {
@@ -120,5 +139,17 @@ export async function runBricksetGalleryTrickle(env: Env) {
 export async function runTrainingPhotos(env: Env, now = new Date()) {
   const openverse = await runOpenversePhotos(env);
   const brickset = now.getUTCHours() === 23 ? await runBricksetGalleryTrickle(env) : { skipped: 'runs at 23:00 UTC' };
-  return { openverse, brickset };
+  // Flat counters so the admin console's run summary shows them.
+  const ov = openverse as Record<string, unknown>;
+  const bs = brickset as Record<string, unknown>;
+  const queried = Number(ov.queried ?? 0);
+  const failed = queried === 0 && Number(ov.errors ?? 0) > 0 ? Number(ov.errors) : 0;
+  return {
+    processed: queried,
+    updated: Number(ov.photos ?? 0) + Number(bs.photos ?? 0),
+    failed,
+    ...(typeof ov.skipped === 'string' && !('photos' in bs) ? { skipped: `openverse: ${ov.skipped}` } : {}),
+    ...(typeof ov.reason === 'string' ? { reason: ov.reason } : {}),
+    openverse, brickset,
+  };
 }
