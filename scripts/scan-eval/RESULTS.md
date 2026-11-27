@@ -35,3 +35,18 @@ score gate moved from 0.75 to 0.60.
 
 Note: Brickognize rate-limits bursts (HTTP 429 after about 60 requests at 2
 per second); space test requests a few seconds apart.
+
+## 2026-11-27: fine-tuned SigLIP (Colab notebook, scripts/siglip-finetune)
+
+L4 GPU, 18,516 catalog sets, 8 epochs, batch 128, catalog images with fake-photo
+augmentation and look-alike batches. Same 78 photos, full catalog as gallery.
+
+| Model | SigLIP top-1 | top-5 | Combined first answer | App right / wrong / to AI (margin 0.20) |
+|---|---|---|---|---|
+| Current (base) | 50/78 | 67/78 | 73/78 | 60 / 0 / 18 |
+| Fine-tuned | 43/78 | 55/78 | 67/78 | 63 / 0 / 15 |
+
+Not adopted: +3 app answers is within noise while the model's own ranking got
+clearly worse and looser margins made more wrong guesses (0.05: 4 -> 6). Training
+on dressed-up catalog images overfits the catalog style; a real gain needs real
+photos to train on. The notebook verdict now reports such runs as MIXED.
