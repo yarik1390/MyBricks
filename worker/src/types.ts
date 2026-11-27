@@ -112,6 +112,8 @@ export interface Env {
   SIGLIP?: Fetcher;
   /** '0' turns the SigLIP scan second opinion off. */
   SIGLIP_FUSION?: string;
+  // '0' = ignore extra official views (siglip_view_embeddings) in the second opinion.
+  SIGLIP_VIEWS?: string;
   // Cloudflare Turnstile (optional bot protection for the shared-key photo scan).
   // SITE key is public (sent to the browser via /api/config); SECRET key is
   // server-only. When SECRET is unset, scan verification is skipped (opt-in).

@@ -292,6 +292,7 @@ jobs:
             "SELECT set_num, fig_num, quantity FROM set_minifigs LIMIT 0"
             "SELECT set_num, source_hash, embedded_at FROM set_embeddings LIMIT 0"
             "SELECT set_num, ok, embedded_at FROM siglip_embeddings LIMIT 0"
+            "SELECT url, set_num, vec_id, source, ok, embedded_at FROM siglip_view_embeddings LIMIT 0"
             "SELECT set_num, url, source, license, creator, landing_url FROM training_images LIMIT 0"
             "SELECT set_num, source, hits, queried_at FROM training_photo_queries LIMIT 0"
             "SELECT id, user_id, r2_key, predicted_set_num, confirmed_set_num, confirmed_at FROM training_scan_photos LIMIT 0"
