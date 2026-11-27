@@ -1908,6 +1908,7 @@ ja.dp = {"paid": "購入額", "gain": "含み益", "sets": "セット", "today":
 
 // Data & import → Share prices (community comps consent).
 Object.assign(ja.data, {"shareTitle": "価格を共有", "shareLabel": "自分の価格を匿名で共有する", "shareSub": "購入価格と売却価格は、みんなのためのセット評価に役立ちます。公開されるのは中央値のみで、5人以上のコレクターが共有したセットに限ります。初期設定はオフです。", "shareOn": "ありがとうございます。あなたの価格がコミュニティの中央値に反映されます", "shareOff": "あなたの価格は共有されなくなりました", "blSalesSub": "BrickLinkストアの「Orders Received」をCSVでエクスポートしてください。売却したセットは売却価格とともにコレクションから外れ、実現利益に反映されます。「価格を共有」をオンにすると、匿名のコミュニティ中央値にも反映されます。"});
+Object.assign(ja.data, {"trainTitle": "写真認識", "trainLabel": "写真認識の改善に協力する", "trainSub": "スキャンした写真と、その後に追加したセットを保存し、BricksVault独自の認識の学習に使います。非公開で保存され、表示や共有はされません。セットを追加しなかった写真は30日後に削除されます。オフにするとすべて削除されます。初期設定はオフです。", "trainOn": "ありがとうございます。次回からの写真スキャンが認識の学習に役立ちます", "trainOff": "スキャン写真を削除しました。今後は保存されません"});
 
 // Deep-testing fixes (2026-11-13): sale of several copies, purchase checks,
 // US retail label, list catalog check, empty display name.

@@ -37,6 +37,15 @@ export const TABLE_DDL: Record<string, string> = {
   queried_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (set_num, source)
 )`,
+  training_scan_photos: `CREATE TABLE IF NOT EXISTS training_scan_photos (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  r2_key TEXT NOT NULL,
+  predicted_set_num TEXT,
+  confirmed_set_num TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  confirmed_at TEXT
+)`,
   set_description_i18n: `CREATE TABLE IF NOT EXISTS set_description_i18n (
   set_num TEXT NOT NULL,
   lang TEXT NOT NULL,
@@ -512,6 +521,7 @@ export const TABLE_DDL: Record<string, string> = {
   swaps_adult_at TEXT,
   email_off_at TEXT,
   contribute_community_comps INTEGER DEFAULT 0,
+  training_photos INTEGER DEFAULT 0,
   is_supporter INTEGER DEFAULT 0,
   supporter_since TEXT,
   stripe_customer_id TEXT,

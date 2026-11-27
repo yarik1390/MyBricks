@@ -294,6 +294,8 @@ jobs:
             "SELECT set_num, ok, embedded_at FROM siglip_embeddings LIMIT 0"
             "SELECT set_num, url, source, license, creator, landing_url FROM training_images LIMIT 0"
             "SELECT set_num, source, hits, queried_at FROM training_photo_queries LIMIT 0"
+            "SELECT id, user_id, r2_key, predicted_set_num, confirmed_set_num, confirmed_at FROM training_scan_photos LIMIT 0"
+            "SELECT training_photos FROM user_prefs LIMIT 0"
             "SELECT user_id, started_at, ending_notified_at, ended_notified_at FROM ai_trials LIMIT 0"
             "SELECT set_num, part_num, color_id, quantity FROM set_parts LIMIT 0"
             "SELECT user_id, set_num, part_num, missing_qty FROM user_missing_parts LIMIT 0"

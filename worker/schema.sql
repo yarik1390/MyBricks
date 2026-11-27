@@ -810,6 +810,7 @@ CREATE TABLE IF NOT EXISTS user_prefs (
   -- Opt-in: this user's purchase/sale prices may feed the anonymous k>=5
   -- community medians (jobs/community-comps.ts). Off unless they turn it on.
   contribute_community_comps INTEGER DEFAULT 0,
+  training_photos INTEGER DEFAULT 0,
   is_supporter INTEGER DEFAULT 0,
   supporter_since TEXT,
   stripe_customer_id TEXT,
@@ -1458,3 +1459,17 @@ CREATE TABLE IF NOT EXISTS training_photo_queries (
   queried_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (set_num, source)
 );
+-- Opt-in (user_prefs.training_photos): photo scans kept in R2 under
+-- training/scans/<user>/ to train the scan model; confirmed_set_num is the set
+-- the member then added. Unconfirmed photos are deleted after 30 days, all of a
+-- member's photos when they switch it off or delete the account.
+CREATE TABLE IF NOT EXISTS training_scan_photos (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  r2_key TEXT NOT NULL,
+  predicted_set_num TEXT,
+  confirmed_set_num TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  confirmed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_training_scan_photos_user ON training_scan_photos(user_id);

@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { deleteTrainingPhotos } from '../lib/training-scan-photos';
 import { SALES_CTE } from '../lib/realized-sales';
 import { requireMember } from '../auth';
 import { appLink } from '../lib/app-url';
@@ -97,7 +98,7 @@ app.get('/', async (c) => {
       `SELECT display_name, handle, is_public, expose_public_value, currency, retail_market,
               notify_price_drops, notify_weekly_digest, discord_webhook_url, brickset_user_hash, rebrickable_user_token, email, is_supporter,
               notify_sell_targets, notify_big_moves, notify_retiring, notify_back_in_stock,
-              quiet_hours, quiet_start, quiet_end, timezone, email_off_at, contribute_community_comps,
+              quiet_hours, quiet_start, quiet_end, timezone, email_off_at, contribute_community_comps, training_photos,
               kids_pin_hash, kids_xp, kids_level
        FROM user_prefs WHERE user_id=?`
     ).bind(userId).first<Record<string, unknown>>(),
@@ -165,6 +166,8 @@ app.get('/', async (c) => {
     notify_weekly_digest: p.notify_weekly_digest === 1,
     // Opt-in only: purchase/sale prices feed the k>=5 community medians.
     contribute_community_comps: p.contribute_community_comps === 1,
+    // Opt-in only: photo scans kept to train the scan model (deleteTrainingPhotos on off).
+    training_photos: p.training_photos === 1,
     ...notificationPrefsOut(p),
     ebay_configured: ebayConfigured,
     bricklink_configured: bricklinkConfigured,
@@ -202,6 +205,7 @@ app.patch('/', async (c) => {
     handle?: string; is_public?: boolean; expose_public_value?: boolean;
     discord_webhook_url?: string | null;
     contribute_community_comps?: boolean;
+    training_photos?: boolean;
   } & NotificationPrefsPatch>();
   const { display_name, currency, retail_market, notify_price_drops, notify_weekly_digest, handle, is_public, expose_public_value, discord_webhook_url } = body;
   if (display_name && display_name.length > 40) return c.json({ error: 'display_name max 40 chars' }, 400);
@@ -281,6 +285,13 @@ app.patch('/', async (c) => {
       `UPDATE user_prefs SET contribute_community_comps = ?, updated_at = datetime('now') WHERE user_id = ?`,
     ).bind(body.contribute_community_comps ? 1 : 0, userId).run();
   }
+  if (typeof body.training_photos === 'boolean') {
+    await c.env.DB.prepare(
+      `UPDATE user_prefs SET training_photos = ?, updated_at = datetime('now') WHERE user_id = ?`,
+    ).bind(body.training_photos ? 1 : 0, userId).run();
+    // Switching it off also deletes everything already shared.
+    if (!body.training_photos) await deleteTrainingPhotos(c.env, userId);
+  }
   const cols = Object.keys(notifyPatch.values);
   if (cols.length) {
     await c.env.DB.prepare(
@@ -322,13 +333,14 @@ export const USER_SCOPED_TABLES = [
   'price_guesses',
   'scan_requests',
   'scan_quota_reservations',
+  'training_scan_photos',
   'app_feedback',
   'user_prefs',
 ];
 
 // R2 prefixes that hold only this user's objects: collection photos, story
 // photos and the weekly collection backups (jobs/collection-backups.ts).
-export const userR2Prefixes = (userId: string) => [`${userId}/`, `stories/${userId}/`, `backups/${userId}/`];
+export const userR2Prefixes = (userId: string) => [`${userId}/`, `stories/${userId}/`, `backups/${userId}/`, `training/scans/${userId}/`];
 
 // DELETE /api/me — permanently delete the account and everything we hold about
 // the user. Required by both stores (Apple App Store Guideline 5.1.1(v) and

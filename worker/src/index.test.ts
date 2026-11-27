@@ -159,6 +159,7 @@ describe('BrickVault API Worker Tests', () => {
       'DROP TABLE IF EXISTS user_minifigs',
       'DROP TABLE IF EXISTS kids_badges',
       'DROP TABLE IF EXISTS user_prefs',
+      'DROP TABLE IF EXISTS training_scan_photos',
       'DROP TABLE IF EXISTS set_value_history',
       'DROP TABLE IF EXISTS minifigs',
 
@@ -318,6 +319,11 @@ describe('BrickVault API Worker Tests', () => {
         PRIMARY KEY (user_id, endpoint, window_start)
       )`,
 
+      `CREATE TABLE training_scan_photos (
+        id TEXT PRIMARY KEY, user_id TEXT NOT NULL, r2_key TEXT NOT NULL, predicted_set_num TEXT,
+        confirmed_set_num TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), confirmed_at TEXT
+      )`,
+
       `CREATE TABLE scan_requests (
         user_id TEXT NOT NULL,
         request_key TEXT NOT NULL,
@@ -422,6 +428,7 @@ describe('BrickVault API Worker Tests', () => {
 
       `CREATE TABLE user_prefs (
         user_id TEXT PRIMARY KEY,
+        training_photos INTEGER DEFAULT 0,
         google_refresh_token TEXT,
         google_spreadsheet_id TEXT,
         handle TEXT, display_name TEXT, currency TEXT DEFAULT 'USD',
@@ -1860,6 +1867,48 @@ describe('BrickVault API Worker Tests', () => {
       } finally {
         globalThis.fetch = previousFetch;
         (env as any).BRICKOGNIZE_ENABLED = '0';
+      }
+    });
+
+    it('keeps an opted-in photo scan for training and labels it on confirm', async () => {
+      const previousFetch = globalThis.fetch;
+      (env as any).BRICKOGNIZE_ENABLED = '1';
+      globalThis.fetch = vi.fn().mockImplementation((url: RequestInfo | URL) => {
+        if (url.toString().includes('api.brickognize.com')) {
+          return Promise.resolve(Response.json({ items: [{ id: '75192', name: 'Millennium Falcon', type: 'set', score: 0.92 }] }));
+        }
+        return previousFetch(url);
+      });
+      const store = new Map<string, unknown>();
+      const photoEnv = { ...(env as any), PHOTO_BUCKET: { put: async (k: string, v: unknown) => { store.set(k, v); }, delete: async () => {} } };
+      await db.prepare('INSERT OR IGNORE INTO user_prefs (user_id) VALUES (?)').bind(testUserId).run();
+      const scan = () => app.fetch(new Request('http://localhost/api/scan/identify', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'image', image: 'data:image/jpeg;base64,dHJhaW5pbmctcGhvdG8=' }),
+      }), photoEnv);
+      try {
+        // Off by default: nothing kept.
+        let data = await (await scan()).json<any>();
+        expect(data.identified).toBe(true);
+        expect(data.training_photo_id).toBeUndefined();
+        expect(store.size).toBe(0);
+        await db.prepare('UPDATE user_prefs SET training_photos=1 WHERE user_id=?').bind(testUserId).run();
+        data = await (await scan()).json<any>();
+        expect(data.training_photo_id).toMatch(/^[0-9a-f-]{36}$/);
+        expect([...store.keys()][0]).toBe(`training/scans/${testUserId}/${data.training_photo_id}.jpg`);
+        const confirm = await app.fetch(new Request(`http://localhost/api/scan/training-photo/${data.training_photo_id}/confirm`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ set_num: '75192-1' }),
+        }), photoEnv);
+        expect(await confirm.json()).toEqual({ ok: true });
+        const row = await db.prepare('SELECT predicted_set_num, confirmed_set_num FROM training_scan_photos WHERE id=?').bind(data.training_photo_id).first<any>();
+        expect(row).toEqual({ predicted_set_num: data.sets[0].set_num, confirmed_set_num: '75192-1' });
+      } finally {
+        globalThis.fetch = previousFetch;
+        (env as any).BRICKOGNIZE_ENABLED = '0';
+        await db.prepare('UPDATE user_prefs SET training_photos=0 WHERE user_id=?').bind(testUserId).run();
       }
     });
 

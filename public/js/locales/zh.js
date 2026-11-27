@@ -1903,6 +1903,7 @@ zh.dp = {"paid": "买入价", "gain": "收益", "sets": "套装", "today": "今�
 
 // Data & import → Share prices (community comps consent).
 Object.assign(zh.data, {"shareTitle": "分享价格", "shareLabel": "匿名分享我的价格", "shareSub": "你的买入价和卖出价能帮助为所有人估值套装。只公开中位数，并且仅在至少五位收藏者分享某套装后才公开。默认关闭。", "shareOn": "谢谢，你的价格现已计入社区中位数", "shareOff": "你的价格已不再分享", "blSalesSub": "从你的 BrickLink 店铺导出 “Orders Received” CSV。已售套装会带着售价离开你的收藏，并计入已实现收益。如果开启“分享价格”，这些价格也会计入匿名社区中位数。"});
+Object.assign(zh.data, {"trainTitle": "照片识别", "trainLabel": "帮助改进照片识别", "trainSub": "保存你扫描的照片以及你随后添加的套装，用于训练 BricksVault 自己的识别功能。私密存储，绝不展示或分享。未添加套装的照片会在 30 天后删除。关闭此项会删除全部照片。默认关闭。", "trainOn": "谢谢！你之后的照片扫描将帮助训练识别功能", "trainOff": "你的扫描照片已删除，今后不再保存"});
 
 // Deep-testing fixes (2026-11-13): sale of several copies, purchase checks,
 // US retail label, list catalog check, empty display name.
