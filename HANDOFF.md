@@ -48,6 +48,7 @@ notes in this file.
 
 | Agent | Branch | Area / files | Started | Status |
 |-------|--------|--------------|---------|--------|
+| Claude | claude/project-thread-x3wiv9 | Scan photo index: extra official views (LEGO.com/Brickset) as SigLIP vectors: jobs/siglip-backfill.ts, lib/siglip.ts, siglip.test.ts, schema (siglip_view_embeddings) | 2026-11-27 | working |
 | Claude | claude/project-thread-lj2n5w | Scan training photos: jobs/training-photos.ts, lego-stock-refresh + brightdata-parsers (gallery images), next: opt-in scan photo saving (scanner, settings, privacy) | 2026-11-27 | working |
 
 Old draft PRs #1, #2 (scanner OCR/CLIP experiments) and #31 (public
