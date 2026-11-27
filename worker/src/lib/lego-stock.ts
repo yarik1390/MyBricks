@@ -14,6 +14,8 @@ export interface LegoStockResult {
   // in_stock | out_of_stock | pre_order | back_order | coming_soon | sold_out | retiring | null.
   availability?: string | null;
   retail_price_usd?: number | null;
+  // LEGO.com gallery photo URLs from the product's JSON-LD (training_images).
+  images?: string[];
 }
 
 /** Treat absent/invalid extraction fields as unknown, never as false. */
@@ -27,7 +29,10 @@ export function normalizeLegoStockResult(data: unknown): LegoStockResult | null 
     availability: ['in_stock', 'out_of_stock', 'pre_order', 'back_order', 'coming_soon', 'sold_out', 'retiring'].includes(availability) ? availability : null,
     retail_price_usd: typeof d.retail_price_usd === 'number' && Number.isFinite(d.retail_price_usd) && d.retail_price_usd > 0 ? d.retail_price_usd : null,
   };
-  return Object.values(result).some((value) => value != null) ? result : null;
+  if (!Object.values(result).some((value) => value != null)) return null;
+  const images = Array.isArray(d.images) ? d.images.filter((u): u is string => typeof u === 'string' && /^https:\/\//.test(u)).slice(0, 20) : [];
+  if (images.length) result.images = images;
+  return result;
 }
 
 // Shared by scheduled and on-demand writers: an unknown field is not a deletion

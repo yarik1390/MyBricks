@@ -26,6 +26,7 @@ import { runImagePrewarm } from './jobs/image-prewarm';
 import { runSetImageBackfill } from './jobs/set-image-backfill';
 import { runTranslateDescriptions, translateBatchOpen } from './jobs/translate-descriptions';
 import { runEmbedSets } from './jobs/embed-sets';
+import { runTrainingPhotos } from './jobs/training-photos';
 import { runSiglipBackfill } from './jobs/siglip-backfill';
 import { indexMissingAlts } from './lib/build-alts';
 import { runUpcomingRefresh } from './jobs/upcoming-refresh';
@@ -581,6 +582,8 @@ export default {
         await run('set-image-backfill', () => runSetImageBackfill(env, { probeLimit: 150, resolveLimit: 40, scrapeLimit: 12 }));
         await run('embed-sets', () => runEmbedSets(env), { timeoutMs: 4 * 60_000 });
         break;
+      case '25 * * * *':
+        await run('training-photos', () => runTrainingPhotos(env), { maxAgeMinutes: 61, timeoutMs: 4 * 60_000 }); break;
       case '*/10 * * * *':
         await run('siglip-backfill', () => runSiglipBackfill(env), { maxAgeMinutes: 11, timeoutMs: 4 * 60_000 });
         break;

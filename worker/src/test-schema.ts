@@ -20,6 +20,23 @@ export const TABLE_DDL: Record<string, string> = {
   ok INTEGER NOT NULL DEFAULT 1,
   embedded_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`,
+  training_images: `CREATE TABLE IF NOT EXISTS training_images (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  set_num TEXT NOT NULL,
+  url TEXT NOT NULL UNIQUE,
+  source TEXT NOT NULL,
+  license TEXT,
+  creator TEXT,
+  landing_url TEXT,
+  added_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`,
+  training_photo_queries: `CREATE TABLE IF NOT EXISTS training_photo_queries (
+  set_num TEXT NOT NULL,
+  source TEXT NOT NULL,
+  hits INTEGER NOT NULL DEFAULT 0,
+  queried_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (set_num, source)
+)`,
   set_description_i18n: `CREATE TABLE IF NOT EXISTS set_description_i18n (
   set_num TEXT NOT NULL,
   lang TEXT NOT NULL,

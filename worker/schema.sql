@@ -1434,3 +1434,27 @@ CREATE TABLE IF NOT EXISTS siglip_embeddings (
   ok INTEGER NOT NULL DEFAULT 1,
   embedded_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Real-photo training set for the scan model (scripts/siglip-finetune):
+-- LEGO.com gallery photos (lego-stock-refresh), Creative Commons photos from
+-- Openverse (jobs/training-photos.ts, with licence + attribution). Brickset
+-- extra photos live in lego_sets.brickset_image_urls.
+CREATE TABLE IF NOT EXISTS training_images (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  set_num TEXT NOT NULL,
+  url TEXT NOT NULL UNIQUE,
+  source TEXT NOT NULL,
+  license TEXT,
+  creator TEXT,
+  landing_url TEXT,
+  added_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_training_images_set ON training_images(set_num);
+-- Which sets each photo source has been searched for (jobs/training-photos.ts).
+CREATE TABLE IF NOT EXISTS training_photo_queries (
+  set_num TEXT NOT NULL,
+  source TEXT NOT NULL,
+  hits INTEGER NOT NULL DEFAULT 0,
+  queried_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (set_num, source)
+);
