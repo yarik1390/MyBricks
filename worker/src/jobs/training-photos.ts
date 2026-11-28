@@ -50,7 +50,9 @@ export function throttleSeconds(body: string): number | null {
 /**
  * Bearer token for Openverse. Tokens last about 12 hours and the token endpoint
  * is rate limited on its own, so the token is kept in KV and reused instead of
- * being requested every hour. Returns the token or why there is none.
+ * being requested every hour. The token is normally put there by the
+ * "Openverse token" GitHub workflow, because Openverse throttles token requests
+ * from shared Workers IPs. Returns the token or why there is none.
  */
 async function openverseToken(env: Env): Promise<{ token: string | null; why?: string }> {
   if (!env.OPENVERSE_CLIENT_ID || !env.OPENVERSE_CLIENT_SECRET) return { token: null, why: 'no OPENVERSE_CLIENT_ID' };

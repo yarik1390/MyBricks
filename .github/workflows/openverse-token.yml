@@ -1,0 +1,61 @@
+name: Openverse token
+
+# Openverse's token endpoint throttles by IP, and Cloudflare Workers share
+# egress IPs, so the Worker's own token requests are refused for ~24 h at a
+# time (2026-11-27/28). Fetch the token from the GitHub runner instead and
+# store it in the Worker's KV (brickvault-cache, key openverse:token), where
+# jobs/training-photos.ts reads it. Searches with the token are limited per
+# token, not per IP, so they work from the Worker.
+
+on:
+  schedule:
+    - cron: "41 */8 * * *"   # tokens live ~12 h; refresh every 8 h
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  token:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      OPENVERSE_CLIENT_ID: ${{ secrets.OPENVERSE_CLIENT_ID }}
+      OPENVERSE_CLIENT_SECRET: ${{ secrets.OPENVERSE_CLIENT_SECRET }}
+    steps:
+      - name: Fetch Openverse token and store it in KV
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${OPENVERSE_CLIENT_ID}" ] || [ -z "${OPENVERSE_CLIENT_SECRET}" ]; then
+            echo "::notice::No Openverse credentials; nothing to do"; exit 0
+          fi
+          RESP=$(curl -s -w '\n%{http_code}' -X POST https://api.openverse.org/v1/auth_tokens/token/ \
+            -A 'BricksVault/1.0 (+https://bricksvault.app)' \
+            --data-urlencode grant_type=client_credentials \
+            --data-urlencode "client_id=${OPENVERSE_CLIENT_ID}" \
+            --data-urlencode "client_secret=${OPENVERSE_CLIENT_SECRET}")
+          CODE=$(echo "$RESP" | tail -n1)
+          BODY=$(echo "$RESP" | sed '$d')
+          if [ "$CODE" != "200" ]; then
+            echo "::error::Openverse token request failed: HTTP ${CODE} $(echo "$BODY" | head -c 200)"; exit 1
+          fi
+          TOKEN=$(echo "$BODY" | jq -r '.access_token // empty')
+          EXPIRES=$(echo "$BODY" | jq -r '.expires_in // 43200')
+          [ -n "$TOKEN" ] || { echo "::error::No access_token in reply"; exit 1; }
+          echo "::add-mask::${TOKEN}"
+          TTL=$(( EXPIRES > 1200 ? EXPIRES - 600 : 600 ))
+
+          KV_ID=$(curl -sf \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces?per_page=100" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            | jq -r '.result[] | select(.title=="brickvault-cache") | .id' | head -n1)
+          [ -n "$KV_ID" ] || { echo "::error::KV namespace brickvault-cache not found"; exit 1; }
+          BASE="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${KV_ID}/values"
+          printf '%s' "$TOKEN" | curl -sf -X PUT "${BASE}/openverse%3Atoken?expiration_ttl=${TTL}" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H 'Content-Type: text/plain' --data-binary @- >/dev/null
+          # Clear the Worker's own throttle note so the next run uses the token.
+          curl -s -X DELETE "${BASE}/openverse%3Abackoff-until" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" >/dev/null || true
+          echo "Stored Openverse token in KV (ttl ${TTL}s)"
