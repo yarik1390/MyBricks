@@ -66,8 +66,8 @@ export function acceptableTranslation(english: string, out: string, lang: string
 export const WORKERS_AI_TRANSLATE_MODEL = '@cf/google/gemma-4-26b-a4b-it';
 
 /**
- * Same translation on Workers AI, for the one-off catalog batch
- * (jobs/translate-descriptions.ts). Not used on the request path.
+ * Same translation on Workers AI. It ran the one-off catalog batch (done and
+ * removed 2026-11-28); kept for a re-run. Not used on the request path.
  */
 export async function translateDescriptionWorkersAi(
   env: Env, english: string, lang: string,
