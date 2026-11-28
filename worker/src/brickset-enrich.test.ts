@@ -183,6 +183,29 @@ describe('runBricksetEnrich Brickset API lane', () => {
     expect(q.used).toBe(1);
   });
 
+  it('counts a set the Brickset API does not know as no data, not a failure', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.includes('brickset.com/api/v3.asmx/getSets')) return Response.json({ status: 'success', matches: 0, sets: [] });
+      return new Response('blocked', { status: 403 });
+    }));
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, year, brickset_enriched_at) VALUES ('HQ1325-1','Promo', 2025, NULL)`).run();
+    const r = await runBricksetEnrich(apiEnv);
+    expect(r).toMatchObject({ processed: 1, updated: 0, failed: 0, no_data: 1 });
+  });
+
+  it('names the Brickset API error when every set fails', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.includes('brickset.com/api/v3.asmx/getSets')) return Response.json({ status: 'error', message: 'API limit exceeded' });
+      return new Response('blocked', { status: 403 });
+    }));
+    await db.prepare(`INSERT INTO lego_sets (set_num, name, year, brickset_enriched_at) VALUES ('10305-1','Lion Knights', 2022, NULL)`).run();
+    const r = await runBricksetEnrich(apiEnv) as { failed: number; reason?: string };
+    expect(r.failed).toBe(1);
+    expect(r.reason).toContain('Brickset API: API limit exceeded');
+  });
+
   it('leaves the reserve for users: no API call once only the reserve is left', async () => {
     await db.prepare(`INSERT INTO lego_sets (set_num, name, year, brickset_enriched_at) VALUES ('10305-1','Lion Knights', 2022, NULL)`).run();
     await db.prepare(`INSERT INTO api_quota (service, day, used, cap) VALUES ('brickset', ?1, ?2, ?3)`)
