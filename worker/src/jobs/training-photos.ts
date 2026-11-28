@@ -38,6 +38,14 @@ export function openverseMatches(setNum: string, img: OpenverseImage): boolean {
 }
 
 const TOKEN_KEY = 'openverse:token';
+/** Set while Openverse throttles us; value = ISO time it expects to accept again. */
+const BACKOFF_KEY = 'openverse:backoff-until';
+
+/** Seconds from Openverse's "Expected available in N seconds." throttle reply. */
+export function throttleSeconds(body: string): number | null {
+  const m = /available in (\d+) seconds/i.exec(body);
+  return m ? Number(m[1]) : null;
+}
 
 /**
  * Bearer token for Openverse. Tokens last about 12 hours and the token endpoint
@@ -48,13 +56,26 @@ async function openverseToken(env: Env): Promise<{ token: string | null; why?: s
   if (!env.OPENVERSE_CLIENT_ID || !env.OPENVERSE_CLIENT_SECRET) return { token: null, why: 'no OPENVERSE_CLIENT_ID' };
   const cached = await env.CACHE_KV?.get(TOKEN_KEY).catch(() => null);
   if (cached) return { token: cached };
+  // Asking again while throttled seems to extend the throttle (12k s became
+  // 80k s on 2026-11-27), so wait out the time Openverse gave us.
+  const backoff = await env.CACHE_KV?.get(BACKOFF_KEY).catch(() => null);
+  if (backoff && Date.parse(backoff) > Date.now()) return { token: null, why: `throttled until ${backoff}` };
   try {
     const res = await fetch(`${OPENVERSE}/auth_tokens/token/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': UA },
       body: new URLSearchParams({ grant_type: 'client_credentials', client_id: env.OPENVERSE_CLIENT_ID, client_secret: env.OPENVERSE_CLIENT_SECRET }),
     });
-    if (!res.ok) return { token: null, why: `token HTTP ${res.status}: ${(await res.text().catch(() => '')).slice(0, 100)}` };
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      const secs = res.status === 429 ? (throttleSeconds(text) ?? 3600) : null;
+      if (secs) {
+        const until = new Date(Date.now() + secs * 1000 + 60_000).toISOString();
+        await env.CACHE_KV?.put(BACKOFF_KEY, until, { expirationTtl: Math.max(60, secs + 120) }).catch(() => {});
+        return { token: null, why: `throttled until ${until}` };
+      }
+      return { token: null, why: `token HTTP ${res.status}: ${text.slice(0, 100)}` };
+    }
     const body = (await res.json()) as { access_token?: string; expires_in?: number };
     if (!body.access_token) return { token: null, why: 'token reply had no access_token' };
     const ttl = Math.max(60, Math.min(Number(body.expires_in) || 3600, 43_200) - 600);
@@ -66,6 +87,8 @@ async function openverseToken(env: Env): Promise<{ token: string | null; why?: s
 export async function runOpenversePhotos(env: Env, opts: { limit?: number; budgetMs?: number } = {}) {
   const { token, why } = await openverseToken(env);
   if (!env.OPENVERSE_CLIENT_ID) return { skipped: why ?? 'no OPENVERSE_CLIENT_ID' };
+  // Throttled: anonymous searches from Workers are throttled too, so just wait.
+  if (!token && why?.startsWith('throttled')) return { skipped: why };
   // Without a token Openverse still answers anonymously, at a lower rate, so
   // run a small batch instead of nothing and report why the token failed.
   const limit = token ? (opts.limit ?? 150) : Math.min(opts.limit ?? 150, 15);

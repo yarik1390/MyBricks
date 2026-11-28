@@ -294,6 +294,8 @@ export interface BricksetDetails {
 
 /** Last error Brickset's API gave (bad key, daily limit…), for job summaries. */
 export let lastBricksetApiError: string | null = null;
+/** True when the last getSets call succeeded but Brickset has no such set. */
+export let lastBricksetApiNoSuchSet = false;
 function noteBricksetReply(status: number, data: Record<string, unknown> | null): void {
   if (status !== 200) { lastBricksetApiError = `HTTP ${status}`; return; }
   const st = String(data?.status ?? '').trim().toLowerCase();
@@ -302,6 +304,7 @@ function noteBricksetReply(status: number, data: Record<string, unknown> | null)
 
 export async function fetchBricksetDetails(setNum: string, env: Env): Promise<BricksetDetails | null> {
   const apiKey = env.BRICKSET_API_KEY;
+  lastBricksetApiNoSuchSet = false;
   if (!apiKey) return null;
   try {
     const variantMatch = setNum.match(/^(.+)-(\d+)$/);
@@ -320,9 +323,11 @@ export async function fetchBricksetDetails(setNum: string, env: Env): Promise<Br
     const resp = await fetchTracked(env, 'brickset', `https://brickset.com/api/v3.asmx/getSets?${params}`, {
       headers: { Accept: 'application/json' },
     });
-    if (!resp.ok) return null;
+    if (!resp.ok) { noteBricksetReply(resp.status, null); return null; }
     const data = await resp.json() as Record<string, unknown>;
+    noteBricksetReply(200, data);
     const sets = (data.sets as Array<Record<string, unknown>>) ?? [];
+    lastBricksetApiNoSuchSet = !sets.length && String(data.status ?? '').trim().toLowerCase() === 'success';
     if (!sets.length) return null;
     const s = sets.find(x => (x.numberVariant as number) === variant) ?? sets[0];
 

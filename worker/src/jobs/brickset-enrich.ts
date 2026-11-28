@@ -4,7 +4,7 @@ import { firecrawlEnabled } from '../lib/pricing-flags';
 import { sourceEnabled } from '../lib/source-config';
 import { quotaRemaining, spendQuotaFailClosed } from '../lib/api-quota';
 import { isPlaceholderDescription } from '../lib/describe-i18n';
-import { fetchBricksetDetails, lastBricksetApiError, type BricksetDetails } from '../lib/brickset';
+import { fetchBricksetDetails, lastBricksetApiError, lastBricksetApiNoSuchSet, type BricksetDetails } from '../lib/brickset';
 import { brightDataUnlock } from '../lib/brightdata';
 import { brightDataEnabled } from '../lib/brightdata-keys';
 import { parseBricksetHtml, type BricksetScrape } from '../lib/brightdata-parsers';
@@ -191,6 +191,9 @@ export async function runBricksetEnrich(env: Env, options: { limit?: number; bud
         apiLaneLeft--;
         const details = await fetchBricksetDetails(set_num, env).catch(() => null);
         if (details) { data = detailsToScrape(details); apiLaneWorked = true; }
+        // Brickset's API answered and has no such set (promo/HQ numbers): that
+        // is verified no-data, not a provider failure.
+        else if (lastBricksetApiNoSuchSet) { apiLaneWorked = true; no_data++; attempt(set_num, 'no_data'); continue; }
       } else {
         apiLaneLeft = 0;
       }
